@@ -13,14 +13,14 @@ func builtinTechnical() *Theme {
 
 		// 技术风格的色彩方案 - 深灰色文本，白色背景，蓝色强调
 		Colors: ColorScheme{
-			Text:      "#2C3E50",
+			Text:       "#2C3E50",
 			Background: "#FFFFFF",
-			Heading:   "#1A5490",
-			Link:      "#0066CC",
-			CodeBg:    "#F5F7F9",
-			CodeText:  "#2C3E50",
-			Accent:    "#0066CC",
-			Border:    "#D4D4D4",
+			Heading:    "#1A5490",
+			Link:       "#0066CC",
+			CodeBg:     "#F5F7F9",
+			CodeText:   "#2C3E50",
+			Accent:     "#0066CC",
+			Border:     "#D4D4D4",
 		},
 
 		// 标准边距

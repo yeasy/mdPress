@@ -545,7 +545,6 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	return os.WriteFile(landingPath, []byte(b.String()), 0644)
 }
 
-
 func defaultLanguageTarget(landingDir string, summaries []languageBuildSummary) string {
 	if len(summaries) == 0 {
 		return ""

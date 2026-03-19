@@ -15,7 +15,9 @@ func TestParseSummaryBasic(t *testing.T) {
 * [Chapter 1](ch01.md)
 * [Chapter 2](ch02.md)
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -43,7 +45,9 @@ func TestParseSummaryNested(t *testing.T) {
     * [Sub 1.2.1](part1/sub.md)
 * [Part 2](part2/README.md)
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -63,7 +67,9 @@ func TestParseSummaryNested(t *testing.T) {
 func TestParseSummaryEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
-	os.WriteFile(path, []byte("# Summary\n\n"), 0644)
+	if err := os.WriteFile(path, []byte("# Summary\n\n"), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -80,7 +86,9 @@ func TestParseSummarySkipAnchors(t *testing.T) {
 	content := `* [Intro](#intro)
 * [Chapter 1](ch01.md)
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, _ := ParseSummary(path)
 	if len(chapters) != 1 {
@@ -99,7 +107,9 @@ func TestParseSummaryWithTabs(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
 	content := "* [A](a.md)\n\t* [B](b.md)\n"
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -120,15 +130,21 @@ func TestLoadWithSummary(t *testing.T) {
 	yaml := `book:
   title: "Test"
 `
-	os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+		t.Fatalf("write book.yaml failed: %v", err)
+	}
 
 	// SUMMARY.md provides chapters
 	summary := "* [Intro](intro.md)\n* [Ch1](ch1.md)\n"
-	os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
-		os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644)
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+			t.Fatalf("write chapter file failed: %v", err)
+		}
 	}
 
 	cfg, err := Load(filepath.Join(dir, "book.yaml"))
@@ -143,11 +159,17 @@ func TestLoadWithSummary(t *testing.T) {
 func TestLoadDetectsGlossary(t *testing.T) {
 	dir := t.TempDir()
 	yaml := "book:\n  title: Test\nchapters:\n  - title: ch\n    file: ch.md\n"
-	os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644)
-	os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nfoo\n"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+		t.Fatalf("write book.yaml failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nfoo\n"), 0644); err != nil {
+		t.Fatalf("write GLOSSARY.md failed: %v", err)
+	}
 
 	// Create chapter file
-	os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0644); err != nil {
+		t.Fatalf("write chapter file failed: %v", err)
+	}
 
 	cfg, err := Load(filepath.Join(dir, "book.yaml"))
 	if err != nil {
@@ -169,7 +191,9 @@ func TestParseSummarySpecialChars(t *testing.T) {
 * [Quote "marks"](ch3.md)
 * [Math: a & b](ch4.md)
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -204,7 +228,9 @@ func TestParseSummaryDeepNesting(t *testing.T) {
       * [Level 4](l4.md)
         * [Level 5](l5.md)
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -257,7 +283,9 @@ func TestParseSummaryMixedIndent(t *testing.T) {
 	path := filepath.Join(dir, "SUMMARY.md")
 	// 混合使用空格和 tab - 第一级 2 个空格，第二级 1 个 tab（算作 2 个空格）
 	content := "* [Part A](a.md)\n  * [Section A1](a1.md)\n\t* [Section A2](a2.md)\n* [Part B](b.md)\n"
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {
@@ -349,7 +377,9 @@ Another item
 
 And some more content...
 `
-	os.WriteFile(path, []byte(content), 0644)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
 
 	chapters, err := ParseSummary(path)
 	if err != nil {

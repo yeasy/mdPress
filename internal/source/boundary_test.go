@@ -46,8 +46,14 @@ func TestLocalSource_PermissionDenied(t *testing.T) {
 	// 创建无读取权限的目录
 	tempDir := t.TempDir()
 	noReadDir := filepath.Join(tempDir, "noperm")
-	os.MkdirAll(noReadDir, 0000)
-	defer os.Chmod(noReadDir, 0755) // 恢复权限以便清理
+	if err := os.MkdirAll(noReadDir, 0000); err != nil {
+		t.Fatalf("创建无权限目录失败: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(noReadDir, 0755); err != nil {
+			t.Logf("恢复目录权限失败: %v", err)
+		}
+	}()
 
 	src := NewLocalSource(noReadDir, Options{})
 	result, err := src.Prepare()
@@ -63,7 +69,9 @@ func TestLocalSource_SymlinkPath(t *testing.T) {
 
 	// 创建实际目录
 	realDir := filepath.Join(tempDir, "real")
-	os.MkdirAll(realDir, 0755)
+	if err := os.MkdirAll(realDir, 0755); err != nil {
+		t.Fatalf("创建实际目录失败: %v", err)
+	}
 
 	// 创建符号链接
 	linkDir := filepath.Join(tempDir, "link")
@@ -90,8 +98,14 @@ func TestLocalSource_SubDirPermission(t *testing.T) {
 
 	tempDir := t.TempDir()
 	subDir := filepath.Join(tempDir, "restricted")
-	os.MkdirAll(subDir, 0000)
-	defer os.Chmod(subDir, 0755)
+	if err := os.MkdirAll(subDir, 0000); err != nil {
+		t.Fatalf("创建受限子目录失败: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(subDir, 0755); err != nil {
+			t.Logf("恢复子目录权限失败: %v", err)
+		}
+	}()
 
 	src := NewLocalSource(tempDir, Options{SubDir: "restricted"})
 	result, err := src.Prepare()
@@ -106,7 +120,9 @@ func TestLocalSource_DeepNestedPath(t *testing.T) {
 
 	// 创建深层嵌套目录
 	deepPath := filepath.Join(tempDir, "a", "b", "c", "d", "e", "f")
-	os.MkdirAll(deepPath, 0755)
+	if err := os.MkdirAll(deepPath, 0755); err != nil {
+		t.Fatalf("创建深层嵌套目录失败: %v", err)
+	}
 
 	src := NewLocalSource(tempDir, Options{SubDir: "a/b/c/d/e/f"})
 	result, err := src.Prepare()
@@ -143,7 +159,9 @@ func TestLocalSource_SpecialCharsInPath(t *testing.T) {
 func TestLocalSource_EmptyDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	emptyDir := filepath.Join(tempDir, "empty")
-	os.MkdirAll(emptyDir, 0755)
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatalf("创建空目录失败: %v", err)
+	}
 
 	src := NewLocalSource(emptyDir, Options{})
 	result, err := src.Prepare()
@@ -258,7 +276,9 @@ func TestDetect_OptionsPassthrough(t *testing.T) {
 // TestLocalSource_PathTraversal 测试路径穿越攻击场景
 func TestLocalSource_PathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tempDir, "docs"), 0755)
+	if err := os.MkdirAll(filepath.Join(tempDir, "docs"), 0755); err != nil {
+		t.Fatalf("创建 docs 目录失败: %v", err)
+	}
 
 	// 子目录使用 .. 尝试路径穿越
 	src := NewLocalSource(tempDir, Options{SubDir: "../../../etc"})

@@ -158,7 +158,9 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		server.Shutdown(shutdownCtx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			s.logger.Debug("Server shutdown returned error", slog.String("error", err.Error()))
+		}
 	}()
 
 	fmt.Printf("\n📖 mdpress Live Preview Server\n\n")
@@ -239,7 +241,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.logger.Debug("WebSocket client connected", slog.Int("total", len(s.clients)))
 
 	// Send the connection acknowledgment.
-	client.writeMessage(websocket.TextMessage, []byte("connected"))
+	if err := client.writeMessage(websocket.TextMessage, []byte("connected")); err != nil {
+		s.logger.Debug("Failed to send WebSocket ack", slog.String("error", err.Error()))
+	}
 
 	// Keep reading to detect disconnects.
 	defer func() {
@@ -405,7 +409,9 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Write([]byte(injected))
+		if _, err := w.Write([]byte(injected)); err != nil {
+			s.logger.Debug("Failed to write HTTP response", slog.String("error", err.Error()))
+		}
 	})
 }
 
@@ -583,7 +589,7 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 
 // scanModTimes records file modification times.
 func (s *Server) scanModTimes(modTimes map[string]time.Time) {
-	filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -599,7 +605,9 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 			modTimes[path] = info.ModTime()
 		}
 		return nil
-	})
+	}); err != nil {
+		s.logger.Debug("Failed to scan modification times", slog.String("error", err.Error()))
+	}
 }
 
 // checkForChanges reports whether any watched files changed.
@@ -607,7 +615,7 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 	changed := false
 	newModTimes := make(map[string]time.Time)
 
-	filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -626,7 +634,9 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		s.logger.Debug("Failed to walk watch directory", slog.String("error", err.Error()))
+	}
 
 	// Detect deleted files.
 	for path := range modTimes {
@@ -667,5 +677,7 @@ func openBrowser(url string) {
 		return
 	}
 
-	exec.Command(cmd, args...).Start()
+	if err := exec.Command(cmd, args...).Start(); err != nil {
+		return
+	}
 }

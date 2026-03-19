@@ -25,7 +25,7 @@ func newHeadingIDTransformer() parser.ASTTransformer {
 // Transform 遍历 AST，为所有标题节点生成 ID
 func (t *headingIDTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
 	source := reader.Source()
-	ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if err := ast.Walk(node, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -33,7 +33,9 @@ func (t *headingIDTransformer) Transform(node *ast.Document, reader text.Reader,
 			t.processHeading(heading, source)
 		}
 		return ast.WalkContinue, nil
-	})
+	}); err != nil {
+		return
+	}
 }
 
 // processHeading 为单个标题节点设置 ID 属性

@@ -31,13 +31,12 @@
 
 1. Fork 本仓库
 2. 创建功能分支：`git checkout -b feature/my-feature`
-3. 编写代码并添加测试
-4. 确保所有测试通过：`make test`
-5. 确保代码检查通过：`make lint`
-6. 格式化代码：`make fmt`
-7. 提交更改：`git commit -m "feat: 添加新功能"`
-8. 推送分支：`git push origin feature/my-feature`
-9. 创建 Pull Request，描述你的变更内容和动机
+3. 安装 pre-commit hook：`make hooks`
+4. 编写代码并添加测试
+5. 提交更改：`git commit -m "feat: 添加新功能"`
+   pre-commit hook 会自动运行 gofmt、go vet、golangci-lint、编译检查和快速测试。
+6. 推送分支：`git push origin feature/my-feature`
+7. 创建 Pull Request，描述你的变更内容和动机
 
 ## 开发环境搭建
 

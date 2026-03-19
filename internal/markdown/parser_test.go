@@ -326,7 +326,9 @@ func TestSetCodeTheme(t *testing.T) {
 // TestGetHeadings 测试获取标题列表
 func TestGetHeadings(t *testing.T) {
 	parser := NewParser()
-	parser.Parse([]byte("# A\n\n## B"))
+	if _, _, err := parser.Parse([]byte("# A\n\n## B")); err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
 
 	headings := parser.GetHeadings()
 	if len(headings) != 2 {
@@ -470,11 +472,11 @@ func TestParseNestedCodeBlock(t *testing.T) {
 	}{
 		{
 			name: "列表中的代码块",
-			md: "- 第一项\n\n  ```go\n  fmt.Println(\"hello\")\n  ```\n- 第二项",
+			md:   "- 第一项\n\n  ```go\n  fmt.Println(\"hello\")\n  ```\n- 第二项",
 		},
 		{
 			name: "引用块中的代码块",
-			md: "> 这是一个引用\n>\n> ```python\n> print('hello')\n> ```",
+			md:   "> 这是一个引用\n>\n> ```python\n> print('hello')\n> ```",
 		},
 	}
 
@@ -540,10 +542,10 @@ func TestParseImageWithTitle(t *testing.T) {
 func TestParseLinkVariations(t *testing.T) {
 	parser := NewParser()
 	tests := []struct {
-		name     string
-		md       string
-		hasHref  string
-		hasText  string
+		name    string
+		md      string
+		hasHref string
+		hasText string
 	}{
 		{
 			name:    "普通链接",

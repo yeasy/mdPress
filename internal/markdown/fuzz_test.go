@@ -35,7 +35,7 @@ func FuzzParse(f *testing.F) {
 	parser := NewParser()
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// The parser should never panic on any input.
-		parser.Parse(data)
-		parser.ParseWithDiagnostics(data)
+		_, _, _ = parser.Parse(data)
+		_, _, _, _ = parser.ParseWithDiagnostics(data)
 	})
 }

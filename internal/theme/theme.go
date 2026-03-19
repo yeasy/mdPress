@@ -212,7 +212,7 @@ func (t *Theme) ToCSS() string {
 	var css strings.Builder
 
 	css.WriteString("/* Auto-generated theme CSS */\n")
-	css.WriteString(fmt.Sprintf(":root {\n"))
+	css.WriteString(":root {\n")
 	css.WriteString(fmt.Sprintf("  --font-family: %s;\n", quoteFontFamily(t.FontFamily)))
 	css.WriteString(fmt.Sprintf("  --font-size: %dpt;\n", t.FontSize))
 	css.WriteString(fmt.Sprintf("  --line-height: %.2f;\n", t.LineHeight))

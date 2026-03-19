@@ -31,13 +31,12 @@ Feature suggestions are welcome. Please describe in the issue:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Write code and add tests
-4. Ensure all tests pass: `make test`
-5. Ensure lint passes: `make lint`
-6. Format code: `make fmt`
-7. Commit changes: `git commit -m "feat: add new feature"`
-8. Push the branch: `git push origin feature/my-feature`
-9. Open a Pull Request describing your changes and motivation
+3. Install pre-commit hooks: `make hooks`
+4. Write code and add tests
+5. Commit changes: `git commit -m "feat: add new feature"`
+   The pre-commit hook automatically runs gofmt, go vet, golangci-lint, build, and fast tests.
+6. Push the branch: `git push origin feature/my-feature`
+7. Open a Pull Request describing your changes and motivation
 
 ## Development Setup
 

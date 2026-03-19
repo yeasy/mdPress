@@ -85,7 +85,9 @@ func TestBuildCommand_HelpContainsExamples(t *testing.T) {
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Logf("build --help 错误: %v", err)
+	}
 	output := out.String()
 
 	if !strings.Contains(output, "mdpress build") {
@@ -140,7 +142,9 @@ func TestThemesCommand_Help(t *testing.T) {
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		t.Logf("themes --help 错误: %v", err)
+	}
 	output := out.String()
 
 	if !strings.Contains(output, "list") {
@@ -185,7 +189,7 @@ func TestPersistentFlags(t *testing.T) {
 	// 验证 --config 持久标志存在
 	flag := rootCmd.PersistentFlags().Lookup("config")
 	if flag == nil {
-		t.Error("应存在 --config 持久标志")
+		t.Fatal("应存在 --config 持久标志")
 	}
 	if flag.DefValue != "book.yaml" {
 		t.Errorf("--config 默认值应为 'book.yaml', 实际 %q", flag.DefValue)
@@ -194,7 +198,7 @@ func TestPersistentFlags(t *testing.T) {
 	// 验证 --verbose 持久标志存在
 	flag = rootCmd.PersistentFlags().Lookup("verbose")
 	if flag == nil {
-		t.Error("应存在 --verbose 持久标志")
+		t.Fatal("应存在 --verbose 持久标志")
 	}
 	if flag.DefValue != "false" {
 		t.Errorf("--verbose 默认值应为 'false', 实际 %q", flag.DefValue)
@@ -205,7 +209,7 @@ func TestPersistentFlags(t *testing.T) {
 func TestBuildCommand_Flags(t *testing.T) {
 	flag := buildCmd.Flags().Lookup("format")
 	if flag == nil {
-		t.Error("build 应有 --format 标志")
+		t.Fatal("build 应有 --format 标志")
 	}
 	if flag.DefValue != "" {
 		t.Errorf("--format 默认值应为空, 实际 %q", flag.DefValue)
@@ -231,7 +235,7 @@ func TestBuildCommand_Flags(t *testing.T) {
 func TestServeCommand_Flags(t *testing.T) {
 	flag := serveCmd.Flags().Lookup("port")
 	if flag == nil {
-		t.Error("serve 应有 --port 标志")
+		t.Fatal("serve 应有 --port 标志")
 	}
 	if flag.DefValue != "9000" {
 		t.Errorf("--port 默认值应为 9000, 实际 %q", flag.DefValue)

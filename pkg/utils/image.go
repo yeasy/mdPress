@@ -100,7 +100,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		return "", fmt.Errorf("failed to save image: %w", err)
 	}
 	if written > MaxImageSize {
-		os.Remove(destPath)
+		_ = os.Remove(destPath)
 		return "", fmt.Errorf("image exceeds maximum allowed size of %d bytes: %q", MaxImageSize, urlStr)
 	}
 

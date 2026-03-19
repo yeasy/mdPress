@@ -107,7 +107,11 @@ func executeBuild(inputSource string) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse input source: %w", err)
 		}
-		defer src.Cleanup()
+		defer func() {
+			if err := src.Cleanup(); err != nil {
+				logger.Debug("Failed to clean up source", slog.String("error", err.Error()))
+			}
+		}()
 
 		logger.Info("Preparing build source", slog.String("type", src.Type()), slog.String("source", inputSource))
 
@@ -231,7 +235,6 @@ func getPageDimensions(size string) (width, height float64) {
 	}
 }
 
-
 func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
 	if len(chapters) == 0 || len(chapters) != len(chapterFiles) {
 		return chapters
@@ -263,4 +266,3 @@ func rewriteMarkdownLinksInHTML(htmlContent string, currentFile string, targets 
 	}
 	return linkrewrite.RewriteLinks(htmlContent, currentFile, typedTargets, linkrewrite.ModeSingle)
 }
-

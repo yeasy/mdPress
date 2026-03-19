@@ -122,7 +122,9 @@ func executeServe(inputSource string, opts ServeOptions) error {
 
 	defer func() {
 		if srcCleanup != nil {
-			srcCleanup()
+			if err := srcCleanup(); err != nil {
+				logger.Debug("Failed to clean up source", slog.String("error", err.Error()))
+			}
 		}
 	}()
 
@@ -212,16 +214,20 @@ func executeServe(inputSource string, opts ServeOptions) error {
 		// Rename the old dir out of the way first, then rename the new dir in.
 		// This minimizes the window where no content is available.
 		backupDir := outputDir + ".old"
-		os.RemoveAll(backupDir)
-		os.Rename(outputDir, backupDir) // Best-effort; may fail if outputDir does not exist yet.
+		_ = os.RemoveAll(backupDir)
+		if err := os.Rename(outputDir, backupDir); err != nil && !os.IsNotExist(err) {
+			logger.Debug("Failed to move previous output aside", slog.String("error", err.Error()))
+		}
 		if renameErr := os.Rename(tempOutput, outputDir); renameErr != nil {
 			// Restore the previous build if the swap failed.
-			os.Rename(backupDir, outputDir)
-			os.RemoveAll(tempOutput)
+			if err := os.Rename(backupDir, outputDir); err != nil && !os.IsNotExist(err) {
+				logger.Debug("Failed to restore previous output", slog.String("error", err.Error()))
+			}
+			_ = os.RemoveAll(tempOutput)
 			// Fallback: if rename fails (cross-device), try the direct build.
 			return buildSiteForServe(newCfg, outputDir, logger)
 		}
-		os.RemoveAll(backupDir)
+		_ = os.RemoveAll(backupDir)
 		return nil
 	}
 

@@ -231,7 +231,6 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	return buf.String()
 }
 
-
 // escapeURL escapes URL-sensitive characters.
 func escapeURL(u string) string {
 	// Apply minimal escaping to avoid injection.

@@ -189,5 +189,3 @@ func slugify(s string) string {
 	reg := regexp.MustCompile(`[^a-z0-9\-\p{L}]`)
 	return reg.ReplaceAllString(s, "")
 }
-
-

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# mdpress pre-commit hook
+# Delegates all checks to `make check` so the logic stays in one place.
+# Install with: make hooks
+
+set -euo pipefail
+
+# Skip if no Go files are staged.
+if ! git diff --cached --name-only --diff-filter=ACM | grep -q '\.go$'; then
+    exit 0
+fi
+
+exec make check

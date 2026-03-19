@@ -3,7 +3,6 @@ package cmd
 import (
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/markdown"
-	"github.com/yeasy/mdpress/internal/output"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/toc"
 )
@@ -87,18 +86,6 @@ func toRendererNavHeadings(items []navHeading) []renderer.NavHeading {
 			Title:    item.Title,
 			ID:       item.ID,
 			Children: toRendererNavHeadings(item.Children),
-		})
-	}
-	return result
-}
-
-func toSiteNavHeadings(items []navHeading) []output.SiteNavHeading {
-	result := make([]output.SiteNavHeading, 0, len(items))
-	for _, item := range items {
-		result = append(result, output.SiteNavHeading{
-			Title:    item.Title,
-			ID:       item.ID,
-			Children: toSiteNavHeadings(item.Children),
 		})
 	}
 	return result

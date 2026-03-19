@@ -98,6 +98,9 @@ func rewriteHref(href string, currentDir string, targets map[string]Target, mode
 	}
 
 	targetPath := NormalizePath(filepath.Join(currentDir, pathPart))
+	if ext := filepath.Ext(targetPath); ext != "" {
+		targetPath = strings.TrimSuffix(targetPath, ext) + strings.ToLower(ext)
+	}
 	target, ok := targets[targetPath]
 	if !ok {
 		return "", false, true

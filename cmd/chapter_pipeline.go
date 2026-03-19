@@ -19,11 +19,11 @@ import (
 
 // ChapterPipelineResult encapsulates the output of chapter processing.
 type ChapterPipelineResult struct {
-	Chapters      []renderer.ChapterHTML
-	ChapterFiles  []string
-	Issues        []projectIssue
-	AllHeadings   []toc.HeadingInfo
-	Resolver      *crossref.Resolver
+	Chapters       []renderer.ChapterHTML
+	ChapterFiles   []string
+	Issues         []projectIssue
+	AllHeadings    []toc.HeadingInfo
+	Resolver       *crossref.Resolver
 	HeadingRecords []chapterHeadingRecord
 }
 

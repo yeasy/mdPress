@@ -183,7 +183,9 @@ func TestCopyFileNonExistent(t *testing.T) {
 func TestCopyFileIsDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	srcDir := filepath.Join(tmpDir, "srcdir")
-	os.Mkdir(srcDir, 0755)
+	if err := os.Mkdir(srcDir, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
 
 	err := CopyFile(srcDir, filepath.Join(tmpDir, "dst"))
 	if err == nil {
@@ -196,7 +198,9 @@ func TestCopyFileAutoCreateDstDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	srcPath := filepath.Join(tmpDir, "src.txt")
-	os.WriteFile(srcPath, []byte("data"), 0644)
+	if err := os.WriteFile(srcPath, []byte("data"), 0644); err != nil {
+		t.Fatalf("write src file failed: %v", err)
+	}
 
 	dstPath := filepath.Join(tmpDir, "new", "dir", "dst.txt")
 	err := CopyFile(srcPath, dstPath)

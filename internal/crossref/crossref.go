@@ -33,21 +33,21 @@ type Reference struct {
 
 // Resolver 管理所有的交叉引用和自动编号
 type Resolver struct {
-	mu        sync.RWMutex              // 并发访问锁
-	figures   map[string]*Reference     // 图片的ID到引用的映射
-	tables    map[string]*Reference     // 表格的ID到引用的映射
-	sections  map[string]*Reference     // 章节的ID到引用的映射
-	figCount  int                       // 图片计数器
-	tabCount  int                       // 表格计数器
+	mu            sync.RWMutex          // 并发访问锁
+	figures       map[string]*Reference // 图片的ID到引用的映射
+	tables        map[string]*Reference // 表格的ID到引用的映射
+	sections      map[string]*Reference // 章节的ID到引用的映射
+	figCount      int                   // 图片计数器
+	tabCount      int                   // 表格计数器
 	sectionCounts map[int]int           // 按级别的章节计数器
 }
 
 // NewResolver 创建一个新的交叉引用解析器实例
 func NewResolver() *Resolver {
 	return &Resolver{
-		figures:        make(map[string]*Reference),
-		tables:         make(map[string]*Reference),
-		sections:       make(map[string]*Reference),
+		figures:       make(map[string]*Reference),
+		tables:        make(map[string]*Reference),
+		sections:      make(map[string]*Reference),
 		sectionCounts: make(map[int]int),
 	}
 }
@@ -346,4 +346,3 @@ func (r *Resolver) Reset() {
 	r.tabCount = 0
 	r.sectionCounts = make(map[int]int)
 }
-

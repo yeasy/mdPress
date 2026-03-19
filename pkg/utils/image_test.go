@@ -129,7 +129,9 @@ func TestProcessImagesLocalEmbed(t *testing.T) {
 
 	// 创建图片文件
 	imgPath := filepath.Join(tmpDir, "image.png")
-	os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
+	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
 
 	html := `<img src="image.png">`
 	result, err := ProcessImages(html, tmpDir, true)
@@ -149,7 +151,9 @@ func TestProcessImagesLocalEmbed(t *testing.T) {
 func TestProcessImagesNoEmbed(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "image.png")
-	os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644)
+	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
 
 	html := `<img src="image.png">`
 	result, err := ProcessImages(html, tmpDir, false)
@@ -210,7 +214,9 @@ func TestProcessImagesMultiple(t *testing.T) {
 
 	// 创建两个图片
 	for _, name := range []string{"a.png", "b.jpg"} {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte{1, 2, 3}, 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte{1, 2, 3}, 0644); err != nil {
+			t.Fatalf("write image %s failed: %v", name, err)
+		}
 	}
 
 	html := `<img src="a.png"><p>text</p><img src="b.jpg">`
@@ -228,7 +234,9 @@ func TestProcessImagesMultiple(t *testing.T) {
 // TestProcessImagesWithAttributes 测试带属性的 img 标签
 func TestProcessImagesWithAttributes(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, "img.png"), []byte{1, 2}, 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "img.png"), []byte{1, 2}, 0644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
 
 	html := `<img class="photo" src="img.png" alt="test" width="100">`
 	result, err := ProcessImages(html, tmpDir, true)
@@ -257,7 +265,9 @@ func TestProcessImagesNoImages(t *testing.T) {
 func TestProcessImagesAbsolutePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "abs.png")
-	os.WriteFile(imgPath, []byte{1, 2, 3}, 0644)
+	if err := os.WriteFile(imgPath, []byte{1, 2, 3}, 0644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
 
 	html := `<img src="` + imgPath + `">`
 	result, err := ProcessImages(html, "/other/dir", true)

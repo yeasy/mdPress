@@ -17,13 +17,13 @@ import (
 
 // BuildContext carries all data needed by format builders.
 type BuildContext struct {
-	Config           *config.BookConfig
-	Theme            *theme.Theme
-	SinglePageParts  *renderer.RenderParts
-	ChaptersHTML     []renderer.ChapterHTML
-	ChapterFiles     []string
-	CustomCSS        string
-	Logger           *slog.Logger
+	Config          *config.BookConfig
+	Theme           *theme.Theme
+	SinglePageParts *renderer.RenderParts
+	ChaptersHTML    []renderer.ChapterHTML
+	ChapterFiles    []string
+	CustomCSS       string
+	Logger          *slog.Logger
 }
 
 // FormatBuilder generates output in a specific format.

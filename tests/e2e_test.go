@@ -161,7 +161,7 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// 创建一些 Markdown 文件（不包含 book.yaml）
-	os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(`# 简介
+	if err := os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(`# 简介
 
 这是一个零配置测试。
 
@@ -169,9 +169,11 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 
 - 自动发现 Markdown 文件
 - 无需配置文件
-`), 0644)
+`), 0644); err != nil {
+		t.Fatalf("write intro.md failed: %v", err)
+	}
 
-	os.WriteFile(filepath.Join(tempDir, "chapter1.md"), []byte(`# 第一章 快速开始
+	if err := os.WriteFile(filepath.Join(tempDir, "chapter1.md"), []byte(`# 第一章 快速开始
 
 ## 安装
 
@@ -182,7 +184,9 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 ## 使用
 
 运行 mdpress build 即可。
-`), 0644)
+`), 0644); err != nil {
+		t.Fatalf("write chapter1.md failed: %v", err)
+	}
 
 	// 使用 Discover 进行零配置加载
 	cfg, err := config.Discover(tempDir)

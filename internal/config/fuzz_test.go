@@ -27,10 +27,14 @@ func FuzzParseSummary(f *testing.F) {
 		// Write to a temp file then parse.
 		tmpDir := t.TempDir()
 		summaryPath := filepath.Join(tmpDir, "SUMMARY.md")
-		os.WriteFile(summaryPath, []byte(data), 0644)
+		if err := os.WriteFile(summaryPath, []byte(data), 0644); err != nil {
+			t.Fatalf("write SUMMARY.md failed: %v", err)
+		}
 
-		// Create dummy .md files referenced in the data so parsing doesn't fail on missing files.
-		// The parser should handle missing files gracefully.
-		ParseSummary(summaryPath)
+		// The parser must handle arbitrary input gracefully (no panics).
+		// Errors are expected and intentionally discarded.
+		result, err := ParseSummary(summaryPath)
+		_ = err    // fuzz: errors are expected
+		_ = result // fuzz: result is not validated
 	})
 }

@@ -416,31 +416,6 @@ func detectCoverImage(dir string) string {
 	return ""
 }
 
-// generateDefaultBookYAML returns the default config for an empty project.
-func generateDefaultBookYAML() string {
-	return `book:
-  title: "My First Book"
-  author: "Author Name"
-  version: "1.0.0"
-  language: "en-US"
-
-chapters:
-  - title: "Preface"
-    file: "preface.md"
-  - title: "Chapter 1"
-    file: "chapter01/README.md"
-
-style:
-  theme: "technical"
-  page_size: "A4"
-
-output:
-  filename: "my-first-book.pdf"
-  toc: true
-  cover: true
-`
-}
-
 // generateBookYAMLNoChapters generates book.yaml without chapters for SUMMARY.md-based projects.
 func generateBookYAMLNoChapters(projectName string, coverImage string) string {
 	var b strings.Builder

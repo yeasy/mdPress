@@ -102,7 +102,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	if err != nil {
 		return err
 	}
-	mimeWriter.Write([]byte("application/epub+zip"))
+	if _, err := mimeWriter.Write([]byte("application/epub+zip")); err != nil {
+		return fmt.Errorf("failed to write mimetype entry: %w", err)
+	}
 
 	// 2. META-INF/container.xml
 	if err := writeZipFile(w, "META-INF/container.xml", containerXML); err != nil {

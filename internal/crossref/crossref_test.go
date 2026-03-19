@@ -188,7 +188,7 @@ func TestAddCaptionsNoDuplicate(t *testing.T) {
 
 	count := strings.Count(result, "figcaption")
 	if count != 2 { // 开标签 + 闭标签
-		// 已有 figcaption 不应再添加
+		t.Errorf("已有 figcaption 时应只保留原有一个 figcaption，实际标签计数 %d", count)
 	}
 	if strings.Contains(result, "图1") {
 		t.Error("已有 figcaption 时不应再添加编号标题")
@@ -239,7 +239,7 @@ func TestConcurrentAccess(t *testing.T) {
 		go func(n int) {
 			r.RegisterFigure("fig_concurrent", "并发图")
 			r.RegisterTable("tab_concurrent", "并发表")
-			r.Resolve("fig_concurrent")
+			_, _ = r.Resolve("fig_concurrent")
 			r.ProcessHTML("{{ref:fig_concurrent}}")
 			done <- true
 		}(i)
@@ -343,8 +343,8 @@ func TestRegisterSectionDeepNesting(t *testing.T) {
 	r.RegisterSection("detail2_1_1_1", "第2.1.1.1条", 4)
 
 	tests := []struct {
-		id       string
-		wantNum  string
+		id      string
+		wantNum string
 	}{
 		{"ch1", "1"},
 		{"sec1_1", "1.1"},

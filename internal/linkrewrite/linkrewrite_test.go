@@ -153,12 +153,14 @@ func TestRewriteLinks_EdgeCases(t *testing.T) {
 		name        string
 		html        string
 		currentFile string
+		targets     map[string]Target
 		want        string
 	}{
 		{
 			name:        "empty targets map returns unchanged",
 			html:        `<a href="chapter.md">Link</a>`,
 			currentFile: "README.md",
+			targets:     map[string]Target{},
 			want:        `<a href="chapter.md">Link</a>`,
 		},
 		{
@@ -219,7 +221,11 @@ func TestRewriteLinks_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RewriteLinks(tt.html, tt.currentFile, targets, ModeSingle)
+			currentTargets := targets
+			if tt.targets != nil {
+				currentTargets = tt.targets
+			}
+			got := RewriteLinks(tt.html, tt.currentFile, currentTargets, ModeSingle)
 			if got != tt.want {
 				t.Errorf("RewriteLinks() =\n  %q\nwant:\n  %q", got, tt.want)
 			}
@@ -229,11 +235,11 @@ func TestRewriteLinks_EdgeCases(t *testing.T) {
 
 func TestRewriteLinks_DeepPaths(t *testing.T) {
 	targets := map[string]Target{
-		"part1/chapter1/section1.md":     {ChapterID: "s1"},
-		"part1/chapter1/section2.md":     {ChapterID: "s2"},
-		"part1/chapter2/section1.md":     {ChapterID: "s3"},
-		"part2/chapter1/subsection.md":   {ChapterID: "s4"},
-		"shared/resource.md":             {ChapterID: "res"},
+		"part1/chapter1/section1.md":   {ChapterID: "s1"},
+		"part1/chapter1/section2.md":   {ChapterID: "s2"},
+		"part1/chapter2/section1.md":   {ChapterID: "s3"},
+		"part2/chapter1/subsection.md": {ChapterID: "s4"},
+		"shared/resource.md":           {ChapterID: "res"},
 	}
 
 	tests := []struct {

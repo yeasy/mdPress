@@ -75,14 +75,10 @@ func processAlerts(html string) string {
 		closeIdx += startIdx
 
 		// 提取 blockquote 内部内容
-		inner := html[loc[1] : closeIdx]
+		inner := html[loc[1]:closeIdx]
 
 		// 移除 [!TYPE] 后可能紧跟的换行/空白和 </p><p> 等
 		inner = strings.TrimPrefix(inner, "\n")
-		// 如果 [!TYPE] 和正文在同一个 <p> 内，去掉开头换行
-		if strings.HasPrefix(inner, "\n") {
-			inner = strings.TrimPrefix(inner, "\n")
-		}
 
 		// 构建 alert div
 		alertHTML := "<div class=\"alert alert-" + strings.ToLower(alertType) + "\" " +

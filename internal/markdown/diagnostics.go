@@ -103,22 +103,6 @@ func (s *sourceIndex) lineCol(offset int) (int, int) {
 	return lineIdx + 1, col
 }
 
-func (s *sourceIndex) lineText(line int) string {
-	if line <= 0 {
-		return ""
-	}
-	idx := line - 1
-	if idx >= len(s.lineStarts) {
-		return ""
-	}
-	start := s.lineStarts[idx]
-	end := len(s.source)
-	if idx+1 < len(s.lineStarts) {
-		end = s.lineStarts[idx+1]
-	}
-	return strings.TrimRight(string(s.source[start:end]), "\r\n")
-}
-
 // CollectDiagnostics 收集 Markdown 文档中的结构化 warning。
 func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	index := newSourceIndex(source)

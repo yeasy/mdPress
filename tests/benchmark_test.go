@@ -49,7 +49,9 @@ func BenchmarkConfigDiscovery(b *testing.B) {
 	for i := 0; i < 50; i++ {
 		name := fmt.Sprintf("chapter%02d.md", i+1)
 		content := fmt.Sprintf("# Chapter %d\n\nThis is chapter %d content.\n", i+1, i+1)
-		os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0644)
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0644); err != nil {
+			b.Fatalf("write benchmark fixture failed: %v", err)
+		}
 	}
 
 	b.ResetTimer()

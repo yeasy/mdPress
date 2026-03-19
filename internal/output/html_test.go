@@ -795,27 +795,27 @@ func TestEpubGeneratorEmptyLanguage(t *testing.T) {
 
 func TestNormalizeHTMLForXHTMLBooleanAttrEdgeCases(t *testing.T) {
 	tests := []struct {
-		name  string
-		input string
-		wants []string
+		name     string
+		input    string
+		wants    []string
 		notWants []string
 	}{
 		{
-			name:  "valued data attribute not modified",
-			input: `<input data-checked="true">`,
-			wants: []string{`data-checked="true"`},
+			name:     "valued data attribute not modified",
+			input:    `<input data-checked="true">`,
+			wants:    []string{`data-checked="true"`},
 			notWants: []string{`data-checked="data-checked"`},
 		},
 		{
-			name:  "multiple consecutive boolean attributes",
-			input: `<select disabled multiple></select>`,
-			wants: []string{`disabled="disabled"`, `multiple="multiple"`},
+			name:     "multiple consecutive boolean attributes",
+			input:    `<select disabled multiple></select>`,
+			wants:    []string{`disabled="disabled"`, `multiple="multiple"`},
 			notWants: []string{},
 		},
 		{
-			name:  "mixed boolean and valued attributes",
-			input: `<input type="text" required data-required="yes">`,
-			wants: []string{`type="text"`, `required="required"`, `data-required="yes"`},
+			name:     "mixed boolean and valued attributes",
+			input:    `<input type="text" required data-required="yes">`,
+			wants:    []string{`type="text"`, `required="required"`, `data-required="yes"`},
 			notWants: []string{},
 		},
 	}

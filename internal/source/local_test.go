@@ -107,7 +107,9 @@ func TestLocalSourcePrepare(t *testing.T) {
 			setup: func() string {
 				// 创建临时子目录
 				subDir := filepath.Join(tempDir, "subdir")
-				os.MkdirAll(subDir, 0755)
+				if err := os.MkdirAll(subDir, 0755); err != nil {
+					t.Fatalf("mkdir subdir failed: %v", err)
+				}
 				return subDir
 			},
 			opts:    Options{},
@@ -132,7 +134,9 @@ func TestLocalSourcePrepare(t *testing.T) {
 			name: "文件而非目录",
 			setup: func() string {
 				filePath := filepath.Join(tempDir, "testfile.txt")
-				os.WriteFile(filePath, []byte("test"), 0644)
+				if err := os.WriteFile(filePath, []byte("test"), 0644); err != nil {
+					t.Fatalf("write test file failed: %v", err)
+				}
 				return filePath
 			},
 			opts:    Options{},
@@ -183,7 +187,9 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "docs"
-				os.MkdirAll(filepath.Join(baseDir, subDir), 0755)
+				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0755); err != nil {
+					t.Fatalf("mkdir docs failed: %v", err)
+				}
 				return baseDir, subDir
 			},
 			opts:    Options{SubDir: "docs"},
@@ -213,7 +219,9 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "file.txt"
-				os.WriteFile(filepath.Join(baseDir, subDir), []byte("test"), 0644)
+				if err := os.WriteFile(filepath.Join(baseDir, subDir), []byte("test"), 0644); err != nil {
+					t.Fatalf("write file.txt failed: %v", err)
+				}
 				return baseDir, subDir
 			},
 			opts:      Options{SubDir: "file.txt"},
@@ -225,7 +233,9 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "a/b/c"
-				os.MkdirAll(filepath.Join(baseDir, subDir), 0755)
+				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0755); err != nil {
+					t.Fatalf("mkdir nested subdir failed: %v", err)
+				}
 				return baseDir, subDir
 			},
 			opts:    Options{SubDir: "a/b/c"},

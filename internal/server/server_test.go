@@ -217,9 +217,13 @@ func TestInjectLiveReload_NonHTML(t *testing.T) {
 func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	outputDir := t.TempDir()
 	subDir := filepath.Join(outputDir, "chapter1")
-	os.MkdirAll(subDir, 0755)
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("mkdir subdir failed: %v", err)
+	}
 	htmlContent := `<!DOCTYPE html><html><body><p>Chapter</p></body></html>`
-	os.WriteFile(filepath.Join(subDir, "index.html"), []byte(htmlContent), 0644)
+	if err := os.WriteFile(filepath.Join(subDir, "index.html"), []byte(htmlContent), 0644); err != nil {
+		t.Fatalf("write index.html failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
 	fileServer := http.FileServer(http.Dir(outputDir))
@@ -306,7 +310,9 @@ func TestNotifyClients(t *testing.T) {
 		}
 		conns[i] = conn
 		// 读取 "connected" 确认消息
-		conn.ReadMessage()
+		if _, _, err := conn.ReadMessage(); err != nil {
+			t.Fatalf("客户端 %d 读取 connected 消息失败: %v", i, err)
+		}
 	}
 	defer func() {
 		for _, c := range conns {
@@ -321,13 +327,15 @@ func TestNotifyClients(t *testing.T) {
 
 	// 验证所有客户端都收到 "reload" 消息
 	for i, conn := range conns {
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			t.Fatalf("客户端 %d 设置读取超时失败: %v", i, err)
+		}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			t.Fatalf("客户端 %d 读取消息失败: %v", i, err)
 		}
-		if string(msg) != "reload" {
-			t.Errorf("客户端 %d 收到 %q, 期望 'reload'", i, string(msg))
+		if !strings.Contains(string(msg), `"type":"reload"`) {
+			t.Errorf("客户端 %d 收到 %q, 期望包含 reload JSON 消息", i, string(msg))
 		}
 	}
 }
@@ -375,7 +383,9 @@ func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 			t.Fatalf("客户端 %d 连接失败: %v", i, err)
 		}
 		conns[i] = conn
-		conn.ReadMessage() // 读取 "connected"
+		if _, _, err := conn.ReadMessage(); err != nil { // 读取 "connected"
+			t.Fatalf("客户端 %d 读取 connected 消息失败: %v", i, err)
+		}
 	}
 	defer func() {
 		for _, c := range conns {
@@ -402,15 +412,25 @@ func TestScanModTimes(t *testing.T) {
 	watchDir := t.TempDir()
 
 	// 创建测试文件
-	os.WriteFile(filepath.Join(watchDir, "chapter1.md"), []byte("# Chapter 1"), 0644)
-	os.WriteFile(filepath.Join(watchDir, "config.yaml"), []byte("title: test"), 0644)
-	os.WriteFile(filepath.Join(watchDir, "style.css"), []byte("body{}"), 0644)
-	os.WriteFile(filepath.Join(watchDir, "image.png"), []byte("png"), 0644) // 应被忽略
+	for name, content := range map[string]string{
+		"chapter1.md": "# Chapter 1",
+		"config.yaml": "title: test",
+		"style.css":   "body{}",
+		"image.png":   "png",
+	} {
+		if err := os.WriteFile(filepath.Join(watchDir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("write %s failed: %v", name, err)
+		}
+	}
 
 	// 创建隐藏目录（应被跳过）
 	hiddenDir := filepath.Join(watchDir, ".git")
-	os.MkdirAll(hiddenDir, 0755)
-	os.WriteFile(filepath.Join(hiddenDir, "config.yml"), []byte("git"), 0644)
+	if err := os.MkdirAll(hiddenDir, 0755); err != nil {
+		t.Fatalf("mkdir hidden dir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hiddenDir, "config.yml"), []byte("git"), 0644); err != nil {
+		t.Fatalf("write hidden config failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)
@@ -436,7 +456,9 @@ func TestScanModTimes(t *testing.T) {
 func TestCheckForChanges(t *testing.T) {
 	watchDir := t.TempDir()
 	mdFile := filepath.Join(watchDir, "test.md")
-	os.WriteFile(mdFile, []byte("# Test"), 0644)
+	if err := os.WriteFile(mdFile, []byte("# Test"), 0644); err != nil {
+		t.Fatalf("write test.md failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 
@@ -452,7 +474,9 @@ func TestCheckForChanges(t *testing.T) {
 
 	// 修改文件
 	time.Sleep(50 * time.Millisecond) // 确保时间戳不同
-	os.WriteFile(mdFile, []byte("# Test Modified"), 0644)
+	if err := os.WriteFile(mdFile, []byte("# Test Modified"), 0644); err != nil {
+		t.Fatalf("rewrite test.md failed: %v", err)
+	}
 
 	// 检测到变化
 	changed = srv.checkForChanges(modTimes)
@@ -470,14 +494,18 @@ func TestCheckForChanges(t *testing.T) {
 // TestCheckForChanges_NewFile 测试新增文件检测
 func TestCheckForChanges_NewFile(t *testing.T) {
 	watchDir := t.TempDir()
-	os.WriteFile(filepath.Join(watchDir, "existing.md"), []byte("# Existing"), 0644)
+	if err := os.WriteFile(filepath.Join(watchDir, "existing.md"), []byte("# Existing"), 0644); err != nil {
+		t.Fatalf("write existing.md failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
 	// 新增一个文件
-	os.WriteFile(filepath.Join(watchDir, "new_file.md"), []byte("# New"), 0644)
+	if err := os.WriteFile(filepath.Join(watchDir, "new_file.md"), []byte("# New"), 0644); err != nil {
+		t.Fatalf("write new_file.md failed: %v", err)
+	}
 
 	changed := srv.checkForChanges(modTimes)
 	if !changed {
@@ -489,14 +517,18 @@ func TestCheckForChanges_NewFile(t *testing.T) {
 func TestCheckForChanges_DeleteFile(t *testing.T) {
 	watchDir := t.TempDir()
 	toDelete := filepath.Join(watchDir, "to_delete.md")
-	os.WriteFile(toDelete, []byte("# Delete Me"), 0644)
+	if err := os.WriteFile(toDelete, []byte("# Delete Me"), 0644); err != nil {
+		t.Fatalf("write to_delete.md failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
 	// 删除文件
-	os.Remove(toDelete)
+	if err := os.Remove(toDelete); err != nil {
+		t.Fatalf("remove file failed: %v", err)
+	}
 
 	changed := srv.checkForChanges(modTimes)
 	if !changed {
@@ -507,7 +539,9 @@ func TestCheckForChanges_DeleteFile(t *testing.T) {
 // TestStartContextCancel 测试通过 context 取消来停止服务器
 func TestStartContextCancel(t *testing.T) {
 	outputDir := t.TempDir()
-	os.WriteFile(filepath.Join(outputDir, "index.html"), []byte("<html><body></body></html>"), 0644)
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte("<html><body></body></html>"), 0644); err != nil {
+		t.Fatalf("write index.html failed: %v", err)
+	}
 	watchDir := t.TempDir()
 
 	srv := NewServer("127.0.0.1", 0, watchDir, outputDir, slog.Default())
@@ -527,11 +561,17 @@ func TestScanModTimes_SkipNodeModules(t *testing.T) {
 
 	// 创建 node_modules 目录
 	nmDir := filepath.Join(watchDir, "node_modules")
-	os.MkdirAll(nmDir, 0755)
-	os.WriteFile(filepath.Join(nmDir, "package.md"), []byte("# Package"), 0644)
+	if err := os.MkdirAll(nmDir, 0755); err != nil {
+		t.Fatalf("mkdir node_modules failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nmDir, "package.md"), []byte("# Package"), 0644); err != nil {
+		t.Fatalf("write package.md failed: %v", err)
+	}
 
 	// 创建正常文件
-	os.WriteFile(filepath.Join(watchDir, "chapter.md"), []byte("# Chapter"), 0644)
+	if err := os.WriteFile(filepath.Join(watchDir, "chapter.md"), []byte("# Chapter"), 0644); err != nil {
+		t.Fatalf("write chapter.md failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)
@@ -548,10 +588,16 @@ func TestScanModTimes_SkipBookDir(t *testing.T) {
 	watchDir := t.TempDir()
 
 	bookDir := filepath.Join(watchDir, "_book")
-	os.MkdirAll(bookDir, 0755)
-	os.WriteFile(filepath.Join(bookDir, "output.md"), []byte("# Output"), 0644)
+	if err := os.MkdirAll(bookDir, 0755); err != nil {
+		t.Fatalf("mkdir _book failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bookDir, "output.md"), []byte("# Output"), 0644); err != nil {
+		t.Fatalf("write output.md failed: %v", err)
+	}
 
-	os.WriteFile(filepath.Join(watchDir, "source.md"), []byte("# Source"), 0644)
+	if err := os.WriteFile(filepath.Join(watchDir, "source.md"), []byte("# Source"), 0644); err != nil {
+		t.Fatalf("write source.md failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)
@@ -566,8 +612,12 @@ func TestScanModTimes_SkipBookDir(t *testing.T) {
 func TestScanModTimes_YAMLAndYML(t *testing.T) {
 	watchDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(watchDir, "config.yaml"), []byte("a: 1"), 0644)
-	os.WriteFile(filepath.Join(watchDir, "data.yml"), []byte("b: 2"), 0644)
+	if err := os.WriteFile(filepath.Join(watchDir, "config.yaml"), []byte("a: 1"), 0644); err != nil {
+		t.Fatalf("write config.yaml failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(watchDir, "data.yml"), []byte("b: 2"), 0644); err != nil {
+		t.Fatalf("write data.yml failed: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 	modTimes := make(map[string]time.Time)

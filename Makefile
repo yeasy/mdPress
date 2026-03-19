@@ -61,6 +61,38 @@ fmt:
 	@echo ">>> Formatting code..."
 	$(GO) fmt ./...
 
+# Pre-commit quality gate: fmt check + lint + build + fast tests
+# This is the single target invoked by .githooks/pre-commit.
+.PHONY: check
+check:
+	@echo ">>> [check] gofmt"
+	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*')); \
+	if [ -n "$$UNFMT" ]; then \
+		echo "Files need formatting:"; echo "$$UNFMT"; \
+		echo "Run: make fmt"; exit 1; \
+	fi
+	@echo ">>> [check] go vet"
+	$(GOVET) ./...
+	@echo ">>> [check] golangci-lint"
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed, skipping (install: https://golangci-lint.run)"; \
+	fi
+	@echo ">>> [check] go build"
+	$(GOBUILD) ./...
+	@echo ">>> [check] go test -short"
+	$(GOTEST) -short -count=1 ./...
+	@echo ">>> All checks passed."
+
+# Install git hooks (pre-commit runs make check)
+.PHONY: hooks
+hooks:
+	@echo ">>> Installing git hooks..."
+	git config core.hooksPath .githooks
+	@echo ">>> Done. Pre-commit hook will run 'make check' before each commit."
+	@echo ">>> To skip once: git commit --no-verify"
+
 # Clean build artifacts
 .PHONY: clean
 clean:
@@ -106,6 +138,8 @@ help:
 	@echo "  make coverage  - Generate a test coverage report"
 	@echo "  make lint      - Run static checks"
 	@echo "  make fmt       - Format code"
+	@echo "  make check     - Run all pre-commit checks (fmt + lint + build + test)"
+	@echo "  make hooks     - Install pre-commit git hooks (runs make check)"
 	@echo "  make clean     - Remove build artifacts"
 	@echo "  make deps      - Download dependencies"
 	@echo "  make release   - Cross-compile release binaries"
