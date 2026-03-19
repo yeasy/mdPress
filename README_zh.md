@@ -30,15 +30,31 @@ $ mdpress build --format pdf,html,site,epub
 
 ![mdPress 站点 — 命令手册页面，含表格和导航](docs/assets/screenshots/site-chapter.png)
 
+## 安装
+
+### Homebrew（macOS / Linux）
+
+```bash
+brew tap yeasy/tap
+brew install mdpress
+```
+
+### Go Install
+
+```bash
+go install github.com/yeasy/mdpress@latest
+```
+
+### 直接下载 Binary
+
+从 [GitHub Releases](https://github.com/yeasy/mdpress/releases) 下载对应平台的预编译 binary。
+
+支持平台：macOS (amd64 / arm64)、Linux (amd64 / arm64)、Windows (amd64 / arm64)。
+
 ## 60 秒上手
 
 ```bash
-# 1. 安装（Homebrew）
-brew tap yeasy/tap
-brew install mdpress
-
-# 或通过 Go 安装
-go install github.com/yeasy/mdpress@latest
+# 1. 安装 mdpress（见上方安装章节）
 
 # 2. 创建示例书并预览
 mdpress quickstart my-book

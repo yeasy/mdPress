@@ -30,15 +30,31 @@ No templates to write. No config files required. Just point `mdpress` at a folde
 
 ![mdPress site — command reference page with tables and navigation](docs/assets/screenshots/site-chapter.png)
 
+## Installation
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap yeasy/tap
+brew install mdpress
+```
+
+### Go Install
+
+```bash
+go install github.com/yeasy/mdpress@latest
+```
+
+### Download Binary
+
+Download a pre-built binary for your platform from [GitHub Releases](https://github.com/yeasy/mdpress/releases).
+
+Supported platforms: macOS (amd64 / arm64), Linux (amd64 / arm64), Windows (amd64 / arm64).
+
 ## Get Started In 60 Seconds
 
 ```bash
-# 1. Install (Homebrew)
-brew tap yeasy/tap
-brew install mdpress
-
-# Or install with Go
-go install github.com/yeasy/mdpress@latest
+# 1. Install mdpress (see Installation above)
 
 # 2. Create a sample book and preview it
 mdpress quickstart my-book
