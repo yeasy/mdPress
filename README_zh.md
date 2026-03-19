@@ -1,6 +1,10 @@
 # mdPress
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
+<p align="center">
+  <img src="docs/assets/logo.png" alt="mdPress Logo" width="200" />
+</p>
+
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational)](https://github.com/yeasy/mdpress)
 
@@ -45,6 +49,16 @@ brew install mdpress
 go install github.com/yeasy/mdpress@latest
 ```
 
+### Docker
+
+```bash
+# 精简镜像（~15 MB，不含 PDF 支持）
+docker run --rm -v "$(pwd):/book" yeasy/mdpress build
+
+# 完整镜像（~300 MB，含 Chromium 用于 PDF 生成）
+docker run --rm -v "$(pwd):/book" yeasy/mdpress:full build --format pdf
+```
+
 ### 直接下载 Binary
 
 从 [GitHub Releases](https://github.com/yeasy/mdpress/releases) 下载对应平台的预编译 binary。
@@ -78,6 +92,26 @@ mdpress build --format pdf,html
 ```
 
 就这样。你现在有了一个可打印的 PDF 和一个自包含的 HTML 文件。
+
+## 已有项目
+
+已经有 Markdown 书籍项目了？直接把 mdPress 指向它：
+
+```bash
+# 实时预览已有项目
+mdpress serve ~/my-book/
+
+# 构建 HTML 输出
+mdpress build --format html ~/my-book/
+
+# 从 GitHub 仓库构建
+mdpress build https://github.com/user/repo
+
+# 从 GitBook/HonKit 迁移
+mdpress migrate ~/my-gitbook-project/
+```
+
+mdPress 自动识别 `book.yaml`、`book.json` 或 `SUMMARY.md`。绝大多数项目无需任何配置。
 
 ## 能生成什么
 
@@ -183,6 +217,8 @@ $ mdpress themes list
 | HTML 单页 | **支持** | 不支持 | 支持 | 不支持 |
 | 多页站点 | **支持** | 支持 | 支持 | 支持 |
 | ePub 输出 | **支持** | 不支持 | 插件 | 不支持 |
+| 数学公式 / KaTeX | **支持** | 插件 | 插件 | 插件 |
+| 插件系统 | **支持** | 不支持 | 支持 | 支持 |
 | 实时预览 | **支持** | 支持 | 支持 | 支持 |
 | 零配置模式 | **支持** | 不支持 | 不支持 | 不支持 |
 | GitBook 迁移 | **支持** | 不支持 | 原生 | 不支持 |
@@ -202,7 +238,7 @@ $ mdpress themes list
 
 ## 环境要求
 
-- **Go 1.21+** 用于安装
+- **Go 1.24+** 用于安装
 - **Chrome 或 Chromium** — 仅 PDF 输出需要。HTML、站点和 ePub 不依赖它。
 
 | 系统 | Chrome 安装方式 |

@@ -1,6 +1,10 @@
 # mdPress
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
+<p align="center">
+  <img src="docs/assets/logo.png" alt="mdPress Logo" width="200" />
+</p>
+
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational)](https://github.com/yeasy/mdpress)
 
@@ -45,6 +49,16 @@ brew install mdpress
 go install github.com/yeasy/mdpress@latest
 ```
 
+### Docker
+
+```bash
+# Minimal image (~15 MB, no PDF support)
+docker run --rm -v "$(pwd):/book" yeasy/mdpress build
+
+# Full image (~300 MB, with Chromium for PDF)
+docker run --rm -v "$(pwd):/book" yeasy/mdpress:full build --format pdf
+```
+
 ### Download Binary
 
 Download a pre-built binary for your platform from [GitHub Releases](https://github.com/yeasy/mdpress/releases).
@@ -78,6 +92,26 @@ mdpress build --format pdf,html
 ```
 
 That's it. You now have a printable PDF and a self-contained HTML file.
+
+## Existing Projects
+
+Already have a Markdown book project? Just point mdPress at it:
+
+```bash
+# Serve an existing project with live preview
+mdpress serve ~/my-book/
+
+# Build HTML output
+mdpress build --format html ~/my-book/
+
+# Build from a GitHub repository
+mdpress build https://github.com/user/repo
+
+# Migrate from GitBook/HonKit
+mdpress migrate ~/my-gitbook-project/
+```
+
+mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. No configuration needed for most projects.
 
 ## What You Get
 
@@ -183,6 +217,8 @@ Set `style.theme` in `book.yaml` to switch themes.
 | HTML single-page | **Yes** | No | Yes | No |
 | Multi-page site | **Yes** | Yes | Yes | Yes |
 | ePub output | **Yes** | No | Plugin | No |
+| Math / KaTeX | **Yes** | Plugin | Plugin | Plugin |
+| Plugin system | **Yes** | No | Yes | Yes |
 | Live preview | **Yes** | Yes | Yes | Yes |
 | Zero-config mode | **Yes** | No | No | No |
 | GitBook migration | **Yes** | No | Native | No |
@@ -202,7 +238,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 
 ## Requirements
 
-- **Go 1.21+** for installation
+- **Go 1.24+** for installation
 - **Chrome or Chromium** — only needed for PDF output. HTML, site, and ePub work without it.
 
 | System | Chrome install |
