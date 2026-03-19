@@ -1,0 +1,17 @@
+book:
+  title: "集成测试图书"
+  author: "测试作者"
+  version: "1.0.0"
+  language: "zh-CN"
+chapters:
+  - title: "第一章 简介"
+    file: "ch01.md"
+  - title: "第二章 详情"
+    file: "ch02.md"
+style:
+  theme: "technical"
+  page_size: "A4"
+output:
+  filename: "test-output.pdf"
+  toc: true
+  cover: true

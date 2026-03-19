@@ -1,0 +1,300 @@
+// serve.go implements the local live preview server.
+// It watches files, rebuilds HTML on change, and pushes reload events over WebSocket.
+package cmd
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
+	"github.com/spf13/cobra"
+	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/renderer"
+	"github.com/yeasy/mdpress/internal/server"
+	"github.com/yeasy/mdpress/internal/source"
+	"github.com/yeasy/mdpress/pkg/utils"
+)
+
+var (
+	servePort        int
+	serveHost        string
+	serveDir         string
+	serveOpen        bool
+	defaultServePort = 9000
+	defaultServeHost = "127.0.0.1"
+)
+
+// ServeOptions encapsulates configuration for the serve command.
+type ServeOptions struct {
+	Port        int
+	Host        string
+	OutputDir   string
+	AutoOpen    bool
+	PortChanged bool
+}
+
+var serveCmd = &cobra.Command{
+	Use:           "serve [source]",
+	Short:         "Start the live preview server",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Long: `Build an HTML site and start a local HTTP server with live reload.
+
+Supports both local directories and GitHub repository URLs as input.
+Also supports zero-config mode by auto-discovering .md files.
+
+Examples:
+  mdpress serve
+  mdpress serve --port 9000
+  mdpress serve --host 0.0.0.0
+  mdpress serve --open
+  mdpress serve --config path/to/book.yaml
+  mdpress serve https://github.com/yeasy/agentic_ai_guide`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var inputSource string
+		if len(args) > 0 {
+			inputSource = args[0]
+		}
+		opts := ServeOptions{
+			Port:        servePort,
+			Host:        serveHost,
+			OutputDir:   serveDir,
+			AutoOpen:    serveOpen,
+			PortChanged: cmd.Flags().Changed("port"),
+		}
+		return executeServe(inputSource, opts)
+	},
+}
+
+func init() {
+	serveCmd.Flags().IntVar(&servePort, "port", defaultServePort, "HTTP server port")
+	serveCmd.Flags().StringVar(&serveHost, "host", defaultServeHost, "HTTP listen address (default 127.0.0.1)")
+	serveCmd.Flags().StringVar(&serveDir, "output", "", "Output directory (defaults to _book)")
+	serveCmd.Flags().BoolVar(&serveOpen, "open", false, "Open the browser automatically (default false)")
+	serveCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
+}
+
+func executeServe(inputSource string, opts ServeOptions) error {
+	// Set log level based on quiet/verbose flags.
+	logLevel := slog.LevelInfo
+	switch {
+	case quiet:
+		logLevel = slog.LevelError
+	case verbose:
+		logLevel = slog.LevelDebug
+	}
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
+	// ========== 1. Resolve the input source ==========
+	var workDir string
+	var srcCleanup func() error
+
+	if inputSource != "" {
+		sourceOpts := source.Options{
+			Branch: buildBranch,
+			SubDir: buildSubDir,
+		}
+		src, err := source.Detect(inputSource, sourceOpts)
+		if err != nil {
+			return fmt.Errorf("failed to parse input source: %w", err)
+		}
+		srcCleanup = src.Cleanup
+
+		workDir, err = src.Prepare()
+		if err != nil {
+			return fmt.Errorf("failed to prepare source directory: %w", err)
+		}
+		logger.Info("Source directory is ready", slog.String("type", src.Type()), slog.String("dir", workDir))
+	} else {
+		var absErr error
+		workDir, absErr = filepath.Abs(".")
+		if absErr != nil {
+			return fmt.Errorf("failed to resolve current directory: %w", absErr)
+		}
+	}
+
+	defer func() {
+		if srcCleanup != nil {
+			srcCleanup()
+		}
+	}()
+
+	// ========== 2. Load config (supports zero-config mode) ==========
+	loadConfig := func() (*config.BookConfig, error) {
+		configPath := filepath.Join(workDir, "book.yaml")
+		if inputSource == "" {
+			configPath = cfgFile
+		}
+
+		var cfg *config.BookConfig
+		var err error
+		if utils.FileExists(configPath) {
+			cfg, err = config.Load(configPath)
+		} else {
+			cfg, err = config.Discover(workDir)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// Handle explicit --summary flag.
+		if buildSummary != "" {
+			summaryPath, err := filepath.Abs(buildSummary)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve summary path: %w", err)
+			}
+			chapters, err := config.ParseSummary(summaryPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse SUMMARY.md: %w", err)
+			}
+			cfg.Chapters = chapters
+			slog.Default().Info("Loaded chapters from SUMMARY.md", slog.String("path", summaryPath), slog.Int("chapters", len(chapters)))
+		}
+
+		return cfg, nil
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Resolve the output directory.
+	outputDir := opts.OutputDir
+	if outputDir == "" {
+		outputDir = filepath.Join(cfg.BaseDir(), "_book")
+	}
+
+	srv := server.NewServer(opts.Host, opts.Port, workDir, outputDir, logger)
+	srv.AutoOpen = opts.AutoOpen
+
+	var ln net.Listener
+	if opts.PortChanged {
+		ln, err = srv.Listen()
+		if err != nil {
+			return err
+		}
+	} else {
+		ln, err = srv.ListenFrom(defaultServePort)
+		if err != nil {
+			return err
+		}
+	}
+	listenerOwned := true
+	defer func() {
+		if listenerOwned {
+			ln.Close()
+		}
+	}()
+
+	// Register the rebuild callback with atomic directory swap for safety.
+	srv.BuildFunc = func() error {
+		// Reload the config on every rebuild.
+		newCfg, err := loadConfig()
+		if err != nil {
+			return err
+		}
+		// Build to a temporary directory first, then swap on success.
+		tempOutput := outputDir + ".tmp"
+		if buildErr := buildSiteForServe(newCfg, tempOutput, logger); buildErr != nil {
+			// Clean up the failed temp build, keep the previous good output.
+			os.RemoveAll(tempOutput)
+			return buildErr
+		}
+		// Swap the temp build into the final output directory.
+		// Rename the old dir out of the way first, then rename the new dir in.
+		// This minimizes the window where no content is available.
+		backupDir := outputDir + ".old"
+		os.RemoveAll(backupDir)
+		os.Rename(outputDir, backupDir) // Best-effort; may fail if outputDir does not exist yet.
+		if renameErr := os.Rename(tempOutput, outputDir); renameErr != nil {
+			// Restore the previous build if the swap failed.
+			os.Rename(backupDir, outputDir)
+			os.RemoveAll(tempOutput)
+			// Fallback: if rename fails (cross-device), try the direct build.
+			return buildSiteForServe(newCfg, outputDir, logger)
+		}
+		os.RemoveAll(backupDir)
+		return nil
+	}
+
+	// Initial build.
+	logger.Info("Running initial site build", slog.String("title", cfg.Book.Title))
+	if err := buildSiteForServe(cfg, outputDir, logger); err != nil {
+		return fmt.Errorf("failed to build site: %w", err)
+	}
+
+	// ========== 3. Start the server ==========
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle graceful shutdown.
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		fmt.Println("\n\nServer stopped")
+		cancel()
+		os.Exit(0)
+	}()
+
+	listenerOwned = false
+	return srv.StartWithListener(ctx, ln)
+}
+
+// buildSiteForServe builds the preview HTML site.
+func buildSiteForServe(cfg *config.BookConfig, outputDir string, logger *slog.Logger) error {
+	// Initialize the orchestrator.
+	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	if err != nil {
+		return err
+	}
+
+	// Use the chapter pipeline for consistent processing.
+	// Note: Pipeline always uses ParseWithDiagnostics and performs full validation.
+	// For serve, we ignore the issues but benefit from consistent processing.
+	result, err := orchestrator.ProcessChapters()
+	if err != nil {
+		return err
+	}
+
+	chaptersHTML := result.Chapters
+	chapterFiles := result.ChapterFiles
+
+	customCSS := orchestrator.LoadCustomCSS()
+
+	sitePages := sitePageFilenames(len(chaptersHTML))
+	siteChapters := rewriteChapterLinksForSite(chaptersHTML, chapterFiles, sitePages)
+	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, sitePages); err != nil {
+		return err
+	}
+
+	// Also generate a standalone HTML file for convenient reading.
+	standaloneRenderer, err := renderer.NewStandaloneHTMLRenderer(cfg, orchestrator.Theme)
+	if err != nil {
+		return fmt.Errorf("failed to create standalone HTML renderer: %w", err)
+	}
+	standaloneHTML, err := standaloneRenderer.Render(&renderer.RenderParts{
+		ChaptersHTML: rewriteChapterLinks(chaptersHTML, chapterFiles),
+		CustomCSS:    customCSS,
+	})
+	if err != nil {
+		logger.Warn("Failed to generate standalone HTML", slog.String("error", err.Error()))
+	} else {
+		standalonePath := filepath.Join(outputDir, "standalone.html")
+		if writeErr := os.WriteFile(standalonePath, []byte(standaloneHTML), 0644); writeErr != nil {
+			logger.Warn("Failed to write standalone HTML", slog.String("error", writeErr.Error()))
+		}
+	}
+
+	logger.Info("Site build completed", slog.String("output", outputDir))
+
+	return nil
+}

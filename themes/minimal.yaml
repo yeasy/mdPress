@@ -1,0 +1,30 @@
+# mdpress minimal theme
+# Suitable for notes, memos, and concise documentation
+name: minimal
+page_size: A4
+font_family: "system-ui, -apple-system, sans-serif"
+font_size: "11pt"
+code_theme: pygments
+line_height: 1.5
+
+colors:
+  text: "#000000"
+  background: "#ffffff"
+  heading: "#000000"
+  link: "#0066cc"
+  code_bg: "#f8f8f8"
+  code_text: "#333333"
+  accent: "#666666"
+  border: "#eeeeee"
+
+margin:
+  top: 20
+  bottom: 20
+  left: 18
+  right: 18
+
+header_template: ""
+footer_template: |
+  <div style="font-size:8pt;color:#ccc;text-align:center;">
+    {{.PageNum}}
+  </div>

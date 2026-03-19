@@ -1,0 +1,133 @@
+# mdPress 命令手册
+
+[English](COMMANDS.md)
+
+本文档汇总 `mdpress` 的所有主要命令、全局参数和常见注意事项。更细的说明见下方分命令文档。
+
+## 命令层级
+
+```mermaid
+flowchart TD
+    root["mdpress"]
+
+    root --> build["build [source]<br/>构建输出"]
+    root --> serve["serve [source]<br/>实时预览"]
+    root --> init["init [directory]<br/>生成 book.yaml"]
+    root --> quickstart["quickstart [directory]<br/>示例项目"]
+    root --> validate["validate [directory]<br/>校验配置"]
+    root --> doctor["doctor [directory]<br/>环境检查"]
+    root --> themes["themes<br/>主题管理"]
+    root --> completion["completion &lt;shell&gt;<br/>补全脚本"]
+
+    themes --> list["list"]
+    themes --> show["show &lt;name&gt;"]
+    themes --> preview["preview"]
+
+    build --> pdf["--format pdf"]
+    build --> html["--format html"]
+    build --> site["--format site"]
+    build --> epub["--format epub"]
+```
+
+## 命令矩阵
+
+| 命令 | 作用 | 文档 |
+| --- | --- | --- |
+| `mdpress build [source]` | 构建 PDF、HTML、站点或 ePub | [build](commands/build_zh.md) |
+| `mdpress serve [source]` | 启动本地预览服务并监听文件变化 | [serve](commands/serve_zh.md) |
+| `mdpress init [directory]` | 扫描 Markdown 并生成 `book.yaml` | [init](commands/init_zh.md) |
+| `mdpress quickstart [directory]` | 创建可直接构建的示例项目 | [quickstart](commands/quickstart_zh.md) |
+| `mdpress validate [directory]` | 校验配置、章节文件和引用资源 | [validate](commands/validate_zh.md) |
+| `mdpress doctor [directory]` | 检查运行环境和项目可构建性 | [doctor](commands/doctor_zh.md) |
+| `mdpress themes list` | 列出内置主题 | [themes](commands/themes_zh.md) |
+| `mdpress themes show <theme-name>` | 查看主题详情和配置提示 | [themes](commands/themes_zh.md) |
+| `mdpress themes preview` | 生成内置主题的 HTML 预览页 | [themes](commands/themes_zh.md) |
+| `mdpress completion <shell>` | 生成自动补全脚本 | [completion](commands/completion_zh.md) |
+
+## 全局参数
+
+以下参数会显示在大多数命令的 `--help` 中。
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--config <path>` | `book.yaml` | 配置文件路径。主要对会加载配置的命令有效，例如 `build`、`serve`、`validate`。 |
+| `-v, --verbose` | 关闭 | 输出更详细的日志和逐条警告。 |
+| `-q, --quiet` | 关闭 | 只输出错误信息。 |
+
+注意：
+
+- 如果同时传入 `--quiet` 和 `--verbose`，当前实现以 `--quiet` 为准。
+- `--config` 虽然是全局参数，但并不是每个命令都会真正使用它。`doctor`、`themes`、`completion` 等命令当前不会按这个参数切换配置文件。
+
+## 输入源规则
+
+mdPress 主要支持两类输入源：
+
+- 本地目录：省略 `[source]` 时默认使用当前目录
+- GitHub 仓库 URL：例如 `https://github.com/yeasy/agentic_ai_guide`。私有仓库需设置 `GITHUB_TOKEN`（见下文）
+
+对于本地目录，配置解析优先级通常是：
+
+1. `book.yaml`
+2. `SUMMARY.md`
+3. 自动扫描 `.md` 文件
+
+## GitHub 认证
+
+如需从私有仓库构建，在运行 `mdpress build` 或 `mdpress serve` 前设置 `GITHUB_TOKEN` 环境变量：
+
+    export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+    mdpress build https://github.com/myorg/private-docs
+
+Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `contents:read` 权限的 GitHub 个人访问令牌或细粒度令牌均可使用。未设置 token 时 clone 失败，错误信息会提示设置此变量。
+
+## 输出与默认值
+
+- `build` 如果没有显式传 `--format`，会先读取 `output.formats`。
+- 如果配置里也没有 `output.formats`，默认构建 `pdf`。
+- 默认输出文件名来自 `output.filename`；默认配置值是 `output.pdf`。
+- `serve` 默认把预览产物写到项目目录下的 `_book/`。
+
+## PDF 配置
+
+PDF 后端使用 Chromium 进行渲染，下面两个配置选项可以控制其行为：
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `output.pdf_timeout` | `120` | 等待 Chromium 完成 PDF 页面渲染的最大秒数。对于很大的书籍可以增加此值。 |
+| `MDPRESS_CHROME_PATH` (环境变量) | 自动检测 | Chrome 或 Chromium 二进制文件的绝对路径。设置后，mdPress 会跳过自动检测直接使用此路径。 |
+
+`book.yaml` 配置示例：
+
+    output:
+      pdf_timeout: 300
+
+环境变量使用示例：
+
+    MDPRESS_CHROME_PATH=/usr/bin/chromium mdpress build --format pdf
+
+## 自动发现的边界
+
+自动发现适合“一个目录就是一本书”或“一个目录就是一套文档”的场景，不适合直接套在复杂代码仓库根目录上。
+
+典型风险：
+
+- 仓库根目录的 `README.md` 会被当作第一章
+- `docs/`、`examples/`、`tests/`、内部设计文档等 Markdown 可能一起进入章节列表
+- 结果虽然能构建，但信息架构通常不是你真正想要的网站
+
+推荐做法：
+
+- 在文档子目录下执行命令，例如 `mdpress serve ./docs`
+- 或者为目标目录显式编写 `book.yaml` / `SUMMARY.md`
+
+## 故障排查
+
+- 想看具体命令边界，优先看 [serve](commands/serve_zh.md) 和 [build](commands/build_zh.md)
+
+## 推荐阅读顺序
+
+- 想快速上手：先看 [build](commands/build_zh.md) 和 [serve](commands/serve_zh.md)
+- 想接入已有仓库：再看 [init](commands/init_zh.md) 与 [validate](commands/validate_zh.md)
+- 想排查环境问题：看 [doctor](commands/doctor_zh.md)
+- 想了解主题：看 [themes](commands/themes_zh.md)

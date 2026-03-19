@@ -1,0 +1,34 @@
+package pdf
+
+import "os"
+
+// MockGenerator is a test double that writes a minimal valid PDF header
+// without requiring Chromium. Use it in tests to verify PDF generation
+// flow without external dependencies.
+type MockGenerator struct {
+	GenerateCalled  bool
+	LastHTMLContent string
+	LastOutputPath  string
+	GenerateError   error // Set this to simulate errors
+}
+
+// Generate records the call arguments and writes a minimal PDF file.
+func (m *MockGenerator) Generate(htmlContent string, outputPath string) error {
+	m.GenerateCalled = true
+	m.LastHTMLContent = htmlContent
+	m.LastOutputPath = outputPath
+	if m.GenerateError != nil {
+		return m.GenerateError
+	}
+	// Write a minimal PDF file (just the header)
+	return os.WriteFile(outputPath, []byte("%PDF-1.4\n%%EOF\n"), 0644)
+}
+
+// GenerateFromFile reads the HTML file and calls Generate with its content.
+func (m *MockGenerator) GenerateFromFile(htmlFilePath string, outputPath string) error {
+	content, err := os.ReadFile(htmlFilePath)
+	if err != nil {
+		return err
+	}
+	return m.Generate(string(content), outputPath)
+}

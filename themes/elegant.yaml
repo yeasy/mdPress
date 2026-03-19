@@ -1,0 +1,34 @@
+# mdpress elegant literary theme
+# Suitable for fiction, essays, and poetry
+name: elegant
+page_size: A4
+font_family: "Noto Serif SC, Georgia, Times New Roman, serif"
+font_size: "13pt"
+code_theme: github
+line_height: 1.8
+
+colors:
+  text: "#2c2c2c"
+  background: "#fffff8"
+  heading: "#5d4037"
+  link: "#8d6e63"
+  code_bg: "#faf8f0"
+  code_text: "#6a1b9a"
+  accent: "#795548"
+  border: "#d7ccc8"
+
+margin:
+  top: 30
+  bottom: 30
+  left: 25
+  right: 25
+
+header_template: |
+  <div style="font-size:9pt;color:#aaa;font-style:italic;text-align:center;border-bottom:0.5pt solid #ddd;padding-bottom:4pt;">
+    {{.Book.Title}} · {{.Chapter.Title}}
+  </div>
+
+footer_template: |
+  <div style="font-size:9pt;color:#aaa;text-align:center;padding-top:4pt;">
+    — {{.PageNum}} —
+  </div>

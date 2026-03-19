@@ -1,0 +1,51 @@
+# Build output
+/mdpress
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Tests
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Dependencies
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Generated PDFs
+*.pdf
+
+# Temporary files
+*.tmp
+/tmp/
+mdpress-go-tmp-umask
+.mdpress_temp/
+
+# Build and preview output
+/_book/
+/_output/
+/output/
+*_site/
+*_html/
+
+# Tool caches
+.playwright-cli/
+
+# Internal documents (not part of the release)
+/report.md

@@ -1,0 +1,786 @@
+package cmd
+
+import (
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/cover"
+	"github.com/yeasy/mdpress/internal/i18n"
+	"github.com/yeasy/mdpress/internal/linkrewrite"
+	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/internal/output"
+	"github.com/yeasy/mdpress/internal/renderer"
+	"github.com/yeasy/mdpress/internal/theme"
+	"github.com/yeasy/mdpress/internal/toc"
+	"github.com/yeasy/mdpress/pkg/utils"
+)
+
+type languageBuildSummary struct {
+	Name    string
+	Dir     string
+	Title   string
+	Outputs map[string]string
+}
+
+func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
+	if cfg.Style.CustomCSS == "" {
+		return ""
+	}
+	cssPath := cfg.ResolvePath(cfg.Style.CustomCSS)
+	cssData, err := utils.ReadFile(cssPath)
+	if err != nil {
+		logger.Warn("Failed to load custom CSS", slog.String("error", err.Error()))
+		return ""
+	}
+	return string(cssData)
+}
+
+func executeMultilingualBuild(rootDir string, langs []i18n.LangDef, formats []string, outputOverride string, logger *slog.Logger) error {
+	logger.Info("Detected multi-language project", slog.Int("languages", len(langs)))
+	for _, lang := range langs {
+		logger.Info("  Language", slog.String("name", lang.Name), slog.String("dir", lang.Dir))
+	}
+
+	summaries := make([]languageBuildSummary, 0, len(langs))
+	for _, lang := range langs {
+		langDir := filepath.Join(rootDir, lang.Dir)
+		logger.Info("Building language variant", slog.String("name", lang.Name), slog.String("dir", langDir))
+
+		langCfg, err := config.Discover(langDir)
+		if err != nil {
+			return fmt.Errorf("failed to load language directory %s: %w", langDir, err)
+		}
+
+		if guessed := guessLanguageCode(lang.Dir); guessed != "" {
+			if langCfg.Book.Language == "" || (langCfg.Book.Language == "zh-CN" && guessed != "zh-CN") {
+				langCfg.Book.Language = guessed
+			}
+		}
+
+		langOutputOverride := deriveLanguageOutputOverride(outputOverride, lang.Dir)
+		baseOutput, err := resolveBuildBaseOutput(langCfg, langOutputOverride)
+		if err != nil {
+			return err
+		}
+		if err := executeBuildForConfig(langCfg, formats, langOutputOverride, logger); err != nil {
+			return fmt.Errorf("failed to build language %s: %w", lang.Dir, err)
+		}
+		summaries = append(summaries, languageBuildSummary{
+			Name:    lang.Name,
+			Dir:     lang.Dir,
+			Title:   langCfg.Book.Title,
+			Outputs: predictedOutputLinks(baseOutput, formats),
+		})
+	}
+
+	if err := writeMultilingualLandingPage(rootDir, outputOverride, summaries); err != nil {
+		return fmt.Errorf("failed to write multilingual landing page: %w", err)
+	}
+	if err := injectMultilingualSwitchers(rootDir, outputOverride, summaries); err != nil {
+		return fmt.Errorf("failed to inject multilingual switchers: %w", err)
+	}
+
+	return nil
+}
+
+func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {
+	logger.Info("Configuration loaded",
+		slog.String("title", cfg.Book.Title),
+		slog.String("author", cfg.Book.Author),
+		slog.String("base_dir", cfg.BaseDir()),
+		slog.Int("chapters", len(cfg.Chapters)))
+
+	progress := utils.NewProgressTracker(5)
+
+	progress.Start("Initializing theme system")
+	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	if err != nil {
+		return err
+	}
+	progress.DoneWithDetail(orchestrator.Theme.Name)
+
+	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
+	result, err := orchestrator.ProcessChapters()
+	if err != nil {
+		progress.Fail()
+		return err
+	}
+	progress.DoneWithDetail(fmt.Sprintf("%d chapters", len(result.Chapters)))
+	if len(result.Issues) > 0 {
+		reportBuildIssues(logger, result.Issues)
+	}
+
+	chaptersHTML := result.Chapters
+	chapterFiles := result.ChapterFiles
+	allHeadings := result.AllHeadings
+
+	progress.Start("Generating cover and TOC")
+	var coverHTML string
+	if cfg.Output.Cover {
+		coverHTML = cover.NewCoverGenerator(cfg.Book).RenderHTML()
+	}
+
+	var tocHTML string
+	if cfg.Output.TOC {
+		entries := toc.NewGenerator().Generate(allHeadings)
+		tocHTML = toc.NewGenerator().RenderHTML(entries)
+		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)))
+	}
+	progress.Done()
+
+	var glossaryHTML string
+	if orchestrator.Gloss != nil && len(orchestrator.Gloss.Terms) > 0 {
+		glossaryHTML = orchestrator.Gloss.RenderHTML()
+	}
+
+	singlePageChapters := rewriteChapterLinks(chaptersHTML, chapterFiles)
+
+	customCSS := orchestrator.LoadCustomCSS()
+
+	progress.Start("Assembling HTML")
+	if glossaryHTML != "" {
+		glossaryChapter := renderer.ChapterHTML{
+			Title:   "Glossary",
+			ID:      "glossary",
+			Content: glossaryHTML,
+		}
+		chaptersHTML = append(chaptersHTML, glossaryChapter)
+		singlePageChapters = append(singlePageChapters, glossaryChapter)
+		chapterFiles = append(chapterFiles, "")
+	}
+
+	singlePageParts := &renderer.RenderParts{
+		CoverHTML:    coverHTML,
+		TOCHTML:      tocHTML,
+		ChaptersHTML: singlePageChapters,
+		CustomCSS:    customCSS,
+	}
+	progress.Done()
+
+	progress.Start(fmt.Sprintf("Generating output (%s)", strings.Join(formats, ", ")))
+	baseOutput, err := resolveBuildBaseOutput(cfg, outputOverride)
+	if err != nil {
+		return err
+	}
+	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
+
+	buildCtx := &BuildContext{
+		Config:          cfg,
+		Theme:           orchestrator.Theme,
+		SinglePageParts: singlePageParts,
+		ChaptersHTML:    chaptersHTML,
+		ChapterFiles:    chapterFiles,
+		CustomCSS:       customCSS,
+		Logger:          logger,
+	}
+	registry := NewFormatBuilderRegistry()
+	for _, format := range formats {
+		builder := registry.Get(strings.ToLower(format))
+		if builder == nil {
+			logger.Warn("Unsupported output format, skipping", slog.String("format", format))
+			continue
+		}
+		if err := builder.Build(buildCtx, baseName); err != nil {
+			return err
+		}
+	}
+
+	progress.Done()
+	progress.Finish()
+	return nil
+}
+
+var (
+	decimalTitleSequencePattern = regexp.MustCompile(`^\s*(\d+(?:\.\d+)*)(?:[.)、．:：]\s*|\s+)`)
+	chineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)\s*([章节篇部卷])`)
+	englishTitleSequencePattern = regexp.MustCompile(`(?i)^\s*chapter\s+(\d+(?:\.\d+)*)\b`)
+)
+
+type chapterHeadingRecord struct {
+	File         string
+	SummaryTitle string
+	Heading      markdown.HeadingInfo
+}
+
+type chapterHeadingWarning struct {
+	File       string
+	Diagnostic markdown.Diagnostic
+}
+
+func validateChapterTitleSequence(summaryTitle string, headings []markdown.HeadingInfo) *markdown.Diagnostic {
+	if summaryTitle == "" || len(headings) == 0 {
+		return nil
+	}
+
+	actual := headings[0]
+	expectedSeq, expectedHas := extractTitleSequence(summaryTitle)
+	actualSeq, actualHas := extractTitleSequence(actual.Text)
+	if !expectedHas || !actualHas {
+		return nil
+	}
+	if expectedSeq == actualSeq {
+		return nil
+	}
+
+	line, column := actual.Line, actual.Column
+	if line <= 0 {
+		line = 1
+	}
+	if column <= 0 {
+		column = 1
+	}
+
+	return &markdown.Diagnostic{
+		Rule:   "chapter-title-sequence",
+		Line:   line,
+		Column: column,
+		Message: fmt.Sprintf("summary title numbering does not match the chapter heading: summary=%q, heading=%q",
+			summaryTitle, actual.Text),
+	}
+}
+
+func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadingWarning {
+	if len(records) < 2 {
+		return nil
+	}
+
+	warnings := make([]chapterHeadingWarning, 0)
+	primaryStyle := ""
+	for _, record := range records {
+		style := titleSequenceStyle(record.Heading.Text)
+		if style != "none" {
+			primaryStyle = style
+			break
+		}
+	}
+
+	if primaryStyle != "" {
+		for _, record := range records {
+			style := titleSequenceStyle(record.Heading.Text)
+			if style == primaryStyle || style == "none" {
+				continue
+			}
+			warnings = append(warnings, chapterHeadingWarning{
+				File: record.File,
+				Diagnostic: markdown.Diagnostic{
+					Rule:    "book-title-style",
+					Line:    max(record.Heading.Line, 1),
+					Column:  max(record.Heading.Column, 1),
+					Message: describeTitleStyleMismatch(primaryStyle, record.Heading.Text),
+				},
+			})
+		}
+	}
+
+	seenTitles := make(map[string]chapterHeadingRecord)
+	for _, record := range records {
+		normalized := normalizeChapterTitle(record.Heading.Text)
+		if normalized == "" {
+			continue
+		}
+		if prev, ok := seenTitles[normalized]; ok {
+			warnings = append(warnings, chapterHeadingWarning{
+				File: record.File,
+				Diagnostic: markdown.Diagnostic{
+					Rule:   "book-title-duplicate",
+					Line:   max(record.Heading.Line, 1),
+					Column: max(record.Heading.Column, 1),
+					Message: fmt.Sprintf("possible duplicate chapter title: current title %q normalizes to the same value as %q in %s",
+						record.Heading.Text, prev.File, prev.Heading.Text),
+				},
+			})
+			continue
+		}
+		seenTitles[normalized] = record
+	}
+
+	return warnings
+}
+
+func extractTitleSequence(title string) (string, bool) {
+	if matches := decimalTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
+		return matches[1], true
+	}
+	if matches := englishTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
+		return matches[1], true
+	}
+	if matches := chineseTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 3 {
+		value := parseChineseOrdinal(matches[1])
+		if value > 0 {
+			return strconv.Itoa(value), true
+		}
+	}
+	return "", false
+}
+
+func titleSequenceStyle(title string) string {
+	if matches := decimalTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
+		return "arabic"
+	}
+	if matches := englishTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
+		return "english"
+	}
+	if matches := chineseTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 3 {
+		return "chinese"
+	}
+	return "none"
+}
+
+func describeTitleStyleMismatch(primaryStyle, title string) string {
+	currentStyle := titleSequenceStyle(title)
+	switch {
+	case currentStyle == "none":
+		return fmt.Sprintf("inconsistent chapter numbering style: earlier chapters use %s numbering, but %q has no numbering", titleStyleLabel(primaryStyle), title)
+	case currentStyle != primaryStyle:
+		return fmt.Sprintf("inconsistent chapter numbering style: earlier chapters use %s numbering, but %q uses %s numbering",
+			titleStyleLabel(primaryStyle), title, titleStyleLabel(currentStyle))
+	default:
+		return ""
+	}
+}
+
+func titleStyleLabel(style string) string {
+	switch style {
+	case "arabic":
+		return "Arabic"
+	case "english":
+		return "English chapter"
+	case "chinese":
+		return "Chinese chapter"
+	default:
+		return "unnumbered"
+	}
+}
+
+func normalizeChapterTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return ""
+	}
+	if matches := decimalTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
+		title = strings.TrimSpace(title[matches[1]:])
+	}
+	if matches := englishTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
+		title = strings.TrimSpace(title[matches[1]:])
+	}
+	if matches := chineseTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
+		title = strings.TrimSpace(title[matches[1]:])
+	}
+	title = strings.TrimLeft(title, ":-：.、)） \t")
+	return strings.Join(strings.Fields(title), " ")
+}
+
+func parseChineseOrdinal(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if value, err := strconv.Atoi(raw); err == nil {
+		return value
+	}
+
+	digits := map[rune]int{
+		'零': 0, '〇': 0,
+		'一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+		'六': 6, '七': 7, '八': 8, '九': 9,
+	}
+	units := map[rune]int{'十': 10, '百': 100}
+
+	total := 0
+	current := 0
+	for _, r := range raw {
+		if value, ok := digits[r]; ok {
+			current = value
+			continue
+		}
+		unit, ok := units[r]
+		if !ok {
+			return 0
+		}
+		if current == 0 {
+			current = 1
+		}
+		total += current * unit
+		current = 0
+	}
+	total += current
+	return total
+}
+
+func resolveRequestedBuildOutput(requested string) (string, error) {
+	if requested == "" {
+		return "", nil
+	}
+	absPath, err := filepath.Abs(requested)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve output path: %w", err)
+	}
+	return absPath, nil
+}
+
+func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (string, error) {
+	if outputOverride == "" {
+		return cfg.ResolvePath(cfg.Output.Filename), nil
+	}
+
+	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
+		return filepath.Join(outputOverride, filepath.Base(cfg.Output.Filename)), nil
+	}
+
+	return outputOverride, nil
+}
+
+func deriveLanguageOutputOverride(outputOverride string, langDir string) string {
+	if outputOverride == "" {
+		return ""
+	}
+
+	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
+		return filepath.Join(outputOverride, langDir, "output")
+	}
+
+	ext := filepath.Ext(outputOverride)
+	if ext == "" {
+		return outputOverride + "-" + langDir
+	}
+
+	return strings.TrimSuffix(outputOverride, ext) + "-" + langDir + ext
+}
+
+func predictedOutputLinks(baseOutput string, formats []string) map[string]string {
+	links := make(map[string]string, len(formats))
+	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
+	for _, format := range formats {
+		switch strings.ToLower(format) {
+		case "pdf":
+			links["pdf"] = baseName + ".pdf"
+		case "html":
+			links["html"] = baseName + ".html"
+		case "site":
+			links["site"] = filepath.Join(baseName+"_site", "index.html")
+		case "epub":
+			links["epub"] = baseName + ".epub"
+		}
+	}
+	return links
+}
+
+func multilingualLandingPath(rootDir string, outputOverride string) string {
+	if outputOverride == "" {
+		return filepath.Join(rootDir, "_mdpress_langs.html")
+	}
+	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
+		return filepath.Join(outputOverride, "index.html")
+	}
+	dir := filepath.Dir(outputOverride)
+	base := strings.TrimSuffix(filepath.Base(outputOverride), filepath.Ext(outputOverride))
+	if base == "" || base == "." {
+		base = "index"
+	}
+	return filepath.Join(dir, base+"-index.html")
+}
+
+func writeMultilingualLandingPage(rootDir string, outputOverride string, summaries []languageBuildSummary) error {
+	if len(summaries) == 0 {
+		return nil
+	}
+
+	landingPath := multilingualLandingPath(rootDir, outputOverride)
+	landingDir := filepath.Dir(landingPath)
+	if err := utils.EnsureDir(landingDir); err != nil {
+		return err
+	}
+	defaultTarget := defaultLanguageTarget(landingDir, summaries)
+
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n")
+	b.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
+	b.WriteString("<title>Language Variants</title>\n<style>\n")
+	b.WriteString("body{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;background:#f6f7fb;color:#1f2937;margin:0;padding:40px;line-height:1.6;} ")
+	b.WriteString(".wrap{max-width:920px;margin:0 auto;} h1{margin:0 0 8px;font-size:2rem;} p{color:#4b5563;} ")
+	b.WriteString(".notice{margin-top:8px;padding:10px 14px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;color:#3730a3;} ")
+	b.WriteString(".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:24px;} ")
+	b.WriteString(".card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px 20px;box-shadow:0 6px 24px rgba(15,23,42,.06);} ")
+	b.WriteString(".card h2{margin:0 0 4px;font-size:1.1rem;} .meta{color:#6b7280;font-size:.9rem;margin-bottom:12px;} ")
+	b.WriteString("ul{list-style:none;padding:0;margin:0;} li+li{margin-top:8px;} a{color:#2563eb;text-decoration:none;} a:hover{text-decoration:underline;}\n")
+	b.WriteString("</style>\n</head>\n<body>\n<div class=\"wrap\">\n<h1>Language Variants</h1>\n")
+	b.WriteString("<p>Select a language output generated from this multi-language project.</p>\n<div class=\"grid\">\n")
+	if defaultTarget != "" {
+		b.WriteString(fmt.Sprintf("<div class=\"notice\">Redirecting to the default language in a moment. If you prefer, choose a language below. <a href=\"%s\">Open default now</a>.</div>\n", utils.EscapeHTML(defaultTarget)))
+	}
+
+	for _, summary := range summaries {
+		b.WriteString("<section class=\"card\">\n")
+		b.WriteString(fmt.Sprintf("<h2>%s</h2>\n", utils.EscapeHTML(summary.Name)))
+		if summary.Title != "" {
+			b.WriteString(fmt.Sprintf("<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Title)))
+		} else {
+			b.WriteString(fmt.Sprintf("<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Dir)))
+		}
+		b.WriteString("<ul>\n")
+		for _, key := range []string{"html", "site", "pdf", "epub"} {
+			target, ok := summary.Outputs[key]
+			if !ok {
+				continue
+			}
+			rel, err := filepath.Rel(landingDir, target)
+			if err != nil {
+				rel = target
+			}
+			b.WriteString(fmt.Sprintf("<li><a href=\"%s\">%s</a></li>\n", utils.EscapeHTML(filepath.ToSlash(rel)), strings.ToUpper(key)))
+		}
+		b.WriteString("</ul>\n</section>\n")
+	}
+
+	if defaultTarget != "" {
+		b.WriteString(fmt.Sprintf("<script>setTimeout(function(){ window.location.href = %q; }, 1200);</script>\n", defaultTarget))
+	}
+	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
+	return os.WriteFile(landingPath, []byte(b.String()), 0644)
+}
+
+
+func defaultLanguageTarget(landingDir string, summaries []languageBuildSummary) string {
+	if len(summaries) == 0 {
+		return ""
+	}
+	for _, summary := range summaries {
+		for _, key := range []string{"html", "site"} {
+			if target, ok := summary.Outputs[key]; ok {
+				rel, err := filepath.Rel(landingDir, target)
+				if err == nil {
+					return filepath.ToSlash(rel)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func injectMultilingualSwitchers(rootDir string, outputOverride string, summaries []languageBuildSummary) error {
+	if len(summaries) < 2 {
+		return nil
+	}
+
+	landingPath := multilingualLandingPath(rootDir, outputOverride)
+	for _, summary := range summaries {
+		currentTarget := preferredLanguageFile(summary)
+		if currentTarget == "" {
+			continue
+		}
+		switcherHTML, err := buildLanguageSwitcherHTML(filepath.Dir(currentTarget), landingPath, summaries, summary.Dir)
+		if err != nil {
+			return err
+		}
+		if err := injectBannerIntoOutput(currentTarget, switcherHTML); err != nil {
+			return err
+		}
+		if siteIndex, ok := summary.Outputs["site"]; ok {
+			siteDir := filepath.Dir(siteIndex)
+			if err := injectBannerIntoSite(siteDir, switcherHTML); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func preferredLanguageFile(summary languageBuildSummary) string {
+	for _, key := range []string{"html", "site"} {
+		if target, ok := summary.Outputs[key]; ok {
+			return target
+		}
+	}
+	return ""
+}
+
+func buildLanguageSwitcherHTML(currentDir, landingPath string, summaries []languageBuildSummary, currentLangDir string) (string, error) {
+	landingRel, err := filepath.Rel(currentDir, landingPath)
+	if err != nil {
+		return "", err
+	}
+
+	var b strings.Builder
+	b.WriteString(`<style>.mdpress-lang-switcher{position:sticky;top:0;z-index:9999;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px;background:#111827;color:#f9fafb;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 6px 16px rgba(0,0,0,.15)}.mdpress-lang-switcher a{color:#93c5fd;text-decoration:none}.mdpress-lang-switcher a:hover{text-decoration:underline}.mdpress-lang-switcher .current{font-weight:700;color:#fff}</style>`)
+	b.WriteString(`<nav class="mdpress-lang-switcher" aria-label="Language switcher"><span>Languages:</span>`)
+	for _, summary := range summaries {
+		target := preferredLanguageFile(summary)
+		if target == "" {
+			continue
+		}
+		rel, err := filepath.Rel(currentDir, target)
+		if err != nil {
+			return "", err
+		}
+		if summary.Dir == currentLangDir {
+			b.WriteString(fmt.Sprintf(`<span class="current">%s</span>`, utils.EscapeHTML(summary.Name)))
+		} else {
+			b.WriteString(fmt.Sprintf(`<a href="%s">%s</a>`, utils.EscapeHTML(filepath.ToSlash(rel)), utils.EscapeHTML(summary.Name)))
+		}
+	}
+	b.WriteString(fmt.Sprintf(`<a href="%s">All languages</a>`, utils.EscapeHTML(filepath.ToSlash(landingRel))))
+	b.WriteString(`</nav>`)
+	return b.String(), nil
+}
+
+func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
+	content, err := os.ReadFile(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // File does not exist yet; skip silently.
+		}
+		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
+	}
+	updated := injectBannerIntoHTML(string(content), bannerHTML)
+	if updated == string(content) {
+		return nil
+	}
+	return os.WriteFile(targetPath, []byte(updated), 0644)
+}
+
+func injectBannerIntoSite(siteDir string, bannerHTML string) error {
+	return filepath.Walk(siteDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
+			return err
+		}
+		return injectBannerIntoOutput(path, bannerHTML)
+	})
+}
+
+func injectBannerIntoHTML(htmlContent string, bannerHTML string) string {
+	if strings.Contains(htmlContent, `class="mdpress-lang-switcher"`) {
+		return htmlContent
+	}
+	if idx := strings.Index(strings.ToLower(htmlContent), "<body>"); idx >= 0 {
+		insertAt := idx + len("<body>")
+		return htmlContent[:insertAt] + bannerHTML + htmlContent[insertAt:]
+	}
+	return bannerHTML + htmlContent
+}
+
+func guessLanguageCode(langDir string) string {
+	switch strings.ToLower(langDir) {
+	case "en", "en-us":
+		return "en-US"
+	case "cn", "zh", "zh-cn":
+		return "zh-CN"
+	case "zh-tw":
+		return "zh-TW"
+	case "ja", "ja-jp":
+		return "ja-JP"
+	case "ko", "ko-kr":
+		return "ko-KR"
+	default:
+		return ""
+	}
+}
+
+func sitePageFilenames(count int) []string {
+	files := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		files = append(files, fmt.Sprintf("ch_%03d.html", i))
+	}
+	return files
+}
+
+func rewriteChapterLinksForSite(chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string) []renderer.ChapterHTML {
+	if len(chapters) == 0 || len(chapters) != len(chapterFiles) || len(chapters) != len(pageFilenames) {
+		return chapters
+	}
+
+	targets := make(map[string]linkrewrite.Target, len(chapters))
+	for i, ch := range chapters {
+		if chapterFiles[i] == "" || ch.ID == "" {
+			continue
+		}
+		targets[linkrewrite.NormalizePath(chapterFiles[i])] = linkrewrite.Target{
+			ChapterID:    ch.ID,
+			PageFilename: pageFilenames[i],
+		}
+	}
+
+	rewritten := make([]renderer.ChapterHTML, len(chapters))
+	for i, ch := range chapters {
+		rewritten[i] = ch
+		rewritten[i].Content = linkrewrite.RewriteLinks(ch.Content, chapterFiles[i], targets, linkrewrite.ModeSite)
+	}
+	return rewritten
+}
+
+func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, outputDir string, chapters []renderer.ChapterHTML, pageFilenames []string) error {
+	siteGen := output.NewSiteGenerator(output.SiteMeta{
+		Title:    cfg.Book.Title,
+		Author:   cfg.Book.Author,
+		Language: cfg.Book.Language,
+	})
+	siteGen.SetCSS(thm.ToCSS() + "\n" + customCSS)
+
+	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, pageFilenames) {
+		siteGen.AddChapter(ch)
+	}
+
+	return siteGen.Generate(outputDir)
+}
+
+func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, pageFilenames []string) []output.SiteChapter {
+	flatDefs := flattenChaptersWithDepth(defs)
+	type siteChapterData struct {
+		html     renderer.ChapterHTML
+		filename string
+	}
+	byFile := make(map[string]siteChapterData, len(flatDefs))
+	for i, flat := range flatDefs {
+		if i >= len(chapters) {
+			break
+		}
+		filename := ""
+		if i < len(pageFilenames) {
+			filename = pageFilenames[i]
+		}
+		byFile[linkrewrite.NormalizePath(flat.Def.File)] = siteChapterData{
+			html:     chapters[i],
+			filename: filename,
+		}
+	}
+
+	var build func([]config.ChapterDef) []output.SiteChapter
+	build = func(items []config.ChapterDef) []output.SiteChapter {
+		result := make([]output.SiteChapter, 0, len(items))
+		for _, def := range items {
+			data, ok := byFile[linkrewrite.NormalizePath(def.File)]
+			if !ok {
+				continue
+			}
+			result = append(result, output.SiteChapter{
+				Title:    data.html.Title,
+				ID:       data.html.ID,
+				Filename: data.filename,
+				Content:  data.html.Content,
+				Depth:    data.html.Depth,
+				Headings: rendererHeadingsToSiteHeadings(data.html.Headings),
+				Children: build(def.Sections),
+			})
+		}
+		return result
+	}
+
+	return build(defs)
+}
+
+func rendererHeadingsToSiteHeadings(items []renderer.NavHeading) []output.SiteNavHeading {
+	result := make([]output.SiteNavHeading, 0, len(items))
+	for _, item := range items {
+		result = append(result, output.SiteNavHeading{
+			Title:    item.Title,
+			ID:       item.ID,
+			Children: rendererHeadingsToSiteHeadings(item.Children),
+		})
+	}
+	return result
+}

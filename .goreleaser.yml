@@ -1,0 +1,72 @@
+version: 2
+
+project_name: mdpress
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: mdpress
+    main: .
+    binary: mdpress
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/yeasy/mdpress/cmd.Version={{ .Version }} -X github.com/yeasy/mdpress/cmd.BuildTime={{ .Date }}
+
+archives:
+  - id: binaries
+    ids:
+      - mdpress
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+
+brews:
+  - name: mdpress
+    repository:
+      owner: yeasy
+      name: homebrew-tap
+    directory: Formula
+    homepage: "https://github.com/yeasy/mdpress"
+    description: "Markdown publishing CLI for book-style and documentation-style projects"
+    license: "MIT"
+    install: |
+      bin.install "mdpress"
+    test: |
+      system "#{bin}/mdpress", "--help"
+
+release:
+  github:
+    owner: yeasy
+    name: mdpress
+  draft: false
+  prerelease: auto
+  replace_existing_artifacts: true

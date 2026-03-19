@@ -1,0 +1,80 @@
+# mdpress GitLab CI/CD configuration
+#
+# This pipeline mirrors the GitHub Actions CI workflow.
+# It runs tests across multiple Go versions, builds the binary,
+# and generates a coverage report.
+#
+# Requirements:
+#   - GitLab Runner with Docker executor
+#   - Chromium is NOT required for most tests (PDF mock layer is used)
+
+stages:
+  - lint
+  - test
+  - build
+
+variables:
+  GOPATH: "$CI_PROJECT_DIR/.go"
+  GOFLAGS: "-mod=readonly"
+
+# Cache Go modules across jobs.
+.go-cache: &go-cache
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-go"
+    paths:
+      - .go/pkg/mod/
+
+# --- Lint ---
+
+lint:
+  stage: lint
+  image: golangci/golangci-lint:latest
+  <<: *go-cache
+  script:
+    - golangci-lint run ./...
+  allow_failure: false
+
+# --- Test ---
+
+.test-template: &test-template
+  stage: test
+  <<: *go-cache
+  script:
+    - go mod download
+    - go vet ./...
+    - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.txt
+    when: always
+
+test:go-1.21:
+  <<: *test-template
+  image: golang:1.21
+
+test:go-1.22:
+  <<: *test-template
+  image: golang:1.22
+
+test:go-1.23:
+  <<: *test-template
+  image: golang:1.23
+  coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
+
+# --- Build ---
+
+build:
+  stage: build
+  image: golang:1.23
+  <<: *go-cache
+  needs:
+    - test:go-1.23
+  script:
+    - go build -v -o mdpress .
+    - ./mdpress --help
+  artifacts:
+    paths:
+      - mdpress
+    expire_in: 1 week
