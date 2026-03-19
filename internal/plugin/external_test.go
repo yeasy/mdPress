@@ -68,9 +68,7 @@ func TestNewExternalPlugin_BasicProperties(t *testing.T) {
 	if ep.Name() != "my-plug" {
 		t.Errorf("Name() = %q, want %q", ep.Name(), "my-plug")
 	}
-	if ep.Description() == "" {
-		// description may be empty if --mdpress-info is not supported
-	}
+	// ep.Description() may be empty if --mdpress-info is not supported
 	if err := ep.Init(nil); err != nil {
 		t.Errorf("Init should be no-op, got error: %v", err)
 	}

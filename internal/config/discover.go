@@ -259,9 +259,6 @@ type ReadmeMetadata struct {
 var (
 	// versionBoldPattern matches **vX.Y.Z** or **X.Y.Z**.
 	versionBoldPattern = regexp.MustCompile(`\*\*v?([\d]+\.[\d]+(?:\.[\d]+)?)\*\*`)
-	// badgeBookTitlePattern matches Chinese book title in badge text/URL.
-	// e.g. badge/Docker%20技术入门与实战 or badge/Title-text
-	badgeBookTitlePattern = regexp.MustCompile(`badge/([^-\]]+)[-\]]`)
 	// githubUserPattern extracts username from GitHub URLs.
 	githubUserPattern = regexp.MustCompile(`github\.com/([a-zA-Z0-9_-]+)/`)
 	// authorPattern matches explicit author lines.

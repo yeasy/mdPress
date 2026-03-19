@@ -808,7 +808,7 @@ func TestPromptUserBasic(t *testing.T) {
 
 	w.Close()
 	os.Stdout = oldStdout
-	io.ReadAll(r) // drain pipe
+	_, _ = io.ReadAll(r) // drain pipe
 
 	if result != "defaultValue" {
 		t.Errorf("promptUser() with empty input = %q, want %q", result, "defaultValue")
@@ -830,7 +830,7 @@ func TestPromptChoiceBasic(t *testing.T) {
 
 	w.Close()
 	os.Stdout = oldStdout
-	io.ReadAll(r) // drain pipe
+	_, _ = io.ReadAll(r) // drain pipe
 
 	if result != "Option2" {
 		t.Errorf("promptChoice() with empty input = %q, want Option2", result)

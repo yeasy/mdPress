@@ -117,7 +117,6 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 		switch {
 		case cacheErr != nil:
 			p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.String("error", cacheErr.Error()))
-			cacheHit = false
 		case cacheHit:
 			htmlContent = cached.HTML
 			headings = cached.Headings

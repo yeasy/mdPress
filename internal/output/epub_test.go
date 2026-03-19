@@ -660,7 +660,7 @@ func TestGeneratePartialFileCleanup(t *testing.T) {
 	if err := os.Mkdir(readOnlyDir, 0444); err != nil {
 		t.Fatalf("failed to create readonly directory: %v", err)
 	}
-	defer os.Chmod(readOnlyDir, 0755) // Restore permissions for cleanup
+	defer os.Chmod(readOnlyDir, 0755) //nolint:errcheck // Restore permissions for cleanup
 
 	readOnlyPath := filepath.Join(readOnlyDir, "test.epub")
 
@@ -908,6 +908,6 @@ func BenchmarkGenerateSimpleEpub(b *testing.B) {
 			})
 		}
 
-		gen.Generate(outputPath)
+		_ = gen.Generate(outputPath)
 	}
 }
