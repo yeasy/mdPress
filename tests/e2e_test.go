@@ -436,7 +436,7 @@ func TestE2E_EPubOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("打开 ePub zip 失败: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	opf := readEpubEntry(t, reader.File, "OEBPS/content.opf")
 	if !strings.Contains(opf, `version="3.0"`) {
@@ -551,7 +551,7 @@ func readEpubEntry(t *testing.T, files []*zip.File, name string) string {
 		if err != nil {
 			t.Fatalf("打开 ePub 条目 %s 失败: %v", name, err)
 		}
-		defer rc.Close()
+		defer rc.Close() //nolint:errcheck
 
 		data, err := io.ReadAll(rc)
 		if err != nil {

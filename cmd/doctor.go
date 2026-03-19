@@ -209,29 +209,29 @@ func writeDoctorReport(path string, report doctorReport) error {
 func renderDoctorMarkdown(report doctorReport) string {
 	var b strings.Builder
 	b.WriteString("# mdpress Doctor Report\n\n")
-	b.WriteString(fmt.Sprintf("- Platform: %s\n", report.Platform))
-	b.WriteString(fmt.Sprintf("- Go version: %s\n", report.GoVersion))
-	b.WriteString(fmt.Sprintf("- Chromium available: %t\n", report.ChromiumAvailable))
-	b.WriteString(fmt.Sprintf("- book.yaml found: %t\n", report.BookYAMLFound))
-	b.WriteString(fmt.Sprintf("- SUMMARY.md found: %t\n", report.SummaryFound))
-	b.WriteString(fmt.Sprintf("- LANGS.md found: %t\n", report.LangsFound))
-	b.WriteString(fmt.Sprintf("- Project loadable: %t\n", report.ProjectLoadable))
+	fmt.Fprintf(&b, "- Platform: %s\n", report.Platform)
+	fmt.Fprintf(&b, "- Go version: %s\n", report.GoVersion)
+	fmt.Fprintf(&b, "- Chromium available: %t\n", report.ChromiumAvailable)
+	fmt.Fprintf(&b, "- book.yaml found: %t\n", report.BookYAMLFound)
+	fmt.Fprintf(&b, "- SUMMARY.md found: %t\n", report.SummaryFound)
+	fmt.Fprintf(&b, "- LANGS.md found: %t\n", report.LangsFound)
+	fmt.Fprintf(&b, "- Project loadable: %t\n", report.ProjectLoadable)
 	if report.ProjectTitle != "" {
-		b.WriteString(fmt.Sprintf("- Project title: %s\n", report.ProjectTitle))
+		fmt.Fprintf(&b, "- Project title: %s\n", report.ProjectTitle)
 	}
 	if report.TopLevelChapters > 0 {
-		b.WriteString(fmt.Sprintf("- Top-level chapters: %d\n", report.TopLevelChapters))
+		fmt.Fprintf(&b, "- Top-level chapters: %d\n", report.TopLevelChapters)
 	}
 	if len(report.Warnings) > 0 {
 		b.WriteString("\n## Warnings\n\n")
 		for _, warning := range report.Warnings {
-			b.WriteString(fmt.Sprintf("- %s\n", warning))
+			fmt.Fprintf(&b, "- %s\n", warning)
 		}
 	}
 	if len(report.UnresolvedMarkdown) > 0 {
 		b.WriteString("\n## Unresolved Markdown Links\n\n")
 		for _, item := range report.UnresolvedMarkdown {
-			b.WriteString(fmt.Sprintf("- %s (from %s)\n", item.Target, item.Source))
+			fmt.Fprintf(&b, "- %s (from %s)\n", item.Target, item.Source)
 		}
 	}
 	return b.String()

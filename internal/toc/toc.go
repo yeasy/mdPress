@@ -104,7 +104,7 @@ func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, dept
 	for _, entry := range entries {
 		itemIndent := strings.Repeat("  ", depth+2)
 		buf.WriteString(itemIndent + `<li>`)
-		buf.WriteString(fmt.Sprintf(`<a href="#%s">%s</a>`, utils.EscapeHTML(entry.ID), utils.EscapeHTML(entry.Title)))
+		fmt.Fprintf(buf, `<a href="#%s">%s</a>`, utils.EscapeHTML(entry.ID), utils.EscapeHTML(entry.Title))
 
 		// Render child entries recursively when present.
 		if len(entry.Children) > 0 {

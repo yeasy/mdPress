@@ -231,7 +231,7 @@ func TestEpubGeneratorBasic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	if len(reader.File) == 0 {
 		t.Fatal("epub archive should contain files")
@@ -367,7 +367,7 @@ func TestEpubGeneratorPackagesChapterImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	opf := readZipEntry(t, reader.File, "OEBPS/content.opf")
 	if !strings.Contains(opf, `id="asset-img-000"`) {
@@ -424,7 +424,7 @@ func TestEpubGeneratorPackagesRelativeChapterImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	chapter := readZipEntry(t, reader.File, "OEBPS/ch1.xhtml")
 	if !strings.Contains(chapter, `src="assets/diagram-000.png"`) {
@@ -472,7 +472,7 @@ func TestEpubGeneratorPackagesRemoteChapterImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	chapter := readZipEntry(t, reader.File, "OEBPS/ch1.xhtml")
 	if !strings.Contains(chapter, `src="assets/cover-000.png"`) {
@@ -530,7 +530,7 @@ func TestEpubGeneratorDeduplicatesSharedImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	ch1 := readZipEntry(t, reader.File, "OEBPS/ch1.xhtml")
 	ch2 := readZipEntry(t, reader.File, "OEBPS/ch2.xhtml")
@@ -568,7 +568,7 @@ func readZipEntry(t *testing.T, files []*zip.File, name string) string {
 		if err != nil {
 			t.Fatalf("open zip entry %s failed: %v", name, err)
 		}
-		defer rc.Close()
+		defer rc.Close() //nolint:errcheck
 
 		data, err := io.ReadAll(rc)
 		if err != nil {
@@ -735,7 +735,7 @@ func TestEpubGeneratorNoCover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	// Verify cover.xhtml does not exist
 	for _, file := range reader.File {
@@ -775,7 +775,7 @@ func TestEpubGeneratorEmptyLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open epub zip failed: %v", err)
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	// Verify nav.xhtml defaults to "en"
 	nav := readZipEntry(t, reader.File, "OEBPS/nav.xhtml")

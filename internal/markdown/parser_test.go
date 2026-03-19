@@ -18,6 +18,7 @@ func TestNewParserWithOptions(t *testing.T) {
 	parser := NewParser(WithCodeTheme("dracula"))
 	if parser == nil {
 		t.Fatal("带选项的 NewParser 返回 nil")
+		return
 	}
 	if parser.codeTheme != "dracula" {
 		t.Errorf("代码主题应为 dracula: got %q", parser.codeTheme)

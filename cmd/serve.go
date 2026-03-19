@@ -192,7 +192,7 @@ func executeServe(inputSource string, opts ServeOptions) error {
 	listenerOwned := true
 	defer func() {
 		if listenerOwned {
-			ln.Close()
+			ln.Close() //nolint:errcheck
 		}
 	}()
 

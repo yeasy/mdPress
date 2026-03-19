@@ -33,7 +33,7 @@ func (cg *CoverGenerator) RenderHTML() string {
 	buf.WriteString(`<head>` + "\n")
 	buf.WriteString(`  <meta charset="UTF-8">` + "\n")
 	buf.WriteString(`  <meta name="viewport" content="width=device-width, initial-scale=1.0">` + "\n")
-	buf.WriteString(fmt.Sprintf(`  <title>%s</title>`+"\n", utils.EscapeHTML(cg.meta.Title)))
+	fmt.Fprintf(&buf, `  <title>%s</title>`+"\n", utils.EscapeHTML(cg.meta.Title))
 	buf.WriteString(cg.renderStyles())
 	buf.WriteString(`</head>` + "\n")
 	buf.WriteString(`<body>` + "\n")
@@ -76,12 +76,12 @@ func (cg *CoverGenerator) renderStyles() string {
 
 	// Prefer a configured background color or image.
 	if cg.meta.Cover.Background != "" {
-		buf.WriteString(fmt.Sprintf(`      background-color: %s;`+"\n", cg.meta.Cover.Background))
+		fmt.Fprintf(&buf, `      background-color: %s;`+"\n", cg.meta.Cover.Background)
 		buf.WriteString(`      background-size: cover;` + "\n")
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
 	} else if cg.meta.Cover.Image != "" {
-		buf.WriteString(fmt.Sprintf(`      background-image: url('%s');`+"\n", escapeURL(cg.meta.Cover.Image)))
+		fmt.Fprintf(&buf, `      background-image: url('%s');`+"\n", escapeURL(cg.meta.Cover.Image))
 		buf.WriteString(`      background-size: cover;` + "\n")
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
@@ -186,12 +186,12 @@ func (cg *CoverGenerator) renderCoverContent() string {
 
 	// Title
 	if cg.meta.Title != "" {
-		buf.WriteString(fmt.Sprintf(`      <h1 class="cover-title">%s</h1>`+"\n", utils.EscapeHTML(cg.meta.Title)))
+		fmt.Fprintf(&buf, `      <h1 class="cover-title">%s</h1>`+"\n", utils.EscapeHTML(cg.meta.Title))
 	}
 
 	// Subtitle
 	if cg.meta.Subtitle != "" {
-		buf.WriteString(fmt.Sprintf(`      <h2 class="cover-subtitle">%s</h2>`+"\n", utils.EscapeHTML(cg.meta.Subtitle)))
+		fmt.Fprintf(&buf, `      <h2 class="cover-subtitle">%s</h2>`+"\n", utils.EscapeHTML(cg.meta.Subtitle))
 	}
 
 	// Divider
@@ -204,7 +204,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	if cg.meta.Author != "" {
 		buf.WriteString(`        <div class="cover-meta-item">` + "\n")
 		buf.WriteString(`          <span class="cover-meta-label">Author</span>` + "\n")
-		buf.WriteString(fmt.Sprintf(`          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Author)))
+		fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Author))
 		buf.WriteString(`        </div>` + "\n")
 	}
 
@@ -212,7 +212,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	if cg.meta.Version != "" {
 		buf.WriteString(`        <div class="cover-meta-item">` + "\n")
 		buf.WriteString(`          <span class="cover-meta-label">Version</span>` + "\n")
-		buf.WriteString(fmt.Sprintf(`          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Version)))
+		fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Version))
 		buf.WriteString(`        </div>` + "\n")
 	}
 
@@ -220,7 +220,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	currentDate := time.Now().Format("2006-01-02")
 	buf.WriteString(`        <div class="cover-meta-item">` + "\n")
 	buf.WriteString(`          <span class="cover-meta-label">Date</span>` + "\n")
-	buf.WriteString(fmt.Sprintf(`          <span>%s</span>`+"\n", currentDate))
+	fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", currentDate)
 	buf.WriteString(`        </div>` + "\n")
 
 	buf.WriteString(`      </div>` + "\n")

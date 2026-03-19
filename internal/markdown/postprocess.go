@@ -1,5 +1,5 @@
-// postprocess.go 对 goldmark 渲染后的 HTML 做后处理。
-// 包括：GFM Alerts（[!NOTE] 等）转换、Mermaid 代码块转换。
+// postprocess.go performs post-processing on HTML emitted by goldmark.
+// Includes: GFM Alert conversion ([!NOTE] etc.) and Mermaid code block conversion.
 package markdown
 
 import (
@@ -9,7 +9,7 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// alertTypes 支持的 GFM Alert 类型及其图标/颜色
+// alertTypes maps GFM Alert type names to their display style.
 var alertTypes = map[string]alertStyle{
 	"NOTE":      {icon: "ℹ️", color: "#0969da", bg: "#ddf4ff", border: "#54aeff", label: "Note"},
 	"TIP":       {icon: "💡", color: "#1a7f37", bg: "#dafbe1", border: "#4ac26b", label: "Tip"},
@@ -22,28 +22,28 @@ type alertStyle struct {
 	icon, color, bg, border, label string
 }
 
-// alertPattern 匹配 blockquote 内的 [!TYPE] 标记
-// goldmark 将 > [!NOTE] 渲染为 <blockquote>\n<p>[!NOTE]...
+// alertPattern matches the [!TYPE] marker inside a blockquote.
+// goldmark renders "> [!NOTE]" as "<blockquote>\n<p>[!NOTE]...".
 var alertPattern = regexp.MustCompile(
 	`<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]`)
 
-// PostProcess 对渲染后的 HTML 做后处理
+// PostProcess applies all post-processing transforms to goldmark-rendered HTML.
 func PostProcess(html string) string {
 	html = processAlerts(html)
 	html = processMermaid(html)
 	return html
 }
 
-// processAlerts 将 GFM Alert 语法转换为带样式的 HTML。
+// processAlerts converts GFM Alert syntax to styled HTML divs.
 //
-// 输入（goldmark 渲染后的 HTML）：
+// Input (goldmark-rendered HTML):
 //
 //	<blockquote>
 //	<p>[!NOTE]
 //	This is a note.</p>
 //	</blockquote>
 //
-// 输出：
+// Output:
 //
 //	<div class="alert alert-note">
 //	<p class="alert-title">ℹ️ Note</p>
@@ -94,13 +94,13 @@ func processAlerts(html string) string {
 	return html
 }
 
-// mermaidPattern 匹配 <pre><code class="language-mermaid">...</code></pre>
-// 或 goldmark-highlighting 输出的带 chroma style 的 mermaid 块
+// mermaidPattern matches <pre><code class="language-mermaid">...</code></pre>
+// as well as the chroma-highlighted variant produced by goldmark-highlighting.
 var mermaidPattern = regexp.MustCompile(
 	`<pre[^>]*><code[^>]*class="[^"]*language-mermaid[^"]*"[^>]*>([\s\S]*?)</code></pre>`)
 
-// processMermaid 将 mermaid 代码块转换为 <div class="mermaid"> 以供客户端渲染。
-// Mermaid JS 库会在浏览器中自动找到 .mermaid 类的 div 并渲染为 SVG。
+// processMermaid converts mermaid code blocks to <div class="mermaid"> elements
+// for client-side rendering by the Mermaid JS library.
 func processMermaid(html string) string {
 	return mermaidPattern.ReplaceAllStringFunc(html, func(match string) string {
 		parts := mermaidPattern.FindStringSubmatch(match)
@@ -120,14 +120,53 @@ func processMermaid(html string) string {
 	})
 }
 
-// MermaidScript 返回引入 Mermaid JS 的 <script> 标签。
-// 只有当 HTML 中包含 .mermaid div 时才需要引入。
+// MermaidScript returns the <script> tags needed to load and initialise Mermaid.
+// Only include this when the HTML contains .mermaid elements.
 func MermaidScript() string {
 	return `<script src="` + utils.MermaidCDNURL + `"></script>
 <script>mermaid.initialize({startOnLoad:true,theme:'default'});</script>`
 }
 
-// NeedsMermaid 检查 HTML 中是否包含 mermaid 图表
+// NeedsMermaid reports whether the HTML contains any Mermaid diagram elements.
 func NeedsMermaid(html string) bool {
 	return strings.Contains(html, `class="mermaid"`)
+}
+
+// NeedsKaTeX reports whether the HTML contains any math formula elements
+// produced by the math preprocessor.
+func NeedsKaTeX(html string) bool {
+	return strings.Contains(html, `class="math `)
+}
+
+// KaTeXScript returns the HTML tags (link + scripts) needed to load KaTeX and
+// its auto-render extension. The auto-render extension scans the document for
+// $...$ and $$...$$ delimiters and renders them with KaTeX.
+// Only include this when the HTML contains math elements (see NeedsKaTeX).
+func KaTeXScript() string {
+	return `<link rel="stylesheet" href="` + utils.KaTeXCSSURL + `">` +
+		`<script defer src="` + utils.KaTeXJSURL + `"></script>` +
+		`<script defer src="` + utils.KaTeXAutoRenderURL + `"` +
+		` onload="renderMathInElement(document.body,{` +
+		`delimiters:[` +
+		`{left:'$$',right:'$$',display:true},` +
+		`{left:'$',right:'$',display:false}` +
+		`],throwOnError:false});"></script>`
+}
+
+// KaTeXScriptForEpub returns XHTML-compatible KaTeX script tags for use inside
+// EPUB XHTML documents. Some EPUB readers (e.g. Apple Books) support JavaScript,
+// so KaTeX can render math formulas in those readers.
+func KaTeXScriptForEpub() string {
+	return "\n" +
+		`<link rel="stylesheet" href="` + utils.KaTeXCSSURL + `"/>` + "\n" +
+		`<script src="` + utils.KaTeXJSURL + `"></script>` + "\n" +
+		`<script src="` + utils.KaTeXAutoRenderURL + `"></script>` + "\n" +
+		`<script>` + "\n" +
+		`if(typeof renderMathInElement==='function'){` + "\n" +
+		`  renderMathInElement(document.body,{` + "\n" +
+		`    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],` + "\n" +
+		`    throwOnError:false` + "\n" +
+		`  });` + "\n" +
+		`}` + "\n" +
+		`</script>`
 }

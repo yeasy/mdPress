@@ -56,6 +56,7 @@ Examples:
   mdpress build --format html
   mdpress build --format site --output ./dist/book
   mdpress build --format pdf,html,epub
+  mdpress build --format all
   mdpress build --config path/to/book.yaml
   mdpress build https://github.com/yeasy/agentic_ai_guide
   mdpress build github.com/yeasy/agentic_ai_guide --branch main
@@ -71,7 +72,7 @@ Examples:
 }
 
 func init() {
-	buildCmd.Flags().StringVar(&buildFormat, "format", "", "Output formats, comma-separated (pdf,html,site,epub)")
+	buildCmd.Flags().StringVar(&buildFormat, "format", "", "Output formats, comma-separated (pdf,html,site,epub) or 'all'")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
 	buildCmd.Flags().StringVar(&buildOutput, "output", "", "Output file path, directory, or filename prefix")
@@ -184,6 +185,7 @@ func executeBuild(inputSource string) error {
 
 	// ========== 3. Resolve output formats ==========
 	// CLI --format overrides the config file.
+	// Special value "all" expands to all supported formats.
 	formats := cfg.Output.Formats
 	if buildFormat != "" {
 		formats = strings.Split(buildFormat, ",")
@@ -191,6 +193,16 @@ func executeBuild(inputSource string) error {
 			formats[i] = strings.TrimSpace(formats[i])
 		}
 	}
+	// Expand the "all" alias to the full set of supported formats.
+	expandedFormats := make([]string, 0, len(formats))
+	for _, f := range formats {
+		if f == "all" {
+			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub")
+		} else {
+			expandedFormats = append(expandedFormats, f)
+		}
+	}
+	formats = expandedFormats
 	if len(formats) == 0 {
 		formats = []string{"pdf"}
 	}

@@ -97,7 +97,7 @@ func TestListen_PortAlreadyInUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("无法占用测试端口: %v", err)
 	}
-	defer occupied.Close()
+	defer occupied.Close() //nolint:errcheck
 
 	port := occupied.Addr().(*net.TCPAddr).Port
 	srv := NewServer("127.0.0.1", port, t.TempDir(), t.TempDir(), slog.Default())
@@ -116,7 +116,7 @@ func TestListenFrom_SkipsOccupiedPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("无法占用测试端口: %v", err)
 	}
-	defer occupied.Close()
+	defer occupied.Close() //nolint:errcheck
 
 	startPort := occupied.Addr().(*net.TCPAddr).Port
 	srv := NewServer("127.0.0.1", startPort, t.TempDir(), t.TempDir(), slog.Default())
@@ -125,7 +125,7 @@ func TestListenFrom_SkipsOccupiedPort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListenFrom 返回错误: %v", err)
 	}
-	defer ln.Close()
+	defer ln.Close() //nolint:errcheck
 
 	if srv.Port <= startPort {
 		t.Fatalf("应跳过已占用端口 %d, 实际使用 %d", startPort, srv.Port)
@@ -257,7 +257,7 @@ func TestHandleWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WebSocket 连接失败: %v", err)
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck
 
 	// 读取连接确认消息
 	_, msg, err := conn.ReadMessage()
@@ -278,7 +278,7 @@ func TestHandleWebSocket(t *testing.T) {
 	}
 
 	// 关闭连接后验证客户端被移除
-	conn.Close()
+	conn.Close() //nolint:errcheck
 	// 等待一小段时间让 goroutine 处理断开事件
 	time.Sleep(100 * time.Millisecond)
 
@@ -317,7 +317,7 @@ func TestNotifyClients(t *testing.T) {
 	defer func() {
 		for _, c := range conns {
 			if c != nil {
-				c.Close()
+				c.Close() //nolint:errcheck
 			}
 		}
 	}()
@@ -390,7 +390,7 @@ func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 	defer func() {
 		for _, c := range conns {
 			if c != nil {
-				c.Close()
+				c.Close() //nolint:errcheck
 			}
 		}
 	}()

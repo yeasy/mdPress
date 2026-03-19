@@ -61,9 +61,14 @@ type templateChapter struct {
 	Content template.HTML
 }
 
-// NewHTMLRenderer 创建一个新的 HTML 渲染器
+// NewHTMLRenderer creates a new HTML renderer used for PDF generation.
 func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, error) {
-	resolvedTemplate := strings.Replace(htmlTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL, -1)
+	// Substitute CDN URL placeholders so the template does not need to import
+	// the utils package at template execution time.
+	resolvedTemplate := strings.ReplaceAll(htmlTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL)
+	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_CSS_URL}}", utils.KaTeXCSSURL)
+	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_JS_URL}}", utils.KaTeXJSURL)
+	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_AUTO_RENDER_URL}}", utils.KaTeXAutoRenderURL)
 	tmpl, err := template.New("book").Parse(resolvedTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse HTML template: %w", err)
@@ -149,7 +154,7 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		pageSize = "A4"
 	}
 
-	css.WriteString(fmt.Sprintf(`
+	fmt.Fprintf(&css, `
 @page {
   size: %s;
   margin: %.0fmm %.0fmm %.0fmm %.0fmm;
@@ -174,7 +179,7 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		r.config.Style.Margin.Top,
 		r.config.Style.Margin.Right,
 		r.config.Style.Margin.Bottom,
-		r.config.Style.Margin.Left))
+		r.config.Style.Margin.Left)
 
 	return css.String()
 }

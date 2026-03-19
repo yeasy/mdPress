@@ -79,7 +79,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 			return "", fmt.Errorf("failed to download image %q (after retry): %w", urlStr, err)
 		}
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	// Require a successful HTTP status.
 	if resp.StatusCode != http.StatusOK {
@@ -91,7 +91,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	// Copy the response body into the file with a size limit to prevent disk exhaustion.
 	limitedReader := io.LimitReader(resp.Body, MaxImageSize+1)

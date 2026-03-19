@@ -425,12 +425,39 @@ const htmlTemplate = `<!DOCTYPE html>
     <p><a href="https://github.com/yeasy/mdpress" style="color: inherit; text-decoration: none;">Built with mdpress</a></p>
   </div>
 
-  <!-- Mermaid: auto-detect and render diagrams -->
+  <!-- Mermaid: auto-detect and load only when diagrams are present -->
   <script>
   if (document.querySelector('.mermaid')) {
     var s = document.createElement('script');
     s.src = '{{MERMAID_CDN_URL}}';
     s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default'}); };
+    document.body.appendChild(s);
+  }
+  </script>
+
+  <!-- KaTeX: auto-detect and load only when math formulas are present -->
+  <script>
+  if (document.querySelector('.math')) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '{{KATEX_CSS_URL}}';
+    document.head.appendChild(link);
+    var s = document.createElement('script');
+    s.src = '{{KATEX_JS_URL}}';
+    s.onload = function() {
+      var ar = document.createElement('script');
+      ar.src = '{{KATEX_AUTO_RENDER_URL}}';
+      ar.onload = function() {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$',  right: '$',  display: false}
+          ],
+          throwOnError: false
+        });
+      };
+      document.body.appendChild(ar);
+    };
     document.body.appendChild(s);
   }
   </script>

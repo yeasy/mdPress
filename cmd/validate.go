@@ -319,7 +319,7 @@ func extractImagePaths(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	// Match Markdown image syntax: ![alt](path)
 	imgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
@@ -400,7 +400,7 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 	htmlLinkRegex := regexp.MustCompile(`<a[^>]+href=["']([^"']+\.md(?:#[^"']*)?)["']`)
@@ -678,17 +678,17 @@ func writeValidationReport(path string, report validationReport) error {
 func renderValidationMarkdown(report validationReport) string {
 	var b strings.Builder
 	b.WriteString("# mdpress Validation Report\n\n")
-	b.WriteString(fmt.Sprintf("- Status: %s\n", report.Status))
-	b.WriteString(fmt.Sprintf("- Total checks: %d\n", report.TotalChecks))
-	b.WriteString(fmt.Sprintf("- Passed: %d\n", report.Passed))
-	b.WriteString(fmt.Sprintf("- Failed: %d\n\n", report.Failed))
+	fmt.Fprintf(&b, "- Status: %s\n", report.Status)
+	fmt.Fprintf(&b, "- Total checks: %d\n", report.TotalChecks)
+	fmt.Fprintf(&b, "- Passed: %d\n", report.Passed)
+	fmt.Fprintf(&b, "- Failed: %d\n\n", report.Failed)
 	b.WriteString("## Results\n\n")
 	for _, result := range report.Results {
 		status := "PASS"
 		if !result.ok {
 			status = "FAIL"
 		}
-		b.WriteString(fmt.Sprintf("- [%s] %s\n", status, result.message))
+		fmt.Fprintf(&b, "- [%s] %s\n", status, result.message)
 	}
 	return b.String()
 }

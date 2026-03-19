@@ -1,0 +1,132 @@
+# mdpress-build.yml — Example GitHub Actions workflow for building a book with mdpress.
+#
+# USAGE
+# -----
+# Copy this file to your book repository at .github/workflows/mdpress-build.yml
+# and customise the variables in the "env" section.
+#
+# WHAT IT DOES
+# ------------
+# 1. Installs mdpress via Homebrew (macOS) or downloads the binary (Linux).
+# 2. Builds your book in all supported formats: PDF, HTML, ePub, and static site.
+# 3. Uploads the generated files as a build artifact.
+# 4. (Optional) Deploys the static site to GitHub Pages when pushing to the
+#    default branch.
+#
+# REQUIREMENTS
+# ------------
+# - A book.yaml (or SUMMARY.md) at the repository root (or set BOOK_DIR below).
+# - For GitHub Pages deployment: enable Pages in repo Settings → Pages →
+#   Source: GitHub Actions.
+
+name: Build book with mdpress
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  # Allow manual trigger from the Actions tab.
+  workflow_dispatch:
+
+# Restrict default permissions for security; grant only what is needed.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancel in-progress runs for the same branch to avoid queueing duplicate builds.
+concurrency:
+  group: "mdpress-${{ github.ref }}"
+  cancel-in-progress: true
+
+env:
+  # Directory containing book.yaml (use "." for the repository root).
+  BOOK_DIR: "."
+  # Output directory for all generated files.
+  OUTPUT_DIR: "_book"
+  # mdpress version to install ("latest" or a specific tag like "v0.3.0").
+  MDPRESS_VERSION: "latest"
+
+jobs:
+  build:
+    name: Build book
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install mdpress
+        run: |
+          # Download the latest mdpress binary for Linux from GitHub Releases.
+          if [ "${{ env.MDPRESS_VERSION }}" = "latest" ]; then
+            RELEASE_URL=$(curl -fsSL https://api.github.com/repos/yeasy/mdpress/releases/latest \
+              | grep "browser_download_url.*linux.*amd64" | cut -d '"' -f 4)
+          else
+            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${{ env.MDPRESS_VERSION }}/mdpress_linux_amd64"
+          fi
+          curl -fsSL "$RELEASE_URL" -o /usr/local/bin/mdpress
+          chmod +x /usr/local/bin/mdpress
+          mdpress version
+
+      - name: Validate book configuration
+        working-directory: ${{ env.BOOK_DIR }}
+        run: mdpress validate
+
+      - name: Build book (all formats)
+        working-directory: ${{ env.BOOK_DIR }}
+        run: |
+          mkdir -p ${{ env.OUTPUT_DIR }}
+          # Build PDF, standalone HTML, ePub, and multi-page site in one command.
+          mdpress build --format all --output ${{ env.OUTPUT_DIR }}/book
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: book-${{ github.sha }}
+          path: ${{ env.BOOK_DIR }}/${{ env.OUTPUT_DIR }}/
+          retention-days: 30
+
+  # Deploy the static site to GitHub Pages.
+  # Runs only on pushes to the default branch (not on pull requests).
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install mdpress
+        run: |
+          if [ "${{ env.MDPRESS_VERSION }}" = "latest" ]; then
+            RELEASE_URL=$(curl -fsSL https://api.github.com/repos/yeasy/mdpress/releases/latest \
+              | grep "browser_download_url.*linux.*amd64" | cut -d '"' -f 4)
+          else
+            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${{ env.MDPRESS_VERSION }}/mdpress_linux_amd64"
+          fi
+          curl -fsSL "$RELEASE_URL" -o /usr/local/bin/mdpress
+          chmod +x /usr/local/bin/mdpress
+
+      - name: Build static site for GitHub Pages
+        working-directory: ${{ env.BOOK_DIR }}
+        run: |
+          mkdir -p ${{ env.OUTPUT_DIR }}
+          # Build the multi-page site output only; Pages serves HTML files.
+          mdpress build --format site --output ${{ env.OUTPUT_DIR }}/book
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ env.BOOK_DIR }}/${{ env.OUTPUT_DIR }}/book_site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

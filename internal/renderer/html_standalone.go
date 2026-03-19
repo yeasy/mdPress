@@ -1,11 +1,10 @@
-// html_standalone.go 渲染自包含单页 HTML 文档。
-// 输出包含嵌入式 CSS 和 JavaScript，实现 GitBook 风格的三栏布局：
-//   - 左栏：全局目录导航（可折叠/展开子章节，高亮当前章节）
-//   - 中栏：正文内容区（最大宽度 800px，居中）
-//   - 右栏：页内 TOC（scroll-spy 自动追踪阅读位置）
+// html_standalone.go renders a self-contained single-page HTML document.
+// The output embeds CSS and JavaScript and implements a GitBook-style three-column
+// layout: left sidebar (global TOC), centre content area, right in-page TOC.
 //
-// 其他特性：暗色/亮色/跟随系统三档主题、代码块复制按钮+语言标签、
-// Callout 提示框、全文搜索（⌘K）、上一页/下一页导航、图片灯箱等。
+// Additional features: dark/light/system theme toggle, code copy button with
+// language label, callout boxes, full-text search (⌘K), prev/next navigation,
+// image lightbox, Mermaid diagrams, and KaTeX math formulas.
 package renderer
 
 import (
@@ -15,6 +14,7 @@ import (
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/theme"
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // StandaloneHTMLRenderer 渲染自包含单页 HTML 文档
@@ -50,11 +50,18 @@ type standaloneSidebarChapter struct {
 	Children []standaloneSidebarChapter
 }
 
-// NewStandaloneHTMLRenderer 创建单页 HTML 渲染器
+// NewStandaloneHTMLRenderer creates a single-page HTML renderer.
 func NewStandaloneHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*StandaloneHTMLRenderer, error) {
+	// Substitute CDN URL placeholders before parsing the template so that the
+	// template engine never needs to evaluate them as Go template expressions.
+	resolved := strings.ReplaceAll(standaloneHTMLTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL)
+	resolved = strings.ReplaceAll(resolved, "{{KATEX_CSS_URL}}", utils.KaTeXCSSURL)
+	resolved = strings.ReplaceAll(resolved, "{{KATEX_JS_URL}}", utils.KaTeXJSURL)
+	resolved = strings.ReplaceAll(resolved, "{{KATEX_AUTO_RENDER_URL}}", utils.KaTeXAutoRenderURL)
+
 	tmpl, err := template.New("standalone").Funcs(template.FuncMap{
 		"safeHTML": func(s template.HTML) template.HTML { return s },
-	}).Parse(standaloneHTMLTemplate)
+	}).Parse(resolved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse standalone HTML template: %w", err)
 	}
@@ -155,8 +162,8 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 		groupClass += " has-children"
 	}
 
-	b.WriteString(fmt.Sprintf(`<div class="%s" data-group-id="%s">`,
-		groupClass, template.HTMLEscapeString(ch.ID)))
+	fmt.Fprintf(b, `<div class="%s" data-group-id="%s">`,
+		groupClass, template.HTMLEscapeString(ch.ID))
 	b.WriteString(`<div class="toc-row">`)
 
 	if hasChildren {
@@ -166,13 +173,12 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 	}
 
 	// 保留 data-group-link="true"（测试兼容）
-	b.WriteString(fmt.Sprintf(
+	fmt.Fprintf(b,
 		`<a href="#%s" class="toc-link toc-link-chapter toc-depth-%d" data-target="%s" data-group-link="true">%s</a>`,
 		template.HTMLEscapeString(ch.ID),
 		ch.Depth+1,
 		template.HTMLEscapeString(ch.ID),
-		template.HTMLEscapeString(ch.Title),
-	))
+		template.HTMLEscapeString(ch.Title))
 	b.WriteString(`</div>`)
 
 	if hasChildren {
@@ -193,13 +199,12 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 // renderSidebarHeadings 递归渲染侧边栏中的标题条目
 func (r *StandaloneHTMLRenderer) renderSidebarHeadings(b *strings.Builder, headings []NavHeading, depth int) {
 	for _, h := range headings {
-		b.WriteString(fmt.Sprintf(
+		fmt.Fprintf(b,
 			`<a href="#%s" class="toc-link toc-link-heading toc-heading-depth-%d" data-target="%s">%s</a>`,
 			template.HTMLEscapeString(h.ID),
 			depth+1,
 			template.HTMLEscapeString(h.ID),
-			template.HTMLEscapeString(h.Title),
-		))
+			template.HTMLEscapeString(h.Title))
 		if len(h.Children) > 0 {
 			r.renderSidebarHeadings(b, h.Children, depth+1)
 		}
@@ -1980,6 +1985,43 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
     }
 
   })();
+  </script>
+
+  <!-- Mermaid: auto-detect and load only when diagrams are present -->
+  <script>
+  if (document.querySelector('.mermaid')) {
+    var s = document.createElement('script');
+    s.src = '{{MERMAID_CDN_URL}}';
+    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default'}); };
+    document.body.appendChild(s);
+  }
+  </script>
+
+  <!-- KaTeX: auto-detect and load only when math formulas are present -->
+  <script>
+  if (document.querySelector('.math')) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '{{KATEX_CSS_URL}}';
+    document.head.appendChild(link);
+    var s = document.createElement('script');
+    s.src = '{{KATEX_JS_URL}}';
+    s.onload = function() {
+      var ar = document.createElement('script');
+      ar.src = '{{KATEX_AUTO_RENDER_URL}}';
+      ar.onload = function() {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$',  right: '$',  display: false}
+          ],
+          throwOnError: false
+        });
+      };
+      document.body.appendChild(ar);
+    };
+    document.body.appendChild(s);
+  }
   </script>
 </body>
 </html>

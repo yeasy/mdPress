@@ -121,10 +121,10 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	defer os.Remove(tmpPath)
 
 	if _, err := tmpFile.WriteString(htmlContent); err != nil {
-		tmpFile.Close()
+		tmpFile.Close() //nolint:errcheck
 		return fmt.Errorf("failed to write temporary file: %w", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	return g.GenerateFromFile(tmpPath, outputPath)
 }

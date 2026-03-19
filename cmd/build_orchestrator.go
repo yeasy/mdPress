@@ -7,6 +7,7 @@ import (
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/glossary"
 	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/internal/plugin"
 	"github.com/yeasy/mdpress/internal/theme"
 )
 
@@ -18,6 +19,9 @@ type BuildOrchestrator struct {
 	Parser *markdown.Parser
 	Gloss  *glossary.Glossary
 	Logger *slog.Logger
+	// PluginManager manages loaded plugins and dispatches hook calls throughout the
+	// build pipeline.  It is an empty (no-op) Manager when no plugins are configured.
+	PluginManager *plugin.Manager
 }
 
 // NewBuildOrchestrator creates a fully initialized orchestrator from config.
@@ -50,18 +54,25 @@ func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOr
 		}
 	}
 
+	// Load plugins declared in book.yaml.  A loading error produces a warning
+	// but does not abort the build.
+	pluginMgr := plugin.MustLoadPlugins(cfg, func(msg string) {
+		logger.Warn(msg)
+	})
+
 	return &BuildOrchestrator{
-		Config: cfg,
-		Theme:  thm,
-		Parser: parser,
-		Gloss:  gloss,
-		Logger: logger,
+		Config:        cfg,
+		Theme:         thm,
+		Parser:        parser,
+		Gloss:         gloss,
+		Logger:        logger,
+		PluginManager: pluginMgr,
 	}, nil
 }
 
 // ProcessChapters runs the ChapterPipeline and returns results.
 func (o *BuildOrchestrator) ProcessChapters() (*ChapterPipelineResult, error) {
-	pipeline := NewChapterPipeline(o.Config, o.Theme, o.Parser, o.Gloss, o.Logger)
+	pipeline := NewChapterPipeline(o.Config, o.Theme, o.Parser, o.Gloss, o.Logger, o.PluginManager)
 	return pipeline.Process()
 }
 

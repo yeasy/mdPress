@@ -95,27 +95,35 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 		return "", []HeadingInfo{}, nil, nil
 	}
 
-	// 清空之前的标题
+	// Pre-process math formulas: replace $$...$$ and $...$ with safe placeholder
+	// tokens to prevent goldmark from treating _ inside formulas as emphasis.
+	mathProc := newMathPreprocessor()
+	processedSource := []byte(mathProc.preprocess(string(source)))
+
+	// Reset heading collection for this parse run.
 	p.headingsMu.Lock()
 	p.headings = make([]HeadingInfo, 0)
 	p.headingsMu.Unlock()
 
-	// 解析为 AST
-	reader := text.NewReader(source)
+	// Parse the pre-processed source into an AST.
+	reader := text.NewReader(processedSource)
 	document := p.md.Parser().Parse(reader)
-	diagnostics := CollectDiagnostics(document, source)
+	diagnostics := CollectDiagnostics(document, processedSource)
 
-	// 遍历 AST 收集标题信息
-	p.collectHeadings(document, source, newSourceIndex(source))
+	// Walk the AST to collect heading information.
+	p.collectHeadings(document, processedSource, newSourceIndex(processedSource))
 
-	// 渲染为 HTML
+	// Render AST to HTML.
 	var buf bytes.Buffer
-	if err := p.md.Renderer().Render(&buf, source, document); err != nil {
+	if err := p.md.Renderer().Render(&buf, processedSource, document); err != nil {
 		return "", nil, nil, fmt.Errorf("渲染 Markdown 失败: %w", err)
 	}
 
-	// 后处理：GFM Alerts、Mermaid 等
+	// Post-process: GFM Alerts, Mermaid code blocks, etc.
 	htmlResult := PostProcess(buf.String())
+
+	// Restore math placeholders to KaTeX-recognisable HTML span elements.
+	htmlResult = mathProc.postprocess(htmlResult)
 
 	p.headingsMu.RLock()
 	headingsCopy := make([]HeadingInfo, len(p.headings))

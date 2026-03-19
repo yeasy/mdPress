@@ -38,10 +38,10 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 
 	fullHTML := buildMermaidValidationHTML(htmlContent)
 	if _, err := tmpFile.WriteString(fullHTML); err != nil {
-		tmpFile.Close()
+		tmpFile.Close() //nolint:errcheck
 		return fmt.Errorf("failed to write temporary Mermaid validation file: %w", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -66,7 +66,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 				time.Sleep(200 * time.Millisecond)
 			}
 			if !status.Done {
-				return fmt.Errorf("Mermaid rendering timed out")
+				return fmt.Errorf("mermaid rendering timed out")
 			}
 			return nil
 		}),

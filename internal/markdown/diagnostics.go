@@ -149,7 +149,7 @@ func collectOrderedListDiagnostics(document ast.Node, source []byte, index *sour
 			}
 		}
 
-		if prevMarker, ok := lastMarkerByIndent[indentWidth]; ok && !(prevMarker == 1 && actual == 1) && actual != prevMarker+1 {
+		if prevMarker, ok := lastMarkerByIndent[indentWidth]; ok && (prevMarker != 1 || actual != 1) && actual != prevMarker+1 {
 			diagnostics = append(diagnostics, Diagnostic{
 				Rule:    "ordered-list-sequence",
 				Line:    i + 1,

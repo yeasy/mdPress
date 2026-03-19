@@ -80,7 +80,7 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open source file %q: %w", src, err)
 	}
-	defer srcFile.Close()
+	defer srcFile.Close() //nolint:errcheck
 
 	// Read source metadata.
 	srcInfo, err := srcFile.Stat()
@@ -104,7 +104,7 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
 	}
-	defer dstFile.Close()
+	defer dstFile.Close() //nolint:errcheck
 
 	// Copy file content.
 	if _, err := io.Copy(dstFile, srcFile); err != nil {

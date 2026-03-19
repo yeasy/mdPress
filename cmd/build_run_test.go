@@ -13,6 +13,7 @@ func TestValidateChapterTitleSequenceMismatch(t *testing.T) {
 	})
 	if diag == nil {
 		t.Fatal("expected diagnostic")
+		return
 	}
 	if diag.Rule != "chapter-title-sequence" {
 		t.Fatalf("unexpected rule: %s", diag.Rule)

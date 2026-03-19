@@ -380,7 +380,7 @@ func extractTitleFromFile(path string) string {
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	scanner := bufio.NewScanner(f)
 	lineCount := 0
@@ -425,14 +425,14 @@ func generateBookYAMLNoChapters(projectName string, coverImage string) string {
 	b.WriteString("# Docs: https://github.com/yeasy/mdpress\n\n")
 
 	b.WriteString("book:\n")
-	b.WriteString(fmt.Sprintf("  title: %q\n", projectName))
+	fmt.Fprintf(&b, "  title: %q\n", projectName)
 	b.WriteString("  author: \"\"\n")
 	b.WriteString("  version: \"1.0.0\"\n")
 	b.WriteString("  language: \"en-US\"\n")
 
 	b.WriteString("  cover:\n")
 	if coverImage != "" {
-		b.WriteString(fmt.Sprintf("    image: %q\n", coverImage))
+		fmt.Fprintf(&b, "    image: %q\n", coverImage)
 	} else {
 		b.WriteString("    background: \"#1a1a2e\"\n")
 	}
@@ -444,7 +444,7 @@ func generateBookYAMLNoChapters(projectName string, coverImage string) string {
 	b.WriteString("  page_size: \"A4\"\n")
 
 	b.WriteString("\noutput:\n")
-	b.WriteString(fmt.Sprintf("  filename: %q\n", projectName+".pdf"))
+	fmt.Fprintf(&b, "  filename: %q\n", projectName+".pdf")
 	b.WriteString("  toc: true\n")
 	b.WriteString("  cover: true\n")
 
@@ -462,7 +462,7 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 
 	// Book metadata
 	b.WriteString("book:\n")
-	b.WriteString(fmt.Sprintf("  title: %q\n", projectName))
+	fmt.Fprintf(&b, "  title: %q\n", projectName)
 	b.WriteString("  # subtitle: \"\"\n")
 	b.WriteString("  author: \"\"\n")
 	b.WriteString("  version: \"1.0.0\"\n")
@@ -471,7 +471,7 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 	// Cover
 	b.WriteString("  cover:\n")
 	if coverImage != "" {
-		b.WriteString(fmt.Sprintf("    image: %q\n", coverImage))
+		fmt.Fprintf(&b, "    image: %q\n", coverImage)
 	} else {
 		b.WriteString("    # image: \"cover.png\"\n")
 		b.WriteString("    background: \"#1a1a2e\"\n")
@@ -487,8 +487,8 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 			// Fall back to a title inferred from the file path.
 			title = inferTitleFromPath(f.RelPath)
 		}
-		b.WriteString(fmt.Sprintf("  - title: %q\n", title))
-		b.WriteString(fmt.Sprintf("    file: %q\n", f.RelPath))
+		fmt.Fprintf(&b, "  - title: %q\n", title)
+		fmt.Fprintf(&b, "    file: %q\n", f.RelPath)
 	}
 
 	// Style
@@ -513,7 +513,7 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 
 	// Output
 	b.WriteString("\noutput:\n")
-	b.WriteString(fmt.Sprintf("  filename: %q\n", projectName+".pdf"))
+	fmt.Fprintf(&b, "  filename: %q\n", projectName+".pdf")
 	b.WriteString("  toc: true\n")
 	b.WriteString("  cover: true\n")
 	b.WriteString("  header: true\n")

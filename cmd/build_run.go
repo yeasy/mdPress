@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/yeasy/mdpress/internal/linkrewrite"
 	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/output"
+	"github.com/yeasy/mdpress/internal/plugin"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/internal/toc"
@@ -105,6 +107,14 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 	}
 	progress.DoneWithDetail(orchestrator.Theme.Name)
 
+	// Invoke the BeforeBuild hook so plugins can do pre-build setup work.
+	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
+		Context:  context.Background(),
+		Config:   cfg,
+		Phase:    plugin.PhaseBeforeBuild,
+		Metadata: make(map[string]interface{}),
+	}, logger)
+
 	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
 	result, err := orchestrator.ProcessChapters()
 	if err != nil {
@@ -155,12 +165,33 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 		chapterFiles = append(chapterFiles, "")
 	}
 
+	// Invoke the BeforeRender hook before the final HTML document is assembled.
+	// The cover HTML is passed as the content payload so plugins can inspect it.
+	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
+		Context:  context.Background(),
+		Config:   cfg,
+		Phase:    plugin.PhaseBeforeRender,
+		Content:  coverHTML,
+		Metadata: make(map[string]interface{}),
+	}, logger)
+
 	singlePageParts := &renderer.RenderParts{
 		CoverHTML:    coverHTML,
 		TOCHTML:      tocHTML,
 		ChaptersHTML: singlePageChapters,
 		CustomCSS:    customCSS,
 	}
+
+	// Invoke the AfterRender hook after HTML assembly is complete.
+	// The TOC HTML is passed as the content payload.
+	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
+		Context:  context.Background(),
+		Config:   cfg,
+		Phase:    plugin.PhaseAfterRender,
+		Content:  tocHTML,
+		Metadata: make(map[string]interface{}),
+	}, logger)
+
 	progress.Done()
 
 	progress.Start(fmt.Sprintf("Generating output (%s)", strings.Join(formats, ", ")))
@@ -191,9 +222,35 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 		}
 	}
 
+	// Invoke the AfterBuild hook after all output formats have been written.
+	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
+		Context:  context.Background(),
+		Config:   cfg,
+		Phase:    plugin.PhaseAfterBuild,
+		Metadata: make(map[string]interface{}),
+	}, logger)
+
+	// Release plugin resources.
+	if err := orchestrator.PluginManager.CleanupAll(); err != nil {
+		logger.Warn("plugin cleanup failed", slog.String("error", err.Error()))
+	}
+
 	progress.Done()
 	progress.Finish()
 	return nil
+}
+
+// runPluginHook dispatches a hook to the plugin manager.
+// Errors are logged as warnings; they never abort the build.
+func runPluginHook(mgr *plugin.Manager, hookCtx *plugin.HookContext, logger *slog.Logger) {
+	if mgr == nil {
+		return
+	}
+	if err := mgr.RunHook(hookCtx); err != nil {
+		logger.Warn("plugin hook failed",
+			slog.String("phase", string(hookCtx.Phase)),
+			slog.String("error", err.Error()))
+	}
 }
 
 var (
@@ -512,16 +569,16 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	b.WriteString("</style>\n</head>\n<body>\n<div class=\"wrap\">\n<h1>Language Variants</h1>\n")
 	b.WriteString("<p>Select a language output generated from this multi-language project.</p>\n<div class=\"grid\">\n")
 	if defaultTarget != "" {
-		b.WriteString(fmt.Sprintf("<div class=\"notice\">Redirecting to the default language in a moment. If you prefer, choose a language below. <a href=\"%s\">Open default now</a>.</div>\n", utils.EscapeHTML(defaultTarget)))
+		fmt.Fprintf(&b, "<div class=\"notice\">Redirecting to the default language in a moment. If you prefer, choose a language below. <a href=\"%s\">Open default now</a>.</div>\n", utils.EscapeHTML(defaultTarget))
 	}
 
 	for _, summary := range summaries {
 		b.WriteString("<section class=\"card\">\n")
-		b.WriteString(fmt.Sprintf("<h2>%s</h2>\n", utils.EscapeHTML(summary.Name)))
+		fmt.Fprintf(&b, "<h2>%s</h2>\n", utils.EscapeHTML(summary.Name))
 		if summary.Title != "" {
-			b.WriteString(fmt.Sprintf("<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Title)))
+			fmt.Fprintf(&b, "<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Title))
 		} else {
-			b.WriteString(fmt.Sprintf("<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Dir)))
+			fmt.Fprintf(&b, "<div class=\"meta\">%s</div>\n", utils.EscapeHTML(summary.Dir))
 		}
 		b.WriteString("<ul>\n")
 		for _, key := range []string{"html", "site", "pdf", "epub"} {
@@ -533,13 +590,13 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 			if err != nil {
 				rel = target
 			}
-			b.WriteString(fmt.Sprintf("<li><a href=\"%s\">%s</a></li>\n", utils.EscapeHTML(filepath.ToSlash(rel)), strings.ToUpper(key)))
+			fmt.Fprintf(&b, "<li><a href=\"%s\">%s</a></li>\n", utils.EscapeHTML(filepath.ToSlash(rel)), strings.ToUpper(key))
 		}
 		b.WriteString("</ul>\n</section>\n")
 	}
 
 	if defaultTarget != "" {
-		b.WriteString(fmt.Sprintf("<script>setTimeout(function(){ window.location.href = %q; }, 1200);</script>\n", defaultTarget))
+		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %q; }, 1200);</script>\n", defaultTarget)
 	}
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
 	return os.WriteFile(landingPath, []byte(b.String()), 0644)
@@ -618,12 +675,12 @@ func buildLanguageSwitcherHTML(currentDir, landingPath string, summaries []langu
 			return "", err
 		}
 		if summary.Dir == currentLangDir {
-			b.WriteString(fmt.Sprintf(`<span class="current">%s</span>`, utils.EscapeHTML(summary.Name)))
+			fmt.Fprintf(&b, `<span class="current">%s</span>`, utils.EscapeHTML(summary.Name))
 		} else {
-			b.WriteString(fmt.Sprintf(`<a href="%s">%s</a>`, utils.EscapeHTML(filepath.ToSlash(rel)), utils.EscapeHTML(summary.Name)))
+			fmt.Fprintf(&b, `<a href="%s">%s</a>`, utils.EscapeHTML(filepath.ToSlash(rel)), utils.EscapeHTML(summary.Name))
 		}
 	}
-	b.WriteString(fmt.Sprintf(`<a href="%s">All languages</a>`, utils.EscapeHTML(filepath.ToSlash(landingRel))))
+	fmt.Fprintf(&b, `<a href="%s">All languages</a>`, utils.EscapeHTML(filepath.ToSlash(landingRel)))
 	b.WriteString(`</nav>`)
 	return b.String(), nil
 }

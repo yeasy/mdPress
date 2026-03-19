@@ -29,7 +29,7 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SUMMARY.md: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var chapters []ChapterDef
 	// Track nesting with a stack of (indent, *[]ChapterDef).
@@ -103,12 +103,13 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 func countIndent(line string) int {
 	indent := 0
 	for _, ch := range line {
-		if ch == ' ' {
+		switch ch {
+		case ' ':
 			indent++
-		} else if ch == '\t' {
+		case '\t':
 			indent += 2
-		} else {
-			break
+		default:
+			return indent
 		}
 	}
 	return indent

@@ -127,13 +127,43 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		}
 	}
 
-	// Create index.html. Redirect to the first page when one exists; otherwise
-	// emit a minimal placeholder page so the site root still resolves cleanly.
-	indexHTML := `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>` +
-		template.HTMLEscapeString(g.Meta.Title) +
-		`</title></head><body><p>No chapters available.</p></body></html>`
+	// Generate index.html as a full first-chapter page so the SPA loads instantly
+	// at the site root without an HTTP redirect flicker.  The SPA router takes
+	// over from there for subsequent navigation.
+	var indexHTML string
 	if len(flatPages) > 0 {
-		indexHTML = fmt.Sprintf(`<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=%s"></head></html>`, flatPages[0].Filename)
+		firstPage := flatPages[0]
+		// index.html shows the first chapter content with the sidebar active on
+		// that chapter.  The "previous" nav link is omitted; "next" points to
+		// the second page when it exists.
+		var nextLink, nextTitle string
+		if len(flatPages) > 1 {
+			nextLink = flatPages[1].Filename
+			nextTitle = flatPages[1].Title
+		}
+		idxData := pageData{
+			SiteTitle:   g.Meta.Title,
+			Author:      g.Meta.Author,
+			Language:    g.Meta.Language,
+			PageTitle:   firstPage.Title,
+			Content:     firstPage.Content,
+			CSS:         g.CSS,
+			SidebarHTML: g.buildSidebar(g.Chapters, firstPage.Filename),
+			NextLink:    nextLink,
+			NextTitle:   nextTitle,
+			ActiveFile:  firstPage.Filename,
+			TotalPages:  len(flatPages),
+			CurrentPage: 1,
+		}
+		var buf strings.Builder
+		if err := tmpl.Execute(&buf, idxData); err != nil {
+			return fmt.Errorf("failed to render index.html: %w", err)
+		}
+		indexHTML = buf.String()
+	} else {
+		indexHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>` +
+			template.HTMLEscapeString(g.Meta.Title) +
+			`</title></head><body><p>No chapters available.</p></body></html>`
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
@@ -182,25 +212,24 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 			}
 		}
 
-		b.WriteString(fmt.Sprintf(`<div class="%s" data-group-file="%s">`, groupClass, template.HTMLEscapeString(filename)))
+		fmt.Fprintf(b, `<div class="%s" data-group-file="%s">`, groupClass, template.HTMLEscapeString(filename))
 		b.WriteString(`<div class="nav-row">`)
 		if hasChildren {
 			expanded := "false"
 			if g.isChapterBranchActive(ch, activeFile) {
 				expanded = "true"
 			}
-			b.WriteString(fmt.Sprintf(`<button class="nav-toggle" type="button" aria-label="Toggle section" aria-expanded="%s"></button>`, expanded))
+			fmt.Fprintf(b, `<button class="nav-toggle" type="button" aria-label="Toggle section" aria-expanded="%s"></button>`, expanded)
 		} else {
 			b.WriteString(`<span class="nav-toggle nav-toggle-placeholder"></span>`)
 		}
-		b.WriteString(fmt.Sprintf(
+		fmt.Fprintf(b,
 			`<a class="nav-item nav-chapter nav-depth-%d" href="%s" data-file="%s" data-group-link="%t">%s</a>`,
 			ch.Depth+1,
 			template.HTMLEscapeString(filename),
 			template.HTMLEscapeString(filename),
 			hasChildren,
-			template.HTMLEscapeString(ch.Title),
-		))
+			template.HTMLEscapeString(ch.Title))
 		b.WriteString(`</div>`)
 
 		if hasChildren {
@@ -233,15 +262,14 @@ func (g *SiteGenerator) isChapterBranchActive(ch SiteChapter, activeFile string)
 
 func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, filename string, headings []SiteNavHeading, depth int) {
 	for _, heading := range headings {
-		b.WriteString(fmt.Sprintf(
+		fmt.Fprintf(b,
 			`<a class="nav-item nav-heading nav-heading-depth-%d" href="%s#%s" data-file="%s" data-target="%s">%s</a>`,
 			depth+1,
 			template.HTMLEscapeString(filename),
 			template.HTMLEscapeString(heading.ID),
 			template.HTMLEscapeString(filename),
 			template.HTMLEscapeString(heading.ID),
-			template.HTMLEscapeString(heading.Title),
-		))
+			template.HTMLEscapeString(heading.Title))
 		if len(heading.Children) > 0 {
 			g.renderSidebarHeadings(b, filename, heading.Children, depth+1)
 		}
@@ -933,6 +961,54 @@ body {
     document.body.appendChild(s);
   }
 
+  // ensureKaTeX loads KaTeX and triggers auto-render when math elements are found.
+  // Called on initial load and after each client-side navigation.
+  function ensureKaTeX() {
+    if (!document.querySelector('.math')) return;
+
+    function runKaTeX() {
+      if (typeof renderMathInElement !== 'function') return;
+      try {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$',  right: '$',  display: false}
+          ],
+          throwOnError: false
+        });
+      } catch (e) {
+        console.warn('[mdpress] KaTeX render failed', e);
+      }
+    }
+
+    if (typeof renderMathInElement === 'function') {
+      runKaTeX();
+      return;
+    }
+
+    if (document.querySelector('script[data-mdpress-katex]')) return;
+
+    // Load KaTeX CSS if not already loaded.
+    if (!document.querySelector('link[data-mdpress-katex-css]')) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '` + utils.KaTeXCSSURL + `';
+      link.dataset.mdpressKatexCss = 'true';
+      document.head.appendChild(link);
+    }
+
+    var s = document.createElement('script');
+    s.src = '` + utils.KaTeXJSURL + `';
+    s.dataset.mdpressKatex = 'true';
+    s.onload = function() {
+      var ar = document.createElement('script');
+      ar.src = '` + utils.KaTeXAutoRenderURL + `';
+      ar.onload = runKaTeX;
+      document.body.appendChild(ar);
+    };
+    document.body.appendChild(s);
+  }
+
   function getClientNavigation(anchor) {
     if (!anchor || !anchor.href) return null;
     try {
@@ -994,6 +1070,7 @@ body {
     syncSidebarForCurrentFile();
     updateActiveNavigation();
     ensureMermaid();
+    ensureKaTeX();
 
     if (window.innerWidth <= 768) {
       sidebar.classList.remove('open');
@@ -1085,6 +1162,7 @@ body {
   syncSidebarForCurrentFile();
   updateActiveNavigation();
   ensureMermaid();
+  ensureKaTeX();
 
   document.addEventListener('mouseover', function(e) {
     var link = e.target.closest('.sidebar-nav a, .page-nav a, .content a');

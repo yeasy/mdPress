@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/yeasy/mdpress/internal/glossary"
 	"github.com/yeasy/mdpress/internal/linkrewrite"
 	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/internal/plugin"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/internal/toc"
@@ -34,16 +36,23 @@ type ChapterPipeline struct {
 	Parser   *markdown.Parser
 	Glossary *glossary.Glossary
 	Logger   *slog.Logger
+	// PluginManager is invoked at the AfterParse hook, allowing plugins to
+	// transform the HTML of each chapter after Markdown parsing.
+	PluginManager *plugin.Manager
 }
 
 // NewChapterPipeline creates a new chapter pipeline with the given configuration.
-func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdown.Parser, gloss *glossary.Glossary, logger *slog.Logger) *ChapterPipeline {
+func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdown.Parser, gloss *glossary.Glossary, logger *slog.Logger, mgr *plugin.Manager) *ChapterPipeline {
+	if mgr == nil {
+		mgr = plugin.NewManager()
+	}
 	return &ChapterPipeline{
-		Config:   cfg,
-		Theme:    thm,
-		Parser:   parser,
-		Glossary: gloss,
-		Logger:   logger,
+		Config:        cfg,
+		Theme:         thm,
+		Parser:        parser,
+		Glossary:      gloss,
+		Logger:        logger,
+		PluginManager: mgr,
 	}
 }
 
@@ -127,6 +136,22 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 		chapterID := fmt.Sprintf("chapter-%d", i+1)
 		if len(headings) > 0 {
 			chapterID = headings[0].ID
+		}
+
+		// Invoke the AfterParse hook so plugins can modify this chapter's HTML.
+		hookCtx := &plugin.HookContext{
+			Context:      context.Background(),
+			Config:       p.Config,
+			Phase:        plugin.PhaseAfterParse,
+			Content:      htmlContent,
+			ChapterIndex: i,
+			ChapterFile:  chDef.File,
+			Metadata:     make(map[string]interface{}),
+		}
+		if err := p.PluginManager.RunHook(hookCtx); err != nil {
+			p.Logger.Warn("AfterParse plugin hook failed", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		} else if hookCtx.Content != "" {
+			htmlContent = hookCtx.Content
 		}
 
 		// Process cross-references and glossary.

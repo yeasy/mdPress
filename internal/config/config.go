@@ -16,6 +16,8 @@ type BookConfig struct {
 	Chapters []ChapterDef `yaml:"chapters"`
 	Style    StyleConfig  `yaml:"style"`
 	Output   OutputConfig `yaml:"output"`
+	// Plugins lists the plugins to run during the build, in declaration order.
+	Plugins []PluginConfig `yaml:"plugins"`
 
 	// These fields are auto-detected by Load instead of being set directly in YAML.
 	GlossaryFile string `yaml:"-"` // Path to GLOSSARY.md, if present.
@@ -23,6 +25,24 @@ type BookConfig struct {
 
 	// baseDir is the directory that contains the config file.
 	baseDir string `yaml:"-"`
+}
+
+// PluginConfig describes a single plugin entry in book.yaml.
+//
+// Example:
+//
+//	plugins:
+//	  - name: word-count
+//	    path: ./plugins/word-count
+//	    config:
+//	      warn_threshold: 500
+type PluginConfig struct {
+	// Name is the unique plugin identifier (lowercase, hyphen-separated).
+	Name string `yaml:"name"`
+	// Path is the path to the plugin executable, relative to book.yaml.
+	Path string `yaml:"path"`
+	// Config contains arbitrary key-value pairs passed to the plugin.
+	Config map[string]interface{} `yaml:"config"`
 }
 
 // BookMeta contains book metadata.

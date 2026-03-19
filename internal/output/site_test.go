@@ -8,8 +8,9 @@ import (
 	"testing"
 )
 
-// TestSiteGeneratorIndexRedirect verifies that index.html is created and redirects to the first page.
-func TestSiteGeneratorIndexRedirect(t *testing.T) {
+// TestSiteGeneratorIndexPage verifies that index.html renders the first chapter
+// directly (no HTTP redirect) so the SPA loads instantly at the site root.
+func TestSiteGeneratorIndexPage(t *testing.T) {
 	dir := t.TempDir()
 
 	gen := NewSiteGenerator(SiteMeta{
@@ -18,7 +19,7 @@ func TestSiteGeneratorIndexRedirect(t *testing.T) {
 		Language: "en-US",
 	})
 
-	// Add a chapter with explicit filename
+	// Add a chapter with explicit filename.
 	gen.AddChapter(SiteChapter{
 		Title:    "Chapter 1",
 		ID:       "ch1",
@@ -30,7 +31,7 @@ func TestSiteGeneratorIndexRedirect(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	// Verify index.html exists
+	// Verify index.html exists.
 	indexPath := filepath.Join(dir, "index.html")
 	data, err := os.ReadFile(indexPath)
 	if err != nil {
@@ -39,15 +40,20 @@ func TestSiteGeneratorIndexRedirect(t *testing.T) {
 
 	indexHTML := string(data)
 
-	// Verify it's a redirect to the first page
 	if !strings.Contains(indexHTML, "<!DOCTYPE html>") {
 		t.Error("index.html should be valid HTML")
 	}
-	if !strings.Contains(indexHTML, "meta http-equiv=\"refresh\"") {
-		t.Error("index.html should contain a refresh meta tag")
+	// The page should embed the first chapter's content, not a redirect.
+	if !strings.Contains(indexHTML, "Chapter 1") {
+		t.Error("index.html should contain the first chapter content")
 	}
+	// The SPA router should recognise ch1.html as the active file.
 	if !strings.Contains(indexHTML, "ch1.html") {
-		t.Error("index.html should redirect to ch1.html")
+		t.Error("index.html should reference ch1.html as the active page")
+	}
+	// No meta-refresh redirect.
+	if strings.Contains(indexHTML, "meta http-equiv=\"refresh\"") {
+		t.Error("index.html must not use a meta-refresh redirect")
 	}
 }
 

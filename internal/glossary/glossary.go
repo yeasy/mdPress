@@ -39,7 +39,7 @@ func ParseFile(path string) (*Glossary, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open GLOSSARY.md: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	g := &Glossary{}
 	var currentTerm string
@@ -131,9 +131,9 @@ func (g *Glossary) RenderHTML() string {
 	b.WriteString("<h1>Glossary</h1>\n")
 	b.WriteString("<dl class=\"glossary-list\">\n")
 	for _, term := range sorted {
-		b.WriteString(fmt.Sprintf("  <dt id=\"glossary-%s\"><strong>%s</strong></dt>\n",
-			slugify(term.Name), utils.EscapeHTML(term.Name)))
-		b.WriteString(fmt.Sprintf("  <dd>%s</dd>\n", utils.EscapeHTML(term.Definition)))
+		fmt.Fprintf(&b, "  <dt id=\"glossary-%s\"><strong>%s</strong></dt>\n",
+			slugify(term.Name), utils.EscapeHTML(term.Name))
+		fmt.Fprintf(&b, "  <dd>%s</dd>\n", utils.EscapeHTML(term.Definition))
 	}
 	b.WriteString("</dl>\n")
 	b.WriteString("</div>\n")

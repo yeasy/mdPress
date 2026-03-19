@@ -32,7 +32,7 @@ func ParseLangsFile(path string) ([]LangDef, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open LANGS.md: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	var langs []LangDef
 	scanner := bufio.NewScanner(f)

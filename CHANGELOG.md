@@ -6,12 +6,28 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
-### Planned
+---
 
-- LaTeX math support (KaTeX)
-- Native Mermaid diagram support
-- Plugin system
-- Multilingual build improvements (i18n)
+## [0.3.0] - 2026-03-19
+
+### Added
+
+- **KaTeX math support**: Inline (`$...$`) and block (`$$...$$`) LaTeX math expressions rendered via KaTeX in HTML, site, and ePub output (`internal/markdown/math.go`)
+- **Mermaid diagram support**: Native Mermaid diagram rendering in all HTML-based outputs; `mdpress validate --mermaid` checks diagram syntax (`cmd/validate_mermaid.go`)
+- **Plugin system**: Full plugin lifecycle with external plugin loading and hook registration (`internal/plugin/external.go`, `internal/plugin/loader.go`)
+- **GitBook migration tool**: `mdpress migrate` command converts GitBook projects to mdPress format (`cmd/migrate.go`)
+- **GitHub Actions template**: Pre-built workflow for automated book builds in CI (`​.github/workflows/examples/mdpress-build.yml`)
+- **Multi-format `all` shorthand**: `--format all` builds PDF, HTML, site, and ePub in one command
+
+### Changed
+
+- ePub output promoted from experimental preview to stable; improved ePub 3 structure, metadata, and stylesheet handling
+- Plugin interface extended with external process and loader support
+- `mdpress serve` and `mdpress build` share unified orchestrator and pipeline logic
+
+### Fixed
+
+- Various stability and edge-case fixes across markdown parser, renderer, TOC, and site generator
 
 ---
 

@@ -89,10 +89,10 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create EPUB file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	w := zip.NewWriter(f)
-	defer w.Close()
+	defer w.Close() //nolint:errcheck
 
 	// 1. mimetype must be the first file and must not be compressed.
 	mimeWriter, err := w.CreateHeader(&zip.FileHeader{
@@ -173,21 +173,21 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
 `)
-	b.WriteString(fmt.Sprintf("    <dc:title id=\"title\">%s</dc:title>\n", utils.EscapeXML(g.meta.Title)))
+	fmt.Fprintf(&b, "    <dc:title id=\"title\">%s</dc:title>\n", utils.EscapeXML(g.meta.Title))
 	if g.meta.Subtitle != "" {
-		b.WriteString(fmt.Sprintf("    <dc:title id=\"subtitle\">%s</dc:title>\n", utils.EscapeXML(g.meta.Subtitle)))
+		fmt.Fprintf(&b, "    <dc:title id=\"subtitle\">%s</dc:title>\n", utils.EscapeXML(g.meta.Subtitle))
 		b.WriteString("    <meta property=\"title-type\" refines=\"#subtitle\">subtitle</meta>\n")
 	}
-	b.WriteString(fmt.Sprintf("    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(g.meta.Author)))
-	b.WriteString(fmt.Sprintf("    <dc:language>%s</dc:language>\n", utils.EscapeXML(g.meta.Language)))
-	b.WriteString(fmt.Sprintf("    <dc:identifier id=\"bookid\">%s</dc:identifier>\n", utils.EscapeXML(g.uniqueIdentifier())))
+	fmt.Fprintf(&b, "    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(g.meta.Author))
+	fmt.Fprintf(&b, "    <dc:language>%s</dc:language>\n", utils.EscapeXML(g.meta.Language))
+	fmt.Fprintf(&b, "    <dc:identifier id=\"bookid\">%s</dc:identifier>\n", utils.EscapeXML(g.uniqueIdentifier()))
 	if g.meta.Version != "" {
-		b.WriteString(fmt.Sprintf("    <meta name=\"mdpress:version\" content=\"%s\"/>\n", utils.EscapeXML(g.meta.Version)))
+		fmt.Fprintf(&b, "    <meta name=\"mdpress:version\" content=\"%s\"/>\n", utils.EscapeXML(g.meta.Version))
 	}
 	if g.meta.Description != "" {
-		b.WriteString(fmt.Sprintf("    <dc:description>%s</dc:description>\n", utils.EscapeXML(g.meta.Description)))
+		fmt.Fprintf(&b, "    <dc:description>%s</dc:description>\n", utils.EscapeXML(g.meta.Description))
 	}
-	b.WriteString(fmt.Sprintf("    <meta property=\"dcterms:modified\">%s</meta>\n", time.Now().UTC().Format("2006-01-02T15:04:05Z")))
+	fmt.Fprintf(&b, "    <meta property=\"dcterms:modified\">%s</meta>\n", time.Now().UTC().Format("2006-01-02T15:04:05Z"))
 	if coverAsset != nil {
 		b.WriteString("    <meta name=\"cover\" content=\"cover-image\"/>\n")
 	}
@@ -199,8 +199,8 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 		b.WriteString("    <item id=\"cover\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>\n")
 	}
 	if coverAsset != nil {
-		b.WriteString(fmt.Sprintf("    <item id=\"cover-image\" href=\"%s\" media-type=\"%s\" properties=\"cover-image\"/>\n",
-			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(coverAsset.MediaType)))
+		fmt.Fprintf(&b, "    <item id=\"cover-image\" href=\"%s\" media-type=\"%s\" properties=\"cover-image\"/>\n",
+			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(coverAsset.MediaType))
 	}
 
 	if g.css != "" {
@@ -208,13 +208,13 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 	}
 
 	for _, asset := range chapterAssets {
-		b.WriteString(fmt.Sprintf("    <item id=\"%s\" href=\"%s\" media-type=\"%s\"/>\n",
-			utils.EscapeXML(asset.ID), utils.EscapeXML(asset.Filename), utils.EscapeXML(asset.MediaType)))
+		fmt.Fprintf(&b, "    <item id=\"%s\" href=\"%s\" media-type=\"%s\"/>\n",
+			utils.EscapeXML(asset.ID), utils.EscapeXML(asset.Filename), utils.EscapeXML(asset.MediaType))
 	}
 
 	for i, ch := range chapters {
-		b.WriteString(fmt.Sprintf("    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n",
-			i, ch.Filename))
+		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n",
+			i, ch.Filename)
 	}
 
 	b.WriteString("  </manifest>\n  <spine>\n")
@@ -222,7 +222,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 		b.WriteString("    <itemref idref=\"cover\"/>\n")
 	}
 	for i := range chapters {
-		b.WriteString(fmt.Sprintf("    <itemref idref=\"ch%d\"/>\n", i))
+		fmt.Fprintf(&b, "    <itemref idref=\"ch%d\"/>\n", i)
 	}
 	b.WriteString("  </spine>\n</package>\n")
 
@@ -244,16 +244,16 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 `)
 	playOrder := 1
 	if g.meta.IncludeCover {
-		b.WriteString(fmt.Sprintf("    <navPoint id=\"nav-cover\" playOrder=\"%d\">\n", playOrder))
+		fmt.Fprintf(&b, "    <navPoint id=\"nav-cover\" playOrder=\"%d\">\n", playOrder)
 		b.WriteString("      <navLabel><text>Cover</text></navLabel>\n")
 		b.WriteString("      <content src=\"cover.xhtml\"/>\n")
 		b.WriteString("    </navPoint>\n")
 		playOrder++
 	}
 	for i, ch := range chapters {
-		b.WriteString(fmt.Sprintf("    <navPoint id=\"nav%d\" playOrder=\"%d\">\n", i, playOrder))
-		b.WriteString(fmt.Sprintf("      <navLabel><text>%s</text></navLabel>\n", utils.EscapeXML(ch.Title)))
-		b.WriteString(fmt.Sprintf("      <content src=\"%s\"/>\n", ch.Filename))
+		fmt.Fprintf(&b, "    <navPoint id=\"nav%d\" playOrder=\"%d\">\n", i, playOrder)
+		fmt.Fprintf(&b, "      <navLabel><text>%s</text></navLabel>\n", utils.EscapeXML(ch.Title))
+		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", ch.Filename)
 		b.WriteString("    </navPoint>\n")
 		playOrder++
 	}
@@ -282,7 +282,7 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 		b.WriteString(`      <li><a href="cover.xhtml">Cover</a></li>` + "\n")
 	}
 	for _, ch := range chapters {
-		b.WriteString(fmt.Sprintf("      <li><a href=\"%s\">%s</a></li>\n", utils.EscapeXML(ch.Filename), utils.EscapeXML(ch.Title)))
+		fmt.Fprintf(&b, "      <li><a href=\"%s\">%s</a></li>\n", utils.EscapeXML(ch.Filename), utils.EscapeXML(ch.Title))
 	}
 	b.WriteString(`    </ol>
   </nav>
@@ -293,9 +293,14 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 }
 
 // wrapXHTML wraps HTML body content into a complete XHTML document.
+// When the body contains math elements (class="math …"), KaTeX is injected so
+// that EPUB readers with JavaScript support (e.g. Apple Books) can render the
+// formulas. Readers without JS support will display the raw LaTeX source.
 func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	var b strings.Builder
 	body = normalizeHTMLForXHTML(body)
+	hasMath := strings.Contains(body, `class="math `)
+
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="`)
@@ -304,12 +309,31 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 <head>
   <meta charset="UTF-8" />
 `)
-	b.WriteString(fmt.Sprintf("  <title>%s</title>\n", utils.EscapeXML(title)))
+	fmt.Fprintf(&b, "  <title>%s</title>\n", utils.EscapeXML(title))
 	if g.css != "" {
 		b.WriteString("  <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/>\n")
 	}
+	// Include KaTeX CSS when math is present (works even without JS for visual
+	// structure, e.g. in readers that support CSS but not JS).
+	if hasMath {
+		fmt.Fprintf(&b, "  <link rel=\"stylesheet\" href=\"%s\"/>\n", utils.KaTeXCSSURL)
+	}
 	b.WriteString("</head>\n<body>\n")
 	b.WriteString(body)
+	// Inject KaTeX JS at the end of body for readers that support JavaScript.
+	if hasMath {
+		b.WriteString("\n")
+		fmt.Fprintf(&b, "<script src=\"%s\"></script>\n", utils.KaTeXJSURL)
+		fmt.Fprintf(&b, "<script src=\"%s\"></script>\n", utils.KaTeXAutoRenderURL)
+		b.WriteString("<script>\n")
+		b.WriteString("if(typeof renderMathInElement==='function'){\n")
+		b.WriteString("  renderMathInElement(document.body,{\n")
+		b.WriteString("    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],\n")
+		b.WriteString("    throwOnError:false\n")
+		b.WriteString("  });\n")
+		b.WriteString("}\n")
+		b.WriteString("</script>")
+	}
 	b.WriteString("\n</body>\n</html>\n")
 	return b.String()
 }
@@ -361,20 +385,20 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 `)
 	if coverAsset != nil {
 		b.WriteString("    <div class=\"cover-image-wrap\">\n")
-		b.WriteString(fmt.Sprintf("      <img class=\"cover-image\" src=\"%s\" alt=\"%s\" />\n",
-			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(g.meta.Title)))
+		fmt.Fprintf(&b, "      <img class=\"cover-image\" src=\"%s\" alt=\"%s\" />\n",
+			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(g.meta.Title))
 		b.WriteString("    </div>\n")
 	}
-	b.WriteString(fmt.Sprintf("    <h1 class=\"title\">%s</h1>\n", utils.EscapeXML(g.meta.Title)))
+	fmt.Fprintf(&b, "    <h1 class=\"title\">%s</h1>\n", utils.EscapeXML(g.meta.Title))
 	if g.meta.Subtitle != "" {
-		b.WriteString(fmt.Sprintf("    <p class=\"subtitle\">%s</p>\n", utils.EscapeXML(g.meta.Subtitle)))
+		fmt.Fprintf(&b, "    <p class=\"subtitle\">%s</p>\n", utils.EscapeXML(g.meta.Subtitle))
 	}
 	b.WriteString("    <div class=\"meta\">\n")
 	if g.meta.Author != "" {
-		b.WriteString(fmt.Sprintf("      <div>%s</div>\n", utils.EscapeXML(g.meta.Author)))
+		fmt.Fprintf(&b, "      <div>%s</div>\n", utils.EscapeXML(g.meta.Author))
 	}
 	if g.meta.Version != "" {
-		b.WriteString(fmt.Sprintf("      <div class=\"version\">Version %s</div>\n", utils.EscapeXML(g.meta.Version)))
+		fmt.Fprintf(&b, "      <div class=\"version\">Version %s</div>\n", utils.EscapeXML(g.meta.Version))
 	}
 	b.WriteString("    </div>\n")
 	b.WriteString("  </section>\n</body>\n</html>\n")

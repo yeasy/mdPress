@@ -230,7 +230,7 @@ func TestStandaloneRenderNestedChapterTree(t *testing.T) {
 	ch1Idx := strings.Index(html, `data-group-id="ch1"`)
 	ch11Idx := strings.Index(html, `data-group-id="ch1-1"`)
 	ch2Idx := strings.Index(html, `data-group-id="ch2"`)
-	if !(ch1Idx >= 0 && ch11Idx > ch1Idx && ch2Idx > ch11Idx) {
+	if ch1Idx < 0 || ch11Idx <= ch1Idx || ch2Idx <= ch11Idx {
 		t.Fatalf("子章节应渲染在父章节分组内部，索引: ch1=%d ch1-1=%d ch2=%d", ch1Idx, ch11Idx, ch2Idx)
 	}
 }

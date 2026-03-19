@@ -152,7 +152,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 		// Close all WebSocket clients.
 		s.clientsMu.Lock()
 		for client := range s.clients {
-			client.conn.Close()
+			client.conn.Close() //nolint:errcheck
 		}
 		s.clientsMu.Unlock()
 
@@ -250,7 +250,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.clientsMu.Lock()
 		delete(s.clients, client)
 		s.clientsMu.Unlock()
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		s.logger.Debug("WebSocket client disconnected")
 	}()
 
@@ -435,7 +435,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 		s.watchFilesPolling(ctx)
 		return
 	}
-	defer watcher.Close()
+	defer watcher.Close() //nolint:errcheck
 
 	// Recursively add watched directories.
 	err = filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {

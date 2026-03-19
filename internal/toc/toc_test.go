@@ -499,6 +499,7 @@ func TestGetEntryFirstMatch(t *testing.T) {
 	entry := GetEntry(entries, "duplicate-id")
 	if entry == nil {
 		t.Fatal("应找到 ID 为 'duplicate-id' 的条目")
+		return
 	}
 
 	// 验证返回的是第一个匹配项

@@ -58,7 +58,7 @@ Some subsection text.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Create and run pipeline
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -131,7 +131,7 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	// Should return an error about no chapters processed
@@ -181,7 +181,7 @@ Just some regular paragraph text.
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -235,7 +235,7 @@ This is the second chapter.
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	// Should succeed because at least one chapter was processed
@@ -290,7 +290,7 @@ This chapter mentions a term that should be glossarized.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Run pipeline with nil glossary (most tests will use nil)
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -365,7 +365,7 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -435,7 +435,7 @@ Final section.
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -498,7 +498,7 @@ Details here.
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
@@ -559,7 +559,7 @@ Section content.
 	thm, _ := themeManager.Get("technical")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger)
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process()
 
 	if err != nil {
