@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -38,11 +39,12 @@ func (c *wsClient) writeMessage(msgType int, data []byte) error {
 // Server implements the live preview server.
 type Server struct {
 	// Configuration
-	Host      string // Listening host or IP.
-	Port      int    // Listening port.
-	WatchDir  string // Source directory to watch.
-	OutputDir string // Output directory.
-	AutoOpen  bool   // Whether to open the browser automatically.
+	Host        string // Listening host or IP.
+	Port        int    // Listening port.
+	WatchDir    string // Source directory to watch.
+	OutputDir   string // Output directory.
+	AutoOpen    bool   // Whether to open the browser automatically.
+	browserHost string
 
 	// BuildFunc is provided by the caller and rebuilds the project output.
 	BuildFunc func() error
@@ -59,16 +61,19 @@ func NewServer(host string, port int, watchDir, outputDir string, logger *slog.L
 	if logger == nil {
 		logger = slog.Default()
 	}
+	browserHost := host
 	if host == "" {
 		host = "127.0.0.1"
+		browserHost = "localhost"
 	}
 	return &Server{
-		Host:      host,
-		Port:      port,
-		WatchDir:  watchDir,
-		OutputDir: outputDir,
-		clients:   make(map[*wsClient]struct{}),
-		logger:    logger,
+		Host:        host,
+		Port:        port,
+		WatchDir:    watchDir,
+		OutputDir:   outputDir,
+		browserHost: browserHost,
+		clients:     make(map[*wsClient]struct{}),
+		logger:      logger,
 		upgrader: websocket.Upgrader{
 			// Allow all origins for local development.
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -106,6 +111,9 @@ func (s *Server) ListenFrom(startPort int) (net.Listener, error) {
 }
 
 func isAddrInUse(err error) bool {
+	if err == nil {
+		return false
+	}
 	return errors.Is(err, syscall.EADDRINUSE) || strings.Contains(err.Error(), "address already in use")
 }
 
@@ -179,15 +187,31 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 		}()
 	}
 
-	return server.Serve(ln)
+	err := server.Serve(ln)
+	if err != nil && errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
+		return nil
+	}
+	return err
+}
+
+// snapshotClients returns a snapshot of the current client set, allowing
+// callers to iterate without holding the lock. This prevents a slow client's
+// writeMessage from blocking new connection registrations.
+func (s *Server) snapshotClients() []*wsClient {
+	s.clientsMu.RLock()
+	clients := make([]*wsClient, 0, len(s.clients))
+	for c := range s.clients {
+		clients = append(clients, c)
+	}
+	s.clientsMu.RUnlock()
+	return clients
 }
 
 // notifyClients sends a reload message to all connected WebSocket clients.
 func (s *Server) notifyClients() {
-	s.clientsMu.RLock()
-	defer s.clientsMu.RUnlock()
-	for client := range s.clients {
-		if err := client.writeMessage(websocket.TextMessage, []byte(`{"type":"reload","timestamp":`+fmt.Sprintf("%d", time.Now().UnixMilli())+`}`)); err != nil {
+	msg := []byte(`{"type":"reload","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	for _, client := range s.snapshotClients() {
+		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
 		}
 	}
@@ -195,10 +219,9 @@ func (s *Server) notifyClients() {
 
 // notifyCSSUpdate sends a CSS-only update message to all connected WebSocket clients.
 func (s *Server) notifyCSSUpdate() {
-	s.clientsMu.RLock()
-	defer s.clientsMu.RUnlock()
-	for client := range s.clients {
-		if err := client.writeMessage(websocket.TextMessage, []byte(`{"type":"css-update","timestamp":`+fmt.Sprintf("%d", time.Now().UnixMilli())+`}`)); err != nil {
+	msg := []byte(`{"type":"css-update","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	for _, client := range s.snapshotClients() {
+		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
 		}
 	}
@@ -206,17 +229,16 @@ func (s *Server) notifyCSSUpdate() {
 
 // notifyBuildError sends a build error message to all connected WebSocket clients.
 func (s *Server) notifyBuildError(errMsg string) {
-	s.clientsMu.RLock()
-	defer s.clientsMu.RUnlock()
-	// Escape the error message for JSON.
-	escaped := strings.ReplaceAll(errMsg, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-	escaped = strings.ReplaceAll(escaped, "\r", `\r`)
-	escaped = strings.ReplaceAll(escaped, "\t", `\t`)
-	msg := fmt.Sprintf(`{"type":"build-error","timestamp":%d,"error":"%s"}`, time.Now().UnixMilli(), escaped)
-	for client := range s.clients {
-		if err := client.writeMessage(websocket.TextMessage, []byte(msg)); err != nil {
+	// Use json.Marshal to properly escape all special characters including
+	// \b, \f, Unicode control characters, etc.
+	escapedBytes, err := json.Marshal(errMsg)
+	if err != nil {
+		s.logger.Error("Failed to marshal build error message", slog.String("error", err.Error()))
+		return
+	}
+	msg := []byte(fmt.Sprintf(`{"type":"build-error","timestamp":%d,"error":%s}`, time.Now().UnixMilli(), escapedBytes))
+	for _, client := range s.snapshotClients() {
+		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
 		}
 	}
@@ -236,9 +258,10 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Register the client.
 	s.clientsMu.Lock()
 	s.clients[client] = struct{}{}
+	total := len(s.clients)
 	s.clientsMu.Unlock()
 
-	s.logger.Debug("WebSocket client connected", slog.Int("total", len(s.clients)))
+	s.logger.Debug("WebSocket client connected", slog.Int("total", total))
 
 	// Send the connection acknowledgment.
 	if err := client.writeMessage(websocket.TextMessage, []byte("connected")); err != nil {
@@ -417,6 +440,9 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
 func (s *Server) browserURL() string {
 	host := s.Host
+	if s.browserHost != "" {
+		host = s.browserHost
+	}
 	switch host {
 	case "", "0.0.0.0", "::", "[::]":
 		host = "localhost"
@@ -463,6 +489,16 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	var debounceTimer *time.Timer
 	var debounceMu sync.Mutex
 	var lastTriggeredExt string
+
+	// Stop any pending debounce timer when the watcher exits to prevent
+	// the callback from firing after the server has begun shutting down.
+	defer func() {
+		debounceMu.Lock()
+		if debounceTimer != nil {
+			debounceTimer.Stop()
+		}
+		debounceMu.Unlock()
+	}()
 
 	for {
 		select {
@@ -560,6 +596,14 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 	defer ticker.Stop()
 
 	var debounceTimer *time.Timer
+
+	// Stop any pending debounce timer when the watcher exits to prevent
+	// the callback from firing after the server has begun shutting down.
+	defer func() {
+		if debounceTimer != nil {
+			debounceTimer.Stop()
+		}
+	}()
 
 	for {
 		select {

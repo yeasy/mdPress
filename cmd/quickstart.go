@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -42,9 +43,15 @@ func executeQuickstart(dir string) error {
 	}
 
 	// Refuse to write into a non-empty directory.
+	// Use os.ReadDir instead of filepath.Glob because Glob("*") does not
+	// match hidden files/directories (e.g. .git, .DS_Store), which could
+	// lead to silently overwriting an existing Git repository.
 	if utils.FileExists(absDir) {
-		entries, err := filepath.Glob(filepath.Join(absDir, "*"))
-		if err == nil && len(entries) > 0 {
+		entries, err := os.ReadDir(absDir)
+		if err != nil {
+			return fmt.Errorf("failed to read directory %s: %w", dir, err)
+		}
+		if len(entries) > 0 {
 			return fmt.Errorf("directory %s already exists and is not empty; choose a new directory name", dir)
 		}
 	}
@@ -162,7 +169,7 @@ chapters:
 style:
   theme: "technical"
   page_size: "A4"
-  font_family: "Noto Sans"
+  font_family: "-apple-system, BlinkMacSystemFont, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, Segoe UI, Helvetica Neue, Arial, sans-serif"
   font_size: "12pt"
   code_theme: "monokai"
   line_height: 1.6

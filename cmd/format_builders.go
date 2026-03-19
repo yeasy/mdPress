@@ -17,13 +17,14 @@ import (
 
 // BuildContext carries all data needed by format builders.
 type BuildContext struct {
-	Config          *config.BookConfig
-	Theme           *theme.Theme
-	SinglePageParts *renderer.RenderParts
-	ChaptersHTML    []renderer.ChapterHTML
-	ChapterFiles    []string
-	CustomCSS       string
-	Logger          *slog.Logger
+	Config             *config.BookConfig
+	Theme              *theme.Theme
+	SinglePageParts    *renderer.RenderParts
+	PDFSinglePageParts *renderer.RenderParts
+	ChaptersHTML       []renderer.ChapterHTML
+	ChapterFiles       []string
+	CustomCSS          string
+	Logger             *slog.Logger
 }
 
 // FormatBuilder generates output in a specific format.
@@ -73,7 +74,11 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create HTML renderer: %w", err)
 	}
-	fullHTML, err := htmlRenderer.Render(ctx.SinglePageParts)
+	parts := ctx.SinglePageParts
+	if ctx.PDFSinglePageParts != nil {
+		parts = ctx.PDFSinglePageParts
+	}
+	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
 		return fmt.Errorf("failed to assemble HTML: %w", err)
 	}
@@ -83,6 +88,9 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	}
 	ctx.Logger.Info("Generating PDF", slog.String("output", outputPath))
 
+	// Warn early if the content contains CJK characters but the system lacks CJK fonts.
+	pdf.WarnIfCJKFontsMissing(fullHTML, ctx.Logger)
+
 	pageWidth, pageHeight := getPageDimensions(ctx.Config.Style.PageSize)
 	pdfTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
 	if pdfTimeout <= 0 {
@@ -91,7 +99,9 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	pdfGen := pdf.NewGenerator(
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
-		pdf.WithMargins(ctx.Config.Style.Margin.Left, ctx.Config.Style.Margin.Right, ctx.Config.Style.Margin.Top, ctx.Config.Style.Margin.Bottom),
+		// Page margins are already defined in the PDF source HTML via @page rules.
+		// Passing them again to PrintToPDF doubles the whitespace.
+		pdf.WithMargins(0, 0, 0, 0),
 		pdf.WithPrintBackground(true),
 	)
 	if err := pdfGen.Generate(fullHTML, outputPath); err != nil {

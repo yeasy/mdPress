@@ -121,9 +121,9 @@ func DefaultConfig() *BookConfig {
 		Style: StyleConfig{
 			Theme:      "technical",
 			PageSize:   "A4",
-			FontFamily: "Noto Sans",
+			FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
 			FontSize:   "12pt",
-			CodeTheme:  "monokai",
+			CodeTheme:  "github",
 			LineHeight: 1.6,
 			Margin: MarginConfig{
 				Top:    25,

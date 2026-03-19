@@ -301,9 +301,9 @@ func printResults(results []validateResult) {
 	fmt.Println()
 	for _, r := range results {
 		if r.ok {
-			utils.Success(r.message)
+			utils.Success("%s", r.message)
 		} else {
-			utils.Error(r.message)
+			utils.Error("%s", r.message)
 		}
 	}
 }
@@ -531,29 +531,18 @@ func validateChapterSequence(chapters []config.ChapterDef) []string {
 	return issues
 }
 
+var relaxedChineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)(?:\s*([章节篇部卷]))?(?:\s+|$)`)
+
 func parseSequenceParts(title string) ([]int, bool) {
 	if matches := decimalTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
-		parts := strings.Split(matches[1], ".")
-		out := make([]int, 0, len(parts))
-		for _, part := range parts {
-			value, err := strconv.Atoi(part)
-			if err != nil {
-				return nil, false
-			}
-			out = append(out, value)
-		}
-		return out, true
+		return splitSequenceParts(matches[1])
 	}
 	if matches := englishTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
-		value, err := strconv.Atoi(matches[1])
-		if err != nil {
-			return nil, false
-		}
-		return []int{value}, true
+		return splitSequenceParts(matches[1])
 	}
-	if matches := chineseTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 3 {
+	if matches := relaxedChineseTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
 		value := parseChineseOrdinal(matches[1])
-		if value <= 0 {
+		if value <= 0 && !strings.ContainsAny(matches[1], "零〇0") {
 			return nil, false
 		}
 		return []int{value}, true
@@ -561,7 +550,23 @@ func parseSequenceParts(title string) ([]int, bool) {
 	return nil, false
 }
 
+func splitSequenceParts(raw string) ([]int, bool) {
+	parts := strings.Split(raw, ".")
+	out := make([]int, 0, len(parts))
+	for _, part := range parts {
+		value, err := strconv.Atoi(part)
+		if err != nil {
+			return nil, false
+		}
+		out = append(out, value)
+	}
+	return out, true
+}
+
 func equalIntSlices(a, b []int) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
 	if len(a) != len(b) {
 		return false
 	}

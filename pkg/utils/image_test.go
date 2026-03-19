@@ -1,9 +1,12 @@
 package utils
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -285,5 +288,72 @@ func TestDownloadImageInvalidURL(t *testing.T) {
 	_, err := DownloadImage("not-a-url", t.TempDir())
 	if err == nil {
 		t.Error("无效 URL 应返回错误")
+	}
+}
+
+func TestDownloadImageUsesCacheOnRepeatedRequests(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte{0x89, 0x50, 0x4E, 0x47})
+	}))
+	defer server.Close()
+
+	destDir := t.TempDir()
+	first, err := DownloadImage(server.URL+"/badge", destDir)
+	if err != nil {
+		t.Fatalf("第一次下载失败: %v", err)
+	}
+	second, err := DownloadImage(server.URL+"/badge", destDir)
+	if err != nil {
+		t.Fatalf("第二次下载失败: %v", err)
+	}
+
+	if first != second {
+		t.Fatalf("缓存文件路径不一致: %q vs %q", first, second)
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("应只命中远程服务一次，实际 %d 次", got)
+	}
+}
+
+func TestProcessImagesWithOptionsUsesFileURLsAndDedupesRemoteDownloads(t *testing.T) {
+	localDir := t.TempDir()
+	cacheDir := t.TempDir()
+
+	localPath := filepath.Join(localDir, "local.png")
+	if err := os.WriteFile(localPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte{0x89, 0x50, 0x4E, 0x47})
+	}))
+	defer server.Close()
+
+	html := `<img src="local.png"><img src="` + server.URL + `/remote-badge"><img src="` + server.URL + `/remote-badge">`
+	result, err := ProcessImagesWithOptions(html, localDir, ImageProcessingOptions{
+		RewriteLocalToFileURL:  true,
+		RewriteRemoteToFileURL: true,
+		DownloadRemote:         true,
+		CacheDir:               cacheDir,
+		MaxConcurrentDownloads: 4,
+	})
+	if err != nil {
+		t.Fatalf("ProcessImagesWithOptions 失败: %v", err)
+	}
+
+	if strings.Count(result, `src="file://`) != 3 {
+		t.Fatalf("应将所有图片改写为 file:// URL，实际结果: %s", result)
+	}
+	if strings.Contains(result, "data:image") {
+		t.Fatal("file URL 模式下不应嵌入 base64")
+	}
+	if got := atomic.LoadInt32(&hits); got != 1 {
+		t.Fatalf("重复远程 URL 应只下载一次，实际 %d 次", got)
 	}
 }

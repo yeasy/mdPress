@@ -25,6 +25,25 @@ func EnsureDir(path string) error {
 	return nil
 }
 
+// CacheRootDir returns the root directory used for mdpress runtime caches.
+// MDPRESS_CACHE_DIR overrides the default location when set.
+func CacheRootDir() string {
+	if override := strings.TrimSpace(os.Getenv("MDPRESS_CACHE_DIR")); override != "" {
+		return override
+	}
+	return filepath.Join(os.TempDir(), "mdpress-cache")
+}
+
+// CacheDisabled reports whether runtime caches are disabled for this process.
+func CacheDisabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("MDPRESS_DISABLE_CACHE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 // ReadFile reads a file and returns clearer errors.
 func ReadFile(path string) ([]byte, error) {
 	// Ensure the file exists first.

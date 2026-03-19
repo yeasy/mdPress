@@ -2,7 +2,7 @@
 # Suitable for fiction, essays, and poetry
 name: elegant
 page_size: A4
-font_family: "Noto Serif SC, Georgia, Times New Roman, serif"
+font_family: "Songti SC, STSong, Noto Serif CJK SC, Source Han Serif SC, Georgia, Garamond, Times New Roman, serif"
 font_size: "13pt"
 code_theme: github
 line_height: 1.8

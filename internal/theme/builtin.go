@@ -6,9 +6,9 @@ func builtinTechnical() *Theme {
 	return &Theme{
 		Name:       "technical",
 		PageSize:   "A4",
-		FontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+		FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
 		FontSize:   11,
-		CodeTheme:  "monokai",
+		CodeTheme:  "github",
 		LineHeight: 1.6,
 
 		// 技术风格的色彩方案 - 深灰色文本，白色背景，蓝色强调
@@ -43,7 +43,7 @@ func builtinElegant() *Theme {
 	return &Theme{
 		Name:       "elegant",
 		PageSize:   "A4",
-		FontFamily: "'Georgia', 'Garamond', 'Times New Roman', serif",
+		FontFamily: "'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Georgia', 'Garamond', 'Times New Roman', serif",
 		FontSize:   12,
 		CodeTheme:  "github",
 		LineHeight: 1.8,
@@ -80,7 +80,7 @@ func builtinMinimal() *Theme {
 	return &Theme{
 		Name:       "minimal",
 		PageSize:   "A4",
-		FontFamily: "-apple-system, BlinkMacSystemFont, 'San Francisco', 'Segoe UI', Roboto, sans-serif",
+		FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'San Francisco', 'Segoe UI', Roboto, sans-serif",
 		FontSize:   10,
 		CodeTheme:  "default",
 		LineHeight: 1.7,

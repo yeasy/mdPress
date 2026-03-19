@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go-version: ['1.21', '1.22', '1.23']
+        go-version: ['1.24']
 
     steps:
     - name: Check out code
@@ -37,7 +37,7 @@ jobs:
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Upload coverage
-      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
+      if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.24'
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.txt
@@ -54,13 +54,32 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
     - name: Build binary
       run: go build -v -o mdpress .
 
     - name: Verify binary
       run: ./mdpress --help
+
+  docker:
+    name: Docker Build Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Build minimal Docker image
+      run: docker build --target minimal -t mdpress:test-minimal .
+
+    - name: Verify minimal image
+      run: docker run --rm mdpress:test-minimal --help
+
+    - name: Build full Docker image
+      run: docker build --target full -t mdpress:test-full .
+
+    - name: Verify full image
+      run: docker run --rm mdpress:test-full --help
 
   lint:
     name: Lint
@@ -73,7 +92,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.24'
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6

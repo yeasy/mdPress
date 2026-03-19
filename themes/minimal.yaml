@@ -2,7 +2,7 @@
 # Suitable for notes, memos, and concise documentation
 name: minimal
 page_size: A4
-font_family: "system-ui, -apple-system, sans-serif"
+font_family: "system-ui, -apple-system, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, sans-serif"
 font_size: "11pt"
 code_theme: pygments
 line_height: 1.5

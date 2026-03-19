@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -59,7 +61,7 @@ Some subsection text.
 
 	// Create and run pipeline
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -132,7 +134,7 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	// Should return an error about no chapters processed
 	if err == nil {
@@ -182,7 +184,7 @@ Just some regular paragraph text.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -236,7 +238,7 @@ This is the second chapter.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	// Should succeed because at least one chapter was processed
 	if err != nil {
@@ -291,7 +293,7 @@ This chapter mentions a term that should be glossarized.
 
 	// Run pipeline with nil glossary (most tests will use nil)
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process with nil glossary failed: %v", err)
@@ -366,7 +368,7 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -436,7 +438,7 @@ Final section.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -499,7 +501,7 @@ Details here.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -560,7 +562,7 @@ Section content.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process()
+	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
 		t.Fatalf("Pipeline process failed: %v", err)
@@ -579,5 +581,43 @@ Section content.
 		if result.Chapters[1].Depth != 1 {
 			t.Errorf("Second chapter depth should be 1, got %d", result.Chapters[1].Depth)
 		}
+	}
+}
+
+func TestChapterPipelineCanceledContext(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte("# Title\n\ncontent"), 0644); err != nil {
+		t.Fatalf("Failed to write chapter file: %v", err)
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{
+			Title: "Test Book",
+		},
+		Chapters: []config.ChapterDef{
+			{
+				Title: "Chapter 1",
+				File:  "chapter.md",
+			},
+		},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, _ := themeManager.Get("technical")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := pipeline.Process(ctx)
+	if err == nil {
+		t.Fatal("Expected context cancellation error")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Expected context.Canceled, got %v", err)
 	}
 }

@@ -12,7 +12,7 @@ package renderer
 //	.HeaderText - Header text
 //	.FooterText - Footer text
 const htmlTemplate = `<!DOCTYPE html>
-<html lang="en">
+<html lang="{{if .Language}}{{.Language}}{{else}}zh-CN{{end}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -39,10 +39,29 @@ const htmlTemplate = `<!DOCTYPE html>
     body {
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
       line-height: 1.6;
       color: #333;
       background-color: #fff;
+      overflow-wrap: anywhere;
+    }
+
+    .print-brand-footer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 8mm;
+      text-align: center;
+      font-size: 8.5pt;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: #b8bec8;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .print-brand-footer .brand-accent {
+      color: #8ab4f8;
     }
 
     /* ============================================
@@ -56,8 +75,8 @@ const htmlTemplate = `<!DOCTYPE html>
       justify-content: center;
       text-align: center;
       page-break-after: always;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
+      background: white;
+      color: #1A5490;
     }
 
     .cover-content {
@@ -65,16 +84,16 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     .cover-title {
-      font-size: 3em;
+      font-size: 2.5em;
       font-weight: 700;
       margin: 1rem 0;
-      line-height: 1.2;
+      line-height: 1.3;
     }
 
     .cover-author {
-      font-size: 1.5em;
+      font-size: 1.2em;
       margin-top: 2rem;
-      opacity: 0.9;
+      color: #555;
     }
 
     /* ============================================
@@ -83,7 +102,7 @@ const htmlTemplate = `<!DOCTYPE html>
     .toc-page {
       page-break-after: always;
       page-break-inside: avoid;
-      padding: 2rem;
+      padding: 0;
     }
 
     .toc-title {
@@ -106,7 +125,7 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     .toc-item a {
-      color: #0066cc;
+      color: #333;
       text-decoration: none;
     }
 
@@ -138,7 +157,7 @@ const htmlTemplate = `<!DOCTYPE html>
     .chapter {
       page-break-before: always;
       page-break-inside: avoid;
-      padding: 2rem;
+      padding: 0;
       margin: 0;
     }
 
@@ -156,6 +175,8 @@ const htmlTemplate = `<!DOCTYPE html>
 
     .chapter-content {
       line-height: 1.8;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     /* ============================================
@@ -219,29 +240,37 @@ const htmlTemplate = `<!DOCTYPE html>
        Code styles
        ============================================ */
     code {
-      font-family: 'Monaco', 'Courier New', monospace;
-      font-size: 0.9em;
-      background-color: #f5f5f5;
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
-      color: #c7254e;
+      font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans Mono CJK SC", monospace;
+      font-size: 0.85em;
+      color: #333;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     pre {
-      background-color: #f5f5f5;
       border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 1rem;
+      border-radius: 3px;
+      padding: 0.8rem 1rem;
       overflow-x: auto;
+      font-size: 0.82em;
       line-height: 1.5;
       page-break-inside: avoid;
-      margin: 1rem 0;
+      margin: 0.8rem 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      max-width: 100%;
+      background: none;
     }
 
     pre code {
-      background-color: transparent;
+      background: none;
       padding: 0;
       color: #333;
+      white-space: inherit;
+      overflow-wrap: inherit;
+      word-break: inherit;
+      display: block;
     }
 
     /* ============================================
@@ -252,6 +281,7 @@ const htmlTemplate = `<!DOCTYPE html>
       border-collapse: collapse;
       margin: 1rem 0;
       page-break-inside: avoid;
+      table-layout: fixed;
     }
 
     table th {
@@ -260,11 +290,15 @@ const htmlTemplate = `<!DOCTYPE html>
       padding: 0.8rem;
       text-align: left;
       font-weight: 600;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     table td {
       border: 1px solid #ddd;
       padding: 0.8rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     table tbody tr:nth-child(even) {
@@ -343,11 +377,28 @@ const htmlTemplate = `<!DOCTYPE html>
         display: none !important;
       }
 
-      /* Keep page layout clean during printing */
+      .print-brand-footer {
+        display: block;
+      }
+
+      /* Keep page layout clean during printing — pure white background
+         to reduce PDF file size (no decorative backgrounds rendered). */
       body {
         margin: 0;
         padding: 0;
-        background: white;
+        background: white !important;
+      }
+
+      /* Strip decorative backgrounds that inflate PDF size.
+         Code blocks keep their background since it aids readability. */
+      table tbody tr:nth-child(even) {
+        background-color: transparent !important;
+      }
+      blockquote {
+        background-color: transparent !important;
+      }
+      table th {
+        background-color: transparent !important;
       }
 
       /* Avoid splitting page content unexpectedly */
@@ -355,9 +406,9 @@ const htmlTemplate = `<!DOCTYPE html>
         page-break-inside: avoid;
       }
 
-      /* Keep links visually identifiable */
+      /* Print: links should be body color, not blue */
       a {
-        color: #0066cc;
+        color: inherit;
       }
 
       /* Keep tables and code blocks on the same page when possible */
@@ -374,6 +425,12 @@ const htmlTemplate = `<!DOCTYPE html>
       /* Avoid splitting lists */
       ul, ol {
         page-break-inside: avoid;
+      }
+    }
+
+    @media screen {
+      .print-brand-footer {
+        display: none;
       }
     }
 
@@ -420,10 +477,7 @@ const htmlTemplate = `<!DOCTYPE html>
   </div>
   {{end}}
 
-  <!-- Optional footer info -->
-  <div class="no-print" style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ddd; color: #999; font-size: 0.82em; text-align: center;">
-    <p><a href="https://github.com/yeasy/mdpress" style="color: inherit; text-decoration: none;">Built with mdpress</a></p>
-  </div>
+  <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
 
   <!-- Mermaid: auto-detect and load only when diagrams are present -->
   <script>

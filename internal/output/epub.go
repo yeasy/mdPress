@@ -7,15 +7,20 @@ import (
 	"archive/zip"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// epubKaTeXWarningOnce ensures the CDN dependency warning is logged only once.
+var epubKaTeXWarningOnce sync.Once
 
 // EpubMeta contains EPUB metadata.
 type EpubMeta struct {
@@ -89,10 +94,20 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create EPUB file: %w", err)
 	}
-	defer f.Close() //nolint:errcheck
+	// Safety-net cleanup: on error paths, close the file and remove the
+	// partial output so the caller never sees a truncated/corrupt .epub.
+	success := false
+	fileClosed := false
+	defer func() {
+		if !success {
+			if !fileClosed {
+				f.Close()
+			}
+			os.Remove(outputPath)
+		}
+	}()
 
 	w := zip.NewWriter(f)
-	defer w.Close() //nolint:errcheck
 
 	// 1. mimetype must be the first file and must not be compressed.
 	mimeWriter, err := w.CreateHeader(&zip.FileHeader{
@@ -163,6 +178,17 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		}
 	}
 
+	// Explicit close: zip.Writer.Close() writes the central directory —
+	// if this fails the .epub is corrupt.  os.File.Close() flushes to disk.
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to finalize epub archive: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close epub file: %w", err)
+	}
+	fileClosed = true
+
+	success = true
 	return nil
 }
 
@@ -315,7 +341,12 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	}
 	// Include KaTeX CSS when math is present (works even without JS for visual
 	// structure, e.g. in readers that support CSS but not JS).
+	// NOTE: This relies on external CDN access. Readers without internet access
+	// will not render math formulas. A future version should bundle KaTeX locally.
 	if hasMath {
+		epubKaTeXWarningOnce.Do(func() {
+			slog.Warn("ePub math rendering depends on an external CDN (KaTeX). Readers without internet access will see raw LaTeX source.")
+		})
 		fmt.Fprintf(&b, "  <link rel=\"stylesheet\" href=\"%s\"/>\n", utils.KaTeXCSSURL)
 	}
 	b.WriteString("</head>\n<body>\n")
@@ -417,8 +448,10 @@ func writeZipFile(w *zip.Writer, name, content string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", name, err)
 	}
-	_, err = fw.Write([]byte(content))
-	return err
+	if _, err = fw.Write([]byte(content)); err != nil {
+		return fmt.Errorf("failed to write %s: %w", name, err)
+	}
+	return nil
 }
 
 func writeZipBinaryFile(w *zip.Writer, name string, data []byte) error {
@@ -426,8 +459,10 @@ func writeZipBinaryFile(w *zip.Writer, name string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %w", name, err)
 	}
-	_, err = fw.Write(data)
-	return err
+	if _, err = fw.Write(data); err != nil {
+		return fmt.Errorf("failed to write %s: %w", name, err)
+	}
+	return nil
 }
 
 func languageOrDefault(lang string) string {

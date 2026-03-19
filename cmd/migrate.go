@@ -41,7 +41,10 @@ Examples:
 		if len(args) > 0 {
 			dir = args[0]
 		}
-		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		dryRun, err := cmd.Flags().GetBool("dry-run")
+		if err != nil {
+			return fmt.Errorf("failed to read --dry-run flag: %w", err)
+		}
 		return executeMigrate(dir, dryRun)
 	},
 }
@@ -154,12 +157,12 @@ func executeMigrate(dir string, dryRun bool) error {
 		fmt.Println("\n[dry-run] No files were written.")
 	}
 
-	report.print()
-
 	// Summarise known GitBook plugins that have no mdpress equivalent yet.
 	if hasBookJSON {
 		summarisePluginWarnings(bookJSONPath, report)
 	}
+
+	report.print()
 
 	fmt.Println("Migration complete.  Run `mdpress validate` to check the result.")
 	return nil
@@ -240,6 +243,14 @@ var tabsRE = regexp.MustCompile(`(?s)\{%\s*tabs\s*%\}.*?\{%\s*endtabs\s*%\}`)
 // tabTitleRE matches {% tab title="NAME" %}...{% endtab %} inside a tabs block.
 var tabTitleRE = regexp.MustCompile(`\{%\s*tab\s+title="([^"]+)"\s*%\}`)
 
+// stripTabsRE, stripEndtabsRE, and stripEndtabRE remove the outer tab markers
+// left after tab title replacement.
+var (
+	stripTabsRE    = regexp.MustCompile(`\{%\s*tabs\s*%\}`)
+	stripEndtabsRE = regexp.MustCompile(`\{%\s*endtabs\s*%\}`)
+	stripEndtabRE  = regexp.MustCompile(`\{%\s*endtab\s*%\}`)
+)
+
 // rewriteGitBookSyntax converts known GitBook template tags to standard Markdown.
 func rewriteGitBookSyntax(content string) (string, bool) {
 	original := content
@@ -283,9 +294,9 @@ func rewriteGitBookSyntax(content string) (string, bool) {
 			return "#### " + titleGroups[1]
 		})
 		// Strip the outer {% tabs %} / {% endtabs %} and {% endtab %} markers.
-		result = regexp.MustCompile(`\{%\s*tabs\s*%\}`).ReplaceAllString(result, "")
-		result = regexp.MustCompile(`\{%\s*endtabs\s*%\}`).ReplaceAllString(result, "")
-		result = regexp.MustCompile(`\{%\s*endtab\s*%\}`).ReplaceAllString(result, "")
+		result = stripTabsRE.ReplaceAllString(result, "")
+		result = stripEndtabsRE.ReplaceAllString(result, "")
+		result = stripEndtabRE.ReplaceAllString(result, "")
 		return strings.TrimSpace(result)
 	})
 
@@ -321,7 +332,10 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(projectDir, path)
+		relPath, err := filepath.Rel(projectDir, path)
+		if err != nil {
+			relPath = path // fallback to absolute path
+		}
 		if dryRun {
 			fmt.Printf("[dry-run] Would rewrite GitBook tags in %s\n", relPath)
 			report.addModified(relPath + " (dry-run)")

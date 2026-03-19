@@ -1,0 +1,26 @@
+# Build artifacts
+bin/
+dist/
+coverage.txt
+coverage.html
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs and non-essential files
+docs/promotion/
+report.md

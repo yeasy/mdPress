@@ -505,3 +505,40 @@ graph TD
 		t.Error("page should contain mermaid diagram text 'Start'")
 	}
 }
+
+func TestSiteGeneratorCDNScriptDedupingAndReplay(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 1",
+		ID:       "ch1",
+		Filename: "ch1.html",
+		Content:  `<div class="mermaid">graph TD; A-->B;</div><div class="math">x</div>`,
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read page failed: %v", err)
+	}
+	html := string(data)
+
+	if !strings.Contains(html, "existing.dataset.mdpressLoaded === 'true'") {
+		t.Error("page should replay CDN callbacks after the script has loaded")
+	}
+	if !strings.Contains(html, "existing.addEventListener('load', onReady, { once: true });") {
+		t.Error("page should queue CDN callbacks while the script is still loading")
+	}
+	if !strings.Contains(html, "tag.replace(/[A-Z]/g") {
+		t.Error("page should normalize camelCase tags to data attributes")
+	}
+}

@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -20,6 +23,10 @@ var (
 	verbose bool
 	// quiet enables quiet mode, outputting only errors and suppressing warnings and info logs.
 	quiet bool
+	// cacheDir overrides the runtime cache directory.
+	cacheDir string
+	// noCache disables mdpress runtime caches for the current command.
+	noCache bool
 )
 
 // init configures the root command.
@@ -56,6 +63,8 @@ Common commands:
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "book.yaml", "Path to the config file")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging (show all warnings in detail)")
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode: only output errors, suppress warnings and info")
+	rootCmd.PersistentFlags().StringVar(&cacheDir, "cache-dir", "", "Override mdpress runtime cache directory")
+	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable mdpress runtime caches for this command")
 
 	// Register subcommands.
 	rootCmd.AddCommand(buildCmd)
@@ -70,9 +79,22 @@ Common commands:
 
 // Execute runs the root command.
 func Execute() error {
-	if err := rootCmd.Execute(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	configureRuntimeCacheEnv()
+
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return err
 	}
 	return nil
+}
+
+func configureRuntimeCacheEnv() {
+	if cacheDir != "" {
+		_ = os.Setenv("MDPRESS_CACHE_DIR", cacheDir)
+	}
+	if noCache {
+		_ = os.Setenv("MDPRESS_DISABLE_CACHE", "1")
+	}
 }

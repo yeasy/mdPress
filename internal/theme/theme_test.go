@@ -114,6 +114,7 @@ func TestThemeToCSS(t *testing.T) {
 	// 检查 CSS 变量
 	expectedVars := []string{
 		"--font-family",
+		"--font-family-mono",
 		"--font-size",
 		"--line-height",
 		"--color-text",

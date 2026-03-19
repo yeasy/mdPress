@@ -597,10 +597,10 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
     .toc-heading-depth-2 { padding-left: 28px; }
     .toc-heading-depth-3 { padding-left: 36px; font-size: 0.78rem; }
 
-    /* 子章节展开/折叠过渡动画（max-height 动画，避免瞬间出现/消失）*/
+    /* Expand/collapse child list with a smooth max-height transition. */
     .toc-children {
       overflow: hidden;
-      transition: max-height 0.25s ease;
+      transition: max-height 0.3s ease;
     }
 
     /* ============================================================
@@ -768,6 +768,8 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       padding: 0.15em 0.4em;
       border-radius: 4px;
       border: 1px solid var(--color-code-border);
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     /* ============================================================
@@ -919,7 +921,8 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       text-align: left;
       font-weight: 600;
       color: var(--color-heading);
-      white-space: nowrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .chapter-content table td {
@@ -927,6 +930,8 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       border-bottom: 1px solid var(--color-border);
       padding: 8px 14px;
       vertical-align: top;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .chapter-content table tbody tr:last-child td { border-bottom: none; }
@@ -1493,46 +1498,75 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
     }
 
     // ============================================================
-    // Scroll Spy：左侧 TOC 高亮 + 右侧页内 TOC 更新
+    // Scroll Spy: highlight left TOC + update right TOC.
+    // Uses IntersectionObserver so updates fire only when elements enter or
+    // leave the observation zone, eliminating per-frame flicker that occurs
+    // with scroll-event polling during smooth navigation.
     // ============================================================
-    var allChapters = [];
-    var allPageHeadings = [];
-
-    function initScrollSpy() {
-      allChapters = Array.from(document.querySelectorAll('.chapter')).map(function(el) {
-        return { el: el, id: el.id };
-      });
-      allPageHeadings = Array.from(
-        document.querySelectorAll('.chapter-content h1[id], .chapter-content h2[id], .chapter-content h3[id], .chapter-content h4[id]')
-      ).map(function(el) {
-        return {
-          el: el,
-          id: el.id,
-          level: parseInt(el.tagName.slice(1)),
-          text: el.textContent,
-          chapterId: el.closest('.chapter') ? el.closest('.chapter').id : ''
-        };
-      });
-    }
-
     var activeChapterId = '';
     var activeHeadingId = '';
 
-    function getScrollY() { return window.scrollY || document.documentElement.scrollTop; }
+    function initScrollSpy() {
+      var chapters = Array.from(document.querySelectorAll('.chapter'));
+      var headings = Array.from(
+        document.querySelectorAll('.chapter-content h1[id], .chapter-content h2[id], .chapter-content h3[id], .chapter-content h4[id]')
+      );
 
-    function findActive() {
-      var scrollTop = getScrollY() + 80;
-      var chapter = '';
-      var heading = '';
+      // Pre-map each heading to its parent chapter id for O(1) lookup.
+      headings.forEach(function(h) {
+        h._chapterId = h.closest('.chapter') ? h.closest('.chapter').id : '';
+      });
 
-      for (var i = allChapters.length - 1; i >= 0; i--) {
-        if (allChapters[i].el.offsetTop <= scrollTop) { chapter = allChapters[i].id; break; }
+      // Visibility state: true when element is inside the observation zone.
+      var visibleHeadings = {};
+      var visibleChapters = {};
+
+      // Determine which chapter/heading is currently active and push updates
+      // to the left and right TOC components only when the state actually changes.
+      function syncActive() {
+        // The topmost visible heading (first in DOM order) wins.
+        var newHeadingId = '';
+        var newChapterId = '';
+        for (var i = 0; i < headings.length; i++) {
+          if (visibleHeadings[headings[i].id]) {
+            newHeadingId = headings[i].id;
+            newChapterId = headings[i]._chapterId;
+            break;
+          }
+        }
+        // No heading in zone — fall back to the topmost visible chapter.
+        if (!newChapterId) {
+          for (var j = 0; j < chapters.length; j++) {
+            if (visibleChapters[chapters[j].id]) { newChapterId = chapters[j].id; break; }
+          }
+          if (!newChapterId && chapters.length > 0) newChapterId = chapters[0].id;
+        }
+
+        if (newChapterId !== activeChapterId || newHeadingId !== activeHeadingId) {
+          activeChapterId = newChapterId;
+          activeHeadingId = newHeadingId;
+          updateLeftTOC(newChapterId, newHeadingId);
+          updateRightTOC(newChapterId, newHeadingId);
+        }
       }
-      for (var j = allPageHeadings.length - 1; j >= 0; j--) {
-        if (allPageHeadings[j].el.offsetTop <= scrollTop) { heading = allPageHeadings[j].id; break; }
-      }
-      if (!chapter && allChapters.length > 0) chapter = allChapters[0].id;
-      return { chapter: chapter, heading: heading };
+
+      // Observe headings in a band from 80 px below the viewport top (below
+      // the fixed toolbar) down to 50 % up from the bottom.  The observer
+      // fires only on entry/exit — not on every scroll frame.
+      var headingObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(e) { visibleHeadings[e.target.id] = e.isIntersecting; });
+        syncActive();
+      }, { rootMargin: '-80px 0px -50% 0px', threshold: 0 });
+
+      headings.forEach(function(h) { headingObserver.observe(h); });
+
+      // Observe chapters with a wider band to handle chapters that have no headings.
+      var chapterObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(e) { visibleChapters[e.target.id] = e.isIntersecting; });
+        syncActive();
+      }, { rootMargin: '-80px 0px -20% 0px', threshold: 0 });
+
+      chapters.forEach(function(ch) { chapterObserver.observe(ch); });
     }
 
     // 更新左侧 TOC 高亮
@@ -1585,6 +1619,8 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
           a.className = 'right-toc-link rtoc-d' + (item.level - 1);
           a.setAttribute('data-target', item.id);
           a.textContent = item.text;
+          // Use smooth scroll + history.pushState (same behaviour as left TOC links).
+          a.addEventListener('click', handleAnchorClick);
           rightNav.appendChild(a);
         });
       }
@@ -1595,27 +1631,17 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       });
     }
 
+    // onScroll only handles the reading progress bar and the back-to-top button.
+    // Chapter/heading tracking is now handled by IntersectionObserver in initScrollSpy.
     function onScroll() {
-      var active = findActive();
-      var changed = active.chapter !== activeChapterId || active.heading !== activeHeadingId;
-      if (changed) {
-        activeChapterId = active.chapter;
-        activeHeadingId = active.heading;
-        updateLeftTOC(active.chapter, active.heading);
-        updateRightTOC(active.chapter, active.heading);
-      }
-
-      // 阅读进度条
-      var scrollTop = getScrollY();
+      var scrollTop = window.scrollY || document.documentElement.scrollTop;
       var docH = document.documentElement.scrollHeight - window.innerHeight;
       var pct  = docH > 0 ? Math.min(100, (scrollTop / docH) * 100) : 0;
       document.getElementById('reading-progress').style.width = pct + '%';
-
-      // 回到顶部按钮
       document.getElementById('back-to-top').classList.toggle('visible', scrollTop > 400);
     }
 
-    // 使用 requestAnimationFrame 节流，避免频繁重绘
+    // Throttle scroll events with requestAnimationFrame to avoid excessive repaints.
     var rafPending = false;
     window.addEventListener('scroll', function() {
       if (rafPending) return;

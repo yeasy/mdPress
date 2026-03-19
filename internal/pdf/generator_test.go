@@ -1,6 +1,11 @@
 package pdf
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -210,5 +215,165 @@ func TestWithTaggedPDFOption(t *testing.T) {
 	g := NewGenerator(WithTaggedPDF(false))
 	if g.generateTaggedPDF {
 		t.Error("generateTaggedPDF should be false after WithTaggedPDF(false)")
+	}
+}
+
+func TestResolveChromiumPathPrefersMDPRESSChromePath(t *testing.T) {
+	t.Setenv("CHROME_BIN", "")
+	originalCandidates := chromiumExecutableCandidates
+	originalMacPaths := chromiumMacPaths
+	chromiumExecutableCandidates = nil
+	chromiumMacPaths = nil
+	defer func() {
+		chromiumExecutableCandidates = originalCandidates
+		chromiumMacPaths = originalMacPaths
+	}()
+
+	dir := t.TempDir()
+	chromePath := filepath.Join(dir, "chrome")
+	if err := os.WriteFile(chromePath, []byte(""), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MDPRESS_CHROME_PATH", chromePath)
+
+	got, err := resolveChromiumPath()
+	if err != nil {
+		t.Fatalf("resolveChromiumPath() returned error: %v", err)
+	}
+	if got != chromePath {
+		t.Fatalf("resolveChromiumPath() = %q, want %q", got, chromePath)
+	}
+}
+
+func TestResolveChromiumPathFallsBackToChromeBin(t *testing.T) {
+	t.Setenv("MDPRESS_CHROME_PATH", "")
+	originalCandidates := chromiumExecutableCandidates
+	originalMacPaths := chromiumMacPaths
+	chromiumExecutableCandidates = nil
+	chromiumMacPaths = nil
+	defer func() {
+		chromiumExecutableCandidates = originalCandidates
+		chromiumMacPaths = originalMacPaths
+	}()
+
+	dir := t.TempDir()
+	chromePath := filepath.Join(dir, "chrome-bin")
+	if err := os.WriteFile(chromePath, []byte(""), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CHROME_BIN", chromePath)
+
+	got, err := resolveChromiumPath()
+	if err != nil {
+		t.Fatalf("resolveChromiumPath() returned error: %v", err)
+	}
+	if got != chromePath {
+		t.Fatalf("resolveChromiumPath() = %q, want %q", got, chromePath)
+	}
+}
+
+func TestResolveChromiumPathFindsPathExecutable(t *testing.T) {
+	t.Setenv("MDPRESS_CHROME_PATH", "")
+	t.Setenv("CHROME_BIN", "")
+
+	dir := t.TempDir()
+	binDir := filepath.Join(dir, "bin")
+	if err := os.Mkdir(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exeName := "google-chrome"
+	if runtime.GOOS == "windows" {
+		exeName += ".exe"
+	}
+	chromePath := filepath.Join(binDir, exeName)
+	if err := os.WriteFile(chromePath, []byte(""), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	originalCandidates := chromiumExecutableCandidates
+	originalMacPaths := chromiumMacPaths
+	chromiumExecutableCandidates = []string{"google-chrome"}
+	chromiumMacPaths = nil
+	defer func() {
+		chromiumExecutableCandidates = originalCandidates
+		chromiumMacPaths = originalMacPaths
+	}()
+
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	got, err := resolveChromiumPath()
+	if err != nil {
+		t.Fatalf("resolveChromiumPath() returned error: %v", err)
+	}
+	if got != chromePath {
+		t.Fatalf("resolveChromiumPath() = %q, want %q", got, chromePath)
+	}
+}
+
+func TestParseChromiumFlags(t *testing.T) {
+	args := parseChromiumFlags("--no-sandbox --disable-dev-shm-usage --remote-debugging-port=0 --single-process=false")
+	if _, ok := args["no-sandbox"]; !ok {
+		t.Fatal("expected no-sandbox flag to be set")
+	}
+	if value, ok := args["disable-dev-shm-usage"]; !ok || value != true {
+		t.Fatalf("expected disable-dev-shm-usage=true, got %v", value)
+	}
+	if value, ok := args["remote-debugging-port"]; !ok || value != "0" {
+		t.Fatalf("expected remote-debugging-port=\"0\", got %v", value)
+	}
+	if value, ok := args["single-process"]; !ok || value != false {
+		t.Fatalf("expected single-process=false, got %v", value)
+	}
+}
+
+func TestPrepareChromiumRuntimeDirs(t *testing.T) {
+	t.Setenv("MDPRESS_CACHE_DIR", t.TempDir())
+
+	runtime, err := prepareChromiumRuntimeDirs()
+	if err != nil {
+		t.Fatalf("prepareChromiumRuntimeDirs() returned error: %v", err)
+	}
+	defer runtime.cleanup()
+
+	for _, dir := range []string{runtime.root, runtime.homeDir, runtime.userData, runtime.tmpDir, runtime.xdgConfig, runtime.xdgCache} {
+		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+			t.Fatalf("expected runtime directory %q to exist", dir)
+		}
+	}
+}
+
+func TestChromiumRuntimeEnv(t *testing.T) {
+	runtime := chromiumRuntimeDirs{
+		homeDir:   "/tmp/home",
+		tmpDir:    "/tmp/tmp",
+		xdgConfig: "/tmp/xdg-config",
+		xdgCache:  "/tmp/xdg-cache",
+	}
+	env := chromiumRuntimeEnv(runtime)
+	joined := strings.Join(env, "\n")
+	for _, expected := range []string{
+		"HOME=/tmp/home",
+		"TMPDIR=/tmp/tmp",
+		"XDG_CONFIG_HOME=/tmp/xdg-config",
+		"XDG_CACHE_HOME=/tmp/xdg-cache",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected %q in env, got %v", expected, env)
+		}
+	}
+}
+
+func TestChromiumAllocatorOptionsIncludeRuntimeOverrides(t *testing.T) {
+	runtime := chromiumRuntimeDirs{
+		userData:  "/tmp/user-data",
+		homeDir:   "/tmp/home",
+		tmpDir:    "/tmp/tmp",
+		xdgConfig: "/tmp/xdg-config",
+		xdgCache:  "/tmp/xdg-cache",
+	}
+	var output bytes.Buffer
+	opts := chromiumAllocatorOptions("/tmp/chrome", runtime, &output)
+	if len(opts) == 0 {
+		t.Fatal("chromiumAllocatorOptions returned no options")
 	}
 }

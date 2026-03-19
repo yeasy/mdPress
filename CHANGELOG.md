@@ -8,6 +8,40 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.3.1] - 2026-03-19
+
+### Added
+
+- **Docker support**: Dual-image strategy with minimal (~15 MB, no PDF) and full (~300 MB, with Chromium) images; CI/CD auto-builds to Docker Hub and GHCR (`Dockerfile`, `.github/workflows/release.yml`)
+- **ExternalPlugin test coverage**: 19 test functions covering construction, execution, timeouts, stderr capture, JSON edge cases, and metadata queries (`internal/plugin/external_test.go`)
+- **README Docker installation**: Docker quick-start commands added to both English and Chinese READMEs
+- **CI Docker smoke test**: Docker build verification added to the regular CI pipeline
+- **CJK font detection**: Auto-detect CJK (Chinese/Japanese/Korean) characters in book content and warn if no CJK fonts are installed before PDF generation; `mdpress doctor` now checks CJK font availability (`pkg/utils/cjk.go`, `internal/pdf/generator.go`, `cmd/doctor.go`)
+
+### Fixed
+
+- **epub.go resource handling**: Replaced `defer Close()` with explicit `success` flag pattern — `zip.Writer.Close()` errors are now caught, partial `.epub` files are cleaned up on failure
+- **migrate.go error handling**: `GetBool` errors properly returned with `fmt.Errorf` wrapping; `filepath.Rel` failures gracefully fall back to absolute paths
+- **migrate.go regex compilation**: Promoted 3 regexps to package-level variables, avoiding per-call `regexp.MustCompile`
+- **release.yml BUILD_TIME**: Replaced `head_commit.timestamp` (null on tag push) with reliable `$(date -u)` command
+- **Context propagation**: Replaced `context.Background()` in the build pipeline with proper context threading from callers
+- **WebSocket notification locking**: Snapshot client list under lock then iterate without holding the lock, preventing slow-client stalls
+- **epub.go defer double-close**: Added `fileClosed` flag to prevent redundant `f.Close()` in error-path defer cleanup
+- **server.go data race**: Moved `len(s.clients)` read inside the mutex in `handleWebSocket()` to prevent race detector warnings
+- **server.go JSON escaping**: Replaced manual string replacement in `notifyBuildError()` with `json.Marshal()` for complete Unicode and control character escaping
+- **Dockerfile non-root user**: Added `addgroup`/`adduser` and `USER mdpress` to both minimal and full images for container security best practices
+- **validate.go chapter sequence**: Refactored `parseSequenceParts()` with shared `splitSequenceParts()` helper; improved Chinese title matching with `relaxedChineseTitleSequencePattern`
+- **Title consistency false positives**: Chinese+Arabic mixed numbering styles (e.g. "第一章" + "1.1") no longer trigger style-mismatch warnings; common recurring titles ("本章小结", "简介") excluded from duplicate detection; directory-scoped dedup prevents cross-chapter false positives
+- **Long line overflow in all outputs**: Fixed table cells, inline code, and code blocks across PDF, HTML, site, and ePub to properly wrap long text instead of truncating; changed `table-layout` from `fixed` to `auto`; added `overflow-wrap: anywhere` and `word-break` to tables, code elements, and content areas
+
+### Changed
+
+- **README features table**: Added Math/KaTeX and Plugin System rows to the feature comparison table
+- **Promotion materials**: Replaced 7 platform-specific posts with 4 in-depth articles
+- **site.go JS deduplication**: Extracted common CDN library loader helper for ensureKaTeX/ensureMermaid
+
+---
+
 ## [0.3.0] - 2026-03-19
 
 ### Added
@@ -107,6 +141,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/yeasy/mdpress/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/yeasy/mdpress/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yeasy/mdpress/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yeasy/mdpress/releases/tag/v0.1.0

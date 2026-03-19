@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -33,6 +35,18 @@ const MaxImageSize = 50 * 1024 * 1024
 // IsRemoteURL reports whether a path is an HTTP(S) URL.
 func IsRemoteURL(path string) bool {
 	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://")
+}
+
+// ImageProcessingOptions controls how image references are rewritten.
+type ImageProcessingOptions struct {
+	EmbedLocalAsBase64     bool
+	EmbedRemoteAsBase64    bool
+	RewriteLocalToFileURL  bool
+	RewriteRemoteToFileURL bool
+	DownloadRemote         bool
+	CacheDir               string
+	MaxConcurrentDownloads int
+	Logger                 *slog.Logger
 }
 
 // DownloadImage downloads an image from a URL and returns the local path.
@@ -67,6 +81,18 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 	// Build the destination path.
 	destPath := filepath.Join(destDir, fileName)
+	if !CacheDisabled() {
+		if info, err := os.Stat(destPath); err == nil && !info.IsDir() && info.Size() > 0 {
+			return destPath, nil
+		}
+		if matches, err := filepath.Glob(filepath.Join(destDir, strings.TrimSuffix(fileName, filepath.Ext(fileName))+".*")); err == nil {
+			for _, match := range matches {
+				if info, statErr := os.Stat(match); statErr == nil && !info.IsDir() && info.Size() > 0 {
+					return match, nil
+				}
+			}
+		}
+	}
 
 	// Download with a timeout so unresponsive servers do not hang forever.
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -86,22 +112,49 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		return "", fmt.Errorf("image download failed with HTTP %d %s for %q", resp.StatusCode, http.StatusText(resp.StatusCode), urlStr)
 	}
 
+	if filepath.Ext(fileName) == "" {
+		if ext := imageExtensionForContentType(resp.Header.Get("Content-Type")); ext != "" {
+			fileName += ext
+			destPath = filepath.Join(destDir, fileName)
+			if !CacheDisabled() {
+				if info, err := os.Stat(destPath); err == nil && !info.IsDir() && info.Size() > 0 {
+					return destPath, nil
+				}
+			}
+		}
+	}
+
 	// Create the destination file.
-	file, err := os.Create(destPath)
+	tmpFile, err := os.CreateTemp(destDir, "mdpress-image-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
-	defer file.Close() //nolint:errcheck
+	tmpPath := tmpFile.Name()
+	defer func() {
+		tmpFile.Close() //nolint:errcheck
+		_ = os.Remove(tmpPath)
+	}()
 
 	// Copy the response body into the file with a size limit to prevent disk exhaustion.
 	limitedReader := io.LimitReader(resp.Body, MaxImageSize+1)
-	written, err := io.Copy(file, limitedReader)
+	written, err := io.Copy(tmpFile, limitedReader)
 	if err != nil {
 		return "", fmt.Errorf("failed to save image: %w", err)
 	}
 	if written > MaxImageSize {
-		_ = os.Remove(destPath)
 		return "", fmt.Errorf("image exceeds maximum allowed size of %d bytes: %q", MaxImageSize, urlStr)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to finalize image download: %w", err)
+	}
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		// Another process may have won the race and written the same cache file.
+		if !CacheDisabled() {
+			if info, statErr := os.Stat(destPath); statErr == nil && !info.IsDir() && info.Size() > 0 {
+				return destPath, nil
+			}
+		}
+		return "", fmt.Errorf("failed to move cached image into place: %w", err)
 	}
 
 	return destPath, nil
@@ -189,79 +242,192 @@ func ProcessImages(htmlContent string, baseDir string, embedAsBase64 bool, logge
 	if len(logger) > 0 && logger[0] != nil {
 		log = logger[0]
 	}
-	// Match the src attribute of img tags.
+	return ProcessImagesWithOptions(htmlContent, baseDir, ImageProcessingOptions{
+		EmbedLocalAsBase64:     embedAsBase64,
+		EmbedRemoteAsBase64:    embedAsBase64,
+		DownloadRemote:         embedAsBase64,
+		CacheDir:               filepath.Join(CacheRootDir(), "images"),
+		MaxConcurrentDownloads: 4,
+		Logger:                 log,
+	})
+}
+
+// ProcessImagesWithOptions resolves image paths in HTML with explicit control
+// over embedding, remote downloads, and file URL rewriting.
+func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageProcessingOptions) (string, error) {
 	imgSrcRegex := regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
 
+	if options.CacheDir == "" {
+		options.CacheDir = filepath.Join(CacheRootDir(), "images")
+	}
+	if CacheDisabled() {
+		options.CacheDir = filepath.Join(os.TempDir(), "mdpress-nocache-images")
+	}
+	if options.MaxConcurrentDownloads <= 0 {
+		options.MaxConcurrentDownloads = 4
+	}
+	if options.EmbedRemoteAsBase64 || options.RewriteRemoteToFileURL {
+		options.DownloadRemote = true
+	}
+
+	matches := imgSrcRegex.FindAllStringSubmatch(htmlContent, -1)
+	remoteImages := prefetchRemoteImages(matches, options)
+
 	result := imgSrcRegex.ReplaceAllStringFunc(htmlContent, func(match string) string {
-		// Extract the src value.
-		matches := imgSrcRegex.FindStringSubmatch(match)
-		if len(matches) < 3 {
+		submatches := imgSrcRegex.FindStringSubmatch(match)
+		if len(submatches) < 3 {
 			return match
 		}
 
-		src := matches[2]
-		prefix := matches[1]
-		suffix := matches[3]
+		src := submatches[2]
+		prefix := submatches[1]
+		suffix := submatches[3]
 
-		// Keep existing data URIs unchanged.
 		if strings.HasPrefix(src, "data:") {
 			return match
 		}
 
-		// Handle remote URLs.
 		if IsRemoteURL(src) {
-			if embedAsBase64 {
-				// Download the remote image and convert it to base64.
-				tempDir := filepath.Join(baseDir, ".mdpress_temp")
-				localPath, err := DownloadImage(src, tempDir)
-				if err != nil {
-					if log != nil {
-						log.Warn("Failed to download remote image, keeping original URL", slog.String("src", src), slog.String("error", err.Error()))
-					}
-					return match
-				}
-
+			localPath, ok := remoteImages[src]
+			if !ok || localPath == "" {
+				return match
+			}
+			switch {
+			case options.EmbedRemoteAsBase64:
 				dataURI, err := ImageToBase64(localPath)
 				if err != nil {
-					if log != nil {
-						log.Warn("Failed to convert image to base64", slog.String("src", src), slog.String("error", err.Error()))
+					if options.Logger != nil {
+						options.Logger.Warn("Failed to convert remote image to base64", slog.String("src", src), slog.String("error", err.Error()))
 					}
 					return match
 				}
-
 				return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, dataURI, suffix)
+			case options.RewriteRemoteToFileURL:
+				return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, filePathToURL(localPath), suffix)
+			default:
+				return match
 			}
-			// Leave remote URLs untouched when embedding is disabled.
-			return match
 		}
 
-		// Resolve relative paths against baseDir.
-		var targetPath string
-		if filepath.IsAbs(src) {
-			targetPath = src
-		} else {
-			targetPath = filepath.Clean(filepath.Join(baseDir, src))
-		}
-
-		// Keep missing local files unchanged.
+		targetPath := resolveLocalImagePath(baseDir, src)
 		if !FileExists(targetPath) {
 			return match
 		}
 
-		if embedAsBase64 {
-			// Convert local files to base64 when requested.
+		switch {
+		case options.EmbedLocalAsBase64:
 			dataURI, err := ImageToBase64(targetPath)
 			if err != nil {
-				// Keep the original source when conversion fails.
 				return match
 			}
 			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, dataURI, suffix)
+		case options.RewriteLocalToFileURL:
+			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, filePathToURL(targetPath), suffix)
+		default:
+			newSrc := RelPath(baseDir, targetPath)
+			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, newSrc, suffix)
 		}
-
-		// Otherwise rewrite the source with a normalized relative path.
-		newSrc := RelPath(baseDir, targetPath)
-		return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, newSrc, suffix)
 	})
 
 	return result, nil
+}
+
+func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) map[string]string {
+	if !options.DownloadRemote {
+		return nil
+	}
+	unique := make(map[string]struct{})
+	for _, match := range matches {
+		if len(match) >= 3 && IsRemoteURL(match[2]) {
+			unique[match[2]] = struct{}{}
+		}
+	}
+	if len(unique) == 0 {
+		return nil
+	}
+	_ = EnsureDir(options.CacheDir)
+
+	results := make(map[string]string, len(unique))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, options.MaxConcurrentDownloads)
+
+	// Capture the logger once before spawning goroutines so that all
+	// goroutines use a consistent, safely-captured pointer.
+	logger := options.Logger
+
+	for src := range unique {
+		wg.Add(1)
+		go func(src string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			localPath, err := DownloadImage(src, options.CacheDir)
+			if err != nil {
+				if logger != nil {
+					logger.Warn("Failed to download remote image, keeping original URL", slog.String("src", src), slog.String("error", err.Error()))
+				}
+				return
+			}
+			mu.Lock()
+			results[src] = localPath
+			mu.Unlock()
+		}(src)
+	}
+	wg.Wait()
+	return results
+}
+
+func resolveLocalImagePath(baseDir string, src string) string {
+	if filepath.IsAbs(src) {
+		return src
+	}
+	return filepath.Clean(filepath.Join(baseDir, src))
+}
+
+func filePathToURL(path string) string {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+	u := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(absPath),
+	}
+	return u.String()
+}
+
+func imageExtensionForContentType(contentType string) string {
+	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/svg+xml":
+		return ".svg"
+	case "image/bmp":
+		return ".bmp"
+	case "image/tiff":
+		return ".tiff"
+	case "image/x-icon", "image/vnd.microsoft.icon":
+		return ".ico"
+	default:
+		return ""
+	}
+}
+
+// StableHash returns a stable SHA-256 hex digest for the given strings.
+func StableHash(parts ...string) string {
+	h := sha256.New()
+	for _, part := range parts {
+		_, _ = io.WriteString(h, part)
+		_, _ = io.WriteString(h, "\x00")
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

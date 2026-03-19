@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -71,9 +72,21 @@ func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOr
 }
 
 // ProcessChapters runs the ChapterPipeline and returns results.
-func (o *BuildOrchestrator) ProcessChapters() (*ChapterPipelineResult, error) {
+func (o *BuildOrchestrator) ProcessChapters(ctxOpts ...context.Context) (*ChapterPipelineResult, error) {
+	ctx := context.Background()
+	if len(ctxOpts) > 0 && ctxOpts[0] != nil {
+		ctx = ctxOpts[0]
+	}
+	return o.ProcessChaptersWithOptions(ctx, ChapterPipelineOptions{})
+}
+
+// ProcessChaptersWithOptions runs the ChapterPipeline with caller-provided options.
+func (o *BuildOrchestrator) ProcessChaptersWithOptions(ctx context.Context, options ChapterPipelineOptions) (*ChapterPipelineResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pipeline := NewChapterPipeline(o.Config, o.Theme, o.Parser, o.Gloss, o.Logger, o.PluginManager)
-	return pipeline.Process()
+	return pipeline.ProcessWithOptions(ctx, options)
 }
 
 // LoadCustomCSS loads user-provided CSS.

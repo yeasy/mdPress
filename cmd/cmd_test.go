@@ -205,6 +205,22 @@ func TestPersistentFlags(t *testing.T) {
 	if flag.DefValue != "false" {
 		t.Errorf("--verbose 默认值应为 'false', 实际 %q", flag.DefValue)
 	}
+
+	flag = rootCmd.PersistentFlags().Lookup("cache-dir")
+	if flag == nil {
+		t.Fatal("应存在 --cache-dir 持久标志")
+	}
+	if flag.DefValue != "" {
+		t.Errorf("--cache-dir 默认值应为空, 实际 %q", flag.DefValue)
+	}
+
+	flag = rootCmd.PersistentFlags().Lookup("no-cache")
+	if flag == nil {
+		t.Fatal("应存在 --no-cache 持久标志")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("--no-cache 默认值应为 'false', 实际 %q", flag.DefValue)
+	}
 }
 
 // TestBuildCommand_Flags 测试 build 命令的标志

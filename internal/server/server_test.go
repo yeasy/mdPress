@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -694,5 +695,460 @@ func TestBuildFuncError(t *testing.T) {
 	}
 	if err.Error() != expectedErr.Error() {
 		t.Errorf("错误消息不匹配: 得到 %q, 期望 %q", err.Error(), expectedErr.Error())
+	}
+}
+
+// TestSnapshotClients tests that snapshotClients returns a copy, not a reference
+func TestSnapshotClients(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	// Connect a client
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	// Read the "connected" acknowledgment
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("Failed to read connected message: %v", err)
+	}
+
+	// Get a snapshot
+	snapshot1 := srv.snapshotClients()
+	if len(snapshot1) != 1 {
+		t.Errorf("Expected 1 client in snapshot, got %d", len(snapshot1))
+	}
+
+	// Get another snapshot
+	snapshot2 := srv.snapshotClients()
+
+	// Both snapshots should have the same client, but they should be different slices
+	if len(snapshot1) != len(snapshot2) {
+		t.Errorf("Snapshots have different lengths: %d vs %d", len(snapshot1), len(snapshot2))
+	}
+
+	// Verify the snapshots are independent copies (not the same underlying array)
+	if &snapshot1[0] == &snapshot2[0] {
+		t.Error("Snapshots should be independent copies with different memory addresses")
+	}
+
+	// Both should reference the same client
+	if snapshot1[0] != snapshot2[0] {
+		t.Error("Snapshots should contain the same client object")
+	}
+}
+
+// TestBrowserURL tests URL generation for various host values
+func TestBrowserURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		port     int
+		expected string
+	}{
+		{
+			name:     "localhost",
+			host:     "localhost",
+			port:     8080,
+			expected: "http://localhost:8080",
+		},
+		{
+			name:     "127.0.0.1",
+			host:     "127.0.0.1",
+			port:     3000,
+			expected: "http://127.0.0.1:3000",
+		},
+		{
+			name:     "empty host becomes localhost",
+			host:     "",
+			port:     9000,
+			expected: "http://localhost:9000",
+		},
+		{
+			name:     "0.0.0.0 becomes localhost",
+			host:     "0.0.0.0",
+			port:     5000,
+			expected: "http://localhost:5000",
+		},
+		{
+			name:     "::: becomes localhost",
+			host:     "::",
+			port:     8000,
+			expected: "http://localhost:8000",
+		},
+		{
+			name:     "[::] becomes localhost",
+			host:     "[::]",
+			port:     8000,
+			expected: "http://localhost:8000",
+		},
+		{
+			name:     "IPv6 address",
+			host:     "::1",
+			port:     8080,
+			expected: "http://[::1]:8080",
+		},
+		{
+			name:     "IPv6 with colons (not brackets)",
+			host:     "fe80::1",
+			port:     3000,
+			expected: "http://[fe80::1]:3000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := NewServer(tt.host, tt.port, "/tmp", "/tmp", slog.Default())
+			url := srv.browserURL()
+			if url != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, url)
+			}
+		})
+	}
+}
+
+// TestIsAddrInUse tests the isAddrInUse error detection
+func TestIsAddrInUse(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "EADDRINUSE error",
+			err:      fmt.Errorf("listen tcp 127.0.0.1:8080: %w", syscall.EADDRINUSE),
+			expected: true,
+		},
+		{
+			name:     "address already in use string",
+			err:      fmt.Errorf("address already in use"),
+			expected: true,
+		},
+		{
+			name:     "other error",
+			err:      fmt.Errorf("permission denied"),
+			expected: false,
+		},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isAddrInUse(tt.err)
+			if result != tt.expected {
+				t.Errorf("Expected %v, got %v for error: %v", tt.expected, result, tt.err)
+			}
+		})
+	}
+}
+
+// TestListenDynamicPort tests Listen with port 0 for dynamic allocation
+func TestListenDynamicPort(t *testing.T) {
+	srv := NewServer("127.0.0.1", 0, "/tmp", "/tmp", slog.Default())
+
+	ln, err := srv.Listen()
+	if err != nil {
+		t.Fatalf("Listen failed: %v", err)
+	}
+	defer ln.Close() //nolint:errcheck
+
+	// Port should be assigned dynamically
+	if srv.Port <= 0 {
+		t.Errorf("Expected positive port, got %d", srv.Port)
+	}
+
+	// Verify we can actually listen on the port
+	addr := ln.Addr()
+	if addr == nil {
+		t.Error("Listener address should not be nil")
+	}
+}
+
+// TestListenFromDynamicAllocation tests ListenFrom with port 0 for dynamic allocation
+func TestListenFromDynamicAllocation(t *testing.T) {
+	srv := NewServer("127.0.0.1", 0, "/tmp", "/tmp", slog.Default())
+
+	ln, err := srv.ListenFrom(0)
+	if err != nil {
+		t.Fatalf("ListenFrom failed: %v", err)
+	}
+	defer ln.Close() //nolint:errcheck
+
+	// Port should be dynamically allocated
+	if srv.Port <= 0 {
+		t.Errorf("Expected positive port, got %d", srv.Port)
+	}
+}
+
+// TestNotifyCSSUpdate tests CSS-only update notifications
+func TestNotifyCSSUpdate(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	// Connect a client
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	// Read the "connected" acknowledgment
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("Failed to read connected message: %v", err)
+	}
+
+	// Send CSS update notification
+	srv.notifyCSSUpdate()
+
+	// Read the CSS update message
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to read message: %v", err)
+	}
+
+	msgStr := string(msg)
+	if !strings.Contains(msgStr, `"type":"css-update"`) {
+		t.Errorf("Expected css-update message, got: %q", msgStr)
+	}
+
+	if !strings.Contains(msgStr, `"timestamp"`) {
+		t.Errorf("Expected timestamp in message, got: %q", msgStr)
+	}
+}
+
+// TestNotifyBuildError tests build error notifications
+func TestNotifyBuildError(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	// Connect a client
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	// Read the "connected" acknowledgment
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("Failed to read connected message: %v", err)
+	}
+
+	// Send a build error notification
+	errorMsg := "Failed to compile: syntax error on line 42"
+	srv.notifyBuildError(errorMsg)
+
+	// Read the error message
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to read message: %v", err)
+	}
+
+	msgStr := string(msg)
+	if !strings.Contains(msgStr, `"type":"build-error"`) {
+		t.Errorf("Expected build-error message, got: %q", msgStr)
+	}
+
+	if !strings.Contains(msgStr, errorMsg) {
+		t.Errorf("Expected error message %q in notification, got: %q", errorMsg, msgStr)
+	}
+
+	if !strings.Contains(msgStr, `"timestamp"`) {
+		t.Errorf("Expected timestamp in message, got: %q", msgStr)
+	}
+}
+
+// TestNotifyBuildErrorWithSpecialChars tests build error with special characters
+func TestNotifyBuildErrorWithSpecialChars(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	// Connect a client
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	// Read the "connected" acknowledgment
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("Failed to read connected message: %v", err)
+	}
+
+	// Send a build error with special characters
+	errorMsg := "Error: \"quoted\" string with\nline breaks and\ttabs"
+	srv.notifyBuildError(errorMsg)
+
+	// Read the error message
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to read message: %v", err)
+	}
+
+	msgStr := string(msg)
+	if !strings.Contains(msgStr, `"type":"build-error"`) {
+		t.Errorf("Expected build-error message, got: %q", msgStr)
+	}
+
+	// The message should be JSON-escaped properly
+	if !strings.Contains(msgStr, `"error"`) {
+		t.Errorf("Expected error field in message, got: %q", msgStr)
+	}
+}
+
+// TestConcurrentClientRegistration tests concurrent client registration + notification
+func TestConcurrentClientRegistration(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	const numClients = 5
+	var wg sync.WaitGroup
+	conns := make([]*websocket.Conn, numClients)
+	connsMu := sync.Mutex{}
+
+	// Concurrently register clients
+	for i := 0; i < numClients; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+			if err != nil {
+				t.Errorf("Client %d failed to connect: %v", idx, err)
+				return
+			}
+
+			// Read the "connected" acknowledgment
+			if _, _, err := conn.ReadMessage(); err != nil {
+				t.Errorf("Client %d failed to read ack: %v", idx, err)
+				conn.Close() //nolint:errcheck
+				return
+			}
+
+			connsMu.Lock()
+			conns[idx] = conn
+			connsMu.Unlock()
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify all clients are registered
+	srv.clientsMu.RLock()
+	if len(srv.clients) != numClients {
+		srv.clientsMu.RUnlock()
+		t.Errorf("Expected %d clients, got %d", numClients, len(srv.clients))
+		return
+	}
+	srv.clientsMu.RUnlock()
+
+	// Send notification while clients are still registering/active
+	var notifyWg sync.WaitGroup
+	for i := 0; i < 3; i++ {
+		notifyWg.Add(1)
+		go func() {
+			defer notifyWg.Done()
+			srv.notifyClients()
+		}()
+	}
+
+	notifyWg.Wait()
+
+	// Verify all clients received at least one message
+	for i, conn := range conns {
+		if conn == nil {
+			continue
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+			t.Errorf("Client %d failed to set deadline: %v", i, err)
+			continue
+		}
+
+		msgCount := 0
+		for msgCount < 3 {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+			msgStr := string(msg)
+			if strings.Contains(msgStr, `"type":"reload"`) {
+				msgCount++
+			}
+		}
+
+		if msgCount == 0 {
+			t.Errorf("Client %d received no reload messages", i)
+		}
+	}
+
+	// Cleanup
+	connsMu.Lock()
+	for _, conn := range conns {
+		if conn != nil {
+			conn.Close() //nolint:errcheck
+		}
+	}
+	connsMu.Unlock()
+}
+
+// TestInjectLiveReload_PathTraversal tests path traversal protection
+func TestInjectLiveReload_PathTraversal(t *testing.T) {
+	outputDir := t.TempDir()
+
+	// Create a legitimate HTML file
+	htmlFile := filepath.Join(outputDir, "index.html")
+	if err := os.WriteFile(htmlFile, []byte("<html><body>OK</body></html>"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
+	fileServer := http.FileServer(http.Dir(outputDir))
+	handler := srv.injectLiveReload(fileServer)
+
+	// Try to access a file outside the output directory
+	req := httptest.NewRequest("GET", "/../../../etc/passwd.html", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// Should return forbidden or 404, not OK
+	if rec.Code == http.StatusOK {
+		t.Error("Path traversal attempt should not return 200")
 	}
 }

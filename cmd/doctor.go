@@ -43,7 +43,10 @@ func init() {
 type doctorReport struct {
 	Platform           string                   `json:"platform"`
 	GoVersion          string                   `json:"go_version"`
+	CacheDir           string                   `json:"cache_dir,omitempty"`
+	CacheDisabled      bool                     `json:"cache_disabled"`
 	ChromiumAvailable  bool                     `json:"chromium_available"`
+	CJKFontsAvailable  bool                     `json:"cjk_fonts_available"`
 	BookYAMLFound      bool                     `json:"book_yaml_found"`
 	SummaryFound       bool                     `json:"summary_found"`
 	LangsFound         bool                     `json:"langs_found"`
@@ -68,14 +71,21 @@ func executeDoctor(targetDir string) error {
 	}
 
 	report := doctorReport{
-		Platform:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-		GoVersion: runtime.Version(),
+		Platform:      fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		GoVersion:     runtime.Version(),
+		CacheDir:      utils.CacheRootDir(),
+		CacheDisabled: utils.CacheDisabled(),
 	}
 
 	utils.Header("mdpress Environment Check")
 	fmt.Println()
-	utils.Success(fmt.Sprintf("Platform: %s", report.Platform))
-	utils.Success(fmt.Sprintf("Go version: %s", report.GoVersion))
+	utils.Success("Platform: %s", report.Platform)
+	utils.Success("Go version: %s", report.GoVersion)
+	if report.CacheDisabled {
+		utils.Warning("Runtime cache is disabled")
+	} else {
+		utils.Success("Runtime cache: %s", report.CacheDir)
+	}
 
 	if err := pdf.CheckChromiumAvailable(); err != nil {
 		utils.Error("Chromium/Chrome is unavailable (PDF output will fail)")
@@ -84,6 +94,17 @@ func executeDoctor(targetDir string) error {
 	} else {
 		report.ChromiumAvailable = true
 		utils.Success("Chromium/Chrome is available")
+	}
+
+	// Check CJK font availability for PDF rendering of Chinese/Japanese/Korean content.
+	cjkStatus := utils.CheckCJKFonts()
+	report.CJKFontsAvailable = cjkStatus.Available
+	if cjkStatus.Available {
+		utils.Success("CJK fonts available: %s", strings.Join(cjkStatus.Fonts, ", "))
+	} else {
+		utils.Warning("No CJK fonts detected — PDF output for Chinese/Japanese/Korean text may show blank squares")
+		fmt.Printf("    %s\n", utils.CJKFontInstallHint())
+		report.Warnings = append(report.Warnings, "No CJK fonts detected (PDF output may show blank squares for CJK text)")
 	}
 
 	fmt.Println()
@@ -117,25 +138,25 @@ func executeDoctor(targetDir string) error {
 	if _, err := os.Stat(bookPath); err == nil {
 		cfg, loadErr := config.Load(bookPath)
 		if loadErr != nil {
-			utils.Error(fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
+			utils.Error("Failed to load book.yaml: %v", loadErr)
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
 		} else {
 			report.ProjectLoadable = true
 			report.ProjectTitle = cfg.Book.Title
 			report.TopLevelChapters = len(cfg.Chapters)
-			utils.Success(fmt.Sprintf("Config loads successfully: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters)))
+			utils.Success("Config loads successfully: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters))
 			reportDoctorMarkdownLinks(cfg, &report)
 		}
 	} else if _, err := os.Stat(summaryPath); err == nil {
 		cfg, discoverErr := config.Discover(absDir)
 		if discoverErr != nil {
-			utils.Error(fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))
+			utils.Error("Failed to auto-discover project from SUMMARY.md: %v", discoverErr)
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))
 		} else {
 			report.ProjectLoadable = true
 			report.ProjectTitle = cfg.Book.Title
 			report.TopLevelChapters = len(cfg.Chapters)
-			utils.Success(fmt.Sprintf("Project can be loaded by auto-discovery: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters)))
+			utils.Success("Project can be loaded by auto-discovery: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters))
 			reportDoctorMarkdownLinks(cfg, &report)
 		}
 	} else {
@@ -156,7 +177,7 @@ func executeDoctor(targetDir string) error {
 func reportDoctorMarkdownLinks(cfg *config.BookConfig, report *doctorReport) {
 	unresolved, err := findUnresolvedMarkdownLinks(cfg)
 	if err != nil {
-		utils.Error(fmt.Sprintf("Markdown chapter link analysis failed: %v", err))
+		utils.Error("Markdown chapter link analysis failed: %v", err)
 		if report != nil {
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Markdown chapter link analysis failed: %v", err))
 		}
@@ -170,7 +191,7 @@ func reportDoctorMarkdownLinks(cfg *config.BookConfig, report *doctorReport) {
 	if report != nil {
 		report.UnresolvedMarkdown = unresolved
 	}
-	utils.Warning(fmt.Sprintf("Detected %d Markdown link(s) outside the build graph", len(unresolved)))
+	utils.Warning("Detected %d Markdown link(s) outside the build graph", len(unresolved))
 	limit := len(unresolved)
 	if limit > 5 {
 		limit = 5
@@ -211,7 +232,12 @@ func renderDoctorMarkdown(report doctorReport) string {
 	b.WriteString("# mdpress Doctor Report\n\n")
 	fmt.Fprintf(&b, "- Platform: %s\n", report.Platform)
 	fmt.Fprintf(&b, "- Go version: %s\n", report.GoVersion)
+	fmt.Fprintf(&b, "- Cache disabled: %t\n", report.CacheDisabled)
+	if report.CacheDir != "" {
+		fmt.Fprintf(&b, "- Cache dir: %s\n", report.CacheDir)
+	}
 	fmt.Fprintf(&b, "- Chromium available: %t\n", report.ChromiumAvailable)
+	fmt.Fprintf(&b, "- CJK fonts available: %t\n", report.CJKFontsAvailable)
 	fmt.Fprintf(&b, "- book.yaml found: %t\n", report.BookYAMLFound)
 	fmt.Fprintf(&b, "- SUMMARY.md found: %t\n", report.SummaryFound)
 	fmt.Fprintf(&b, "- LANGS.md found: %t\n", report.LangsFound)

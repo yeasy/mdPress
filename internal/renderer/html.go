@@ -47,6 +47,7 @@ type RenderParts struct {
 type templateData struct {
 	Title      string
 	Author     string
+	Language   string
 	CSS        template.CSS
 	CoverHTML  template.HTML
 	TOCHTML    template.HTML
@@ -107,6 +108,7 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	data := templateData{
 		Title:      r.config.Book.Title,
 		Author:     r.config.Book.Author,
+		Language:   r.config.Book.Language,
 		CSS:        template.CSS(fullCSS),
 		CoverHTML:  template.HTML(parts.CoverHTML),
 		TOCHTML:    template.HTML(parts.TOCHTML),

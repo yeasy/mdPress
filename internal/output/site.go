@@ -385,7 +385,7 @@ body {
   view-transition-name: site-main;
 }
 .content {
-  max-width: 860px; margin: 0 auto; padding: 40px 50px 80px;
+  max-width: 860px; margin: 0 auto; padding: 40px 50px 80px; overflow-wrap: anywhere;
   view-transition-name: site-content;
   transition: opacity 0.18s ease, transform 0.22s ease;
 }
@@ -436,14 +436,16 @@ body {
 .content code {
   background: #f0f0f0; padding: 2px 6px; border-radius: 3px;
   font-family: "Fira Code", "Consolas", "Monaco", monospace; font-size: 0.9em;
+  overflow-wrap: anywhere; word-break: break-word;
 }
 .content pre {
   background: #2d2d2d; color: #f8f8f2; padding: 16px 20px;
   border-radius: 6px; overflow-x: auto; margin: 1em 0; line-height: 1.5;
+  font-size: 0.88em; white-space: pre; word-break: normal;
 }
-.content pre code { background: transparent; color: inherit; padding: 0; font-size: 0.88em; }
-.content table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-.content th, .content td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+.content pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; display: block; }
+.content table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; }
+.content th, .content td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
 .content th { background: #f5f5f5; font-weight: 600; }
 .content tr:nth-child(even) { background: #fafafa; }
 .content a { color: #4285f4; text-decoration: none; }
@@ -929,6 +931,32 @@ body {
     scheduleNavigationUpdate();
   });
 
+  // loadCDNScript is a helper to load a script from CDN only once.
+  // tag: data attribute name used to deduplicate; src: CDN URL; onReady: callback.
+  function loadCDNScript(tag, src, onReady) {
+    var attrName = 'data-mdpress-' + tag.replace(/[A-Z]/g, function(ch) {
+      return '-' + ch.toLowerCase();
+    });
+    var existing = document.querySelector('script[' + attrName + ']');
+    if (existing) {
+      if (existing.dataset.mdpressLoaded === 'true') {
+        if (onReady) onReady();
+      } else if (onReady) {
+        existing.addEventListener('load', onReady, { once: true });
+      }
+      return;
+    }
+
+    var s = document.createElement('script');
+    s.src = src;
+    s.setAttribute(attrName, 'true');
+    s.addEventListener('load', function() {
+      s.dataset.mdpressLoaded = 'true';
+      if (onReady) onReady();
+    }, { once: true });
+    document.body.appendChild(s);
+  }
+
   function ensureMermaid() {
     var nodes = document.querySelectorAll('.mermaid');
     if (!nodes.length) return;
@@ -947,18 +975,8 @@ body {
       }
     }
 
-    if (window.mermaid) {
-      runMermaid();
-      return;
-    }
-
-    if (document.querySelector('script[data-mdpress-mermaid]')) return;
-
-    var s = document.createElement('script');
-    s.src = '` + utils.MermaidCDNURL + `';
-    s.dataset.mdpressMermaid = 'true';
-    s.onload = runMermaid;
-    document.body.appendChild(s);
+    if (window.mermaid) { runMermaid(); return; }
+    loadCDNScript('mermaid', '` + utils.MermaidCDNURL + `', runMermaid);
   }
 
   // ensureKaTeX loads KaTeX and triggers auto-render when math elements are found.
@@ -981,12 +999,7 @@ body {
       }
     }
 
-    if (typeof renderMathInElement === 'function') {
-      runKaTeX();
-      return;
-    }
-
-    if (document.querySelector('script[data-mdpress-katex]')) return;
+    if (typeof renderMathInElement === 'function') { runKaTeX(); return; }
 
     // Load KaTeX CSS if not already loaded.
     if (!document.querySelector('link[data-mdpress-katex-css]')) {
@@ -997,16 +1010,9 @@ body {
       document.head.appendChild(link);
     }
 
-    var s = document.createElement('script');
-    s.src = '` + utils.KaTeXJSURL + `';
-    s.dataset.mdpressKatex = 'true';
-    s.onload = function() {
-      var ar = document.createElement('script');
-      ar.src = '` + utils.KaTeXAutoRenderURL + `';
-      ar.onload = runKaTeX;
-      document.body.appendChild(ar);
-    };
-    document.body.appendChild(s);
+    loadCDNScript('katex', '` + utils.KaTeXJSURL + `', function() {
+      loadCDNScript('katexAutoRender', '` + utils.KaTeXAutoRenderURL + `', runKaTeX);
+    });
   }
 
   function getClientNavigation(anchor) {

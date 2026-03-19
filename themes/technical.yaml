@@ -2,7 +2,7 @@
 # Suitable for technical books, API docs, and programming tutorials
 name: technical
 page_size: A4
-font_family: "Noto Sans SC, Segoe UI, Helvetica Neue, sans-serif"
+font_family: "-apple-system, BlinkMacSystemFont, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, Segoe UI, Helvetica Neue, Arial, sans-serif"
 font_size: "12pt"
 code_theme: monokai
 line_height: 1.6

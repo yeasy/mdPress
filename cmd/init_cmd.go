@@ -240,15 +240,35 @@ func executeInit(dir string) error {
 
 	coverImage := detectCoverImage(dir)
 
+	// Try to extract metadata from README.md to provide better defaults.
+	readmePath := filepath.Join(dir, "README.md")
+	readmeMeta := config.ExtractReadmeMetadata(readmePath)
+	defaultTitle := projectName
+	defaultAuthor := ""
+	defaultLanguage := "en-US"
+	if readmeMeta.Title != "" {
+		defaultTitle = readmeMeta.Title
+	}
+	if readmeMeta.Author != "" {
+		defaultAuthor = readmeMeta.Author
+	}
+	if readmeMeta.Language != "" {
+		defaultLanguage = readmeMeta.Language
+	}
+
 	// Collect metadata overrides when interactive mode is enabled.
 	var answers initAnswers
 	if initInteractive {
-		answers = runInteractiveInit(projectName)
+		answers = runInteractiveInit(defaultTitle)
+		// Pre-fill from detected metadata.
+		if answers.Author == "" && defaultAuthor != "" {
+			answers.Author = defaultAuthor
+		}
 	} else {
 		answers = initAnswers{
-			Title:    projectName,
-			Author:   "",
-			Language: "en-US",
+			Title:    defaultTitle,
+			Author:   defaultAuthor,
+			Language: defaultLanguage,
 			Theme:    "technical",
 		}
 	}
@@ -258,10 +278,10 @@ func executeInit(dir string) error {
 	var yamlContent string
 	if hasSummary {
 		logger.Info("Detected SUMMARY.md; chapters will be loaded from it at build time")
-		yamlContent = generateBookYAMLNoChapters(answers.Title, coverImage)
+		yamlContent = generateBookYAMLWithMeta(answers, coverImage, nil)
 	} else {
 		logger.Info("Discovered Markdown files", slog.Int("count", len(files)))
-		yamlContent = generateBookYAML(answers.Title, files, coverImage)
+		yamlContent = generateBookYAMLWithMeta(answers, coverImage, files)
 	}
 
 	if err := utils.WriteFile(cfgPath, []byte(yamlContent)); err != nil {
@@ -404,19 +424,96 @@ func extractTitleFromFile(path string) string {
 
 // detectCoverImage looks for common cover image file names.
 func detectCoverImage(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	existing := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		existing[entry.Name()] = struct{}{}
+	}
+
 	candidates := []string{
 		"cover.png", "cover.jpg", "cover.jpeg", "cover.svg",
 		"Cover.png", "Cover.jpg", "Cover.jpeg",
 	}
 	for _, name := range candidates {
-		if utils.FileExists(filepath.Join(dir, name)) {
+		if _, ok := existing[name]; ok {
 			return name
 		}
 	}
 	return ""
 }
 
+// generateBookYAMLWithMeta generates book.yaml using full metadata from initAnswers.
+// When files is nil, chapters section is omitted (SUMMARY.md mode).
+func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []discoveredFile) string {
+	var b strings.Builder
+
+	if files == nil {
+		b.WriteString("# mdpress book configuration\n")
+		b.WriteString("# Chapters are loaded automatically from SUMMARY.md\n")
+	} else {
+		b.WriteString("# mdpress book configuration\n")
+		b.WriteString("# Generated automatically by mdpress init\n")
+	}
+	b.WriteString("# Docs: https://github.com/yeasy/mdpress\n\n")
+
+	b.WriteString("book:\n")
+	fmt.Fprintf(&b, "  title: %q\n", answers.Title)
+	if answers.Author != "" {
+		fmt.Fprintf(&b, "  author: %q\n", answers.Author)
+	} else {
+		b.WriteString("  author: \"\"\n")
+	}
+	b.WriteString("  version: \"1.0.0\"\n")
+	fmt.Fprintf(&b, "  language: %q\n", answers.Language)
+
+	b.WriteString("  cover:\n")
+	if coverImage != "" {
+		fmt.Fprintf(&b, "    image: %q\n", coverImage)
+	} else {
+		b.WriteString("    background: \"#1a1a2e\"\n")
+	}
+
+	if files == nil {
+		b.WriteString("\n# No chapters section required. Chapters are loaded from SUMMARY.md\n")
+	} else {
+		b.WriteString("\n# Chapters are listed in reading order\n")
+		b.WriteString("# Paths are relative to this config file\n")
+		b.WriteString("chapters:\n")
+		for _, f := range files {
+			title := f.Title
+			if title == "" {
+				title = inferTitleFromPath(f.RelPath)
+			}
+			fmt.Fprintf(&b, "  - title: %q\n", title)
+			fmt.Fprintf(&b, "    file: %q\n", f.RelPath)
+		}
+	}
+
+	b.WriteString("\nstyle:\n")
+	fmt.Fprintf(&b, "  theme: %q\n", answers.Theme)
+	b.WriteString("  page_size: \"A4\"\n")
+
+	b.WriteString("\noutput:\n")
+	// Use a sanitized filename based on the title.
+	outName := strings.ReplaceAll(answers.Title, " ", "_")
+	if outName == "" {
+		outName = "output"
+	}
+	fmt.Fprintf(&b, "  filename: %q\n", outName+".pdf")
+	b.WriteString("  toc: true\n")
+	b.WriteString("  cover: true\n")
+
+	return b.String()
+}
+
 // generateBookYAMLNoChapters generates book.yaml without chapters for SUMMARY.md-based projects.
+// Kept for backward compatibility; new code should use generateBookYAMLWithMeta.
 func generateBookYAMLNoChapters(projectName string, coverImage string) string {
 	var b strings.Builder
 
@@ -473,7 +570,6 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 	if coverImage != "" {
 		fmt.Fprintf(&b, "    image: %q\n", coverImage)
 	} else {
-		b.WriteString("    # image: \"cover.png\"\n")
 		b.WriteString("    background: \"#1a1a2e\"\n")
 	}
 
@@ -495,7 +591,7 @@ func generateBookYAML(projectName string, files []discoveredFile, coverImage str
 	b.WriteString("\nstyle:\n")
 	b.WriteString("  theme: \"technical\"       # technical | elegant | minimal\n")
 	b.WriteString("  page_size: \"A4\"          # A4 | A5 | Letter | Legal | B5\n")
-	b.WriteString("  font_family: \"Noto Sans\"\n")
+	b.WriteString("  font_family: \"-apple-system, BlinkMacSystemFont, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, Segoe UI, Helvetica Neue, Arial, sans-serif\"\n")
 	b.WriteString("  font_size: \"12pt\"\n")
 	b.WriteString("  code_theme: \"monokai\"    # monokai | github | dracula | solarized-dark\n")
 	b.WriteString("  line_height: 1.6\n")

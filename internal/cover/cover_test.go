@@ -93,14 +93,14 @@ func TestRenderHTMLWithCoverImage(t *testing.T) {
 	}
 }
 
-// TestRenderHTMLDefaultGradient verifies the default gradient background.
+// TestRenderHTMLDefaultGradient verifies the default clean white background.
 func TestRenderHTMLDefaultGradient(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}
 	gen := NewCoverGenerator(meta)
 	html := gen.RenderHTML()
 
-	if !strings.Contains(html, "linear-gradient") {
-		t.Error("default gradient background should be used when no cover background is configured")
+	if !strings.Contains(html, "background-color: #ffffff") {
+		t.Error("clean white background should be used when no cover background is configured")
 	}
 }
 

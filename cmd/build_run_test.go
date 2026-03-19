@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/internal/renderer"
 )
 
 func TestValidateChapterTitleSequenceMismatch(t *testing.T) {
@@ -60,20 +63,62 @@ func TestValidateChapterTitleSequenceSummaryHasNumberButHeadingDoesNot(t *testin
 }
 
 func TestValidateBookTitleConsistencyMixedStyles(t *testing.T) {
+	// Chinese + Arabic is a compatible pair (standard in Chinese tech books),
+	// so only truly incompatible styles should produce warnings.
 	warnings := validateBookTitleConsistency([]chapterHeadingRecord{
 		{File: "ch1.md", Heading: markdown.HeadingInfo{Text: "1. 简介", Line: 1, Column: 1}},
 		{File: "ch2.md", Heading: markdown.HeadingInfo{Text: "第二章 安装", Line: 1, Column: 1}},
 		{File: "ch3.md", Heading: markdown.HeadingInfo{Text: "部署", Line: 1, Column: 1}},
 	})
-	if len(warnings) != 1 {
-		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	// Arabic + Chinese are compatible; "部署" is style "none" which is always compatible.
+	// So zero style-mismatch warnings expected.
+	styleWarnings := 0
+	for _, w := range warnings {
+		if w.Diagnostic.Rule == "book-title-style" {
+			styleWarnings++
+		}
+	}
+	if styleWarnings != 0 {
+		t.Fatalf("expected 0 style warnings (arabic+chinese compatible), got %d: %+v", styleWarnings, warnings)
+	}
+}
+
+func TestValidateBookTitleConsistencyIncompatibleStyles(t *testing.T) {
+	// English ("Chapter 1") + Chinese ("第二章") should still be flagged.
+	warnings := validateBookTitleConsistency([]chapterHeadingRecord{
+		{File: "ch1.md", Heading: markdown.HeadingInfo{Text: "Chapter 1 Introduction", Line: 1, Column: 1}},
+		{File: "ch2.md", Heading: markdown.HeadingInfo{Text: "第二章 安装", Line: 1, Column: 1}},
+	})
+	styleWarnings := 0
+	for _, w := range warnings {
+		if w.Diagnostic.Rule == "book-title-style" {
+			styleWarnings++
+		}
+	}
+	if styleWarnings == 0 {
+		t.Fatal("expected style warning for english+chinese mismatch")
 	}
 }
 
 func TestValidateBookTitleConsistencyDuplicateTitles(t *testing.T) {
+	// "简介" is a common recurring title and should NOT trigger duplicate warning.
 	warnings := validateBookTitleConsistency([]chapterHeadingRecord{
 		{File: "ch1.md", Heading: markdown.HeadingInfo{Text: "1. 简介", Line: 1, Column: 1}},
 		{File: "ch2.md", Heading: markdown.HeadingInfo{Text: "2. 简介", Line: 1, Column: 1}},
+	})
+	for _, warning := range warnings {
+		if warning.Diagnostic.Rule == "book-title-duplicate" {
+			t.Fatalf("common recurring title '简介' should NOT trigger duplicate warning, got: %s", warning.Diagnostic.Message)
+		}
+	}
+}
+
+func TestValidateBookTitleConsistencyRealDuplicates(t *testing.T) {
+	// Non-common titles with same normalized form within same directory scope
+	// should still be flagged.
+	warnings := validateBookTitleConsistency([]chapterHeadingRecord{
+		{File: "ch1/docker.md", Heading: markdown.HeadingInfo{Text: "1. Docker 原理", Line: 1, Column: 1}},
+		{File: "ch1/docker2.md", Heading: markdown.HeadingInfo{Text: "2. Docker 原理", Line: 1, Column: 1}},
 	})
 	found := false
 	for _, warning := range warnings {
@@ -83,7 +128,64 @@ func TestValidateBookTitleConsistencyDuplicateTitles(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("expected duplicate title warning, got %+v", warnings)
+		t.Fatalf("expected duplicate warning for same non-common title in same scope, got %+v", warnings)
+	}
+}
+
+func TestValidateBookTitleConsistencyDiffScopeNoDuplicate(t *testing.T) {
+	// Same non-common title in different directory scopes should NOT be flagged.
+	warnings := validateBookTitleConsistency([]chapterHeadingRecord{
+		{File: "ch1/advanced.md", Heading: markdown.HeadingInfo{Text: "1. 高级特性", Line: 1, Column: 1}},
+		{File: "ch2/advanced.md", Heading: markdown.HeadingInfo{Text: "2. 高级特性", Line: 1, Column: 1}},
+	})
+	for _, warning := range warnings {
+		if warning.Diagnostic.Rule == "book-title-duplicate" {
+			t.Fatalf("same title in different directory scopes should NOT trigger duplicate: %s", warning.Diagnostic.Message)
+		}
+	}
+}
+
+func TestValidateBookTitleConsistencyDockerPractice(t *testing.T) {
+	// Simulate the docker_practice pattern: "第X章" + "X.Y" numbering + "本章小结" in every chapter.
+	records := []chapterHeadingRecord{
+		{File: "01_introduction/README.md", Heading: markdown.HeadingInfo{Text: "第一章 介绍", Line: 1}},
+		{File: "01_introduction/summary.md", Heading: markdown.HeadingInfo{Text: "本章小结", Line: 1}},
+		{File: "02_basic_concept/README.md", Heading: markdown.HeadingInfo{Text: "第二章 基本概念", Line: 1}},
+		{File: "02_basic_concept/summary.md", Heading: markdown.HeadingInfo{Text: "本章小结", Line: 1}},
+		{File: "03_install/3.1_ubuntu.md", Heading: markdown.HeadingInfo{Text: "3.1 Ubuntu", Line: 1}},
+		{File: "03_install/summary.md", Heading: markdown.HeadingInfo{Text: "本章小结", Line: 1}},
+		{File: "11_compose/11.1_introduction.md", Heading: markdown.HeadingInfo{Text: "11.1 简介", Line: 1}},
+		{File: "13_kubernetes_concepts/13.1_intro.md", Heading: markdown.HeadingInfo{Text: "13.1 简介", Line: 1}},
+	}
+	warnings := validateBookTitleConsistency(records)
+	if len(warnings) > 0 {
+		for _, w := range warnings {
+			t.Errorf("unexpected warning: rule=%s file=%s msg=%s", w.Diagnostic.Rule, w.File, w.Diagnostic.Message)
+		}
+		t.Fatalf("docker_practice pattern should produce zero warnings, got %d", len(warnings))
+	}
+}
+
+func TestCompatibleTitleStyles(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"arabic", "arabic", true},
+		{"chinese", "chinese", true},
+		{"arabic", "chinese", true}, // standard Chinese book pattern
+		{"chinese", "arabic", true}, // symmetric
+		{"arabic", "none", true},    // "none" is always compatible
+		{"none", "chinese", true},
+		{"english", "chinese", false}, // incompatible
+		{"english", "arabic", false},  // incompatible
+		{"none", "none", true},
+	}
+	for _, tt := range tests {
+		got := compatibleTitleStyles(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("compatibleTitleStyles(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
 	}
 }
 
@@ -104,5 +206,533 @@ func TestValidateChapterSequenceAllowsNonNumberedTitles(t *testing.T) {
 	})
 	if len(issues) != 0 {
 		t.Fatalf("expected no sequence issues, got %+v", issues)
+	}
+}
+
+// Tests for extractTitleSequence
+func TestExtractTitleSequence(t *testing.T) {
+	tests := []struct {
+		title string
+		seq   string
+		found bool
+	}{
+		// Decimal patterns
+		{"1. Introduction", "1", true},
+		{"1.5 Advanced Topics", "1.5", true},
+		{"2.3.4 Deep Dive", "2.3.4", true},
+		{"  3  ) Chapter Three", "3", true},
+		{"4： Something", "4", true},
+		{"5、Chinese punctuation", "5", true},
+		{"6. ", "6", true},
+		// English chapter patterns
+		{"Chapter 1 Introduction", "1", true},
+		{"CHAPTER 2 Overview", "2", true},
+		{"Chapter 3.1 Advanced", "3.1", true},
+		{"Chapter 10 Conclusion", "10", true},
+		// Chinese chapter patterns
+		{"第一章 简介", "1", true},
+		{"第二章 安装", "2", true},
+		{"第十章 总结", "10", true},
+		{"第11章 扩展", "11", true},
+		{"第二十三章 深入", "23", true},
+		{"第一百章 终极", "100", true},
+		{"第一百二十三章 Finale", "123", true},
+		{"第零章 Prologue", "0", true},
+		// No number cases
+		{"Introduction", "", false},
+		{"Just a title", "", false},
+		{"", "", false},
+		{"  ", "", false},
+		// Edge cases
+		{"chapter 1", "", false}, // lowercase without "Chapter" full word
+		{"1", "1", true},
+		{"1.", "1", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			seq, found := extractTitleSequence(tt.title)
+			if found != tt.found {
+				t.Errorf("found=%v, want %v", found, tt.found)
+			}
+			if found && seq != tt.seq {
+				t.Errorf("seq=%q, want %q", seq, tt.seq)
+			}
+		})
+	}
+}
+
+// Tests for normalizeChapterTitle
+func TestNormalizeChapterTitle(t *testing.T) {
+	tests := []struct {
+		input  string
+		output string
+	}{
+		// Decimal prefix removal
+		{"1. Introduction", "Introduction"},
+		{"2.5 Advanced Topics", "Advanced Topics"},
+		// English chapter prefix removal
+		{"Chapter 1 Getting Started", "Getting Started"},
+		{"CHAPTER 2 Overview", "Overview"},
+		// Chinese chapter prefix removal
+		{"第一章 简介", "简介"},
+		{"第二十三章 深入探讨", "深入探讨"},
+		// With extra punctuation
+		{"1: Introduction", "Introduction"},
+		{"1） Setup", "Setup"},
+		{"1- Basics", "Basics"},
+		// Multiple spaces normalized
+		{"1.   Extra    Spaces", "Extra Spaces"},
+		// Empty and whitespace
+		{"", ""},
+		{"   ", ""},
+		{"   1. Title   ", "Title"},
+		// No number
+		{"Just a Title", "Just a Title"},
+		// Chinese with punctuation
+		{"第五章：关键概念", "关键概念"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := normalizeChapterTitle(tt.input)
+			if result != tt.output {
+				t.Errorf("got %q, want %q", result, tt.output)
+			}
+		})
+	}
+}
+
+// Tests for parseChineseOrdinal
+func TestParseChineseOrdinal(t *testing.T) {
+	tests := []struct {
+		input  string
+		output int
+	}{
+		// Single digits
+		{"一", 1},
+		{"二", 2},
+		{"三", 3},
+		{"四", 4},
+		{"五", 5},
+		{"六", 6},
+		{"七", 7},
+		{"八", 8},
+		{"九", 9},
+		{"零", 0},
+		{"〇", 0},
+		// Two-character combinations
+		{"十", 10},
+		{"二十", 20},
+		{"三十", 30},
+		{"九十", 90},
+		{"十一", 11},
+		{"十九", 19},
+		{"二十三", 23},
+		{"九十九", 99},
+		// Larger numbers
+		{"一百", 100},
+		{"一百一", 101},
+		{"一百二十三", 123},
+		{"九百九十九", 999},
+		// Special cases
+		{"两", 2},
+		// Pure digits (fallback to strconv)
+		{"1", 1},
+		{"12", 12},
+		{"123", 123},
+		// Invalid/edge cases
+		{"", 0},
+		{"   ", 0},
+		{"ABC", 0},
+		{"千", 0}, // Unsupported unit
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := parseChineseOrdinal(tt.input)
+			if result != tt.output {
+				t.Errorf("got %d, want %d", result, tt.output)
+			}
+		})
+	}
+}
+
+// Tests for guessLanguageCode
+func TestGuessLanguageCode(t *testing.T) {
+	tests := []struct {
+		dir  string
+		code string
+	}{
+		// English variants
+		{"en", "en-US"},
+		{"EN", "en-US"},
+		{"En", "en-US"},
+		{"en-us", "en-US"},
+		{"EN-US", "en-US"},
+		// Chinese variants
+		{"cn", "zh-CN"},
+		{"CN", "zh-CN"},
+		{"zh", "zh-CN"},
+		{"zh-cn", "zh-CN"},
+		{"ZH-CN", "zh-CN"},
+		{"zh-tw", "zh-TW"},
+		{"ZH-TW", "zh-TW"},
+		// Japanese
+		{"ja", "ja-JP"},
+		{"JA", "ja-JP"},
+		{"ja-jp", "ja-JP"},
+		{"JA-JP", "ja-JP"},
+		// Korean
+		{"ko", "ko-KR"},
+		{"KO", "ko-KR"},
+		{"ko-kr", "ko-KR"},
+		{"KO-KR", "ko-KR"},
+		// Unknown
+		{"fr", ""},
+		{"de", ""},
+		{"", ""},
+		{"unknown", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dir, func(t *testing.T) {
+			result := guessLanguageCode(tt.dir)
+			if result != tt.code {
+				t.Errorf("got %q, want %q", result, tt.code)
+			}
+		})
+	}
+}
+
+// Tests for titleSequenceStyle
+func TestTitleSequenceStyle(t *testing.T) {
+	tests := []struct {
+		title string
+		style string
+	}{
+		// Arabic numerals
+		{"1. Introduction", "arabic"},
+		{"2.5 Advanced", "arabic"},
+		{"3) Three", "arabic"},
+		{"4： Four", "arabic"},
+		// English chapter
+		{"Chapter 1 Title", "english"},
+		{"CHAPTER 2 Overview", "english"},
+		{"Chapter 3.1 Subsection", "english"},
+		// Chinese chapter
+		{"第一章 简介", "chinese"},
+		{"第五章 介绍", "chinese"},
+		{"第二十三章 Deep", "chinese"},
+		// No numbering
+		{"Just a Title", "none"},
+		{"Introduction", "none"},
+		{"", "none"},
+		{"No numbers here", "none"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := titleSequenceStyle(tt.title)
+			if result != tt.style {
+				t.Errorf("got %q, want %q", result, tt.style)
+			}
+		})
+	}
+}
+
+// Tests for describeTitleStyleMismatch
+func TestDescribeTitleStyleMismatch(t *testing.T) {
+	tests := []struct {
+		primaryStyle string
+		title        string
+		hasDesc      bool
+		descContains string
+	}{
+		// Mismatch cases
+		{"arabic", "第一章 Chinese", true, "Arabic"},
+		{"arabic", "第一章 Chinese", true, "Chinese"},
+		{"english", "1. Arabic", true, "English"},
+		{"english", "1. Arabic", true, "Arabic"},
+		{"chinese", "Chapter 1 English", true, "Chinese"},
+		{"chinese", "Chapter 1 English", true, "English"},
+		// No numbering on title
+		{"arabic", "No Numbers", true, "no numbering"},
+		{"english", "No Numbers", true, "no numbering"},
+		{"chinese", "No Numbers", true, "no numbering"},
+		// Matching style
+		{"arabic", "1. Title", false, ""},
+		{"english", "Chapter 1 Title", false, ""},
+		{"chinese", "第一章 Title", false, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.primaryStyle+"_"+tt.title, func(t *testing.T) {
+			result := describeTitleStyleMismatch(tt.primaryStyle, tt.title)
+			if (result != "") != tt.hasDesc {
+				t.Errorf("has description=%v, want %v (got %q)", result != "", tt.hasDesc, result)
+			}
+			if tt.hasDesc && tt.descContains != "" {
+				if !strings.Contains(result, tt.descContains) {
+					t.Errorf("description %q does not contain %q", result, tt.descContains)
+				}
+			}
+		})
+	}
+}
+
+// Tests for multilingualLandingPath
+func TestMultilingualLandingPath(t *testing.T) {
+	tests := []struct {
+		rootDir        string
+		outputOverride string
+		expected       string
+	}{
+		// No override
+		{"/root", "", "/root/_mdpress_langs.html"},
+		{"/path/to/project", "", "/path/to/project/_mdpress_langs.html"},
+		// Directory override
+		{"/root", "/output", "/output/index.html"},
+		{"/root", "/path/to/output", "/path/to/output/index.html"},
+		// File override with extension
+		{"/root", "/output/book.html", "/output/book-index.html"},
+		{"/root", "/out/mybook.pdf", "/out/mybook-index.html"},
+		// File override without extension
+		{"/root", "/output/book", "/output/book-index.html"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.rootDir+"_"+tt.outputOverride, func(t *testing.T) {
+			// Note: This test will only pass for non-directory cases since
+			// we can't mock os.Stat. The directory cases need special setup.
+			if tt.outputOverride == "" || (tt.outputOverride != "" && !isDirectoryPath(tt.outputOverride)) {
+				result := multilingualLandingPath(tt.rootDir, tt.outputOverride)
+				if result != tt.expected {
+					t.Errorf("got %q, want %q", result, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+// Helper function to guess if path looks like a directory (for test purposes)
+func isDirectoryPath(p string) bool {
+	return !strings.Contains(p, ".")
+}
+
+// Tests for injectBannerIntoHTML
+func TestInjectBannerIntoHTML(t *testing.T) {
+	tests := []struct {
+		name           string
+		htmlContent    string
+		bannerHTML     string
+		expectedBefore string
+		expectedAfter  string
+		shouldContain  string
+	}{
+		{
+			name:           "inject after body tag",
+			htmlContent:    `<html><body>Content</body></html>`,
+			bannerHTML:     `<nav>Banner</nav>`,
+			expectedBefore: "<body>",
+			expectedAfter:  "<nav>Banner</nav>",
+			shouldContain:  `<nav>Banner</nav>Content`,
+		},
+		{
+			name:          "inject before body tag (lowercase)",
+			htmlContent:   `<html><body>Content</body></html>`,
+			bannerHTML:    `<div>Nav</div>`,
+			shouldContain: `<body><div>Nav</div>Content`,
+		},
+		{
+			name:          "inject before body tag (uppercase)",
+			htmlContent:   `<html><BODY>Content</BODY></html>`,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<BODY><nav>Banner</nav>Content`,
+		},
+		{
+			name:          "no body tag - prepend",
+			htmlContent:   `<html>Content</html>`,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<nav>Banner</nav><html>Content`,
+		},
+		{
+			name:          "banner already exists - no injection",
+			htmlContent:   `<html><body><nav class="mdpress-lang-switcher">Existing</nav>Content</body></html>`,
+			bannerHTML:    `<nav>New</nav>`,
+			shouldContain: `<nav class="mdpress-lang-switcher">Existing</nav>Content`,
+		},
+		{
+			name:          "empty banner",
+			htmlContent:   `<html><body>Content</body></html>`,
+			bannerHTML:    ``,
+			shouldContain: `<body>Content`,
+		},
+		{
+			name:          "empty html",
+			htmlContent:   ``,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<nav>Banner</nav>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := injectBannerIntoHTML(tt.htmlContent, tt.bannerHTML)
+			if tt.shouldContain != "" && !strings.Contains(result, tt.shouldContain) {
+				t.Errorf("result does not contain %q\ngot: %q", tt.shouldContain, result)
+			}
+		})
+	}
+}
+
+// Tests for sitePageFilenames
+func TestSitePageFilenames(t *testing.T) {
+	tests := []struct {
+		count  int
+		verify func([]string) error
+	}{
+		{
+			count: 0,
+			verify: func(files []string) error {
+				if len(files) != 0 {
+					return fmt.Errorf("expected empty slice, got %d items", len(files))
+				}
+				return nil
+			},
+		},
+		{
+			count: 1,
+			verify: func(files []string) error {
+				if len(files) != 1 {
+					return fmt.Errorf("expected 1 item, got %d", len(files))
+				}
+				if files[0] != "ch_000.html" {
+					return fmt.Errorf("expected ch_000.html, got %s", files[0])
+				}
+				return nil
+			},
+		},
+		{
+			count: 5,
+			verify: func(files []string) error {
+				if len(files) != 5 {
+					return fmt.Errorf("expected 5 items, got %d", len(files))
+				}
+				expected := []string{"ch_000.html", "ch_001.html", "ch_002.html", "ch_003.html", "ch_004.html"}
+				for i, exp := range expected {
+					if files[i] != exp {
+						return fmt.Errorf("at index %d: expected %s, got %s", i, exp, files[i])
+					}
+				}
+				return nil
+			},
+		},
+		{
+			count: 100,
+			verify: func(files []string) error {
+				if len(files) != 100 {
+					return fmt.Errorf("expected 100 items, got %d", len(files))
+				}
+				if files[99] != "ch_099.html" {
+					return fmt.Errorf("expected ch_099.html at index 99, got %s", files[99])
+				}
+				return nil
+			},
+		},
+		{
+			count: 1000,
+			verify: func(files []string) error {
+				if len(files) != 1000 {
+					return fmt.Errorf("expected 1000 items, got %d", len(files))
+				}
+				if files[999] != "ch_999.html" {
+					return fmt.Errorf("expected ch_999.html at index 999, got %s", files[999])
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("count_%d", tt.count), func(t *testing.T) {
+			result := sitePageFilenames(tt.count)
+			if err := tt.verify(result); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+// Tests for rewriteChapterLinks
+func TestRewriteChapterLinks(t *testing.T) {
+	tests := []struct {
+		name         string
+		chapters     []renderer.ChapterHTML
+		chapterFiles []string
+		shouldReturn bool
+	}{
+		{
+			name:         "empty chapters",
+			chapters:     []renderer.ChapterHTML{},
+			chapterFiles: []string{},
+			shouldReturn: true,
+		},
+		{
+			name: "mismatched lengths",
+			chapters: []renderer.ChapterHTML{
+				{Title: "Ch1", ID: "ch1", Content: "content1"},
+				{Title: "Ch2", ID: "ch2", Content: "content2"},
+			},
+			chapterFiles: []string{"ch1.md"},
+			shouldReturn: true,
+		},
+		{
+			name: "single chapter with file",
+			chapters: []renderer.ChapterHTML{
+				{Title: "Ch1", ID: "ch1", Content: "content1"},
+			},
+			chapterFiles: []string{"ch1.md"},
+			shouldReturn: true,
+		},
+		{
+			name: "multiple chapters with files",
+			chapters: []renderer.ChapterHTML{
+				{Title: "Ch1", ID: "ch1", Content: "content1"},
+				{Title: "Ch2", ID: "ch2", Content: "content2"},
+				{Title: "Ch3", ID: "ch3", Content: "content3"},
+			},
+			chapterFiles: []string{"ch1.md", "ch2.md", "ch3.md"},
+			shouldReturn: true,
+		},
+		{
+			name: "chapter with empty ID",
+			chapters: []renderer.ChapterHTML{
+				{Title: "Ch1", ID: "", Content: "content1"},
+			},
+			chapterFiles: []string{"ch1.md"},
+			shouldReturn: true,
+		},
+		{
+			name: "chapter with empty file",
+			chapters: []renderer.ChapterHTML{
+				{Title: "Ch1", ID: "ch1", Content: "content1"},
+			},
+			chapterFiles: []string{""},
+			shouldReturn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := rewriteChapterLinks(tt.chapters, tt.chapterFiles)
+			if tt.shouldReturn && result == nil {
+				t.Error("expected non-nil result")
+			}
+			// Verify length is preserved
+			if len(result) != len(tt.chapters) {
+				t.Errorf("expected %d chapters, got %d", len(tt.chapters), len(result))
+			}
+		})
 	}
 }

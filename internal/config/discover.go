@@ -6,14 +6,17 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Discover auto-discovers project configuration in a directory.
-// Priority: book.yaml > SUMMARY.md > Markdown file scanning.
+// Priority: book.yaml > book.json (GitBook compat) > SUMMARY.md > Markdown file scanning.
 func Discover(dir string) (*BookConfig, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -26,13 +29,19 @@ func Discover(dir string) (*BookConfig, error) {
 		return Load(bookYamlPath)
 	}
 
-	// Priority 2: load SUMMARY.md.
+	// Priority 2: load book.json (GitBook compatibility).
+	bookJSONPath := filepath.Join(absDir, "book.json")
+	if _, err := os.Stat(bookJSONPath); err == nil {
+		return LoadBookJSON(bookJSONPath)
+	}
+
+	// Priority 3: load SUMMARY.md.
 	summaryPath := filepath.Join(absDir, "SUMMARY.md")
 	if _, err := os.Stat(summaryPath); err == nil {
 		return loadFromSummary(absDir, summaryPath)
 	}
 
-	// Priority 3: scan .md files directly.
+	// Priority 4: scan .md files directly.
 	return autoDiscover(absDir)
 }
 
@@ -51,10 +60,23 @@ func loadFromSummary(dir, summaryPath string) (*BookConfig, error) {
 		return nil, fmt.Errorf("SUMMARY.md contains no chapter definitions")
 	}
 
-	// Try to derive the book title from README.md.
+	// Extract rich metadata from README.md (title, version, language, author).
 	readmePath := filepath.Join(dir, "README.md")
-	if title := extractTitleFromFile(readmePath); title != "" {
-		cfg.Book.Title = title
+	meta := ExtractReadmeMetadata(readmePath)
+	if meta.Title != "" {
+		cfg.Book.Title = meta.Title
+	} else {
+		// Fallback: use directory name as title.
+		cfg.Book.Title = filepath.Base(dir)
+	}
+	if meta.Version != "" {
+		cfg.Book.Version = meta.Version
+	}
+	if meta.Language != "" {
+		cfg.Book.Language = meta.Language
+	}
+	if meta.Author != "" {
+		cfg.Book.Author = meta.Author
 	}
 
 	// Detect GLOSSARY.md.
@@ -223,4 +245,188 @@ type DiscoverError struct {
 
 func (e *DiscoverError) Error() string {
 	return e.Msg + ": " + e.Dir
+}
+
+// ReadmeMetadata holds metadata extracted from a project README.md.
+type ReadmeMetadata struct {
+	Title    string // Book title (may differ from H1 heading).
+	Version  string // e.g. "1.6.5"
+	Author   string // Detected author name or GitHub username.
+	Language string // e.g. "zh-CN", "en-US"
+}
+
+// Patterns for extracting metadata from README.md.
+var (
+	// versionBoldPattern matches **vX.Y.Z** or **X.Y.Z**.
+	versionBoldPattern = regexp.MustCompile(`\*\*v?([\d]+\.[\d]+(?:\.[\d]+)?)\*\*`)
+	// badgeBookTitlePattern matches Chinese book title in badge text/URL.
+	// e.g. badge/Docker%20技术入门与实战 or badge/Title-text
+	badgeBookTitlePattern = regexp.MustCompile(`badge/([^-\]]+)[-\]]`)
+	// githubUserPattern extracts username from GitHub URLs.
+	githubUserPattern = regexp.MustCompile(`github\.com/([a-zA-Z0-9_-]+)/`)
+	// authorPattern matches explicit author lines.
+	authorPattern = regexp.MustCompile(`(?:作者|[Aa]uthor)[：:]\s*(.+)`)
+)
+
+// ExtractReadmeMetadata reads a README.md and extracts book metadata.
+// It tries to find a meaningful title (beyond just the H1), version, language, and author.
+// Exported so that cmd/init_cmd.go can also use it.
+func ExtractReadmeMetadata(path string) ReadmeMetadata {
+	f, err := os.Open(path)
+	if err != nil {
+		return ReadmeMetadata{}
+	}
+	defer f.Close() //nolint:errcheck
+
+	var meta ReadmeMetadata
+	var h1Title string
+	var allText strings.Builder
+	var githubUser string
+	lineCount := 0
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lineCount++
+		if lineCount > 200 {
+			break // Only scan the first 200 lines.
+		}
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		allText.WriteString(trimmed)
+		allText.WriteString("\n")
+
+		// Extract H1 title.
+		if h1Title == "" && strings.HasPrefix(trimmed, "# ") {
+			h1Title = strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+		}
+
+		// Extract version from **vX.Y.Z** pattern.
+		if meta.Version == "" {
+			if matches := versionBoldPattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
+				meta.Version = matches[1]
+			}
+		}
+
+		// Extract GitHub username from repo URLs.
+		if githubUser == "" {
+			if matches := githubUserPattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
+				githubUser = matches[1]
+			}
+		}
+
+		// Extract explicit author line.
+		if meta.Author == "" {
+			if matches := authorPattern.FindStringSubmatch(trimmed); len(matches) >= 2 {
+				meta.Author = strings.TrimSpace(matches[1])
+			}
+		}
+	}
+
+	content := allText.String()
+
+	// Determine book title: try to find a meaningful title that is NOT just
+	// a generic heading like "前言" or "Preface".
+	meta.Title = inferBookTitle(h1Title, content, filepath.Dir(path))
+
+	// Detect language from content.
+	meta.Language = detectContentLanguage(content)
+
+	// Fallback author to GitHub username.
+	if meta.Author == "" && githubUser != "" {
+		meta.Author = githubUser
+	}
+
+	return meta
+}
+
+// inferBookTitle tries to find the real book title, not just the README H1.
+// Strategy: check for a badge with Chinese book title → check SUMMARY.md first line →
+// use H1 if it's not a generic heading → fallback to directory name.
+func inferBookTitle(h1Title, content, dir string) string {
+	// 1. Look for a Chinese book title in badge URLs (e.g. Docker%20%E6%8A%80%E6%9C%AF...).
+	// These badges often contain the official book title, URL-encoded.
+	badgeTitlePattern := regexp.MustCompile(`badge/([^-\]]+?)[-\]]`)
+	for _, match := range badgeTitlePattern.FindAllStringSubmatch(content, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		candidate := match[1]
+		// URL-decode to handle %E6%8A%80 style encoding.
+		if decoded, err := url.PathUnescape(candidate); err == nil {
+			candidate = decoded
+		}
+		candidate = strings.ReplaceAll(candidate, "+", " ")
+		candidate = strings.TrimSpace(candidate)
+		// Filter: must contain CJK characters (to find actual book titles, not "Stars" etc.)
+		if containsCJK(candidate) && len([]rune(candidate)) >= 4 {
+			return candidate
+		}
+	}
+
+	// 2. Check if SUMMARY.md has a top-level title.
+	summaryPath := filepath.Join(dir, "SUMMARY.md")
+	if summaryTitle := extractTitleFromFile(summaryPath); summaryTitle != "" && summaryTitle != "目录" && summaryTitle != "Table of Contents" && summaryTitle != "Summary" {
+		return summaryTitle
+	}
+
+	// 3. Use H1 if it's not a generic heading.
+	genericH1s := map[string]bool{
+		"前言": true, "preface": true, "readme": true, "introduction": true,
+		"简介": true, "概述": true, "overview": true,
+	}
+	if h1Title != "" && !genericH1s[strings.ToLower(h1Title)] {
+		return h1Title
+	}
+
+	// 4. Fallback to project directory name (cleaned up).
+	dirName := filepath.Base(dir)
+	dirName = strings.ReplaceAll(dirName, "_", " ")
+	dirName = strings.ReplaceAll(dirName, "-", " ")
+	if len(dirName) > 0 {
+		dirName = strings.ToUpper(dirName[:1]) + dirName[1:]
+	}
+	return dirName
+}
+
+// detectContentLanguage detects the primary language of content by CJK character ratio.
+func detectContentLanguage(content string) string {
+	if len(content) == 0 {
+		return "en-US"
+	}
+	cjkCount := 0
+	totalCount := 0
+	for _, r := range content {
+		if unicode.IsLetter(r) {
+			totalCount++
+			if isCJK(r) {
+				cjkCount++
+			}
+		}
+	}
+	if totalCount == 0 {
+		return "en-US"
+	}
+	ratio := float64(cjkCount) / float64(totalCount)
+	if ratio > 0.2 {
+		return "zh-CN" // Predominantly CJK content.
+	}
+	return "en-US"
+}
+
+// containsCJK reports whether s contains any CJK character.
+func containsCJK(s string) bool {
+	for _, r := range s {
+		if isCJK(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// isCJK reports whether a rune is a CJK ideograph.
+func isCJK(r rune) bool {
+	return unicode.Is(unicode.Han, r) ||
+		unicode.Is(unicode.Hangul, r) ||
+		unicode.Is(unicode.Katakana, r) ||
+		unicode.Is(unicode.Hiragana, r)
 }

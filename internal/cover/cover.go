@@ -62,7 +62,7 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`      width: 100%;` + "\n")
 	buf.WriteString(`      height: 100%;` + "\n")
 	buf.WriteString(`      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;` + "\n")
-	buf.WriteString(`      background-color: #f5f5f5;` + "\n")
+	buf.WriteString(`      background-color: #ffffff;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
 	// Cover container styles.
@@ -86,64 +86,62 @@ func (cg *CoverGenerator) renderStyles() string {
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
 	} else {
-		// Fall back to a default gradient background.
-		buf.WriteString(`      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);` + "\n")
+		// Clean white background by default — no gradients or colors.
+		buf.WriteString(`      background-color: #ffffff;` + "\n")
 	}
 
 	buf.WriteString(`    }` + "\n\n")
 
 	// Cover content layout.
+	// Text color adapts: dark text on light/no background, white text on custom dark backgrounds.
+	hasDarkBg := cg.meta.Cover.Background != "" || cg.meta.Cover.Image != ""
+	textColor := "#1A5490" // Deep blue on white (default).
+	if hasDarkBg {
+		textColor = "white"
+	}
 	buf.WriteString(`    .cover-content {` + "\n")
 	buf.WriteString(`      text-align: center;` + "\n")
-	buf.WriteString(`      color: white;` + "\n")
+	fmt.Fprintf(&buf, "      color: %s;\n", textColor)
 	buf.WriteString(`      max-width: 800px;` + "\n")
-	buf.WriteString(`      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);` + "\n")
-	buf.WriteString(`      animation: fadeIn 0.8s ease-in-out;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
-	// Fade-in animation.
-	buf.WriteString(`    @keyframes fadeIn {` + "\n")
-	buf.WriteString(`      from {` + "\n")
-	buf.WriteString(`        opacity: 0;` + "\n")
-	buf.WriteString(`        transform: translateY(-20px);` + "\n")
-	buf.WriteString(`      }` + "\n")
-	buf.WriteString(`      to {` + "\n")
-	buf.WriteString(`        opacity: 1;` + "\n")
-	buf.WriteString(`        transform: translateY(0);` + "\n")
-	buf.WriteString(`      }` + "\n")
-	buf.WriteString(`    }` + "\n\n")
-
-	// Title styles.
+	// Title styles — clean publication font sizing.
 	buf.WriteString(`    .cover-title {` + "\n")
-	buf.WriteString(`      font-size: 64px;` + "\n")
+	buf.WriteString(`      font-size: 48px;` + "\n")
 	buf.WriteString(`      font-weight: 700;` + "\n")
-	buf.WriteString(`      margin-bottom: 20px;` + "\n")
-	buf.WriteString(`      letter-spacing: 2px;` + "\n")
-	buf.WriteString(`      line-height: 1.2;` + "\n")
+	buf.WriteString(`      margin-bottom: 16px;` + "\n")
+	buf.WriteString(`      letter-spacing: 1px;` + "\n")
+	buf.WriteString(`      line-height: 1.3;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
 	// Subtitle styles.
 	buf.WriteString(`    .cover-subtitle {` + "\n")
-	buf.WriteString(`      font-size: 24px;` + "\n")
-	buf.WriteString(`      font-weight: 300;` + "\n")
-	buf.WriteString(`      margin-bottom: 60px;` + "\n")
-	buf.WriteString(`      opacity: 0.9;` + "\n")
-	buf.WriteString(`      letter-spacing: 1px;` + "\n")
+	buf.WriteString(`      font-size: 20px;` + "\n")
+	buf.WriteString(`      font-weight: 400;` + "\n")
+	buf.WriteString(`      margin-bottom: 40px;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
 	// Divider.
+	dividerColor := "#D4D4D4"
+	if hasDarkBg {
+		dividerColor = "rgba(255, 255, 255, 0.5)"
+	}
 	buf.WriteString(`    .cover-divider {` + "\n")
 	buf.WriteString(`      width: 100px;` + "\n")
 	buf.WriteString(`      height: 2px;` + "\n")
-	buf.WriteString(`      background-color: rgba(255, 255, 255, 0.5);` + "\n")
+	fmt.Fprintf(&buf, "      background-color: %s;\n", dividerColor)
 	buf.WriteString(`      margin: 30px auto;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
-	// Metadata container.
+	// Metadata container — fully opaque for readability.
+	metaColor := "#555"
+	if hasDarkBg {
+		metaColor = "rgba(255,255,255,0.9)"
+	}
 	buf.WriteString(`    .cover-metadata {` + "\n")
 	buf.WriteString(`      margin-top: 50px;` + "\n")
-	buf.WriteString(`      font-size: 18px;` + "\n")
-	buf.WriteString(`      opacity: 0.85;` + "\n")
+	buf.WriteString(`      font-size: 16px;` + "\n")
+	fmt.Fprintf(&buf, "      color: %s;\n", metaColor)
 	buf.WriteString(`    }` + "\n\n")
 
 	// Metadata row.

@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -67,7 +68,7 @@ Examples:
 		if len(args) > 0 {
 			inputSource = args[0]
 		}
-		return executeBuild(inputSource)
+		return executeBuild(cmd.Context(), inputSource)
 	},
 }
 
@@ -80,7 +81,11 @@ func init() {
 }
 
 // executeBuild runs the full build flow.
-func executeBuild(inputSource string) error {
+func executeBuild(ctx context.Context, inputSource string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Set log level based on quiet/verbose flags:
 	//   --quiet: errors only
 	//   --verbose: debug output
@@ -219,11 +224,11 @@ func executeBuild(inputSource string) error {
 		if langsErr != nil {
 			logger.Warn("Failed to parse LANGS.md, continuing as a single-language project", slog.String("error", langsErr.Error()))
 		} else if len(langs) > 0 {
-			return executeMultilingualBuild(workDir, langs, formats, outputOverride, logger)
+			return executeMultilingualBuild(ctx, workDir, langs, formats, outputOverride, logger)
 		}
 	}
 
-	return executeBuildForConfig(cfg, formats, outputOverride, logger)
+	return executeBuildForConfig(ctx, cfg, formats, outputOverride, logger)
 }
 
 // flattenChapters delegates to the canonical config.FlattenChapters.

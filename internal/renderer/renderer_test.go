@@ -64,11 +64,17 @@ func TestRenderBasic(t *testing.T) {
 	if !strings.Contains(html, "<!DOCTYPE html>") {
 		t.Error("应包含 DOCTYPE 声明")
 	}
+	if !strings.Contains(html, `lang="zh-CN"`) {
+		t.Error("PDF HTML 应带书籍语言 lang 属性")
+	}
 	if !strings.Contains(html, "测试图书") {
 		t.Error("应包含书名")
 	}
 	if !strings.Contains(html, "测试作者") {
 		t.Error("应包含作者名")
+	}
+	if !strings.Contains(html, `Build with md<span class="brand-accent">Press</span>`) {
+		t.Error("应包含默认品牌页脚")
 	}
 	if !strings.Contains(html, "第一章") {
 		t.Error("应包含章节标题")
@@ -649,5 +655,34 @@ func TestBuildPrintCSS(t *testing.T) {
 				t.Error("应包含 page-break 属性")
 			}
 		})
+	}
+}
+
+func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	if err != nil {
+		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+	}
+	parts := &RenderParts{
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<pre><code>averyveryveryveryveryveryverylongtoken</code></pre><table><tr><td>averyveryveryveryveryveryverylongtoken</td></tr></table>"},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("渲染失败: %v", err)
+	}
+
+	for _, snippet := range []string{
+		".chapter {\n      page-break-before: always;\n      page-break-inside: avoid;\n      padding: 0;",
+		".toc-page {\n      page-break-after: always;\n      page-break-inside: avoid;\n      padding: 0;",
+		"white-space: pre-wrap;",
+		"table-layout: fixed;",
+		"overflow-wrap: anywhere;",
+	} {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("应包含打印布局修正规则 %q", snippet)
+		}
 	}
 }

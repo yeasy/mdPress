@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const defaultCJKMonoFontFamily = "ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace"
+
 // Theme 定义了文档的主题样式
 type Theme struct {
 	// 主题名称
@@ -214,6 +216,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("/* Auto-generated theme CSS */\n")
 	css.WriteString(":root {\n")
 	fmt.Fprintf(&css, "  --font-family: %s;\n", quoteFontFamily(t.FontFamily))
+	fmt.Fprintf(&css, "  --font-family-mono: %s;\n", quoteFontFamily(defaultCJKMonoFontFamily))
 	fmt.Fprintf(&css, "  --font-size: %dpt;\n", t.FontSize)
 	fmt.Fprintf(&css, "  --line-height: %.2f;\n", t.LineHeight)
 	fmt.Fprintf(&css, "  --color-text: %s;\n", t.Colors.Text)
@@ -254,18 +257,23 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  text-decoration: underline;\n")
 	css.WriteString("}\n\n")
 
-	// 代码样式
+	// 代码样式 — 无背景色，专业图书风格
 	css.WriteString("code, pre {\n")
-	css.WriteString("  background-color: var(--color-code-bg);\n")
+	css.WriteString("  background: none;\n")
 	css.WriteString("  color: var(--color-code-text);\n")
-	css.WriteString("  font-family: 'Courier New', monospace;\n")
-	css.WriteString("  padding: 0.2em 0.4em;\n")
-	css.WriteString("  border-radius: 3px;\n")
+	css.WriteString("  font-family: var(--font-family-mono);\n")
 	css.WriteString("}\n\n")
 
 	css.WriteString("pre {\n")
-	css.WriteString("  padding: 1em;\n")
+	css.WriteString("  padding: 0.8em 1em;\n")
+	css.WriteString("  font-size: 0.82em;\n")
+	css.WriteString("  line-height: 1.5;\n")
+	css.WriteString("  border: 1px solid var(--color-border);\n")
+	css.WriteString("  border-radius: 3px;\n")
 	css.WriteString("  overflow-x: auto;\n")
+	css.WriteString("  white-space: pre-wrap;\n")
+	css.WriteString("  overflow-wrap: anywhere;\n")
+	css.WriteString("  word-break: break-all;\n")
 	css.WriteString("}\n\n")
 
 	// 块引用样式
@@ -288,6 +296,8 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  border: 1px solid var(--color-border);\n")
 	css.WriteString("  padding: 0.5em;\n")
 	css.WriteString("  text-align: left;\n")
+	css.WriteString("  overflow-wrap: anywhere;\n")
+	css.WriteString("  word-break: break-word;\n")
 	css.WriteString("}\n\n")
 
 	css.WriteString("table th {\n")

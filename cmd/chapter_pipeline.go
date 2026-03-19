@@ -19,6 +19,11 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// ChapterPipelineOptions controls expensive per-chapter processing behavior.
+type ChapterPipelineOptions struct {
+	ImageOptions *utils.ImageProcessingOptions
+}
+
 // ChapterPipelineResult encapsulates the output of chapter processing.
 type ChapterPipelineResult struct {
 	Chapters       []renderer.ChapterHTML
@@ -59,7 +64,21 @@ func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdo
 // Process executes the complete chapter processing pipeline.
 // It returns processed chapters, chapter file paths, validation issues, and any error encountered.
 // Always uses ParseWithDiagnostics regardless of caller preference.
-func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
+func (p *ChapterPipeline) Process(ctx context.Context) (*ChapterPipelineResult, error) {
+	return p.ProcessWithOptions(ctx, ChapterPipelineOptions{})
+}
+
+// ProcessWithOptions executes the complete chapter processing pipeline with
+// caller-controlled image processing behavior.
+func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options ChapterPipelineOptions) (*ChapterPipelineResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	imageOptions := defaultEmbeddedChapterImageOptions()
+	if options.ImageOptions != nil {
+		imageOptions = *options.ImageOptions
+	}
+
 	resolver := crossref.NewResolver()
 
 	var allHeadings []toc.HeadingInfo
@@ -70,6 +89,10 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 
 	flatChapters := flattenChaptersWithDepth(p.Config.Chapters)
 	for i, flatChapter := range flatChapters {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		chDef := flatChapter.Def
 		chapterPath := p.Config.ResolvePath(chDef.File)
 		p.Logger.Debug("Processing chapter", slog.Int("index", i+1), slog.String("file", chDef.File))
@@ -81,11 +104,38 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 		}
 
 		content = variables.Expand(content, p.Config)
+		expandedContent := string(content)
 
-		htmlContent, headings, diagnostics, err := p.Parser.ParseWithDiagnostics(content)
-		if err != nil {
-			p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", err.Error()))
-			continue
+		codeTheme := p.Config.Style.CodeTheme
+		if codeTheme == "" && p.Theme != nil {
+			codeTheme = p.Theme.CodeTheme
+		}
+		cached, cacheHit, cacheErr := loadParsedChapterCache(chapterPath, expandedContent, codeTheme)
+		var htmlContent string
+		var headings []markdown.HeadingInfo
+		var diagnostics []markdown.Diagnostic
+		switch {
+		case cacheErr != nil:
+			p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.String("error", cacheErr.Error()))
+			cacheHit = false
+		case cacheHit:
+			htmlContent = cached.HTML
+			headings = cached.Headings
+			diagnostics = cached.Diagnostics
+		default:
+			var parseErr error
+			htmlContent, headings, diagnostics, parseErr = p.Parser.ParseWithDiagnostics(content)
+			if parseErr != nil {
+				p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
+				continue
+			}
+			if storeErr := storeParsedChapterCache(chapterPath, expandedContent, codeTheme, &cachedParsedChapter{
+				HTML:        htmlContent,
+				Headings:    headings,
+				Diagnostics: diagnostics,
+			}); storeErr != nil {
+				p.Logger.Debug("Parsed chapter cache write failed", slog.String("file", chDef.File), slog.String("error", storeErr.Error()))
+			}
 		}
 
 		// Collect diagnostic issues.
@@ -121,7 +171,8 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 
 		// Process images in the chapter.
 		chapterDir := filepath.Dir(chapterPath)
-		htmlContent, err = utils.ProcessImages(htmlContent, chapterDir, true, p.Logger)
+		imageOptions.Logger = p.Logger
+		htmlContent, err = utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
 		if err != nil {
 			p.Logger.Warn("Failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
 		}
@@ -140,7 +191,7 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 
 		// Invoke the AfterParse hook so plugins can modify this chapter's HTML.
 		hookCtx := &plugin.HookContext{
-			Context:      context.Background(),
+			Context:      ctx,
 			Config:       p.Config,
 			Phase:        plugin.PhaseAfterParse,
 			Content:      htmlContent,
@@ -208,4 +259,24 @@ func (p *ChapterPipeline) Process() (*ChapterPipelineResult, error) {
 		Resolver:       resolver,
 		HeadingRecords: chapterHeadingRecords,
 	}, nil
+}
+
+func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
+	return utils.ImageProcessingOptions{
+		EmbedLocalAsBase64:     true,
+		EmbedRemoteAsBase64:    true,
+		DownloadRemote:         true,
+		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
+		MaxConcurrentDownloads: 4,
+	}
+}
+
+func pdfChapterImageOptions() utils.ImageProcessingOptions {
+	return utils.ImageProcessingOptions{
+		RewriteLocalToFileURL:  true,
+		RewriteRemoteToFileURL: true,
+		DownloadRemote:         true,
+		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
+		MaxConcurrentDownloads: 4,
+	}
 }

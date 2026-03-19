@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -178,4 +180,30 @@ chapters:
 
 	// Reset doctorReportPath after test
 	doctorReportPath = ""
+}
+
+func TestDoctorReportsCacheStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("MDPRESS_CACHE_DIR", filepath.Join(tmpDir, "cache"))
+	t.Setenv("MDPRESS_DISABLE_CACHE", "1")
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := executeDoctor(tmpDir)
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	if err != nil {
+		t.Fatalf("executeDoctor should not error: %v", err)
+	}
+
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+	output := buf.String()
+	if !strings.Contains(output, "Runtime cache is disabled") {
+		t.Fatalf("doctor 输出应包含 cache 状态，实际: %s", output)
+	}
 }

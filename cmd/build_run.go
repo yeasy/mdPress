@@ -43,7 +43,7 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 	return string(cssData)
 }
 
-func executeMultilingualBuild(rootDir string, langs []i18n.LangDef, formats []string, outputOverride string, logger *slog.Logger) error {
+func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.LangDef, formats []string, outputOverride string, logger *slog.Logger) error {
 	logger.Info("Detected multi-language project", slog.Int("languages", len(langs)))
 	for _, lang := range langs {
 		logger.Info("  Language", slog.String("name", lang.Name), slog.String("dir", lang.Dir))
@@ -59,8 +59,11 @@ func executeMultilingualBuild(rootDir string, langs []i18n.LangDef, formats []st
 			return fmt.Errorf("failed to load language directory %s: %w", langDir, err)
 		}
 
+		// Only override the language code when none was explicitly set by the
+		// user. The previous logic also overwrote an explicit "zh-CN" when
+		// the directory name implied a different language, which was wrong.
 		if guessed := guessLanguageCode(lang.Dir); guessed != "" {
-			if langCfg.Book.Language == "" || (langCfg.Book.Language == "zh-CN" && guessed != "zh-CN") {
+			if langCfg.Book.Language == "" {
 				langCfg.Book.Language = guessed
 			}
 		}
@@ -70,7 +73,7 @@ func executeMultilingualBuild(rootDir string, langs []i18n.LangDef, formats []st
 		if err != nil {
 			return err
 		}
-		if err := executeBuildForConfig(langCfg, formats, langOutputOverride, logger); err != nil {
+		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, logger); err != nil {
 			return fmt.Errorf("failed to build language %s: %w", lang.Dir, err)
 		}
 		summaries = append(summaries, languageBuildSummary{
@@ -91,7 +94,7 @@ func executeMultilingualBuild(rootDir string, langs []i18n.LangDef, formats []st
 	return nil
 }
 
-func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {
+func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {
 	logger.Info("Configuration loaded",
 		slog.String("title", cfg.Book.Title),
 		slog.String("author", cfg.Book.Author),
@@ -99,6 +102,8 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 		slog.Int("chapters", len(cfg.Chapters)))
 
 	progress := utils.NewProgressTracker(5)
+	needsPDF := containsBuildFormat(formats, "pdf")
+	needsNonPDF := containsAnyNonPDFFormat(formats)
 
 	progress.Start("Initializing theme system")
 	orchestrator, err := NewBuildOrchestrator(cfg, logger)
@@ -109,14 +114,22 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 
 	// Invoke the BeforeBuild hook so plugins can do pre-build setup work.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
-		Context:  context.Background(),
+		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeBuild,
 		Metadata: make(map[string]interface{}),
 	}, logger)
 
 	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
-	result, err := orchestrator.ProcessChapters()
+	primaryPipelineOptions := ChapterPipelineOptions{ImageOptions: func() *utils.ImageProcessingOptions {
+		if needsPDF && !needsNonPDF {
+			opts := pdfChapterImageOptions()
+			return &opts
+		}
+		opts := defaultEmbeddedChapterImageOptions()
+		return &opts
+	}()}
+	result, err := orchestrator.ProcessChaptersWithOptions(ctx, primaryPipelineOptions)
 	if err != nil {
 		progress.Fail()
 		return err
@@ -129,6 +142,19 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 	chaptersHTML := result.Chapters
 	chapterFiles := result.ChapterFiles
 	allHeadings := result.AllHeadings
+	var pdfChaptersHTML []renderer.ChapterHTML
+	var pdfChapterFiles []string
+
+	if needsPDF && needsNonPDF {
+		pdfOpts := pdfChapterImageOptions()
+		pdfResult, pdfErr := orchestrator.ProcessChaptersWithOptions(ctx, ChapterPipelineOptions{ImageOptions: &pdfOpts})
+		if pdfErr != nil {
+			progress.Fail()
+			return pdfErr
+		}
+		pdfChaptersHTML = pdfResult.Chapters
+		pdfChapterFiles = pdfResult.ChapterFiles
+	}
 
 	progress.Start("Generating cover and TOC")
 	var coverHTML string
@@ -163,12 +189,21 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 		chaptersHTML = append(chaptersHTML, glossaryChapter)
 		singlePageChapters = append(singlePageChapters, glossaryChapter)
 		chapterFiles = append(chapterFiles, "")
+		if needsPDF && needsNonPDF {
+			pdfChaptersHTML = append(pdfChaptersHTML, glossaryChapter)
+			pdfChapterFiles = append(pdfChapterFiles, "")
+		}
+	}
+
+	pdfSinglePageChapters := singlePageChapters
+	if needsPDF && needsNonPDF {
+		pdfSinglePageChapters = rewriteChapterLinks(pdfChaptersHTML, pdfChapterFiles)
 	}
 
 	// Invoke the BeforeRender hook before the final HTML document is assembled.
 	// The cover HTML is passed as the content payload so plugins can inspect it.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
-		Context:  context.Background(),
+		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeRender,
 		Content:  coverHTML,
@@ -181,11 +216,20 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 		ChaptersHTML: singlePageChapters,
 		CustomCSS:    customCSS,
 	}
+	var pdfSinglePageParts *renderer.RenderParts
+	if needsPDF && needsNonPDF {
+		pdfSinglePageParts = &renderer.RenderParts{
+			CoverHTML:    coverHTML,
+			TOCHTML:      tocHTML,
+			ChaptersHTML: pdfSinglePageChapters,
+			CustomCSS:    customCSS,
+		}
+	}
 
 	// Invoke the AfterRender hook after HTML assembly is complete.
 	// The TOC HTML is passed as the content payload.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
-		Context:  context.Background(),
+		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterRender,
 		Content:  tocHTML,
@@ -202,13 +246,14 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
 
 	buildCtx := &BuildContext{
-		Config:          cfg,
-		Theme:           orchestrator.Theme,
-		SinglePageParts: singlePageParts,
-		ChaptersHTML:    chaptersHTML,
-		ChapterFiles:    chapterFiles,
-		CustomCSS:       customCSS,
-		Logger:          logger,
+		Config:             cfg,
+		Theme:              orchestrator.Theme,
+		SinglePageParts:    singlePageParts,
+		PDFSinglePageParts: pdfSinglePageParts,
+		ChaptersHTML:       chaptersHTML,
+		ChapterFiles:       chapterFiles,
+		CustomCSS:          customCSS,
+		Logger:             logger,
 	}
 	registry := NewFormatBuilderRegistry()
 	for _, format := range formats {
@@ -224,7 +269,7 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 
 	// Invoke the AfterBuild hook after all output formats have been written.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
-		Context:  context.Background(),
+		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterBuild,
 		Metadata: make(map[string]interface{}),
@@ -238,6 +283,24 @@ func executeBuildForConfig(cfg *config.BookConfig, formats []string, outputOverr
 	progress.Done()
 	progress.Finish()
 	return nil
+}
+
+func containsBuildFormat(formats []string, target string) bool {
+	for _, format := range formats {
+		if strings.EqualFold(strings.TrimSpace(format), target) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAnyNonPDFFormat(formats []string) bool {
+	for _, format := range formats {
+		if !strings.EqualFold(strings.TrimSpace(format), "pdf") {
+			return true
+		}
+	}
+	return false
 }
 
 // runPluginHook dispatches a hook to the plugin manager.
@@ -254,9 +317,9 @@ func runPluginHook(mgr *plugin.Manager, hookCtx *plugin.HookContext, logger *slo
 }
 
 var (
-	decimalTitleSequencePattern = regexp.MustCompile(`^\s*(\d+(?:\.\d+)*)(?:[.)、．:：]\s*|\s+)`)
+	decimalTitleSequencePattern = regexp.MustCompile(`^\s*(\d+(?:\.\d+)*)(?:\s*[.)、．:：）-]\s*|\s+|$)`)
 	chineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)\s*([章节篇部卷])`)
-	englishTitleSequencePattern = regexp.MustCompile(`(?i)^\s*chapter\s+(\d+(?:\.\d+)*)\b`)
+	englishTitleSequencePattern = regexp.MustCompile(`^\s*(?:Chapter|CHAPTER)\s+(\d+(?:\.\d+)*)\b`)
 )
 
 type chapterHeadingRecord struct {
@@ -302,12 +365,48 @@ func validateChapterTitleSequence(summaryTitle string, headings []markdown.Headi
 	}
 }
 
+// compatibleTitleStyles reports whether two numbering styles can coexist
+// without triggering a style-mismatch warning.  Chinese technical books
+// commonly use Chinese ordinals for top-level chapters (第一章, 第二章) and
+// Arabic decimals for sections (1.1, 2.3), so "chinese" + "arabic" is a
+// natural pairing that should not be flagged.
+func compatibleTitleStyles(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if a == "none" || b == "none" {
+		return true
+	}
+	// Chinese chapter-level + Arabic section-level is standard practice.
+	if (a == "chinese" && b == "arabic") || (a == "arabic" && b == "chinese") {
+		return true
+	}
+	return false
+}
+
+// commonRecurringSectionTitles lists short generic headings that naturally
+// appear in every chapter of a book (e.g. "本章小结", "简介", "总结").
+// These are excluded from the duplicate-title check because flagging them
+// produces only false positives in multi-chapter books.
+var commonRecurringSectionTitles = map[string]bool{
+	// Chinese
+	"本章小结": true, "小结": true, "总结": true, "简介": true, "介绍": true,
+	"概述": true, "参考资料": true, "参考文献": true, "习题": true, "练习": true,
+	"思考题": true, "延伸阅读": true, "本章总结": true, "章节总结": true,
+	// English
+	"summary": true, "introduction": true, "overview": true,
+	"conclusion": true, "references": true, "exercises": true,
+	"further reading": true, "chapter summary": true,
+}
+
 func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadingWarning {
 	if len(records) < 2 {
 		return nil
 	}
 
 	warnings := make([]chapterHeadingWarning, 0)
+
+	// Collect all styles present in the book.
 	primaryStyle := ""
 	for _, record := range records {
 		style := titleSequenceStyle(record.Heading.Text)
@@ -320,7 +419,7 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 	if primaryStyle != "" {
 		for _, record := range records {
 			style := titleSequenceStyle(record.Heading.Text)
-			if style == primaryStyle || style == "none" {
+			if compatibleTitleStyles(primaryStyle, style) {
 				continue
 			}
 			warnings = append(warnings, chapterHeadingWarning{
@@ -335,13 +434,30 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 		}
 	}
 
+	// Duplicate title detection: use directory-scoped keys so that
+	// "chapter01/本章小结" and "chapter02/本章小结" are treated as distinct.
+	// Also skip common recurring section titles entirely.
 	seenTitles := make(map[string]chapterHeadingRecord)
 	for _, record := range records {
 		normalized := normalizeChapterTitle(record.Heading.Text)
 		if normalized == "" {
 			continue
 		}
-		if prev, ok := seenTitles[normalized]; ok {
+
+		// Skip common section headings that naturally repeat across chapters.
+		if commonRecurringSectionTitles[strings.ToLower(normalized)] {
+			continue
+		}
+
+		// Scope by the top-level directory so that "ch01/简介" and "ch02/简介"
+		// don't collide.  Files at the root level use "" as their scope.
+		scope := ""
+		if idx := strings.IndexAny(record.File, "/\\"); idx >= 0 {
+			scope = record.File[:idx]
+		}
+		key := scope + "\x00" + normalized
+
+		if prev, ok := seenTitles[key]; ok {
 			warnings = append(warnings, chapterHeadingWarning{
 				File: record.File,
 				Diagnostic: markdown.Diagnostic{
@@ -354,7 +470,7 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 			})
 			continue
 		}
-		seenTitles[normalized] = record
+		seenTitles[key] = record
 	}
 
 	return warnings
@@ -369,7 +485,7 @@ func extractTitleSequence(title string) (string, bool) {
 	}
 	if matches := chineseTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 3 {
 		value := parseChineseOrdinal(matches[1])
-		if value > 0 {
+		if value > 0 || strings.ContainsAny(matches[1], "零〇0") {
 			return strconv.Itoa(value), true
 		}
 	}

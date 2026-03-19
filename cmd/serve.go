@@ -8,9 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/yeasy/mdpress/internal/config"
@@ -67,7 +65,7 @@ Examples:
 			AutoOpen:    serveOpen,
 			PortChanged: cmd.Flags().Changed("port"),
 		}
-		return executeServe(inputSource, opts)
+		return executeServe(cmd.Context(), inputSource, opts)
 	},
 }
 
@@ -79,7 +77,11 @@ func init() {
 	serveCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
 }
 
-func executeServe(inputSource string, opts ServeOptions) error {
+func executeServe(ctx context.Context, inputSource string, opts ServeOptions) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Set log level based on quiet/verbose flags.
 	logLevel := slog.LevelInfo
 	switch {
@@ -205,7 +207,7 @@ func executeServe(inputSource string, opts ServeOptions) error {
 		}
 		// Build to a temporary directory first, then swap on success.
 		tempOutput := outputDir + ".tmp"
-		if buildErr := buildSiteForServe(newCfg, tempOutput, logger); buildErr != nil {
+		if buildErr := buildSiteForServe(ctx, newCfg, tempOutput, logger); buildErr != nil {
 			// Clean up the failed temp build, keep the previous good output.
 			os.RemoveAll(tempOutput)
 			return buildErr
@@ -214,7 +216,9 @@ func executeServe(inputSource string, opts ServeOptions) error {
 		// Rename the old dir out of the way first, then rename the new dir in.
 		// This minimizes the window where no content is available.
 		backupDir := outputDir + ".old"
-		_ = os.RemoveAll(backupDir)
+		if err := os.RemoveAll(backupDir); err != nil {
+			logger.Debug("Failed to remove previous backup directory", slog.String("dir", backupDir), slog.String("error", err.Error()))
+		}
 		if err := os.Rename(outputDir, backupDir); err != nil && !os.IsNotExist(err) {
 			logger.Debug("Failed to move previous output aside", slog.String("error", err.Error()))
 		}
@@ -223,40 +227,34 @@ func executeServe(inputSource string, opts ServeOptions) error {
 			if err := os.Rename(backupDir, outputDir); err != nil && !os.IsNotExist(err) {
 				logger.Debug("Failed to restore previous output", slog.String("error", err.Error()))
 			}
-			_ = os.RemoveAll(tempOutput)
+			if err := os.RemoveAll(tempOutput); err != nil {
+				logger.Debug("Failed to remove temp output directory", slog.String("dir", tempOutput), slog.String("error", err.Error()))
+			}
 			// Fallback: if rename fails (cross-device), try the direct build.
-			return buildSiteForServe(newCfg, outputDir, logger)
+			return buildSiteForServe(ctx, newCfg, outputDir, logger)
 		}
-		_ = os.RemoveAll(backupDir)
+		if err := os.RemoveAll(backupDir); err != nil {
+			logger.Debug("Failed to remove backup directory after swap", slog.String("dir", backupDir), slog.String("error", err.Error()))
+		}
 		return nil
 	}
 
 	// Initial build.
 	logger.Info("Running initial site build", slog.String("title", cfg.Book.Title))
-	if err := buildSiteForServe(cfg, outputDir, logger); err != nil {
+	if err := buildSiteForServe(ctx, cfg, outputDir, logger); err != nil {
 		return fmt.Errorf("failed to build site: %w", err)
 	}
-
-	// ========== 3. Start the server ==========
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Handle graceful shutdown.
-	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-		<-sigChan
-		fmt.Println("\n\nServer stopped")
-		cancel()
-		os.Exit(0)
-	}()
 
 	listenerOwned = false
 	return srv.StartWithListener(ctx, ln)
 }
 
 // buildSiteForServe builds the preview HTML site.
-func buildSiteForServe(cfg *config.BookConfig, outputDir string, logger *slog.Logger) error {
+func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir string, logger *slog.Logger) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Initialize the orchestrator.
 	orchestrator, err := NewBuildOrchestrator(cfg, logger)
 	if err != nil {
@@ -266,7 +264,7 @@ func buildSiteForServe(cfg *config.BookConfig, outputDir string, logger *slog.Lo
 	// Use the chapter pipeline for consistent processing.
 	// Note: Pipeline always uses ParseWithDiagnostics and performs full validation.
 	// For serve, we ignore the issues but benefit from consistent processing.
-	result, err := orchestrator.ProcessChapters()
+	result, err := orchestrator.ProcessChapters(ctx)
 	if err != nil {
 		return err
 	}
