@@ -1,6 +1,5 @@
 # golangci-lint configuration for mdpress
 # https://golangci-lint.run/usage/configuration/
-version: "2"
 run:
   timeout: 3m
 
@@ -11,22 +10,23 @@ linters:
     - staticcheck
     - unused
     - ineffassign
-  settings:
-    errcheck:
-      # Allow blank identifier assignments like: _ = f() and _, _ = f()
-      check-blank: false
-      # Exclude common functions whose errors are safe to ignore.
-      exclude-functions:
-        - (*log/slog.Logger).Debug
-        - (*log/slog.Logger).Info
-        - (*log/slog.Logger).Warn
-        - fmt.Printf
-        - fmt.Fprintf
-        - fmt.Println
-        - os.Remove
-        - os.RemoveAll
-        - os.Unsetenv
-        - os.Setenv
+
+linters-settings:
+  errcheck:
+    # Allow blank identifier assignments like: _ = f() and _, _ = f()
+    check-blank: false
+    # Exclude common functions whose errors are safe to ignore.
+    exclude-functions:
+      - (*log/slog.Logger).Debug
+      - (*log/slog.Logger).Info
+      - (*log/slog.Logger).Warn
+      - fmt.Printf
+      - fmt.Fprintf
+      - fmt.Println
+      - os.Remove
+      - os.RemoveAll
+      - os.Unsetenv
+      - os.Setenv
 
 issues:
   # Show all issues (no limit).
