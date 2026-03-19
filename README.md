@@ -33,7 +33,11 @@ No templates to write. No config files required. Just point `mdpress` at a folde
 ## Get Started In 60 Seconds
 
 ```bash
-# 1. Install
+# 1. Install (Homebrew)
+brew tap yeasy/tap
+brew install mdpress
+
+# Or install with Go
 go install github.com/yeasy/mdpress@latest
 
 # 2. Create a sample book and preview it

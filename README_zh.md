@@ -33,7 +33,11 @@ $ mdpress build --format pdf,html,site,epub
 ## 60 秒上手
 
 ```bash
-# 1. 安装
+# 1. 安装（Homebrew）
+brew tap yeasy/tap
+brew install mdpress
+
+# 或通过 Go 安装
 go install github.com/yeasy/mdpress@latest
 
 # 2. 创建示例书并预览
