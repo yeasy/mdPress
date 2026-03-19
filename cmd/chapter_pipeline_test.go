@@ -68,6 +68,7 @@ Some subsection text.
 	// Verify chapters were returned
 	if result == nil {
 		t.Fatal("Pipeline result is nil")
+		return
 	}
 
 	// Verify chapter count

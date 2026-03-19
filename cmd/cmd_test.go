@@ -190,6 +190,7 @@ func TestPersistentFlags(t *testing.T) {
 	flag := rootCmd.PersistentFlags().Lookup("config")
 	if flag == nil {
 		t.Fatal("应存在 --config 持久标志")
+		return
 	}
 	if flag.DefValue != "book.yaml" {
 		t.Errorf("--config 默认值应为 'book.yaml', 实际 %q", flag.DefValue)
@@ -199,6 +200,7 @@ func TestPersistentFlags(t *testing.T) {
 	flag = rootCmd.PersistentFlags().Lookup("verbose")
 	if flag == nil {
 		t.Fatal("应存在 --verbose 持久标志")
+		return
 	}
 	if flag.DefValue != "false" {
 		t.Errorf("--verbose 默认值应为 'false', 实际 %q", flag.DefValue)
@@ -210,6 +212,7 @@ func TestBuildCommand_Flags(t *testing.T) {
 	flag := buildCmd.Flags().Lookup("format")
 	if flag == nil {
 		t.Fatal("build 应有 --format 标志")
+		return
 	}
 	if flag.DefValue != "" {
 		t.Errorf("--format 默认值应为空, 实际 %q", flag.DefValue)
@@ -236,6 +239,7 @@ func TestServeCommand_Flags(t *testing.T) {
 	flag := serveCmd.Flags().Lookup("port")
 	if flag == nil {
 		t.Fatal("serve 应有 --port 标志")
+		return
 	}
 	if flag.DefValue != "9000" {
 		t.Errorf("--port 默认值应为 9000, 实际 %q", flag.DefValue)
@@ -243,12 +247,14 @@ func TestServeCommand_Flags(t *testing.T) {
 
 	flag = serveCmd.Flags().Lookup("output")
 	if flag == nil {
-		t.Error("serve 应有 --output 标志")
+		t.Fatal("serve 应有 --output 标志")
+		return
 	}
 
 	flag = serveCmd.Flags().Lookup("host")
 	if flag == nil {
-		t.Error("serve 应有 --host 标志")
+		t.Fatal("serve 应有 --host 标志")
+		return
 	}
 	if flag.DefValue != "127.0.0.1" {
 		t.Errorf("--host 默认值应为 127.0.0.1, 实际 %q", flag.DefValue)
@@ -256,7 +262,8 @@ func TestServeCommand_Flags(t *testing.T) {
 
 	flag = serveCmd.Flags().Lookup("open")
 	if flag == nil {
-		t.Error("serve 应有 --open 标志")
+		t.Fatal("serve 应有 --open 标志")
+		return
 	}
 	if flag.DefValue != "false" {
 		t.Errorf("--open 默认值应为 false, 实际 %q", flag.DefValue)

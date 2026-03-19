@@ -39,9 +39,9 @@ func TestNewLocalSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src := NewLocalSource(tt.path, tt.opts)
-
 			if src == nil {
-				t.Error("NewLocalSource returned nil")
+				t.Fatal("NewLocalSource returned nil")
+				return
 			}
 
 			if src.path != tt.path {
