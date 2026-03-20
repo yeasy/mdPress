@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -354,5 +355,99 @@ func TestWhitespaceHandling(t *testing.T) {
 	}
 	if !strings.Contains(result, `class="plantuml-diagram"`) {
 		t.Fatal("should handle leading/trailing whitespace")
+	}
+}
+
+// TestLocalPlantumlCmdNoneAvailable verifies a helpful error is returned when
+// neither PLANTUML_JAR nor a plantuml binary is available.
+func TestLocalPlantumlCmdNoneAvailable(t *testing.T) {
+	// Ensure PLANTUML_JAR is not set for this test.
+	t.Setenv("PLANTUML_JAR", "")
+
+	// Override PATH with an empty directory so LookPath("plantuml") fails.
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+
+	_, err := localPlantumlCmd()
+	if err == nil {
+		t.Fatal("expected an error when plantuml is not available")
+	}
+	if !strings.Contains(err.Error(), "plantuml not found") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+// TestLocalPlantumlCmdWithJar verifies PLANTUML_JAR is respected.
+func TestLocalPlantumlCmdWithJar(t *testing.T) {
+	t.Setenv("PLANTUML_JAR", "/opt/plantuml.jar")
+
+	// java must be on PATH; if not, skip so CI without java still passes.
+	if _, err := os.LookupEnv("JAVA_HOME"); err {
+		// Fine – localPlantumlCmd will try LookPath("java"), which may succeed.
+	}
+
+	cmd, err := localPlantumlCmd()
+	if err != nil {
+		// Acceptable if java is not on PATH in this environment.
+		if strings.Contains(err.Error(), "java is not in PATH") {
+			t.Skip("java not available; skipping PLANTUML_JAR test")
+		}
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the constructed command uses java -jar.
+	if len(cmd.Args) < 3 {
+		t.Fatalf("expected at least 3 args, got %v", cmd.Args)
+	}
+	if !strings.HasSuffix(cmd.Args[0], "java") {
+		t.Fatalf("expected java executable, got %s", cmd.Args[0])
+	}
+	if cmd.Args[1] != "-jar" {
+		t.Fatalf("expected -jar flag, got %s", cmd.Args[1])
+	}
+	if cmd.Args[2] != "/opt/plantuml.jar" {
+		t.Fatalf("expected jar path, got %s", cmd.Args[2])
+	}
+}
+
+// TestRenderLocalNotFound verifies renderLocal returns a clear error when
+// plantuml is not installed.
+func TestRenderLocalNotFound(t *testing.T) {
+	t.Setenv("PLANTUML_JAR", "")
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+
+	r := NewRenderer("", true)
+	_, err := r.renderLocal("Alice -> Bob")
+	if err == nil {
+		t.Fatal("expected an error when plantuml is not available")
+	}
+	if !strings.Contains(err.Error(), "plantuml not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// TestRenderLocalWithFakePlantuml runs renderLocal against a fake plantuml
+// script that emits a minimal SVG, verifying the happy path without a real
+// installation.
+func TestRenderLocalWithFakePlantuml(t *testing.T) {
+	// Write a tiny shell script that prints a valid SVG to stdout.
+	dir := t.TempDir()
+	script := dir + "/plantuml"
+	scriptContent := "#!/bin/sh\necho '<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>'\n"
+	if err := os.WriteFile(script, []byte(scriptContent), 0o755); err != nil {
+		t.Fatalf("failed to create fake plantuml script: %v", err)
+	}
+
+	t.Setenv("PLANTUML_JAR", "")
+	t.Setenv("PATH", dir)
+
+	r := NewRenderer("", true)
+	svg, err := r.renderLocal("Alice -> Bob: Hello")
+	if err != nil {
+		t.Fatalf("renderLocal failed: %v", err)
+	}
+	if !strings.Contains(svg, "<svg") {
+		t.Fatalf("expected SVG output, got: %s", svg)
 	}
 }
