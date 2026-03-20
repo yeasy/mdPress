@@ -838,3 +838,152 @@ func TestDeriveOutputFilename(t *testing.T) {
 		})
 	}
 }
+
+// Tests for deriveLanguageOutputOverride (TG-15: multi-dot filenames)
+func TestDeriveLanguageOutputOverride(t *testing.T) {
+	tests := []struct {
+		name             string
+		outputOverride   string
+		langDir          string
+		expected         string
+		description      string
+	}{
+		// Empty output override cases
+		{
+			name:             "empty override returns empty",
+			outputOverride:   "",
+			langDir:          "en",
+			expected:         "",
+			description:      "When outputOverride is empty, return empty string",
+		},
+		// Normal single-extension cases
+		{
+			name:             "normal case: output.pdf + en",
+			outputOverride:   "output.pdf",
+			langDir:          "en",
+			expected:         "output-en.pdf",
+			description:      "Standard PDF file with language code",
+		},
+		{
+			name:             "normal case: book.html + zh",
+			outputOverride:   "book.html",
+			langDir:          "zh",
+			expected:         "book-zh.html",
+			description:      "HTML file with language code",
+		},
+		{
+			name:             "normal case: document.epub + fr",
+			outputOverride:   "document.epub",
+			langDir:          "fr",
+			expected:         "document-fr.epub",
+			description:      "EPUB file with language code",
+		},
+		// Multi-dot filenames (TG-15)
+		{
+			name:             "multi-dot: my.book.pdf + zh",
+			outputOverride:   "my.book.pdf",
+			langDir:          "zh",
+			expected:         "my.book-zh.pdf",
+			description:      "Filename with multiple dots before extension",
+		},
+		{
+			name:             "multi-dot: my.project.name.html + en",
+			outputOverride:   "my.project.name.html",
+			langDir:          "en",
+			expected:         "my.project.name-en.html",
+			description:      "HTML with three dots total",
+		},
+		{
+			name:             "multi-dot: data.backup.tar.gz + ja",
+			outputOverride:   "data.backup.tar.gz",
+			langDir:          "ja",
+			expected:         "data.backup.tar-ja.gz",
+			description:      "Archive-like extension (filepath.Ext returns .gz)",
+		},
+		// No extension cases
+		{
+			name:             "no extension: output + en",
+			outputOverride:   "output",
+			langDir:          "en",
+			expected:         "output-en",
+			description:      "Filename without extension",
+		},
+		{
+			name:             "no extension: mybook + fr",
+			outputOverride:   "mybook",
+			langDir:          "fr",
+			expected:         "mybook-fr",
+			description:      "Filename without extension and different language",
+		},
+		// Path with extension
+		{
+			name:             "path with extension: /path/to/output.pdf + es",
+			outputOverride:   "/path/to/output.pdf",
+			langDir:          "es",
+			expected:         "/path/to/output-es.pdf",
+			description:      "Absolute path with PDF extension",
+		},
+		{
+			name:             "path with extension: ./relative/book.html + de",
+			outputOverride:   "./relative/book.html",
+			langDir:          "de",
+			expected:         "./relative/book-de.html",
+			description:      "Relative path with HTML extension",
+		},
+		// Path without extension
+		{
+			name:             "path without extension: /tmp/output + it",
+			outputOverride:   "/tmp/output",
+			langDir:          "it",
+			expected:         "/tmp/output-it",
+			description:      "Absolute path without extension",
+		},
+		// Edge cases
+		{
+			name:             "just extension: .pdf + en",
+			outputOverride:   ".pdf",
+			langDir:          "en",
+			expected:         ".pdf-en",
+			description:      "Edge case: file that's just an extension",
+		},
+		{
+			name:             "complex langDir: en-US",
+			outputOverride:   "book.pdf",
+			langDir:          "en-US",
+			expected:         "book-en-US.pdf",
+			description:      "Language directory with hyphen",
+		},
+		{
+			name:             "complex langDir: zh-CN",
+			outputOverride:   "document.html",
+			langDir:          "zh-CN",
+			expected:         "document-zh-CN.html",
+			description:      "Traditional Chinese language code",
+		},
+		{
+			name:             "empty base filename: .hidden + en",
+			outputOverride:   ".hidden",
+			langDir:          "en",
+			expected:         ".hidden-en",
+			description:      "Hidden file (starts with dot)",
+		},
+		// Path-like behavior for directories (note: we can't mock os.Stat, so directory cases won't work in test)
+		{
+			name:             "path with trailing slash: /output/ + en",
+			outputOverride:   "/output/",
+			langDir:          "en",
+			expected:         "/output/-en",
+			description:      "Path-like string with trailing slash (note: os.Stat check won't detect this as dir in test)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deriveLanguageOutputOverride(tt.outputOverride, tt.langDir)
+			if result != tt.expected {
+				t.Errorf("deriveLanguageOutputOverride(%q, %q) = %q, want %q\n%s",
+					tt.outputOverride, tt.langDir, result, tt.expected, tt.description)
+			}
+		})
+	}
+}

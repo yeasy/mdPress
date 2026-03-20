@@ -41,9 +41,12 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 	cssPath := cfg.ResolvePath(cfg.Style.CustomCSS)
 	cssData, err := utils.ReadFile(cssPath)
 	if err != nil {
-		logger.Warn("Failed to load custom CSS", slog.String("error", err.Error()))
+		logger.Warn("Failed to load custom CSS, falling back to default theme styles",
+			slog.String("path", cssPath),
+			slog.String("error", err.Error()))
 		return ""
 	}
+	logger.Debug("Loaded custom CSS", slog.String("path", cssPath))
 	return string(cssData)
 }
 
@@ -763,7 +766,11 @@ func deriveLanguageOutputOverride(outputOverride string, langDir string) string 
 		return outputOverride + "-" + langDir
 	}
 
-	return strings.TrimSuffix(outputOverride, ext) + "-" + langDir + ext
+	base := strings.TrimSuffix(outputOverride, ext)
+	if base == "" {
+		return outputOverride + "-" + langDir
+	}
+	return base + "-" + langDir + ext
 }
 
 func predictedOutputLinks(baseOutput string, formats []string) map[string]string {
@@ -855,7 +862,11 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %q; }, 1200);</script>\n", defaultTarget)
 	}
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
-	return os.WriteFile(landingPath, []byte(b.String()), 0644)
+	tmpPath := landingPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(b.String()), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, landingPath)
 }
 
 func defaultLanguageTarget(landingDir string, summaries []languageBuildSummary) string {
