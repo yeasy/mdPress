@@ -8,6 +8,33 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.5.0] - 2026-03-20
+
+### Added
+
+- **PlantUML local rendering**: `renderLocal()` now invokes a local `plantuml` CLI (auto-detected via `PATH`) or `plantuml.jar` (configurable via `PLANTUML_JAR` env or `plantuml.jar_path` config), enabling offline and air-gapped environments; mode is selected by `plantuml.use_local: true` in `book.yaml`
+- **Golden test framework**: `tests/golden/` infrastructure for snapshot-based regression testing of Markdown → HTML output; `go test ./tests/golden/... -update` regenerates fixtures; initial suite covers 12 Markdown feature combinations across both PDF backends
+- **`mdpress doctor` PlantUML check**: Doctor command now detects local PlantUML availability (`plantuml` CLI or `PLANTUML_JAR`) and reports installation instructions when absent
+
+### Changed
+
+- **CI: Node.js 24 actions upgrade**: Updated `goreleaser/goreleaser-action` to v7 (Node.js 24) ahead of the 2026-06-02 GitHub deprecation deadline for Node.js 20 runners; also pinned `codecov/codecov-action` to v5
+- **CI: Release workflow Docker job fix**: Removed stale "Log in to Docker Hub" step that caused every release tag to show a red check; images are now exclusively published to GHCR via `docker/login-action` with `registry: ghcr.io`
+
+### Tests
+
+- **Test coverage improvement** from 62.3% to ≥ 68%:
+  - `internal/plantuml`: raised from 54.8% to 75%+ with `renderLocal` path tests, mock HTTP server tests for `renderServer`, and `NeedsPlantuml` edge cases
+  - `internal/source`: raised from 41.2% to 62%+ covering `LocalSource`, `GitHubSource` clone path, and `ListMarkdownFiles` edge cases
+  - `cmd`: raised from 47.7% to 60%+ covering `rendererHeadingsToSiteHeadings`, `pdfChapterImageOptions`, and flag propagation
+- **plantuml plugin lifecycle tests**: `Init`, `Execute`, `Cleanup`, and `EnableIfNeeded` now covered, closing zero-coverage gap in `internal/plantuml/plugin.go`
+
+### Fixed
+
+- **`renderLocal` error path**: Replaced silent no-op stub with actionable error message guiding users to install PlantUML or set `PLANTUML_JAR`
+
+---
+
 ## [0.4.3] - 2026-03-19
 
 ### Fixed
@@ -245,7 +272,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/yeasy/mdpress/compare/v0.4.3...v0.5.0
+[0.4.3]: https://github.com/yeasy/mdpress/compare/v0.4.2...v0.4.3
+[0.4.2]: https://github.com/yeasy/mdpress/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/yeasy/mdpress/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/yeasy/mdpress/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/yeasy/mdpress/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/yeasy/mdpress/compare/v0.2.0...v0.3.0

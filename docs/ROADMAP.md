@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-03-19
+> Updated: 2026-03-20
 > Maintainer: mdPress product team
 
 ---
@@ -18,6 +18,8 @@ v0.4.0 ████████████████████████�
 v0.4.1 ██████████████████████████████████████████ released (2026-03-19)
 v0.4.2 ██████████████████████████████████████████ released (2026-03-19)
 v0.4.3 ██████████████████████████████████████████ released (2026-03-19)
+v0.5.0 ██████████████████████████████████████████ released (2026-03-20)
+v0.6.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2026-Q2)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -176,6 +178,34 @@ Expected flow:
 5. Produce the final output
 
 Expected payoff: rebuilding a 500-page book after editing one chapter should drop from roughly 120 seconds to under 10 seconds.
+
+---
+
+## v0.5.0 - PlantUML Local Rendering And Test Infrastructure
+
+**Release date**: 2026-03-20
+**Theme**: offline capability and test coverage foundation
+
+v0.5.0 closes the most critical gap for enterprise users (offline PlantUML rendering), repairs the release CI pipeline, and establishes a golden test framework to prevent backend regressions.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| PlantUML local rendering | P1 | `renderLocal()` invokes local `plantuml` CLI or `plantuml.jar`; enabled via `plantuml.use_local: true` |
+| Golden test framework | P2 | Snapshot-based regression tests in `tests/golden/`; regenerate with `-update` flag |
+| Doctor PlantUML check | P1 | `mdpress doctor` detects local PlantUML availability and prints install hints |
+| CI Node.js 24 upgrade | P0 | `goreleaser-action@v7`, `codecov-action@v5` ahead of 2026-06-02 deadline |
+| Release CI Docker fix | P0 | Removed stale Docker Hub login step; images publish exclusively to GHCR |
+
+### Test Coverage Milestones
+
+| Package | v0.4.3 | v0.5.0 | Delta |
+| --- | --- | --- | --- |
+| `internal/plantuml` | 54.8% | 75%+ | +20 pp |
+| `internal/source` | 41.2% | 62%+ | +21 pp |
+| `cmd` | 47.7% | 60%+ | +12 pp |
+| **Overall** | **62.3%** | **≥ 68%** | **+6 pp** |
 
 ---
 

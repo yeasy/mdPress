@@ -12,7 +12,7 @@ import (
 
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.4.2"
+	Version = "0.5.0"
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// rootCmd is the root command for the mdpress application.

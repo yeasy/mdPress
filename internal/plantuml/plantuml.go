@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -135,11 +137,62 @@ func (r *Renderer) renderServer(code string) (string, error) {
 	return buf.String(), nil
 }
 
-// renderLocal renders PlantUML using a local plantuml command.
-// This is a placeholder for future implementation.
+// renderLocal renders PlantUML using a local plantuml installation.
+//
+// Detection order:
+//  1. PLANTUML_JAR env var — runs "java -jar $PLANTUML_JAR -tsvg -pipe"
+//  2. "plantuml" on PATH   — runs "plantuml -tsvg -pipe"
+//
+// If neither is available the error message includes install instructions.
 func (r *Renderer) renderLocal(code string) (string, error) {
-	// TODO: Implement local PlantUML rendering using os/exec
-	return "", fmt.Errorf("local plantuml rendering not yet implemented")
+	cmd, err := localPlantumlCmd()
+	if err != nil {
+		return "", err
+	}
+
+	cmd.Stdin = strings.NewReader(code)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		msg := stderr.String()
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("plantuml execution failed: %s", msg)
+	}
+
+	svg := stdout.String()
+	if svg == "" {
+		return "", fmt.Errorf("plantuml produced no output")
+	}
+
+	return svg, nil
+}
+
+// localPlantumlCmd builds an exec.Cmd for the local PlantUML renderer.
+// It checks PLANTUML_JAR first, then falls back to "plantuml" on PATH.
+func localPlantumlCmd() (*exec.Cmd, error) {
+	// Prefer an explicit jar path from the environment.
+	if jar := os.Getenv("PLANTUML_JAR"); jar != "" {
+		javaPath, err := exec.LookPath("java")
+		if err != nil {
+			return nil, fmt.Errorf("PLANTUML_JAR is set but java is not in PATH: %w", err)
+		}
+		return exec.Command(javaPath, "-jar", jar, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
+	}
+
+	// Fall back to the plantuml wrapper script / binary.
+	path, err := exec.LookPath("plantuml")
+	if err != nil {
+		return nil, fmt.Errorf(
+			"plantuml not found: install plantuml (e.g. brew install plantuml) " +
+				"or set PLANTUML_JAR=/path/to/plantuml.jar",
+		)
+	}
+	return exec.Command(path, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
 }
 
 // encodeForServer encodes PlantUML code for the online server using deflate + base64.
