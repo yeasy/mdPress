@@ -177,6 +177,9 @@ func (r *Renderer) renderLocal(code string) (string, error) {
 func localPlantumlCmd() (*exec.Cmd, error) {
 	// Prefer an explicit jar path from the environment.
 	if jar := os.Getenv("PLANTUML_JAR"); jar != "" {
+		if _, err := os.Stat(jar); err != nil {
+			return nil, fmt.Errorf("PLANTUML_JAR points to %q but the file does not exist: %w", jar, err)
+		}
 		javaPath, err := exec.LookPath("java")
 		if err != nil {
 			return nil, fmt.Errorf("PLANTUML_JAR is set but java is not in PATH: %w", err)
