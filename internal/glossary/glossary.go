@@ -112,8 +112,15 @@ func (g *Glossary) ProcessHTML(html string) string {
 		return len(sorted[i].Name) > len(sorted[j].Name)
 	})
 
+	// Pre-compile regex patterns to avoid recompilation in the loop.
+	patterns := make(map[string]*regexp.Regexp)
 	for _, term := range sorted {
-		html = highlightTerm(html, term)
+		escapedName := regexp.QuoteMeta(term.Name)
+		patterns[term.Name] = regexp.MustCompile(`(?i)\b` + escapedName + `\b`)
+	}
+
+	for _, term := range sorted {
+		html = highlightTerm(html, term, patterns[term.Name])
 	}
 
 	return html
@@ -148,10 +155,7 @@ func (g *Glossary) RenderHTML() string {
 }
 
 // highlightTerm highlights a single term while avoiding tag replacement.
-func highlightTerm(html string, term Term) string {
-	// Use word boundaries to avoid partial matches.
-	escapedName := regexp.QuoteMeta(term.Name)
-	pattern := regexp.MustCompile(`(?i)\b` + escapedName + `\b`)
+func highlightTerm(html string, term Term, pattern *regexp.Regexp) string {
 
 	// Split tags from text and only replace in text nodes.
 	tagPositions := tagPattern.FindAllStringIndex(html, -1)
