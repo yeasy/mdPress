@@ -1,6 +1,10 @@
 package utils
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode"
+)
 
 func TestContainsCJK(t *testing.T) {
 	tests := []struct {
@@ -169,6 +173,108 @@ func TestContainsChineseEdgeCases(t *testing.T) {
 			got := ContainsChinese(tt.text)
 			if got != tt.want {
 				t.Errorf("ContainsChinese(%q) = %v, want %v", tt.text, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCJKCharacterRanges tests CJK detection across different Unicode ranges
+func TestCJKCharacterRanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		rune     rune
+		isCJK    bool
+		isChinese bool
+	}{
+		// CJK Unified Ideographs (Chinese primary range)
+		{"CJK U+4E00 (一)", 0x4E00, true, true},
+		{"CJK U+6C49 (浩)", 0x6C49, true, true},
+		{"CJK U+9FFF (max unified)", 0x9FFF, true, true},
+
+		// CJK Unified Ideographs Extension A
+		{"CJK Ext-A U+3400", 0x3400, true, true},
+		{"CJK Ext-A U+4DB5", 0x4DB5, true, true},
+
+		// Japanese Hiragana
+		{"Hiragana U+3042 (あ)", 0x3042, true, false},
+		{"Hiragana U+309F", 0x309F, true, false},
+
+		// Japanese Katakana
+		{"Katakana U+30A2 (ア)", 0x30A2, true, false},
+		{"Katakana U+30FF", 0x30FF, true, false},
+
+		// Korean Hangul
+		{"Hangul U+AC00 (가)", 0xAC00, true, false},
+		{"Hangul U+D7A3", 0xD7A3, true, false},
+
+		// Non-CJK
+		{"Latin A", 'A', false, false},
+		{"Cyrillic А", 'А', false, false},
+		{"Arabic ع", 'ع', false, false},
+		{"Greek α", 'α', false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isCJKRune(tt.rune)
+			if got != tt.isCJK {
+				t.Errorf("isCJKRune(U+%04X) = %v, want %v", tt.rune, got, tt.isCJK)
+			}
+
+			got2 := unicode.Is(unicode.Han, tt.rune)
+			if got2 != tt.isChinese {
+				t.Errorf("unicode.Is(Han, U+%04X) = %v, want %v", tt.rune, got2, tt.isChinese)
+			}
+		})
+	}
+}
+
+// TestContainsCJKMixedText tests CJK detection with mixed language text
+func TestContainsCJKMixedText(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{"Chinese + English", "Hello 你好 World", true},
+		{"Japanese + English", "Hello こんにちは World", true},
+		{"Korean + English", "Hello 안녕 World", true},
+		{"All three CJK types", "中文 ひらがな 한글", true},
+		{"CJK with numbers", "2024年第一章", true},
+		{"CJK with punctuation", "「这是一个例子」", true},
+		{"English with CJK punctuation", "Hello、World", false}, // Only punctuation, no ideographs
+		{"Emoji and CJK", "😀 你好", true},
+		{"URL with CJK", "https://example.com/中文/path", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ContainsCJK(tt.text)
+			if got != tt.want {
+				t.Errorf("ContainsCJK(%q) = %v, want %v", tt.text, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestContainsCJKLargeStrings tests CJK detection on large text
+func TestContainsCJKLargeStrings(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{"CJK at start", "中文" + strings.Repeat("English text ", 1000), true},
+		{"CJK at end", strings.Repeat("English text ", 1000) + "中文", true},
+		{"CJK in middle", strings.Repeat("English text ", 500) + "中文" + strings.Repeat("English text ", 500), true},
+		{"Large text no CJK", strings.Repeat("English text ", 2000), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ContainsCJK(tt.text)
+			if got != tt.want {
+				t.Errorf("ContainsCJK(large string) = %v, want %v", got, tt.want)
 			}
 		})
 	}

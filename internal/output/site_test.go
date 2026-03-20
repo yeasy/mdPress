@@ -542,3 +542,209 @@ func TestSiteGeneratorCDNScriptDedupingAndReplay(t *testing.T) {
 		t.Error("page should normalize camelCase tags to data attributes")
 	}
 }
+
+// TestFlattenChaptersEmpty tests flattenChapters with an empty input slice.
+func TestFlattenChaptersEmpty(t *testing.T) {
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	result := gen.flattenChapters([]SiteChapter{})
+
+	if len(result) != 0 {
+		t.Errorf("flattenChapters with empty input should return empty slice, got %d items", len(result))
+	}
+}
+
+// TestFlattenChaptersSingleChapter tests flattenChapters with a single chapter (no children).
+func TestFlattenChaptersSingleChapter(t *testing.T) {
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	input := []SiteChapter{
+		{
+			Title:    "Chapter 1",
+			ID:       "ch1",
+			Filename: "ch1.html",
+			Content:  "<h1>Chapter 1</h1>",
+			Depth:    0,
+		},
+	}
+
+	result := gen.flattenChapters(input)
+
+	if len(result) != 1 {
+		t.Errorf("flattenChapters with single chapter should return 1 item, got %d", len(result))
+	}
+
+	if result[0].Title != "Chapter 1" {
+		t.Errorf("expected title 'Chapter 1', got %q", result[0].Title)
+	}
+	if result[0].Filename != "ch1.html" {
+		t.Errorf("expected filename 'ch1.html', got %q", result[0].Filename)
+	}
+	if result[0].Depth != 0 {
+		t.Errorf("expected Depth 0, got %d", result[0].Depth)
+	}
+}
+
+// TestFlattenChaptersNestedWithHeadings tests flattenChapters preserves Depth and Headings in nested chapters (T38 fix).
+func TestFlattenChaptersNestedWithHeadings(t *testing.T) {
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	input := []SiteChapter{
+		{
+			Title:    "Chapter 1",
+			ID:       "ch1",
+			Filename: "ch1.html",
+			Content:  "<h1>Chapter 1</h1>",
+			Depth:    0,
+			Headings: []SiteNavHeading{
+				{
+					Title: "Section 1.1",
+					ID:    "sec-1.1",
+				},
+			},
+			Children: []SiteChapter{
+				{
+					Title:    "Chapter 1.1",
+					ID:       "ch1.1",
+					Filename: "ch1.1.html",
+					Content:  "<h1>Chapter 1.1</h1>",
+					Depth:    1,
+					Headings: []SiteNavHeading{
+						{
+							Title: "Section 1.1.1",
+							ID:    "sec-1.1.1",
+						},
+					},
+				},
+				{
+					Title:    "Chapter 1.2",
+					ID:       "ch1.2",
+					Filename: "ch1.2.html",
+					Content:  "<h1>Chapter 1.2</h1>",
+					Depth:    1,
+					Headings: []SiteNavHeading{
+						{
+							Title: "Section 1.2.1",
+							ID:    "sec-1.2.1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := gen.flattenChapters(input)
+
+	if len(result) != 3 {
+		t.Errorf("flattenChapters should return 3 items, got %d", len(result))
+	}
+
+	// Check parent chapter
+	if result[0].Title != "Chapter 1" {
+		t.Errorf("item 0: expected title 'Chapter 1', got %q", result[0].Title)
+	}
+	if result[0].Depth != 0 {
+		t.Errorf("item 0: expected Depth 0, got %d", result[0].Depth)
+	}
+	if len(result[0].Headings) != 1 {
+		t.Errorf("item 0: expected 1 heading, got %d", len(result[0].Headings))
+	}
+	if result[0].Headings[0].Title != "Section 1.1" {
+		t.Errorf("item 0: expected heading 'Section 1.1', got %q", result[0].Headings[0].Title)
+	}
+
+	// Check child 1
+	if result[1].Title != "Chapter 1.1" {
+		t.Errorf("item 1: expected title 'Chapter 1.1', got %q", result[1].Title)
+	}
+	if result[1].Depth != 1 {
+		t.Errorf("item 1: expected Depth 1, got %d", result[1].Depth)
+	}
+	if len(result[1].Headings) != 1 {
+		t.Errorf("item 1: expected 1 heading, got %d", len(result[1].Headings))
+	}
+
+	// Check child 2
+	if result[2].Title != "Chapter 1.2" {
+		t.Errorf("item 2: expected title 'Chapter 1.2', got %q", result[2].Title)
+	}
+	if result[2].Depth != 1 {
+		t.Errorf("item 2: expected Depth 1, got %d", result[2].Depth)
+	}
+}
+
+// TestFlattenChaptersDeeplyNested tests flattenChapters with 3+ levels of nesting.
+func TestFlattenChaptersDeeplyNested(t *testing.T) {
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	input := []SiteChapter{
+		{
+			Title:    "Chapter 1",
+			ID:       "ch1",
+			Filename: "ch1.html",
+			Depth:    0,
+			Children: []SiteChapter{
+				{
+					Title:    "Chapter 1.1",
+					ID:       "ch1.1",
+					Filename: "ch1.1.html",
+					Depth:    1,
+					Children: []SiteChapter{
+						{
+							Title:    "Chapter 1.1.1",
+							ID:       "ch1.1.1",
+							Filename: "ch1.1.1.html",
+							Depth:    2,
+							Children: []SiteChapter{
+								{
+									Title:    "Chapter 1.1.1.1",
+									ID:       "ch1.1.1.1",
+									Filename: "ch1.1.1.1.html",
+									Depth:    3,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := gen.flattenChapters(input)
+
+	if len(result) != 4 {
+		t.Errorf("flattenChapters should return 4 items for 4-level nesting, got %d", len(result))
+	}
+
+	// Verify depth progression
+	expectedDepths := []int{0, 1, 2, 3}
+	for i, expectedDepth := range expectedDepths {
+		if result[i].Depth != expectedDepth {
+			t.Errorf("item %d: expected Depth %d, got %d", i, expectedDepth, result[i].Depth)
+		}
+	}
+
+	// Verify order
+	expectedTitles := []string{"Chapter 1", "Chapter 1.1", "Chapter 1.1.1", "Chapter 1.1.1.1"}
+	for i, expectedTitle := range expectedTitles {
+		if result[i].Title != expectedTitle {
+			t.Errorf("item %d: expected title %q, got %q", i, expectedTitle, result[i].Title)
+		}
+	}
+}
