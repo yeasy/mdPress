@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file. The format 
 - **PDF default margins**: Bottom margin increased from 0mm to 10mm to accommodate branded footer; configurable via `output.margin_*` settings
 - **build_run.go orchestration**: Enhanced to support manifest-based incremental builds and parallel format output dispatch
 - **ROADMAP updates**: v0.3.0 and v0.3.1 marked as released; v0.4.0 milestones updated with completed features
+- **Typst backend differences**: The Typst PDF backend (`--format typst`) produces native PDF without Chromium; margin units and code block rendering may differ from the Chromium backend; CJK support in Typst requires system fonts; only `_italic_` syntax is supported (not `*italic*`)
 
 ---
 
