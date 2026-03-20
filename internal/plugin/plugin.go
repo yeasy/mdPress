@@ -12,6 +12,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 
 	"github.com/yeasy/mdpress/internal/config"
 )
@@ -189,16 +190,16 @@ func (m *Manager) RunHook(hookCtx *HookContext) error {
 }
 
 // CleanupAll calls Cleanup on every registered plugin.
-// Errors are logged but do not prevent subsequent plugins from being cleaned up.
-// Returns the last error encountered, or nil.
+// Errors do not prevent subsequent plugins from being cleaned up.
+// Returns all errors encountered combined with errors.Join, or nil if no errors.
 func (m *Manager) CleanupAll() error {
-	var lastErr error
+	var errs []error
 	for _, p := range m.plugins {
 		if err := p.Cleanup(); err != nil {
-			lastErr = err
+			errs = append(errs, err)
 		}
 	}
-	return lastErr
+	return errors.Join(errs...)
 }
 
 // Plugins returns a snapshot of the registered plugin list.
