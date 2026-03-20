@@ -720,3 +720,128 @@ func TestReplaceLinksComprehensive(t *testing.T) {
 		}
 	}
 }
+
+// TestConvertUnclosedCodeBlock tests that unclosed code blocks at EOF trigger warning and content is preserved where possible.
+func TestConvertUnclosedCodeBlock(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name           string
+		input          string
+		shouldContain  string
+		shouldNotHave  string
+	}{
+		{
+			name:          "properly closed code block",
+			input:         "```go\nfunc main() {}\n```",
+			shouldContain: "```go",
+		},
+		{
+			name:          "unclosed code block at EOF",
+			input:         "```go\nfunc main() {}\n",
+			shouldContain: "func main() {}",
+		},
+		{
+			name:          "empty code block",
+			input:         "```\n```",
+			shouldContain: "```",
+		},
+		{
+			name:          "code block with language specifier",
+			input:         "```python\nprint('hello')\n```",
+			shouldContain: "```python",
+		},
+		{
+			name:          "unclosed empty code block",
+			input:         "```",
+			shouldContain: "",
+		},
+		{
+			name:          "code block with multiline content",
+			input:         "```js\nvar x = 1;\nvar y = 2;\n```",
+			shouldContain: "var x = 1;",
+		},
+		{
+			name:          "text before unclosed code block",
+			input:         "Some text\n```\ncode",
+			shouldContain: "Some text",
+		},
+		{
+			name:          "unclosed code block with language",
+			input:         "```rust\nfn main() {}\n",
+			shouldContain: "fn main() {}",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+
+		if test.shouldContain != "" && !strings.Contains(result, test.shouldContain) {
+			t.Errorf("%s: expected result to contain %q, got %q", test.name, test.shouldContain, result)
+		}
+
+		if test.shouldNotHave != "" && strings.Contains(result, test.shouldNotHave) {
+			t.Errorf("%s: expected result to NOT contain %q, got %q", test.name, test.shouldNotHave, result)
+		}
+	}
+}
+
+// TestConvertCodeBlocksComprehensive tests code block conversion with table-driven approach.
+func TestConvertCodeBlocksComprehensive(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "properly closed go code block",
+			input:          "```go\nfunc main() {}\n```",
+			expectedOutput: "```go\nfunc main() {}\n```",
+		},
+		{
+			name:           "code block with no language",
+			input:          "```\nplain code\n```",
+			expectedOutput: "```\nplain code\n```",
+		},
+		{
+			name:           "python code block",
+			input:          "```python\nprint('hello')\n```",
+			expectedOutput: "```python\nprint('hello')\n```",
+		},
+		{
+			name:           "java code block with multiple lines",
+			input:          "```java\npublic static void main() {\n  System.out.println(\"test\");\n}\n```",
+			expectedOutput: "System.out.println",
+		},
+		{
+			name:           "code block followed by text",
+			input:          "```\ncode\n```\nMore text after",
+			expectedOutput: "More text after",
+		},
+		{
+			name:           "multiple code blocks",
+			input:          "```js\nvar a = 1;\n```\nSome text\n```py\nprint(a)\n```",
+			expectedOutput: "var a = 1;",
+		},
+		{
+			name:           "code block with special characters",
+			input:          "```\n<tag>content</tag>\n```",
+			expectedOutput: "<tag>content</tag>",
+		},
+		{
+			name:           "code block with empty lines",
+			input:          "```\nfirst line\n\nthird line\n```",
+			expectedOutput: "first line",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+
+		if !strings.Contains(result, test.expectedOutput) {
+			t.Errorf("%s: expected output to contain %q, got %q", test.name, test.expectedOutput, result)
+		}
+	}
+}
