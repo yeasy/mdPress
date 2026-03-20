@@ -161,12 +161,11 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 
 	// Write to a temporary .typ file
 	tmpDir := os.TempDir()
-	tmpTypFile := filepath.Join(tmpDir, "mdpress-*.typ")
 	f, err := os.CreateTemp(tmpDir, "mdpress-*.typ")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary Typst file: %w", err)
 	}
-	tmpTypFile = f.Name()
+	tmpTypFile := f.Name()
 	defer os.Remove(tmpTypFile)
 
 	if _, err := f.WriteString(typstDocument); err != nil {
@@ -234,7 +233,7 @@ func (g *Generator) checkTypstAvailable() error {
 	path, err := exec.LookPath("typst")
 	if err != nil {
 		return fmt.Errorf(
-			"Typst is not installed or not found in PATH.\n" +
+			"typst is not installed or not found in PATH.\n" +
 				"Install Typst from https://github.com/typst/typst/releases\n" +
 				"Or set it up with: cargo install typst-cli",
 		)

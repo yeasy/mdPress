@@ -10,9 +10,9 @@ import (
 
 // Package-level regexp patterns for performance optimization.
 var (
-	imagePattern            = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	boldAsteriskPattern     = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	boldUnderscorePattern   = regexp.MustCompile(`__([^_]+)__`)
+	imagePattern          = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	boldAsteriskPattern   = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	boldUnderscorePattern = regexp.MustCompile(`__([^_]+)__`)
 )
 
 // MarkdownToTypstConverter converts Markdown syntax to Typst syntax.
@@ -129,9 +129,12 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		result.WriteString("\n\n")
 	}
 
-	// Warn if a code block was never closed — content inside is silently lost.
+	// Flush an unclosed code block at EOF so content is preserved.
 	if inCodeBlock {
-		slog.Warn("Typst converter: unclosed code block at end of input, content may be lost",
+		typstCode := c.convertCodeBlock(codeBlockContent.String(), codeBlockLang)
+		result.WriteString(typstCode)
+		result.WriteString("\n\n")
+		slog.Warn("Typst converter: unclosed code block at end of input, preserved content",
 			slog.String("lang", codeBlockLang))
 	}
 

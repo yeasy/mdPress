@@ -727,10 +727,10 @@ func TestConvertUnclosedCodeBlock(t *testing.T) {
 	converter := &MarkdownToTypstConverter{}
 
 	tests := []struct {
-		name           string
-		input          string
-		shouldContain  string
-		shouldNotHave  string
+		name          string
+		input         string
+		shouldContain string
+		shouldNotHave string
 	}{
 		{
 			name:          "properly closed code block",
@@ -865,10 +865,10 @@ func TestCheckTypstAvailable(t *testing.T) {
 // TestGeneratorWithMultipleOptions tests Generator creation with various options
 func TestGeneratorWithMultipleOptions(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     []GeneratorOption
-		checkFn  func(*Generator) bool
-		errMsg   string
+		name    string
+		opts    []GeneratorOption
+		checkFn func(*Generator) bool
+		errMsg  string
 	}{
 		{
 			name: "all options set",
