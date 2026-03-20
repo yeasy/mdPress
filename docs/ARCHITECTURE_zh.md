@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.2 设计稿
+> 版本: v0.4.0
 > 更新日期: 2026-03-18
 
 ## 1. 系统架构总览
@@ -36,8 +36,10 @@ Markdown 解析 (Parser)
   │  主题 CSS + 自定义 CSS + 打印 CSS
   ▼
 输出 (Output)
-  ├─ PDF:  Chromium headless → printToPDF
-  ├─ HTML: 单页 index.html 或多页静态站点
+  ├─ PDF (Chromium):  Chromium headless → printToPDF
+  ├─ PDF (Typst): Typst 命令行 → 原生 PDF
+  ├─ HTML: 单页 HTML 文档
+  ├─ Site: 多页静态站点
   └─ ePub: ZIP(OPF + NCX + XHTML)
 ```
 
@@ -45,12 +47,14 @@ Markdown 解析 (Parser)
 
 ```
 mdpress (root)
-  ├─ build       构建 PDF/HTML/ePub
+  ├─ build       构建 PDF/HTML/ePub/Site 输出
   ├─ serve       启动本地预览服务器
   ├─ init        初始化项目骨架
   ├─ quickstart  创建示例项目并立即构建
-  ├─ validate    验证 book.yaml 配置正确性
-  └─ themes      管理主题（list / show）
+  ├─ validate    验证项目配置
+  ├─ doctor      验证环境设置
+  ├─ migrate     从 GitBook/HonKit 迁移
+  └─ themes      查看主题（list / show / preview）
 ```
 
 ## 2. 模块依赖关系图
@@ -72,6 +76,9 @@ graph TD
     cmd --> |build| pdf_mod[internal/pdf]
     cmd --> |build/serve| output[internal/output]
     cmd --> |build/serve| linkrewrite[internal/linkrewrite]
+    cmd --> |build| typst[internal/typst]
+    cmd --> |build/serve| plugin_mod[internal/plugin]
+    cmd --> |build| source[internal/source]
 
     renderer_mod --> config
     renderer_mod --> theme
@@ -306,6 +313,50 @@ type Target struct {
 ### 3.15 pkg/utils — 工具函数
 
 **职责：** 文件 I/O、图片处理（下载/base64 嵌入/路径解析）、HTML 转义。
+
+### 3.16 internal/typst — Typst PDF 生成
+
+**职责：** 通过 Typst 命令行工具将 Markdown 或中间格式转换为原生 PDF。
+
+### 3.17 internal/plantuml — PlantUML 处理
+
+**职责：** 处理 PlantUML 图表，通过 PlantUML 服务或本地命令生成图像。
+
+### 3.18 internal/server — 开发服务器
+
+**职责：** 为 `serve` 命令提供完整的开发服务器架构，支持文件监听和浏览器自动刷新。
+
+**核心组件：**
+
+```go
+type DevServer struct {
+    config    *config.BookConfig
+    outputDir string
+    port      int
+    watcher   *fsnotify.Watcher
+    hub       *WSHub
+    builder   *IncrementalBuilder
+}
+
+type WSHub struct {
+    clients    map[*websocket.Conn]bool
+    broadcast  chan []byte
+    register   chan *websocket.Conn
+    unregister chan *websocket.Conn
+}
+
+type IncrementalBuilder struct {
+    source   source.Source
+    cache    map[string]*BuildCache
+    debounce time.Duration
+}
+```
+
+**关键功能：**
+- 初始构建（复用现有 `buildSite()`）
+- 启动 fsnotify 监听 .md / .yaml / .css 文件变更
+- 注入 WebSocket 客户端脚本到生成的 HTML 页面
+- 变更时触发增量重建并通知浏览器刷新
 
 ## 4. 数据流说明
 
