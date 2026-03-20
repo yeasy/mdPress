@@ -53,10 +53,10 @@ go install github.com/yeasy/mdpress@latest
 
 ```bash
 # Minimal image (~15 MB, no PDF support)
-docker run --rm -v "$(pwd):/book" yeasy/mdpress build
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
 
 # Full image (~300 MB, with Chromium for PDF)
-docker run --rm -v "$(pwd):/book" yeasy/mdpress:full build --format pdf
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 ```
 
 ### Download Binary
@@ -240,7 +240,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 
 ## Requirements
 
-- **Go 1.24+** for installation
+- **Go 1.25+** for installation
 - **Chrome or Chromium** — only needed for PDF output with the default backend. HTML, site, and ePub work without it.
 - **Typst CLI** (optional) — enables the `--format typst` backend as a zero-dependency alternative to Chromium.
 

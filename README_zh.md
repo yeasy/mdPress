@@ -53,10 +53,10 @@ go install github.com/yeasy/mdpress@latest
 
 ```bash
 # 精简镜像（~15 MB，不含 PDF 支持）
-docker run --rm -v "$(pwd):/book" yeasy/mdpress build
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
 
 # 完整镜像（~300 MB，含 Chromium 用于 PDF 生成）
-docker run --rm -v "$(pwd):/book" yeasy/mdpress:full build --format pdf
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 ```
 
 ### 直接下载 Binary
@@ -240,7 +240,7 @@ $ mdpress themes list
 
 ## 环境要求
 
-- **Go 1.24+** 用于安装
+- **Go 1.25+** 用于安装
 - **Chrome 或 Chromium** — 仅 PDF 默认后端需要。HTML、站点和 ePub 不依赖它。
 - **Typst CLI**（可选） — 启用 `--format typst` 作为零外部依赖的 Chromium 替代方案。
 
