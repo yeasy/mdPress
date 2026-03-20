@@ -379,7 +379,11 @@ func TestLocalPlantumlCmdNoneAvailable(t *testing.T) {
 
 // TestLocalPlantumlCmdWithJar verifies PLANTUML_JAR is respected.
 func TestLocalPlantumlCmdWithJar(t *testing.T) {
-	t.Setenv("PLANTUML_JAR", "/opt/plantuml.jar")
+	jarPath := "/opt/plantuml.jar"
+	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+		t.Skip("plantuml.jar not found, skipping")
+	}
+	t.Setenv("PLANTUML_JAR", jarPath)
 
 	// java must be on PATH; if not, skip so CI without java still passes.
 	if _, err := os.LookupEnv("JAVA_HOME"); err {
