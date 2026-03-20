@@ -379,3 +379,180 @@ func TestDetectEmptyInput(t *testing.T) {
 		})
 	}
 }
+
+// TestGitHubURLEdgeCases 测试 GitHub URL 边界情况
+func TestGitHubURLEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantRes bool
+	}{
+		{
+			name:    "GitHub URL with trailing slash",
+			input:   "https://github.com/owner/repo/",
+			wantRes: true,
+		},
+		{
+			name:    "GitHub URL with .git/ trailing",
+			input:   "https://github.com/owner/repo.git/",
+			wantRes: true,
+		},
+		{
+			name:    "Multiple slashes in path",
+			input:   "https://github.com/owner/repo/path/to/file",
+			wantRes: true,
+		},
+		{
+			name:    "Empty owner/repo",
+			input:   "https://github.com//repo",
+			wantRes: false,
+		},
+		{
+			name:    "Only owner",
+			input:   "https://github.com/owner/",
+			wantRes: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isGitHubURL(tt.input)
+			if got != tt.wantRes {
+				t.Errorf("isGitHubURL(%q) = %v, want %v", tt.input, got, tt.wantRes)
+			}
+		})
+	}
+}
+
+// TestParseGitHubURLVariations 测试 GitHub URL 变体解析
+func TestParseGitHubURLVariations(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantOwner string
+		wantRepo  string
+	}{
+		{
+			name:      "Owner with numbers",
+			input:     "https://github.com/user123/repo456",
+			wantOwner: "user123",
+			wantRepo:  "repo456",
+		},
+		{
+			name:      "Owner and repo with mixed case",
+			input:     "https://github.com/MyOrg/MyRepo",
+			wantOwner: "MyOrg",
+			wantRepo:  "MyRepo",
+		},
+		{
+			name:      "URL with fragment should fail",
+			input:     "https://github.com/owner/repo#section",
+			wantOwner: "",
+			wantRepo:  "",
+		},
+		{
+			name:      "Repo name with dots and dashes",
+			input:     "https://github.com/owner/my-repo.name",
+			wantOwner: "owner",
+			wantRepo:  "my-repo.name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOwner, gotRepo := parseGitHubURL(tt.input)
+			if gotOwner != tt.wantOwner || gotRepo != tt.wantRepo {
+				t.Errorf("parseGitHubURL(%q) = (%q, %q), want (%q, %q)",
+					tt.input, gotOwner, gotRepo, tt.wantOwner, tt.wantRepo)
+			}
+		})
+	}
+}
+
+// TestDetectOptions 测试带选项的源检测
+func TestDetectOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		opts     Options
+		wantType string
+	}{
+		{
+			name:     "Local with branch option (ignored)",
+			input:    "/local/path",
+			opts:     Options{Branch: "main"},
+			wantType: "local",
+		},
+		{
+			name:     "Local with subdir option",
+			input:    "/local/path",
+			opts:     Options{SubDir: "docs"},
+			wantType: "local",
+		},
+		{
+			name:     "GitHub with branch option",
+			input:    "https://github.com/owner/repo",
+			opts:     Options{Branch: "develop"},
+			wantType: "github",
+		},
+		{
+			name:     "GitHub with subdir option",
+			input:    "https://github.com/owner/repo",
+			opts:     Options{SubDir: "docs"},
+			wantType: "github",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src, err := Detect(tt.input, tt.opts)
+			if err != nil {
+				t.Errorf("Detect(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+
+			if src.Type() != tt.wantType {
+				t.Errorf("Detect(%q).Type() = %q, want %q", tt.input, src.Type(), tt.wantType)
+			}
+		})
+	}
+}
+
+// TestDetectTrimsInput 测试 Detect 修剪输入空格
+func TestDetectTrimsInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantType string
+	}{
+		{
+			name:     "Relative path with leading space",
+			input:    "  ./project",
+			wantType: "local",
+		},
+		{
+			name:     "GitHub URL with trailing space",
+			input:    "https://github.com/owner/repo  ",
+			wantType: "github",
+		},
+		{
+			name:     "Path with tabs",
+			input:    "\t\t./project\t",
+			wantType: "local",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src, err := Detect(tt.input, Options{})
+			if err != nil {
+				t.Errorf("Detect(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+
+			if src.Type() != tt.wantType {
+				t.Errorf("Detect(%q).Type() = %q, want %q", tt.input, src.Type(), tt.wantType)
+			}
+		})
+	}
+}

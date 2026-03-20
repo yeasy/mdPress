@@ -45,15 +45,17 @@ type RenderParts struct {
 
 // 模板数据结构
 type templateData struct {
-	Title      string
-	Author     string
-	Language   string
-	CSS        template.CSS
-	CoverHTML  template.HTML
-	TOCHTML    template.HTML
-	Chapters   []templateChapter
-	HeaderText string
-	FooterText string
+	Title            string
+	Author           string
+	Language         string
+	CSS              template.CSS
+	CoverHTML        template.HTML
+	TOCHTML          template.HTML
+	Chapters         []templateChapter
+	HeaderText       string
+	FooterText       string
+	Watermark        string
+	WatermarkOpacity float64
 }
 
 type templateChapter struct {
@@ -106,15 +108,17 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	footerText := r.config.Style.Footer.Center
 
 	data := templateData{
-		Title:      r.config.Book.Title,
-		Author:     r.config.Book.Author,
-		Language:   r.config.Book.Language,
-		CSS:        template.CSS(fullCSS),
-		CoverHTML:  template.HTML(parts.CoverHTML),
-		TOCHTML:    template.HTML(parts.TOCHTML),
-		Chapters:   chapters,
-		HeaderText: headerText,
-		FooterText: footerText,
+		Title:            r.config.Book.Title,
+		Author:           r.config.Book.Author,
+		Language:         r.config.Book.Language,
+		CSS:              template.CSS(fullCSS),
+		CoverHTML:        template.HTML(parts.CoverHTML),
+		TOCHTML:          template.HTML(parts.TOCHTML),
+		Chapters:         chapters,
+		HeaderText:       headerText,
+		FooterText:       footerText,
+		Watermark:        r.config.Output.Watermark,
+		WatermarkOpacity: r.config.Output.WatermarkOpacity,
 	}
 
 	var result strings.Builder

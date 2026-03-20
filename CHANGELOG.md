@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Added
+
+- **PDF brand footer**: Every PDF page now displays a centered "Build with mdPress" watermark at the bottom, with a clickable link to the GitHub project page
+
+### Fixed
+
+- **site.go flattenChapters data loss**: Nested chapters now correctly preserve `Depth` and `Headings` fields when flattened, fixing missing sidebar indentation and in-page TOC navigation in site output
+- **diagnostics.go isFenceClose logic error**: Rewritten closing fence detection to correctly accept extended closing fences (more fence chars than opening) and trailing whitespace per CommonMark spec, fixing false-positive "mermaid-unclosed-fence" diagnostics
+
+### Changed
+
+- **PDF bottom margin**: Increased from 0mm to 10mm to accommodate the brand footer
+
 ---
 
 ## [0.3.1] - 2026-03-19
@@ -13,6 +26,11 @@ All notable changes to this project will be documented in this file. The format 
 ### Added
 
 - **Docker support**: Dual-image strategy with minimal (~15 MB, no PDF) and full (~300 MB, with Chromium) images; CI/CD auto-builds to Docker Hub and GHCR (`Dockerfile`, `.github/workflows/release.yml`)
+- **TOC depth control**: `toc_max_depth` configuration option (default 2) limits heading levels included in the Table of Contents, reducing TOC from 90+ pages to ~12 pages for large books like docker\_practice
+- **Setext heading diagnostic**: `heading-too-long` build diagnostic detects headings over 80 characters and warns about possible Setext heading misinterpretation (paragraph followed by `---` without blank line)
+- **Chapter parse caching**: Incremental build acceleration via chapter-level parse caching, skipping re-parse of unchanged chapters
+- **CJK zero-config PDF**: Automatic CJK font stack selection, HTML `lang` attribute, and font detection — Chinese/Japanese/Korean books produce correct PDFs without manual font configuration
+- **PDF image optimization**: Dual-pass image processing with `file://` URL support for reliable local image embedding
 - **ExternalPlugin test coverage**: 19 test functions covering construction, execution, timeouts, stderr capture, JSON edge cases, and metadata queries (`internal/plugin/external_test.go`)
 - **README Docker installation**: Docker quick-start commands added to both English and Chinese READMEs
 - **CI Docker smoke test**: Docker build verification added to the regular CI pipeline

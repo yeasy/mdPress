@@ -243,23 +243,17 @@ func isFenceClose(line string, fenceChar byte, fenceLen int) bool {
 	if len(line)-len(trimmed) > 3 {
 		return false
 	}
-	if len(trimmed) < fenceLen {
+	// Count consecutive fence characters at the start.
+	count := 0
+	for count < len(trimmed) && trimmed[count] == fenceChar {
+		count++
+	}
+	// Closing fence must have at least as many fence chars as the opening.
+	if count < fenceLen {
 		return false
 	}
-	if strings.Trim(trimmed[fenceLen:], " \t") != "" {
-		return false
-	}
-	for i := 0; i < fenceLen; i++ {
-		if trimmed[i] != fenceChar {
-			return false
-		}
-	}
-	for i := fenceLen; i < len(trimmed); i++ {
-		if trimmed[i] != fenceChar {
-			return false
-		}
-	}
-	return true
+	// Everything after the fence characters must be whitespace only.
+	return strings.TrimRight(trimmed[count:], " \t") == ""
 }
 
 func firstFenceToken(rest string) string {

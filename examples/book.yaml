@@ -45,6 +45,7 @@ style:
 output:
   filename: "mdpress-guide.pdf"
   toc: true
+  toc_max_depth: 2           # Maximum heading level in TOC (1-6, default 2)
   cover: true
   header: true
   footer: true

@@ -181,6 +181,8 @@ func (g *SiteGenerator) flattenChapters(chapters []SiteChapter) []SiteChapter {
 			ID:       ch.ID,
 			Filename: ch.Filename,
 			Content:  ch.Content,
+			Depth:    ch.Depth,
+			Headings: ch.Headings,
 		})
 		if len(ch.Children) > 0 {
 			result = append(result, g.flattenChapters(ch.Children)...)

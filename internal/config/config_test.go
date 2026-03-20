@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -644,5 +645,492 @@ func TestResolvePathTableDriven(t *testing.T) {
 				t.Errorf("ResolvePath(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestSetBaseDir 测试 SetBaseDir 方法
+func TestSetBaseDir(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.BaseDir() != "." {
+		t.Errorf("默认 BaseDir 应为 '.', got %q", cfg.BaseDir())
+	}
+
+	cfg.SetBaseDir("/new/path")
+	if cfg.BaseDir() != "/new/path" {
+		t.Errorf("SetBaseDir 后 BaseDir 应为 '/new/path', got %q", cfg.BaseDir())
+	}
+}
+
+// TestFlattenChapters 测试 FlattenChapters 函数
+func TestFlattenChapters(t *testing.T) {
+	tests := []struct {
+		name     string
+		chapters []ChapterDef
+		wantLen  int
+		check    func(t *testing.T, result []ChapterDef)
+	}{
+		{
+			name:     "empty chapters",
+			chapters: nil,
+			wantLen:  0,
+		},
+		{
+			name: "flat chapters",
+			chapters: []ChapterDef{
+				{Title: "Ch1", File: "ch1.md"},
+				{Title: "Ch2", File: "ch2.md"},
+			},
+			wantLen: 2,
+			check: func(t *testing.T, result []ChapterDef) {
+				if result[0].Title != "Ch1" || result[1].Title != "Ch2" {
+					t.Error("flat chapters order incorrect")
+				}
+			},
+		},
+		{
+			name: "nested chapters",
+			chapters: []ChapterDef{
+				{
+					Title: "Part1",
+					File:  "part1.md",
+					Sections: []ChapterDef{
+						{Title: "S1.1", File: "s1.1.md"},
+						{Title: "S1.2", File: "s1.2.md"},
+					},
+				},
+				{Title: "Part2", File: "part2.md"},
+			},
+			wantLen: 4,
+			check: func(t *testing.T, result []ChapterDef) {
+				if result[0].Title != "Part1" || result[1].Title != "S1.1" || result[2].Title != "S1.2" || result[3].Title != "Part2" {
+					t.Error("nested chapters flattening incorrect")
+				}
+			},
+		},
+		{
+			name: "deeply nested chapters",
+			chapters: []ChapterDef{
+				{
+					Title: "Part1",
+					File:  "part1.md",
+					Sections: []ChapterDef{
+						{
+							Title: "Ch1",
+							File:  "ch1.md",
+							Sections: []ChapterDef{
+								{Title: "S1", File: "s1.md"},
+							},
+						},
+					},
+				},
+			},
+			wantLen: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FlattenChapters(tt.chapters)
+			if len(result) != tt.wantLen {
+				t.Errorf("FlattenChapters length = %d, want %d", len(result), tt.wantLen)
+			}
+			if tt.check != nil {
+				tt.check(t, result)
+			}
+		})
+	}
+}
+
+// TestLoadAutoDetectsGlossary 测试 GLOSSARY.md 自动检测
+func TestLoadAutoDetectsGlossary(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	glossaryPath := filepath.Join(tmpDir, "GLOSSARY.md")
+
+	cfgContent := `
+book:
+  title: "Test Book"
+chapters:
+  - title: "Ch1"
+    file: "ch1.md"
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		t.Fatalf("写入 book.yaml 失败: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	glossaryContent := `# Glossary
+
+## Term 1
+Definition 1
+
+## Term 2
+Definition 2
+`
+	if err := os.WriteFile(glossaryPath, []byte(glossaryContent), 0644); err != nil {
+		t.Fatalf("写入 GLOSSARY.md 失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if cfg.GlossaryFile == "" {
+		t.Error("应该检测到 GLOSSARY.md")
+	}
+	if cfg.GlossaryFile != glossaryPath {
+		t.Errorf("GlossaryFile 路径错误: got %q, want %q", cfg.GlossaryFile, glossaryPath)
+	}
+}
+
+// TestValidateMissingChapterFile 测试章节文件不存在的验证
+func TestValidateMissingChapterFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := DefaultConfig()
+	cfg.baseDir = tmpDir
+	cfg.Book.Title = "Test"
+	cfg.Chapters = []ChapterDef{
+		{Title: "Ch1", File: "missing.md"},
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("验证应该失败：文件不存在")
+	}
+	if !strings.Contains(err.Error(), "missing") {
+		t.Errorf("错误消息应提及 missing: %v", err)
+	}
+}
+
+// TestValidateNestedChaptersMissingFile 测试嵌套章节文件不存在
+func TestValidateNestedChaptersMissingFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	// 创建主章节文件但不创建子章节文件
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.md"), []byte("# Main"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.baseDir = tmpDir
+	cfg.Book.Title = "Test"
+	cfg.Chapters = []ChapterDef{
+		{
+			Title: "Main",
+			File:  "main.md",
+			Sections: []ChapterDef{
+				{Title: "Sub", File: "missing_sub.md"},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("验证应该失败：子章节文件不存在")
+	}
+}
+
+// TestValidateInvalidTheme 测试无效主题验证
+func TestValidateInvalidTheme(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.baseDir = tmpDir
+	cfg.Book.Title = "Test"
+	cfg.Chapters = []ChapterDef{{Title: "ch1", File: "ch1.md"}}
+	cfg.Style.Theme = "invalid-theme"
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("无效主题应验证失败")
+	}
+	if !strings.Contains(err.Error(), "theme") {
+		t.Errorf("错误应提及 theme: %v", err)
+	}
+}
+
+// TestValidateInvalidOutputFormat 测试无效输出格式验证
+func TestValidateInvalidOutputFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.baseDir = tmpDir
+	cfg.Book.Title = "Test"
+	cfg.Chapters = []ChapterDef{{Title: "ch1", File: "ch1.md"}}
+	cfg.Output.Formats = []string{"invalid_format"}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Error("无效输出格式应验证失败")
+	}
+}
+
+// TestLoadFromSummaryMD 测试从 SUMMARY.md 加载章节
+func TestLoadFromSummaryMD(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+
+	// 创建最小的配置，不包含 chapters
+	cfgContent := `
+book:
+  title: "Test Book"
+`
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		t.Fatalf("写入 book.yaml 失败: %v", err)
+	}
+
+	// 创建 SUMMARY.md
+	summaryPath := filepath.Join(tmpDir, "SUMMARY.md")
+	summaryContent := `# Summary
+
+- [Chapter 1](ch1.md)
+- [Chapter 2](ch2.md)
+`
+	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0644); err != nil {
+		t.Fatalf("写入 SUMMARY.md 失败: %v", err)
+	}
+
+	// 创建章节文件
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch2.md"), []byte("# Chapter 2"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if len(cfg.Chapters) == 0 {
+		t.Error("应该从 SUMMARY.md 加载章节")
+	}
+}
+
+// TestLoadEmptyInput 测试加载空 YAML
+func TestLoadEmptyInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+
+	// 创建空的配置文件
+	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+		t.Fatalf("写入文件失败: %v", err)
+	}
+
+	_, err := Load(cfgPath)
+	if err == nil {
+		t.Error("加载空配置应返回错误")
+	}
+}
+
+// TestPluginConfig 测试插件配置
+func TestPluginConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	content := `
+book:
+  title: "Test Book"
+chapters:
+  - title: "Ch1"
+    file: "ch1.md"
+plugins:
+  - name: word-count
+    path: ./plugins/word-count
+    config:
+      warn_threshold: 500
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatalf("写入文件失败: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("创建文件失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if len(cfg.Plugins) != 1 {
+		t.Fatalf("插件数量错误: got %d, want 1", len(cfg.Plugins))
+	}
+
+	plugin := cfg.Plugins[0]
+	if plugin.Name != "word-count" {
+		t.Errorf("插件名错误: got %q, want 'word-count'", plugin.Name)
+	}
+	if plugin.Path != "./plugins/word-count" {
+		t.Errorf("插件路径错误: got %q", plugin.Path)
+	}
+}
+
+// TestDefaultConfigWatermarkSettings tests watermark default values.
+func TestDefaultConfigWatermarkSettings(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Output.Watermark != "" {
+		t.Errorf("默认 watermark 应为空, got %q", cfg.Output.Watermark)
+	}
+	if cfg.Output.WatermarkOpacity != 0.1 {
+		t.Errorf("默认 watermark opacity 应为 0.1, got %f", cfg.Output.WatermarkOpacity)
+	}
+}
+
+// TestDefaultConfigMarginSettings tests margin default values.
+func TestDefaultConfigMarginSettings(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Output.MarginTop != "15mm" {
+		t.Errorf("默认 margin_top 应为 '15mm', got %q", cfg.Output.MarginTop)
+	}
+	if cfg.Output.MarginBottom != "15mm" {
+		t.Errorf("默认 margin_bottom 应为 '15mm', got %q", cfg.Output.MarginBottom)
+	}
+	if cfg.Output.MarginLeft != "20mm" {
+		t.Errorf("默认 margin_left 应为 '20mm', got %q", cfg.Output.MarginLeft)
+	}
+	if cfg.Output.MarginRight != "20mm" {
+		t.Errorf("默认 margin_right 应为 '20mm', got %q", cfg.Output.MarginRight)
+	}
+}
+
+// TestDefaultConfigBookmarkSettings tests bookmark generation default value.
+func TestDefaultConfigBookmarkSettings(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.Output.GenerateBookmarks {
+		t.Error("默认 generate_bookmarks 应为 true")
+	}
+}
+
+// TestLoadConfigWithWatermark tests loading a config with watermark settings.
+func TestLoadConfigWithWatermark(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	content := `
+book:
+  title: "Test Book"
+  author: "Test Author"
+
+chapters:
+  - title: "Chapter 1"
+    file: "ch01.md"
+
+output:
+  watermark: "CONFIDENTIAL"
+  watermark_opacity: 0.2
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatalf("写入测试配置文件失败: %v", err)
+	}
+
+	// Create chapter files
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("写入章节文件失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if cfg.Output.Watermark != "CONFIDENTIAL" {
+		t.Errorf("watermark 应为 'CONFIDENTIAL', got %q", cfg.Output.Watermark)
+	}
+	if cfg.Output.WatermarkOpacity != 0.2 {
+		t.Errorf("watermark_opacity 应为 0.2, got %f", cfg.Output.WatermarkOpacity)
+	}
+}
+
+// TestLoadConfigWithCustomMargins tests loading a config with custom margins.
+func TestLoadConfigWithCustomMargins(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	content := `
+book:
+  title: "Test Book"
+  author: "Test Author"
+
+chapters:
+  - title: "Chapter 1"
+    file: "ch01.md"
+
+output:
+  margin_top: "20mm"
+  margin_bottom: "25mm"
+  margin_left: "30mm"
+  margin_right: "35mm"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatalf("写入测试配置文件失败: %v", err)
+	}
+
+	// Create chapter files
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("写入章节文件失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if cfg.Output.MarginTop != "20mm" {
+		t.Errorf("margin_top 应为 '20mm', got %q", cfg.Output.MarginTop)
+	}
+	if cfg.Output.MarginBottom != "25mm" {
+		t.Errorf("margin_bottom 应为 '25mm', got %q", cfg.Output.MarginBottom)
+	}
+	if cfg.Output.MarginLeft != "30mm" {
+		t.Errorf("margin_left 应为 '30mm', got %q", cfg.Output.MarginLeft)
+	}
+	if cfg.Output.MarginRight != "35mm" {
+		t.Errorf("margin_right 应为 '35mm', got %q", cfg.Output.MarginRight)
+	}
+}
+
+// TestLoadConfigWithGenerateBookmarks tests loading a config with bookmark settings.
+func TestLoadConfigWithGenerateBookmarks(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	content := `
+book:
+  title: "Test Book"
+  author: "Test Author"
+
+chapters:
+  - title: "Chapter 1"
+    file: "ch01.md"
+
+output:
+  generate_bookmarks: false
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatalf("写入测试配置文件失败: %v", err)
+	}
+
+	// Create chapter files
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("写入章节文件失败: %v", err)
+	}
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	if cfg.Output.GenerateBookmarks {
+		t.Error("generate_bookmarks 应为 false")
 	}
 }

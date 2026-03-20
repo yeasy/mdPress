@@ -491,3 +491,81 @@ func TestChromiumAllocatorOptionsIncludeRuntimeOverrides(t *testing.T) {
 		t.Fatal("chromiumAllocatorOptions returned no options")
 	}
 }
+
+// TestParseMarginString tests margin string parsing with various units.
+func TestParseMarginString(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		defaultMM  float64
+		wantResult float64
+	}{
+		{"empty string returns default", "", 20.0, 20.0},
+		{"millimeters", "20mm", 15.0, 20.0},
+		{"centimeters", "2cm", 15.0, 20.0},
+		{"inches", "1in", 15.0, 25.4},
+		{"points", "72pt", 15.0, 25.4},
+		{"pixels", "96px", 15.0, 25.4},
+		{"decimal value", "15.5mm", 20.0, 15.5},
+		{"no unit defaults to mm", "25", 20.0, 25.0},
+		{"spaces around value", "  20mm  ", 15.0, 20.0},
+		{"invalid format returns default", "invalid", 20.0, 20.0},
+		{"negative value", "-10mm", 20.0, -10.0},
+		{"uppercase unit", "20MM", 15.0, 20.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseMarginString(tt.input, tt.defaultMM)
+			// Allow small floating point differences
+			if got < tt.wantResult-0.01 || got > tt.wantResult+0.01 {
+				t.Errorf("parseMarginString(%q, %f) = %f, want %f", tt.input, tt.defaultMM, got, tt.wantResult)
+			}
+		})
+	}
+}
+
+// TestWithMarginStringsOption tests setting margins via string values.
+func TestWithMarginStringsOption(t *testing.T) {
+	g := NewGenerator(WithMarginStrings("20mm", "25mm", "15mm", "30mm"))
+
+	// Check that margins are set correctly (with tolerance for floating point)
+	if g.marginLeft < 19.99 || g.marginLeft > 20.01 {
+		t.Errorf("marginLeft should be ~20.0, got %f", g.marginLeft)
+	}
+	if g.marginRight < 24.99 || g.marginRight > 25.01 {
+		t.Errorf("marginRight should be ~25.0, got %f", g.marginRight)
+	}
+	if g.marginTop < 14.99 || g.marginTop > 15.01 {
+		t.Errorf("marginTop should be ~15.0, got %f", g.marginTop)
+	}
+	if g.marginBottom < 29.99 || g.marginBottom > 30.01 {
+		t.Errorf("marginBottom should be ~30.0, got %f", g.marginBottom)
+	}
+}
+
+// TestWithMarginStringsMixed tests margin strings with different units.
+func TestWithMarginStringsMixed(t *testing.T) {
+	g := NewGenerator(WithMarginStrings("1in", "2.54cm", "20mm", "0.5in"))
+
+	// 1 inch = 25.4mm
+	if g.marginLeft < 25.39 || g.marginLeft > 25.41 {
+		t.Errorf("marginLeft (1in) should be ~25.4, got %f", g.marginLeft)
+	}
+	// 2.54cm = 25.4mm
+	if g.marginRight < 25.39 || g.marginRight > 25.41 {
+		t.Errorf("marginRight (2.54cm) should be ~25.4, got %f", g.marginRight)
+	}
+	// 0.5in = 12.7mm
+	if g.marginBottom < 12.69 || g.marginBottom > 12.71 {
+		t.Errorf("marginBottom (0.5in) should be ~12.7, got %f", g.marginBottom)
+	}
+}
+
+// TestDocumentOutlineDefault tests that document outline is enabled by default.
+func TestDocumentOutlineDefault(t *testing.T) {
+	g := NewGenerator()
+	if !g.generateDocumentOutline {
+		t.Error("generateDocumentOutline should be true by default")
+	}
+}

@@ -9,7 +9,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/cover"
@@ -106,12 +109,39 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	needsPDF := containsBuildFormat(formats, "pdf")
 	needsNonPDF := containsAnyNonPDFFormat(formats)
 
+	// Initialize incremental build system
+	cacheDir := filepath.Join(utils.CacheRootDir(), "build")
+	manifest, _ := LoadManifest(cacheDir)
+	if manifest == nil {
+		manifest = NewBuildManifest(Version)
+	}
+	stats := NewCacheStatistics()
+
+	// Compute hashes for cache invalidation
+	configPath := filepath.Join(cfg.BaseDir(), "book.yaml")
+	configHash := ""
+	if hash, err := ComputeConfigHash(configPath); err == nil {
+		configHash = hash
+	}
+
 	progress.Start("Initializing theme system")
 	orchestrator, err := NewBuildOrchestrator(cfg, logger)
 	if err != nil {
 		return err
 	}
 	progress.DoneWithDetail(orchestrator.Theme.Name)
+
+	// Compute CSS hash for cache invalidation
+	customCSS := orchestrator.LoadCustomCSS()
+	cssHash := ComputeCSSHash(customCSS)
+
+	// Check if manifest is stale and invalidate if needed
+	if manifest.IsStale(Version, configHash, cssHash) {
+		logger.Debug("Build manifest is stale, invalidating cache")
+		manifest = NewBuildManifest(Version)
+		manifest.ConfigSH = configHash
+		manifest.CSSHash = cssHash
+	}
 
 	// Invoke the BeforeBuild hook so plugins can do pre-build setup work.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
@@ -188,8 +218,6 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	}
 
 	singlePageChapters := rewriteChapterLinks(chaptersHTML, chapterFiles)
-
-	customCSS := orchestrator.LoadCustomCSS()
 
 	progress.Start("Assembling HTML")
 	if glossaryHTML != "" {
@@ -268,15 +296,10 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Logger:             logger,
 	}
 	registry := NewFormatBuilderRegistry()
-	for _, format := range formats {
-		builder := registry.Get(strings.ToLower(format))
-		if builder == nil {
-			logger.Warn("Unsupported output format, skipping", slog.String("format", format))
-			continue
-		}
-		if err := builder.Build(buildCtx, baseName); err != nil {
-			return err
-		}
+
+	// Build formats in parallel (but not PDF with others, as PDF generation is memory-intensive)
+	if err := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger); err != nil {
+		return err
 	}
 
 	// Invoke the AfterBuild hook after all output formats have been written.
@@ -292,8 +315,75 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		logger.Warn("plugin cleanup failed", slog.String("error", err.Error()))
 	}
 
+	// Save the build manifest for incremental builds
+	manifest.ConfigSH = configHash
+	manifest.CSSHash = cssHash
+	if err := SaveManifest(cacheDir, manifest); err != nil {
+		logger.Warn("failed to save build manifest", slog.String("error", err.Error()))
+	}
+
+	// Log cache statistics if we tracked any
+	if stats.Total > 0 {
+		logger.Info(stats.String())
+	}
+
 	progress.Done()
 	progress.Finish()
+	return nil
+}
+
+// buildFormatsInParallel builds multiple output formats in parallel.
+// PDF formats are built sequentially (they're memory-intensive), while other formats build in parallel.
+func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry, buildCtx *BuildContext, baseName string, formats []string, logger *slog.Logger) error {
+	// Separate PDF from other formats
+	var pdfFormats []string
+	var otherFormats []string
+
+	for _, format := range formats {
+		lower := strings.ToLower(strings.TrimSpace(format))
+		if lower == "pdf" {
+			pdfFormats = append(pdfFormats, format)
+		} else {
+			otherFormats = append(otherFormats, format)
+		}
+	}
+
+	// Build non-PDF formats in parallel
+	if len(otherFormats) > 0 {
+		eg, _ := errgroup.WithContext(ctx)
+		var mu sync.Mutex
+
+		for _, format := range otherFormats {
+			format := format // capture for closure
+			eg.Go(func() error {
+				builder := registry.Get(strings.ToLower(format))
+				if builder == nil {
+					mu.Lock()
+					logger.Warn("Unsupported output format, skipping", slog.String("format", format))
+					mu.Unlock()
+					return nil
+				}
+				return builder.Build(buildCtx, baseName)
+			})
+		}
+
+		if err := eg.Wait(); err != nil {
+			return err
+		}
+	}
+
+	// Build PDF formats sequentially (they're resource-intensive)
+	for _, format := range pdfFormats {
+		builder := registry.Get(strings.ToLower(format))
+		if builder == nil {
+			logger.Warn("Unsupported output format, skipping", slog.String("format", format))
+			continue
+		}
+		if err := builder.Build(buildCtx, baseName); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

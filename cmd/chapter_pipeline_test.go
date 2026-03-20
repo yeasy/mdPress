@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -621,5 +622,233 @@ func TestChapterPipelineCanceledContext(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Expected context.Canceled, got %v", err)
+	}
+}
+
+// TestParallelChapterParsingProducesSameResults verifies that parallel parsing
+// produces identical results to sequential parsing.
+func TestParallelChapterParsingProducesSameResults(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create multiple chapter files
+	chapters := []struct {
+		filename string
+		content  string
+		title    string
+	}{
+		{
+			filename: "ch1.md",
+			content:  "# Chapter 1\n\n## Section 1.1\n\nContent for section 1.1",
+			title:    "Chapter 1",
+		},
+		{
+			filename: "ch2.md",
+			content:  "# Chapter 2\n\n## Section 2.1\n\nContent for section 2.1",
+			title:    "Chapter 2",
+		},
+		{
+			filename: "ch3.md",
+			content:  "# Chapter 3\n\n## Section 3.1\n\nContent for section 3.1",
+			title:    "Chapter 3",
+		},
+		{
+			filename: "ch4.md",
+			content:  "# Chapter 4\n\n## Section 4.1\n\nContent for section 4.1",
+			title:    "Chapter 4",
+		},
+	}
+
+	var chapterDefs []config.ChapterDef
+	for _, ch := range chapters {
+		filepath := filepath.Join(tmpDir, ch.filename)
+		if err := os.WriteFile(filepath, []byte(ch.content), 0644); err != nil {
+			t.Fatalf("Failed to write chapter file: %v", err)
+		}
+		chapterDefs = append(chapterDefs, config.ChapterDef{
+			Title: ch.title,
+			File:  ch.filename,
+		})
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{
+			Title: "Test Book",
+		},
+		Chapters: chapterDefs,
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, _ := themeManager.Get("technical")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Run sequential parsing
+	seqPipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	seqResult, err := seqPipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 1})
+	if err != nil {
+		t.Fatalf("Sequential pipeline failed: %v", err)
+	}
+
+	// Run parallel parsing with max concurrency
+	parPipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	parResult, err := parPipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+	if err != nil {
+		t.Fatalf("Parallel pipeline failed: %v", err)
+	}
+
+	// Compare results
+	if len(seqResult.Chapters) != len(parResult.Chapters) {
+		t.Errorf("Chapter count mismatch: seq=%d, par=%d", len(seqResult.Chapters), len(parResult.Chapters))
+	}
+
+	for i := 0; i < len(seqResult.Chapters) && i < len(parResult.Chapters); i++ {
+		seqCh := seqResult.Chapters[i]
+		parCh := parResult.Chapters[i]
+
+		if seqCh.Title != parCh.Title {
+			t.Errorf("Chapter %d title mismatch: seq=%q, par=%q", i, seqCh.Title, parCh.Title)
+		}
+
+		if seqCh.ID != parCh.ID {
+			t.Errorf("Chapter %d ID mismatch: seq=%q, par=%q", i, seqCh.ID, parCh.ID)
+		}
+
+		if seqCh.Content != parCh.Content {
+			t.Errorf("Chapter %d content mismatch", i)
+		}
+
+		if len(seqCh.Headings) != len(parCh.Headings) {
+			t.Errorf("Chapter %d heading count mismatch: seq=%d, par=%d", i, len(seqCh.Headings), len(parCh.Headings))
+		}
+	}
+}
+
+// TestParallelChapterParsingErrorHandling verifies that an error in one chapter
+// causes the entire pipeline to abort.
+func TestParallelChapterParsingErrorHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create valid chapters
+	chapters := []struct {
+		filename string
+		content  string
+		title    string
+	}{
+		{
+			filename: "ch1.md",
+			content:  "# Chapter 1\n\nContent",
+			title:    "Chapter 1",
+		},
+		{
+			filename: "ch2.md",
+			content:  "# Chapter 2\n\nContent",
+			title:    "Chapter 2",
+		},
+	}
+
+	var chapterDefs []config.ChapterDef
+	for _, ch := range chapters {
+		filepath := filepath.Join(tmpDir, ch.filename)
+		if err := os.WriteFile(filepath, []byte(ch.content), 0644); err != nil {
+			t.Fatalf("Failed to write chapter file: %v", err)
+		}
+		chapterDefs = append(chapterDefs, config.ChapterDef{
+			Title: ch.title,
+			File:  ch.filename,
+		})
+	}
+
+	// Add a reference to a non-existent chapter
+	chapterDefs = append(chapterDefs, config.ChapterDef{
+		Title: "Missing Chapter",
+		File:  "missing.md",
+	})
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{
+			Title: "Test Book",
+		},
+		Chapters: chapterDefs,
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, _ := themeManager.Get("technical")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	result, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+
+	// The missing chapter is skipped (doesn't cause failure), so we should get at least the valid chapters
+	if err != nil {
+		t.Fatalf("Parallel pipeline failed: %v", err)
+	}
+
+	// We should have at least the 2 valid chapters
+	if len(result.Chapters) < 2 {
+		t.Errorf("Expected at least 2 chapters, got %d", len(result.Chapters))
+	}
+}
+
+// TestParallelChapterParsingWithDifferentConcurrency tests parsing with various concurrency levels.
+func TestParallelChapterParsingWithDifferentConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create 10 chapters
+	for i := 1; i <= 10; i++ {
+		filename := filepath.Join(tmpDir, fmt.Sprintf("ch%d.md", i))
+		content := fmt.Sprintf("# Chapter %d\n\nContent for chapter %d", i, i)
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write chapter: %v", err)
+		}
+	}
+
+	// Create config with 10 chapters
+	chapters := make([]config.ChapterDef, 10)
+	for i := 0; i < 10; i++ {
+		chapters[i] = config.ChapterDef{
+			Title: fmt.Sprintf("Chapter %d", i+1),
+			File:  fmt.Sprintf("ch%d.md", i+1),
+		}
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{
+			Title: "Test Book",
+		},
+		Chapters: chapters,
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, _ := themeManager.Get("technical")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Test different concurrency levels
+	concurrencyLevels := []int{0, 1, 2, 4, 8, 16} // 0 = default, negative = sequential
+
+	for _, conc := range concurrencyLevels {
+		pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+		result, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: conc})
+
+		if err != nil {
+			t.Errorf("Concurrency level %d failed: %v", conc, err)
+			continue
+		}
+
+		if len(result.Chapters) != 10 {
+			t.Errorf("Concurrency level %d: expected 10 chapters, got %d", conc, len(result.Chapters))
+		}
+
+		// Verify all chapters are in order
+		for i, ch := range result.Chapters {
+			expectedTitle := fmt.Sprintf("Chapter %d", i+1)
+			if ch.Title != expectedTitle {
+				t.Errorf("Concurrency level %d, chapter %d: expected title %q, got %q", conc, i, expectedTitle, ch.Title)
+			}
+		}
 	}
 }

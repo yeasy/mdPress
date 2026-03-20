@@ -432,6 +432,24 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     /* ============================================
+       Watermark styles
+       ============================================ */
+    @media print {
+      .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 80px;
+        font-weight: bold;
+        color: rgba(0, 0, 0, {{.WatermarkOpacity}});
+        pointer-events: none;
+        z-index: 9999;
+        white-space: nowrap;
+      }
+    }
+
+    /* ============================================
        Page rules
        ============================================ */
     @page {
@@ -450,6 +468,11 @@ const htmlTemplate = `<!DOCTYPE html>
   </style>
 </head>
 <body>
+  <!-- Watermark -->
+  {{if .Watermark}}
+  <div class="watermark">{{.Watermark}}</div>
+  {{end}}
+
   <!-- Cover -->
   {{if .CoverHTML}}
   <div class="cover-page">
