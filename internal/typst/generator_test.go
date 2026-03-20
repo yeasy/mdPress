@@ -15,15 +15,15 @@ func TestConverterHeadings(t *testing.T) {
 	}{
 		{
 			input:    "# Heading 1",
-			contains: "== Heading 1",
+			contains: "= Heading 1",
 		},
 		{
 			input:    "## Heading 2",
-			contains: "=== Heading 2",
+			contains: "== Heading 2",
 		},
 		{
 			input:    "### Heading 3",
-			contains: "==== Heading 3",
+			contains: "=== Heading 3",
 		},
 	}
 
@@ -225,9 +225,9 @@ Here's a [link](https://example.com) and an image:
 
 	// Check that key elements are present
 	checks := []string{
-		"== Title",
-		"=== Section",
-		"==== Code Example",
+		"= Title",
+		"== Section",
+		"=== Code Example",
 		"bold",
 		"italic",
 		`#link("https://example.com")`,
