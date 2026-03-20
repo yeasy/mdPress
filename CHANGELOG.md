@@ -8,6 +8,26 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.4.3] - 2026-03-19
+
+### Fixed
+
+- **Glossary regex performance**: Pre-compile term-matching regular expressions outside the highlight loop, avoiding repeated `regexp.MustCompile` calls per term
+- **README Go version**: Corrected minimum Go version from 1.24+ to 1.25+ in both English and Chinese README
+- **README Docker image refs**: Updated Docker examples from `yeasy/mdpress` to `ghcr.io/yeasy/mdpress`
+
+### Changed
+
+- **Release CI**: Removed Docker Hub login dependency; images now publish exclusively to GitHub Container Registry (GHCR). Upgraded to `actions/checkout@v5`, `actions/setup-go@v6`, and Go 1.25.0
+
+### Documentation
+
+- **COMMANDS.md**: Added missing `completion` command to English command hierarchy and matrix
+- **COMMANDS_zh.md**: Added missing `--cache-dir` and `--no-cache` global flags to Chinese docs
+- **COMMANDS.md + COMMANDS_zh.md**: Added `--summary` global flag documentation to both languages
+
+---
+
 ## [0.4.2] - 2026-03-19
 
 ### Changed
