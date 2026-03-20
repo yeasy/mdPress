@@ -434,3 +434,121 @@ func TestHelperFunctions(t *testing.T) {
 		t.Error("isHorizontalRule failed for --")
 	}
 }
+
+// TestConvertImagesComprehensive tests convertImages with table-driven test cases.
+func TestConvertImagesComprehensive(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "normal image with alt text",
+			input:          "![alt text](image.png)",
+			expectedOutput: `#image("image.png")`,
+		},
+		{
+			name:           "image with empty alt text",
+			input:          "![](image.png)",
+			expectedOutput: `#image("image.png")`,
+		},
+		{
+			name:           "multiple images in one line",
+			input:          "![img1](a.png) and ![img2](b.png)",
+			expectedOutput: `#image("a.png") and #image("b.png")`,
+		},
+		{
+			name:           "image in text",
+			input:          "Here is ![alt](img.png) in text",
+			expectedOutput: `Here is #image("img.png") in text`,
+		},
+		{
+			name:           "no image match",
+			input:          "This is regular text without images",
+			expectedOutput: "This is regular text without images",
+		},
+		{
+			name:           "image with URL containing special chars",
+			input:          "![alt](http://example.com/image.png?size=100)",
+			expectedOutput: `#image("http://example.com/image.png?size=100")`,
+		},
+		{
+			name:           "image with relative path",
+			input:          "![alt](../images/pic.jpg)",
+			expectedOutput: `#image("../images/pic.jpg")`,
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.expectedOutput) {
+			t.Errorf("%s: expected output to contain %q, got %q", test.name, test.expectedOutput, result)
+		}
+	}
+}
+
+// TestConvertBoldComprehensive tests convertBold with table-driven test cases.
+func TestConvertBoldComprehensive(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "bold with double asterisks",
+			input:          "This is **bold** text",
+			expectedOutput: "This is *bold* text",
+		},
+		{
+			name:           "bold with double underscores",
+			input:          "This is __bold__ text",
+			expectedOutput: "This is *bold* text",
+		},
+		{
+			name:           "multiple bold sections with asterisks",
+			input:          "**first** and **second**",
+			expectedOutput: "*first* and *second*",
+		},
+		{
+			name:           "multiple bold sections with mixed markers",
+			input:          "**first** and __second__",
+			expectedOutput: "*first* and *second*",
+		},
+		{
+			name:           "bold with content containing spaces",
+			input:          "**bold text here**",
+			expectedOutput: "*bold text here*",
+		},
+		{
+			name:           "no match - no bold markers",
+			input:          "This is regular text",
+			expectedOutput: "This is regular text",
+		},
+		{
+			name:           "bold at start of text",
+			input:          "**Start** of line",
+			expectedOutput: "*Start* of line",
+		},
+		{
+			name:           "bold at end of text",
+			input:          "End of **line**",
+			expectedOutput: "End of *line*",
+		},
+		{
+			name:           "bold with numbers and punctuation",
+			input:          "**123** and **test!**",
+			expectedOutput: "*123* and *test!*",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.expectedOutput) {
+			t.Errorf("%s: expected output to contain %q, got %q", test.name, test.expectedOutput, result)
+		}
+	}
+}

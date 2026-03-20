@@ -8,6 +8,13 @@ import (
 	"unicode"
 )
 
+// Package-level regexp patterns for performance optimization.
+var (
+	imagePattern            = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	boldAsteriskPattern     = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	boldUnderscorePattern   = regexp.MustCompile(`__([^_]+)__`)
+)
+
 // MarkdownToTypstConverter converts Markdown syntax to Typst syntax.
 // Typst syntax is quite close to Markdown, with some key differences:
 //   - `# Heading` → `= Heading`
@@ -162,8 +169,7 @@ func (c *MarkdownToTypstConverter) convertCodeSpans(text string) string {
 // convertImages converts ![alt](url) to #image("url")
 func (c *MarkdownToTypstConverter) convertImages(text string) string {
 	// Pattern: ![alt text](image.png)
-	re := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	return re.ReplaceAllString(text, `#image("$2")`)
+	return imagePattern.ReplaceAllString(text, `#image("$2")`)
 }
 
 // convertLinks converts [text](url) to #link("url")[text]
@@ -232,12 +238,10 @@ func (c *MarkdownToTypstConverter) replaceLinks(text string) string {
 // convertBold converts **text** or __text__ to *text*
 func (c *MarkdownToTypstConverter) convertBold(text string) string {
 	// Replace **text** with *text*
-	re1 := regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	text = re1.ReplaceAllString(text, `*$1*`)
+	text = boldAsteriskPattern.ReplaceAllString(text, `*$1*`)
 
 	// Replace __text__ with *text*
-	re2 := regexp.MustCompile(`__([^_]+)__`)
-	text = re2.ReplaceAllString(text, `*$1*`)
+	text = boldUnderscorePattern.ReplaceAllString(text, `*$1*`)
 
 	return text
 }
