@@ -2,7 +2,7 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.2 design draft
+> Version: v0.4.0
 > Updated: 2026-03-18
 
 ## 1. System Overview
@@ -37,7 +37,9 @@ Assembly
   ▼
 Output
   ├─ PDF: Chromium headless -> printToPDF
+  ├─ PDF (Typst): Typst CLI -> native PDF
   ├─ HTML: single-page document or multi-page site
+  ├─ Site: multi-page static website
   └─ ePub: ZIP(OPF + NCX + XHTML)
 ```
 
@@ -45,12 +47,14 @@ Output
 
 ```
 mdpress (root)
-  ├─ build       Build PDF/HTML/ePub outputs
+  ├─ build       Build PDF/HTML/ePub/site outputs
   ├─ serve       Start the local preview server
   ├─ init        Initialize a project skeleton
   ├─ quickstart  Create a sample project and preview it
   ├─ validate    Validate project configuration
-  └─ themes      Inspect themes (list / show)
+  ├─ doctor      Verify environment setup
+  ├─ migrate     Migrate from GitBook/HonKit
+  └─ themes      Inspect themes (list / show / preview)
 ```
 
 ## 2. Module Dependency Map
@@ -72,6 +76,9 @@ graph TD
     cmd --> |build| pdf_mod[internal/pdf]
     cmd --> |build/serve| output[internal/output]
     cmd --> |build/serve| linkrewrite[internal/linkrewrite]
+    cmd --> |build| typst[internal/typst]
+    cmd --> |build/serve| plugin_mod[internal/plugin]
+    cmd --> |build| source[internal/source]
 
     renderer_mod --> config
     renderer_mod --> theme
@@ -325,6 +332,57 @@ In single-page mode (`ModeSingle`), `.md` links become `#chapter-id` anchors. In
 
 Responsibility: file I/O, image downloading and base64 embedding, path resolution, and HTML escaping.
 
+### 3.16 `internal/typst` - Typst PDF Generator
+
+Responsibility: generate PDF files using the Typst command-line tool as an alternative to Chromium.
+
+Typst is a markup-based PDF engine. The `Generator` type:
+
+- Accepts Markdown or raw Typst content
+- Converts Markdown to Typst syntax using `MarkdownToTypstConverter`
+- Renders a Typst template with document metadata, page size, margins, and fonts
+- Invokes `typst compile` to produce the final PDF
+
+Configuration options:
+
+```go
+type Generator struct {
+    timeout, pageSize, margins, fontFamily, fontSize, lineHeight, language, author, title, version, date
+}
+```
+
+Advantages over Chromium: faster compilation, native PDF output, no browser dependency.
+
+### 3.17 `internal/plantuml` - PlantUML Diagram Renderer
+
+Responsibility: detect and render PlantUML code blocks in HTML to SVG.
+
+The `Renderer` type:
+
+- Searches HTML for `language-plantuml` code blocks
+- Encodes PlantUML syntax using deflate + base64 custom alphabet
+- Fetches SVG from the PlantUML online server (or future local command)
+- Caches rendered SVGs to avoid repeated network calls
+- Wraps each SVG in a div for styling
+
+Key method: `RenderHTML(html) -> (string, error)` replaces all PlantUML blocks with SVG output.
+
+### 3.18 `internal/server` - Development Server
+
+Responsibility: provide file watching and live browser reloads for `mdpress serve`.
+
+The `Server` type:
+
+- Listens on a specified host and port
+- Watches `.md`, `.yaml`, `.yml`, and `.css` files using `fsnotify`
+- Injects live-reload JavaScript into HTML responses
+- Maintains a WebSocket hub for push notifications to connected clients
+- Debounces file changes (500ms) to avoid repeated rebuilds
+- Supports CSS-only updates (reload stylesheets) vs. full page reloads
+- Falls back to polling if `fsnotify` is unavailable
+
+Reloads are triggered via WebSocket messages; the browser-side script listens for `{"type":"reload"}` and full-page navigation.
+
 ## 4. Data Flow
 
 ### 4.1 Build Command Flow
@@ -389,6 +447,28 @@ chapter.md (raw Markdown)
       ▼
   ChapterHTML { Title, ID, Content }
 ```
+
+### 4.3 Parallel Chapter Processing
+
+Chapter parsing (`ChapterPipeline`) uses worker pools to process chapters concurrently:
+
+- `computeMaxConcurrency()` determines worker count: uses `runtime.NumCPU()` (capped at 8) by default, or respects explicit `MaxConcurrency` config.
+- `parseChaptersParallel()` distributes chapters to workers via job and result channels.
+- Each worker runs its own `markdown.Parser` instance (goldmark state is not thread-safe).
+- Results are collected in order, maintaining chapter sequence for TOC and assembly.
+- First error halts all workers; panics are recovered and returned as errors.
+
+### 4.4 Incremental Builds
+
+Build manifest (`cmd/build_manifest.go`) enables fast incremental rebuilds via SHA-256 hashing:
+
+- `LoadManifest()` reads cached chapter state from `build-manifest.json`.
+- `ComputeChapterHash()` calculates SHA-256 of chapter file content.
+- `BuildManifest.IsStale()` checks if app version, config, or CSS changed (invalidates entire cache if true).
+- `GetEntry()` looks up cached HTML and headings for unchanged chapters.
+- Chapters with matching hash skip parsing and reuse cached output.
+
+Cache is stored in the project cache directory and survives across builds unless `mdpress_cache_dir` is disabled.
 
 ## 5. Implemented And Planned Architecture Extensions
 
