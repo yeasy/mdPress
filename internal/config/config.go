@@ -100,14 +100,21 @@ type HeaderFooterStyle struct {
 
 // OutputConfig stores output-related settings.
 type OutputConfig struct {
-	Filename    string   `yaml:"filename"`
-	TOC         bool     `yaml:"toc"`
-	TOCMaxDepth int      `yaml:"toc_max_depth"` // Maximum heading level to include in TOC (1-6, default 2). Level 1 = h1 only, 2 = h1+h2, etc.
-	Cover       bool     `yaml:"cover"`
-	Header      bool     `yaml:"header"`
-	Footer      bool     `yaml:"footer"`
-	Formats     []string `yaml:"formats"`     // Output formats: pdf, html, epub, site (default ["pdf"]).
-	PDFTimeout  int      `yaml:"pdf_timeout"` // PDF generation timeout in seconds (default 120).
+	Filename         string   `yaml:"filename"`
+	TOC              bool     `yaml:"toc"`
+	TOCMaxDepth      int      `yaml:"toc_max_depth"` // Maximum heading level to include in TOC (1-6, default 2). Level 1 = h1 only, 2 = h1+h2, etc.
+	Cover            bool     `yaml:"cover"`
+	Header           bool     `yaml:"header"`
+	Footer           bool     `yaml:"footer"`
+	Formats          []string `yaml:"formats"`     // Output formats: pdf, html, epub, site (default ["pdf"]).
+	PDFTimeout       int      `yaml:"pdf_timeout"` // PDF generation timeout in seconds (default 120).
+	Watermark        string   `yaml:"watermark"`   // Watermark text (e.g., "DRAFT", "CONFIDENTIAL")
+	WatermarkOpacity float64  `yaml:"watermark_opacity"` // Opacity 0.0-1.0 (default 0.1)
+	MarginTop        string   `yaml:"margin_top"`    // e.g., "20mm" (default "15mm")
+	MarginBottom     string   `yaml:"margin_bottom"` // e.g., "20mm" (default "15mm")
+	MarginLeft       string   `yaml:"margin_left"`   // e.g., "25mm" (default "20mm")
+	MarginRight      string   `yaml:"margin_right"`  // e.g., "25mm" (default "20mm")
+	GenerateBookmarks bool    `yaml:"generate_bookmarks"` // Generate PDF bookmarks from headings (default true)
 }
 
 // DefaultConfig returns a config populated with reasonable defaults.
@@ -141,13 +148,20 @@ func DefaultConfig() *BookConfig {
 			},
 		},
 		Output: OutputConfig{
-			Filename:    "output.pdf",
-			TOC:         true,
-			TOCMaxDepth: 2,
-			Cover:       true,
-			Header:      true,
-			Footer:      true,
-			PDFTimeout:  120,
+			Filename:         "output.pdf",
+			TOC:              true,
+			TOCMaxDepth:      2,
+			Cover:            true,
+			Header:           true,
+			Footer:           true,
+			PDFTimeout:       120,
+			Watermark:        "",
+			WatermarkOpacity: 0.1,
+			MarginTop:        "15mm",
+			MarginBottom:     "15mm",
+			MarginLeft:       "20mm",
+			MarginRight:      "20mm",
+			GenerateBookmarks: true,
 		},
 		baseDir: ".",
 	}

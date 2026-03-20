@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/crossref"
@@ -24,6 +26,24 @@ import (
 // ChapterPipelineOptions controls expensive per-chapter processing behavior.
 type ChapterPipelineOptions struct {
 	ImageOptions *utils.ImageProcessingOptions
+	// MaxConcurrency controls how many chapters are parsed in parallel.
+	// If 0, defaults to runtime.NumCPU() (capped at 8).
+	// If negative, sequential processing (concurrency = 1).
+	MaxConcurrency int
+}
+
+// parsedChapterData holds the parsed output of a single chapter.
+type parsedChapterData struct {
+	index              int
+	chDef              config.ChapterDef
+	chapterPath        string
+	htmlContent        string
+	headings           []markdown.HeadingInfo
+	diagnostics        []markdown.Diagnostic
+	expandedContent    string
+	depth              int
+	flatChapterIndex   int
+	err                error
 }
 
 // ChapterPipelineResult encapsulates the output of chapter processing.
@@ -63,6 +83,205 @@ func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdo
 	}
 }
 
+// computeMaxConcurrency determines the number of worker goroutines to use.
+// Returns at least 1 (sequential), at most 8 (to avoid memory issues).
+func computeMaxConcurrency(requested int) int {
+	if requested < 0 {
+		return 1 // Sequential processing
+	}
+	if requested > 0 {
+		if requested > 8 {
+			return 8
+		}
+		return requested
+	}
+	// Default: use number of CPUs, capped at 8
+	numCPU := runtime.NumCPU()
+	if numCPU <= 0 {
+		numCPU = 1
+	}
+	if numCPU > 8 {
+		numCPU = 8
+	}
+	return numCPU
+}
+
+// parseChaptersParallel parses chapters in parallel using a worker pool.
+// It maintains chapter order by accepting results indexed by their position.
+// If any chapter fails, it returns the first error immediately.
+func (p *ChapterPipeline) parseChaptersParallel(
+	ctx context.Context,
+	flatChapters []flattenedChapter,
+	imageOptions utils.ImageProcessingOptions,
+	maxConcurrency int,
+) ([]parsedChapterData, error) {
+	maxConcurrency = computeMaxConcurrency(maxConcurrency)
+
+	results := make([]parsedChapterData, len(flatChapters))
+	resultsChan := make(chan *parsedChapterData, maxConcurrency)
+	jobsChan := make(chan *parsedChapterData, maxConcurrency)
+
+	// Shared state
+	var mu sync.Mutex
+	var firstErr error
+
+	// Launch workers
+	var wg sync.WaitGroup
+	for i := 0; i < maxConcurrency; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobsChan {
+				// Check context cancellation
+				if err := ctx.Err(); err != nil {
+					job.err = err
+					resultsChan <- job
+					continue
+				}
+
+				// Check if an earlier job failed
+				mu.Lock()
+				if firstErr != nil {
+					mu.Unlock()
+					job.err = firstErr
+					resultsChan <- job
+					continue
+				}
+				mu.Unlock()
+
+				// Parse this chapter
+				p.parseChapterWorker(ctx, job, imageOptions)
+				resultsChan <- job
+			}
+		}()
+	}
+
+	// Send jobs to workers
+	go func() {
+		defer close(jobsChan)
+		for i, flatChapter := range flatChapters {
+			chDef := flatChapter.Def
+			chapterPath := p.Config.ResolvePath(chDef.File)
+
+			job := &parsedChapterData{
+				flatChapterIndex: i,
+				index:            i,
+				chDef:            chDef,
+				chapterPath:      chapterPath,
+				depth:            flatChapter.Depth,
+			}
+			jobsChan <- job
+		}
+	}()
+
+	// Collect results
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	for result := range resultsChan {
+		if result.err != nil {
+			mu.Lock()
+			if firstErr == nil {
+				firstErr = result.err
+			}
+			mu.Unlock()
+		}
+		results[result.index] = *result
+	}
+
+	// Check for context cancellation or errors
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	return results, nil
+}
+
+// parseChapterWorker performs the parsing for a single chapter.
+// It's designed to be run in a worker goroutine.
+// Returns with job.err != nil if there was a CRITICAL error that should abort the whole pipeline.
+// Returns with job.err == nil if the chapter was skipped (missing file) or successfully parsed.
+// The caller checks if htmlContent is empty to determine if it was skipped.
+func (p *ChapterPipeline) parseChapterWorker(
+	ctx context.Context,
+	job *parsedChapterData,
+	imageOptions utils.ImageProcessingOptions,
+) {
+	chDef := job.chDef
+	chapterPath := job.chapterPath
+
+	p.Logger.Debug("Processing chapter", slog.Int("index", job.flatChapterIndex+1), slog.String("file", chDef.File))
+
+	// Read file
+	content, err := utils.ReadFile(chapterPath)
+	if err != nil {
+		p.Logger.Warn("Failed to read chapter, skipping", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		// Skip silently - not a critical error, just skip this chapter
+		return
+	}
+
+	// Expand variables
+	content = variables.Expand(content, p.Config)
+	job.expandedContent = string(content)
+
+	// Check cache
+	codeTheme := p.Config.Style.CodeTheme
+	if codeTheme == "" && p.Theme != nil {
+		codeTheme = p.Theme.CodeTheme
+	}
+	cached, cacheHit, cacheErr := loadParsedChapterCache(chapterPath, job.expandedContent, codeTheme)
+
+	var htmlContent string
+	var headings []markdown.HeadingInfo
+	var diagnostics []markdown.Diagnostic
+
+	switch {
+	case cacheErr != nil:
+		p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.String("error", cacheErr.Error()))
+		fallthrough
+	case !cacheHit:
+		// Parse markdown
+		var parseErr error
+		htmlContent, headings, diagnostics, parseErr = p.Parser.ParseWithDiagnostics(content)
+		if parseErr != nil {
+			p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
+			// Skip silently - not a critical error, just skip this chapter
+			return
+		}
+		if storeErr := storeParsedChapterCache(chapterPath, job.expandedContent, codeTheme, &cachedParsedChapter{
+			HTML:        htmlContent,
+			Headings:    headings,
+			Diagnostics: diagnostics,
+		}); storeErr != nil {
+			p.Logger.Debug("Parsed chapter cache write failed", slog.String("file", chDef.File), slog.String("error", storeErr.Error()))
+		}
+	default:
+		// Cache hit
+		htmlContent = cached.HTML
+		headings = cached.Headings
+		diagnostics = cached.Diagnostics
+	}
+
+	// Process images
+	chapterDir := filepath.Dir(chapterPath)
+	imageOptions.Logger = p.Logger
+	processedHTML, err := utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
+	if err != nil {
+		p.Logger.Warn("Failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
+	} else {
+		htmlContent = processedHTML
+	}
+
+	job.htmlContent = htmlContent
+	job.headings = headings
+	job.diagnostics = diagnostics
+}
+
 // Process executes the complete chapter processing pipeline.
 // It returns processed chapters, chapter file paths, validation issues, and any error encountered.
 // Always uses ParseWithDiagnostics regardless of caller preference.
@@ -90,54 +309,25 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 	chapterHeadingRecords := make([]chapterHeadingRecord, 0, len(p.Config.Chapters))
 
 	flatChapters := flattenChaptersWithDepth(p.Config.Chapters)
-	for i, flatChapter := range flatChapters {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
 
-		chDef := flatChapter.Def
-		chapterPath := p.Config.ResolvePath(chDef.File)
-		p.Logger.Debug("Processing chapter", slog.Int("index", i+1), slog.String("file", chDef.File))
+	// Parse chapters in parallel
+	parsedChapters, err := p.parseChaptersParallel(ctx, flatChapters, imageOptions, options.MaxConcurrency)
+	if err != nil {
+		return nil, err
+	}
 
-		content, err := utils.ReadFile(chapterPath)
-		if err != nil {
-			p.Logger.Warn("Failed to read chapter, skipping", slog.String("file", chDef.File), slog.String("error", err.Error()))
+	// Process results in order
+	for i, parsed := range parsedChapters {
+		// Skip chapters with no content (they were skipped during parsing)
+		if parsed.htmlContent == "" {
 			continue
 		}
 
-		content = variables.Expand(content, p.Config)
-		expandedContent := string(content)
-
-		codeTheme := p.Config.Style.CodeTheme
-		if codeTheme == "" && p.Theme != nil {
-			codeTheme = p.Theme.CodeTheme
-		}
-		cached, cacheHit, cacheErr := loadParsedChapterCache(chapterPath, expandedContent, codeTheme)
-		var htmlContent string
-		var headings []markdown.HeadingInfo
-		var diagnostics []markdown.Diagnostic
-		switch {
-		case cacheErr != nil:
-			p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.String("error", cacheErr.Error()))
-		case cacheHit:
-			htmlContent = cached.HTML
-			headings = cached.Headings
-			diagnostics = cached.Diagnostics
-		default:
-			var parseErr error
-			htmlContent, headings, diagnostics, parseErr = p.Parser.ParseWithDiagnostics(content)
-			if parseErr != nil {
-				p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
-				continue
-			}
-			if storeErr := storeParsedChapterCache(chapterPath, expandedContent, codeTheme, &cachedParsedChapter{
-				HTML:        htmlContent,
-				Headings:    headings,
-				Diagnostics: diagnostics,
-			}); storeErr != nil {
-				p.Logger.Debug("Parsed chapter cache write failed", slog.String("file", chDef.File), slog.String("error", storeErr.Error()))
-			}
-		}
+		chDef := parsed.chDef
+		htmlContent := parsed.htmlContent
+		headings := parsed.headings
+		diagnostics := parsed.diagnostics
+		flatChapter := flatChapters[i]
 
 		// Collect diagnostic issues.
 		for _, diag := range diagnostics {
@@ -168,14 +358,6 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 				SummaryTitle: chDef.Title,
 				Heading:      headings[0],
 			})
-		}
-
-		// Process images in the chapter.
-		chapterDir := filepath.Dir(chapterPath)
-		imageOptions.Logger = p.Logger
-		htmlContent, err = utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
-		if err != nil {
-			p.Logger.Warn("Failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
 		}
 
 		// Register headings with the cross-reference resolver.

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -12,6 +13,7 @@ import (
 	"github.com/yeasy/mdpress/internal/pdf"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/theme"
+	"github.com/yeasy/mdpress/internal/typst"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -46,6 +48,7 @@ func NewFormatBuilderRegistry() *FormatBuilderRegistry {
 		builders: make(map[string]FormatBuilder),
 	}
 	r.Register(&PDFBuilder{})
+	r.Register(&TypstBuilder{})
 	r.Register(&HTMLBuilder{})
 	r.Register(&SiteBuilder{})
 	r.Register(&EpubBuilder{})
@@ -96,14 +99,35 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	if pdfTimeout <= 0 {
 		pdfTimeout = 2 * time.Minute
 	}
-	pdfGen := pdf.NewGenerator(
+
+	// Prepare margin options from config, with fallback defaults
+	marginOpts := []pdf.GeneratorOption{
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
-		// Page margins are already defined in the PDF source HTML via @page rules.
-		// Passing them again to PrintToPDF doubles the whitespace.
-		pdf.WithMargins(0, 0, 0, 0),
 		pdf.WithPrintBackground(true),
-	)
+		pdf.WithFooterTemplate(`<div style="width:100%;text-align:center;font-size:8px;color:#c0c0c0;font-family:Arial,sans-serif;">Build with <a href="https://github.com/yeasy/mdpress" style="color:#8ab4f8;text-decoration:none;">md<span style="color:#8ab4f8;">Press</span></a></div>`),
+	}
+
+	// Add custom margins if provided in config, otherwise use defaults
+	if ctx.Config.Output.MarginLeft != "" || ctx.Config.Output.MarginRight != "" ||
+		ctx.Config.Output.MarginTop != "" || ctx.Config.Output.MarginBottom != "" {
+		marginOpts = append(marginOpts, pdf.WithMarginStrings(
+			ctx.Config.Output.MarginLeft,
+			ctx.Config.Output.MarginRight,
+			ctx.Config.Output.MarginTop,
+			ctx.Config.Output.MarginBottom,
+		))
+	} else {
+		// Default margins: 0 on sides, 10mm on bottom for footer
+		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, 0, 10))
+	}
+
+	// Add document outline option if enabled
+	if ctx.Config.Output.GenerateBookmarks {
+		marginOpts = append(marginOpts, pdf.WithDocumentOutline(true))
+	}
+
+	pdfGen := pdf.NewGenerator(marginOpts...)
 	if err := pdfGen.Generate(fullHTML, outputPath); err != nil {
 		return fmt.Errorf("failed to generate PDF: %w", err)
 	}
@@ -203,5 +227,77 @@ func (b *EpubBuilder) Build(ctx *BuildContext, baseName string) error {
 		return fmt.Errorf("failed to generate ePub: %w", err)
 	}
 	ctx.Logger.Info("Output ready", slog.String("format", "ePub"), slog.String("path", outputPath))
+	return nil
+}
+
+// ---- Typst PDF ----
+
+// TypstBuilder generates PDF output via Typst (proof-of-concept).
+type TypstBuilder struct{}
+
+func (b *TypstBuilder) Name() string { return "typst" }
+
+func (b *TypstBuilder) Build(ctx *BuildContext, baseName string) error {
+	// For Typst, we work directly with Markdown content rather than HTML.
+	// This is a proof-of-concept that demonstrates the core use case.
+
+	outputPath := baseName + ".pdf"
+	ctx.Logger.Info("Generating PDF via Typst", slog.String("output", outputPath))
+
+	// Extract text from chapters for now (proof of concept)
+	var markdownContent strings.Builder
+
+	// Add title
+	if ctx.Config.Book.Title != "" {
+		markdownContent.WriteString("# ")
+		markdownContent.WriteString(ctx.Config.Book.Title)
+		markdownContent.WriteString("\n\n")
+	}
+
+	// Add chapters
+	for _, ch := range ctx.ChaptersHTML {
+		if ch.Title != "" {
+			markdownContent.WriteString("## ")
+			markdownContent.WriteString(ch.Title)
+			markdownContent.WriteString("\n\n")
+		}
+		// For PoC, use the HTML content as-is. In production, convert HTML to Markdown.
+		markdownContent.WriteString(ch.Content)
+		markdownContent.WriteString("\n\n")
+	}
+
+	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	_, _ = getPageDimensions(ctx.Config.Style.PageSize) // For future use
+	typstTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
+	if typstTimeout <= 0 {
+		typstTimeout = 2 * time.Minute
+	}
+
+	typstGen := typst.NewGenerator(
+		typst.WithTimeout(typstTimeout),
+		typst.WithPageSize(ctx.Config.Style.PageSize),
+		typst.WithTitle(ctx.Config.Book.Title),
+		typst.WithAuthor(ctx.Config.Book.Author),
+		typst.WithVersion(ctx.Config.Book.Version),
+		typst.WithLanguage(ctx.Config.Book.Language),
+		typst.WithFontFamily(ctx.Config.Style.FontFamily),
+		typst.WithFontSize(ctx.Config.Style.FontSize),
+		typst.WithLineHeight(ctx.Config.Style.LineHeight),
+		typst.WithMargins(
+			typst.ConvertMarginToTypst(ctx.Config.Output.MarginLeft, "20mm"),
+			typst.ConvertMarginToTypst(ctx.Config.Output.MarginRight, "20mm"),
+			typst.ConvertMarginToTypst(ctx.Config.Output.MarginTop, "20mm"),
+			typst.ConvertMarginToTypst(ctx.Config.Output.MarginBottom, "20mm"),
+		),
+	)
+
+	if err := typstGen.Generate(markdownContent.String(), outputPath); err != nil {
+		return fmt.Errorf("failed to generate PDF via Typst: %w", err)
+	}
+
+	ctx.Logger.Info("Output ready", slog.String("format", "Typst PDF"), slog.String("path", outputPath))
 	return nil
 }

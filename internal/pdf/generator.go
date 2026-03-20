@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -200,6 +202,8 @@ type Generator struct {
 	marginBottom            float64
 	printBackground         bool
 	displayHeaderFooter     bool
+	headerTemplate          string
+	footerTemplate          string
 	generateDocumentOutline bool // Generate clickable PDF bookmarks from heading hierarchy.
 	generateTaggedPDF       bool // Generate tagged (accessible) PDF.
 }
@@ -223,6 +227,44 @@ const (
 	defaultPageHeight = 297.0
 	defaultMargin     = 20.0
 )
+
+// parseMarginString converts a margin string (e.g., "20mm", "1in", "2.5cm") to millimeters.
+// If the input is empty or invalid, it returns the default margin value.
+func parseMarginString(s string, defaultMM float64) float64 {
+	if s == "" {
+		return defaultMM
+	}
+	s = strings.TrimSpace(s)
+	// Match number with optional unit (mm, cm, in, pt, px) - case insensitive
+	re := regexp.MustCompile(`(?i)^([-+]?[\d.]+)\s*(mm|cm|in|pt|px)?$`)
+	matches := re.FindStringSubmatch(s)
+	if matches == nil {
+		return defaultMM
+	}
+	value, err := strconv.ParseFloat(matches[1], 64)
+	if err != nil {
+		return defaultMM
+	}
+	unit := strings.ToLower(matches[2])
+	if unit == "" {
+		unit = "mm" // Default to mm if not specified
+	}
+	// Convert to millimeters
+	switch unit {
+	case "mm":
+		return value
+	case "cm":
+		return value * 10
+	case "in":
+		return value * 25.4
+	case "pt":
+		return value * 25.4 / 72.0
+	case "px":
+		return value * 25.4 / 96.0 // Assume 96 DPI
+	default:
+		return defaultMM
+	}
+}
 
 var (
 	chromiumExecutableCandidates = []string{
@@ -281,6 +323,17 @@ func WithMargins(left, right, top, bottom float64) GeneratorOption {
 	}
 }
 
+// WithMarginStrings sets page margins from string values (e.g., "20mm", "1in").
+// Uses default values if parsing fails.
+func WithMarginStrings(left, right, top, bottom string) GeneratorOption {
+	return func(g *Generator) {
+		g.marginLeft = parseMarginString(left, defaultMargin)
+		g.marginRight = parseMarginString(right, defaultMargin)
+		g.marginTop = parseMarginString(top, defaultMargin)
+		g.marginBottom = parseMarginString(bottom, defaultMargin)
+	}
+}
+
 // WithPrintBackground toggles background printing.
 func WithPrintBackground(print bool) GeneratorOption {
 	return func(g *Generator) { g.printBackground = print }
@@ -289,6 +342,16 @@ func WithPrintBackground(print bool) GeneratorOption {
 // WithHeaderFooter toggles header and footer rendering.
 func WithHeaderFooter(enable bool) GeneratorOption {
 	return func(g *Generator) { g.displayHeaderFooter = enable }
+}
+
+// WithFooterTemplate sets a custom HTML footer template for PDF pages.
+// The template is rendered by Chrome's PrintToPDF and supports CSS styling.
+// Chrome provides special classes: "pageNumber", "totalPages", "date", "title", "url".
+func WithFooterTemplate(tmpl string) GeneratorOption {
+	return func(g *Generator) {
+		g.footerTemplate = tmpl
+		g.displayHeaderFooter = true
+	}
 }
 
 // WithDocumentOutline toggles PDF bookmark/outline generation from heading hierarchy.
@@ -422,7 +485,7 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 		}),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var err error
-			pdfBuf, _, err = page.PrintToPDF().
+			cmd := page.PrintToPDF().
 				WithPaperWidth(mmToInch(g.pageWidth)).
 				WithPaperHeight(mmToInch(g.pageHeight)).
 				WithMarginLeft(mmToInch(g.marginLeft)).
@@ -433,8 +496,19 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 				WithDisplayHeaderFooter(g.displayHeaderFooter).
 				WithPreferCSSPageSize(true).
 				WithGenerateDocumentOutline(g.generateDocumentOutline).
-				WithGenerateTaggedPDF(g.generateTaggedPDF).
-				Do(ctx)
+				WithGenerateTaggedPDF(g.generateTaggedPDF)
+			if g.displayHeaderFooter {
+				if g.headerTemplate != "" {
+					cmd = cmd.WithHeaderTemplate(g.headerTemplate)
+				} else {
+					// Empty header to avoid Chrome's default header.
+					cmd = cmd.WithHeaderTemplate("<span></span>")
+				}
+				if g.footerTemplate != "" {
+					cmd = cmd.WithFooterTemplate(g.footerTemplate)
+				}
+			}
+			pdfBuf, _, err = cmd.Do(ctx)
 			return err
 		}),
 	)

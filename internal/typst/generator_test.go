@@ -1,0 +1,436 @@
+package typst
+
+import (
+	"strings"
+	"testing"
+)
+
+// TestConverterHeadings tests heading conversion.
+func TestConverterHeadings(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		input    string
+		contains string
+	}{
+		{
+			input:    "# Heading 1",
+			contains: "== Heading 1",
+		},
+		{
+			input:    "## Heading 2",
+			contains: "=== Heading 2",
+		},
+		{
+			input:    "### Heading 3",
+			contains: "==== Heading 3",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.contains) {
+			t.Errorf("input %q: expected to contain %q, got %q", test.input, test.contains, result)
+		}
+	}
+}
+
+// TestConverterBold tests bold formatting conversion.
+func TestConverterBold(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		input    string
+		notEmpty bool
+	}{
+		{
+			input:    "This is **bold** text",
+			notEmpty: true,
+		},
+		{
+			input:    "This is __bold__ text",
+			notEmpty: true,
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if test.notEmpty && result == "" {
+			t.Errorf("input %q: expected non-empty result", test.input)
+		}
+		// In Typst, both * and _ can denote emphasis, so just verify it has content
+		if !strings.Contains(result, "bold") {
+			t.Errorf("input %q: expected 'bold' in result, got %q", test.input, result)
+		}
+	}
+}
+
+// TestConverterItalic tests italic formatting conversion.
+func TestConverterItalic(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		input string
+		check string
+	}{
+		{
+			input: "This is *italic* text",
+			check: "italic",
+		},
+		{
+			input: "This is _italic_ text",
+			check: "italic",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.check) {
+			t.Errorf("input %q: expected to contain %q, got %q", test.input, test.check, result)
+		}
+	}
+}
+
+// TestConverterCodeSpans tests inline code conversion.
+func TestConverterCodeSpans(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		input    string
+		contains string
+	}{
+		{
+			input:    "Use `code` here",
+			contains: "Use `code` here",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.contains) {
+			t.Errorf("input %q: expected to contain %q, got %q", test.input, test.contains, result)
+		}
+	}
+}
+
+// TestConverterLinks tests link conversion.
+func TestConverterLinks(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := "Visit [example](https://example.com) for more"
+	result := converter.Convert(input)
+
+	if !strings.Contains(result, `#link("https://example.com")`) {
+		t.Errorf("input %q: expected to contain link markup, got %q", input, result)
+	}
+	if !strings.Contains(result, "[example]") {
+		t.Errorf("input %q: expected to contain link text, got %q", input, result)
+	}
+}
+
+// TestConverterImages tests image conversion.
+func TestConverterImages(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := "![Alt text](image.png)"
+	result := converter.Convert(input)
+
+	if !strings.Contains(result, `#image("image.png")`) {
+		t.Errorf("input %q: expected to contain image markup, got %q", input, result)
+	}
+}
+
+// TestConverterLists tests list conversion.
+func TestConverterLists(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		input    string
+		contains string
+	}{
+		{
+			input:    "- Item 1\n- Item 2",
+			contains: "- Item 1",
+		},
+		{
+			input:    "* Item 1\n* Item 2",
+			contains: "- Item 1",
+		},
+		{
+			input:    "1. Item 1\n2. Item 2",
+			contains: "+ Item 1",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.Convert(test.input)
+		if !strings.Contains(result, test.contains) {
+			t.Errorf("input %q: expected to contain %q, got %q", test.input, test.contains, result)
+		}
+	}
+}
+
+// TestConverterBlockquote tests blockquote conversion.
+func TestConverterBlockquote(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := "> This is a quote"
+	result := converter.Convert(input)
+
+	if !strings.Contains(result, "> This is a quote") {
+		t.Errorf("input %q: expected blockquote, got %q", input, result)
+	}
+}
+
+// TestConverterCodeBlock tests code block conversion.
+func TestConverterCodeBlock(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := "```go\nfunc main() {}\n```"
+	result := converter.Convert(input)
+
+	if !strings.Contains(result, "```go") {
+		t.Errorf("input %q: expected code block with language, got %q", input, result)
+	}
+	if !strings.Contains(result, "func main() {}") {
+		t.Errorf("input %q: expected code content, got %q", input, result)
+	}
+}
+
+// TestConverterComplexDocument tests a more complex markdown document.
+func TestConverterComplexDocument(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := `# Title
+
+This is a paragraph with **bold** and *italic* text.
+
+## Section
+
+Here's a [link](https://example.com) and an image:
+
+![Image](test.png)
+
+### Code Example
+
+` + "```python\n" + `def hello():
+    print("world")
+` + "```\n" + `
+- Item 1
+- Item 2
+  - Nested item
+`
+
+	result := converter.Convert(input)
+
+	// Check that key elements are present
+	checks := []string{
+		"== Title",
+		"=== Section",
+		"==== Code Example",
+		"bold",
+		"italic",
+		`#link("https://example.com")`,
+		`#image("test.png")`,
+		"```python",
+		"- Item 1",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(result, check) {
+			t.Errorf("expected to find %q in result, got:\n%s", check, result)
+		}
+	}
+}
+
+// TestPageDimensions tests page dimension lookup.
+func TestPageDimensions(t *testing.T) {
+	tests := []struct {
+		size           string
+		expectedWidth  string
+		expectedHeight string
+	}{
+		{"A4", "210mm", "297mm"},
+		{"A5", "148mm", "210mm"},
+		{"Letter", "216mm", "279mm"},
+		{"Legal", "216mm", "356mm"},
+		{"unknown", "210mm", "297mm"}, // Should default to A4
+	}
+
+	for _, test := range tests {
+		width, height := GetPageDimensions(test.size)
+		if width != test.expectedWidth || height != test.expectedHeight {
+			t.Errorf("size %q: expected %s x %s, got %s x %s",
+				test.size, test.expectedWidth, test.expectedHeight, width, height)
+		}
+	}
+}
+
+// TestTemplateRendering tests Typst template rendering.
+func TestTemplateRendering(t *testing.T) {
+	data := TypstTemplateData{
+		Title:        "Test Book",
+		Author:       "Test Author",
+		Date:         "2026-03-19",
+		Version:      "1.0.0",
+		Language:     "en",
+		Content:      "# Chapter 1\n\nContent here.",
+		PageWidth:    "210",
+		PageHeight:   "297",
+		MarginTop:    "20mm",
+		MarginRight:  "20mm",
+		MarginBottom: "20mm",
+		MarginLeft:   "20mm",
+		FontFamily:   "Segoe UI",
+		FontSize:     "12pt",
+		LineHeight:   1.6,
+	}
+
+	result, err := RenderTypstDocument(data)
+	if err != nil {
+		t.Fatalf("failed to render template: %v", err)
+	}
+
+	// Check that key elements are in the template
+	checks := []string{
+		"#set page(",
+		"#set text(",
+		"Test Book",
+		"Test Author",
+		"# Chapter 1",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(result, check) {
+			t.Errorf("expected template to contain %q, got:\n%s", check, result)
+		}
+	}
+}
+
+// TestGeneratorCreation tests that a Generator can be created with options.
+func TestGeneratorCreation(t *testing.T) {
+	gen := NewGenerator(
+		WithTitle("My Book"),
+		WithAuthor("John Doe"),
+		WithPageSize("Letter"),
+		WithFontSize("14pt"),
+		WithLineHeight(1.8),
+	)
+
+	if gen.title != "My Book" {
+		t.Errorf("expected title %q, got %q", "My Book", gen.title)
+	}
+	if gen.author != "John Doe" {
+		t.Errorf("expected author %q, got %q", "John Doe", gen.author)
+	}
+	if gen.pageSize != "Letter" {
+		t.Errorf("expected pageSize %q, got %q", "Letter", gen.pageSize)
+	}
+	if gen.fontSize != "14pt" {
+		t.Errorf("expected fontSize %q, got %q", "14pt", gen.fontSize)
+	}
+	if gen.lineHeight != 1.8 {
+		t.Errorf("expected lineHeight %f, got %f", 1.8, gen.lineHeight)
+	}
+}
+
+// TestCurrentDate tests that CurrentDate returns a reasonable date.
+func TestCurrentDate(t *testing.T) {
+	date := CurrentDate()
+	if len(date) == 0 {
+		t.Error("expected non-empty date")
+	}
+	// Check basic YYYY-MM-DD format
+	if len(date) != 10 || date[4] != '-' || date[7] != '-' {
+		t.Errorf("expected YYYY-MM-DD format, got %q", date)
+	}
+}
+
+// TestMakeTypstFont tests font family conversion.
+func TestMakeTypstFont(t *testing.T) {
+	result := MakeTypstFont("Arial, sans-serif")
+	if result == "" {
+		t.Error("expected non-empty font result")
+	}
+	if !strings.Contains(result, "Arial") && !strings.Contains(result, "sans-serif") {
+		t.Errorf("expected font to contain familiar names, got %q", result)
+	}
+}
+
+// TestMakeTypstFontSize tests font size conversion.
+func TestMakeTypstFontSize(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"12pt", "12pt"},
+		{"14px", "10.5pt"},
+		{"", "12pt"}, // Default
+	}
+
+	for _, test := range tests {
+		result := MakeTypstFontSize(test.input)
+		if result != test.expected {
+			t.Errorf("input %q: expected %q, got %q", test.input, test.expected, result)
+		}
+	}
+}
+
+// TestConvertMarginToTypst tests margin conversion.
+func TestConvertMarginToTypst(t *testing.T) {
+	tests := []struct {
+		margin      string
+		defaultVal  string
+		expected    string
+	}{
+		{"20mm", "15mm", "20mm"},
+		{"", "15mm", "15mm"},
+		{"1in", "20mm", "1in"},
+	}
+
+	for _, test := range tests {
+		result := ConvertMarginToTypst(test.margin, test.defaultVal)
+		if result != test.expected {
+			t.Errorf("input %q with default %q: expected %q, got %q",
+				test.margin, test.defaultVal, test.expected, result)
+		}
+	}
+}
+
+// TestHelperFunctions tests various helper functions.
+func TestHelperFunctions(t *testing.T) {
+	// Test countLeadingChars
+	if countLeadingChars("###", '#') != 3 {
+		t.Error("countLeadingChars failed for ###")
+	}
+	if countLeadingChars("# heading", '#') != 1 {
+		t.Error("countLeadingChars failed for # heading")
+	}
+
+	// Test countLeadingSpaces
+	if countLeadingSpaces("   text") != 3 {
+		t.Error("countLeadingSpaces failed")
+	}
+	if countLeadingSpaces("text") != 0 {
+		t.Error("countLeadingSpaces failed for no leading spaces")
+	}
+
+	// Test isOrderedListItem
+	if !isOrderedListItem("1. Item") {
+		t.Error("isOrderedListItem failed for valid item")
+	}
+	if isOrderedListItem("- Item") {
+		t.Error("isOrderedListItem failed for unordered item")
+	}
+
+	// Test isHorizontalRule
+	if !isHorizontalRule("---") {
+		t.Error("isHorizontalRule failed for ---")
+	}
+	if !isHorizontalRule("***") {
+		t.Error("isHorizontalRule failed for ***")
+	}
+	if isHorizontalRule("--") {
+		t.Error("isHorizontalRule failed for --")
+	}
+}

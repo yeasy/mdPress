@@ -357,3 +357,196 @@ func TestProcessImagesWithOptionsUsesFileURLsAndDedupesRemoteDownloads(t *testin
 		t.Fatalf("重复远程 URL 应只下载一次，实际 %d 次", got)
 	}
 }
+
+// TestDetectImageMIME tests MIME type detection from content
+func TestDetectImageMIME(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		path     string
+		wantMIME string
+	}{
+		{
+			name:     "PNG signature",
+			data:     []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+			path:     "test.png",
+			wantMIME: "image/png",
+		},
+		{
+			name:     "JPEG signature",
+			data:     []byte{0xFF, 0xD8, 0xFF},
+			path:     "test.jpg",
+			wantMIME: "image/jpeg",
+		},
+		{
+			name:     "GIF signature",
+			data:     []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61}, // GIF89a
+			path:     "test.gif",
+			wantMIME: "image/gif",
+		},
+		{
+			name:     "SVG detection",
+			data:     []byte("<svg version=\"1.0\">"),
+			path:     "test.svg",
+			wantMIME: "image/svg+xml",
+		},
+		{
+			name:     "SVG with XML declaration",
+			data:     []byte("<?xml version=\"1.0\"?><svg>"),
+			path:     "test.svg",
+			wantMIME: "image/svg+xml",
+		},
+		{
+			name:     "WebP signature",
+			data:     []byte{0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50},
+			path:     "test.webp",
+			wantMIME: "image/webp",
+		},
+		{
+			name:     "Unknown format falls back to extension",
+			data:     []byte("not an image"),
+			path:     "test.png",
+			wantMIME: "image/png",
+		},
+		{
+			name:     "Empty data",
+			data:     []byte{},
+			path:     "test.jpg",
+			wantMIME: "image/jpeg",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DetectImageMIME(tt.path, tt.data)
+			if got != tt.wantMIME {
+				t.Errorf("DetectImageMIME() = %q, want %q", got, tt.wantMIME)
+			}
+		})
+	}
+}
+
+// TestStableHash tests hash generation
+func TestStableHash(t *testing.T) {
+	tests := []struct {
+		name  string
+		parts []string
+	}{
+		{
+			name:  "single string",
+			parts: []string{"test"},
+		},
+		{
+			name:  "multiple strings",
+			parts: []string{"part1", "part2", "part3"},
+		},
+		{
+			name:  "empty strings",
+			parts: []string{"", "test", ""},
+		},
+		{
+			name:  "unicode strings",
+			parts: []string{"中文", "日本語", "한글"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Hash should be consistent
+			hash1 := StableHash(tt.parts...)
+			hash2 := StableHash(tt.parts...)
+
+			if hash1 != hash2 {
+				t.Errorf("StableHash() should return consistent results")
+			}
+
+			// Hash should be non-empty and hex
+			if len(hash1) != 64 { // SHA-256 is 64 hex characters
+				t.Errorf("Hash should be SHA-256 (64 chars), got %d", len(hash1))
+			}
+
+			// Hash should only contain hex characters
+			for _, ch := range hash1 {
+				if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+					t.Errorf("Hash contains non-hex character: %c", ch)
+				}
+			}
+		})
+	}
+}
+
+// TestStableHashDifferenceForDifferentInputs tests that different inputs produce different hashes
+func TestStableHashDifferenceForDifferentInputs(t *testing.T) {
+	hash1 := StableHash("input1")
+	hash2 := StableHash("input2")
+
+	if hash1 == hash2 {
+		t.Error("Different inputs should produce different hashes")
+	}
+}
+
+// TestImageExtensionForContentType tests extension inference from Content-Type
+func TestImageExtensionForContentType(t *testing.T) {
+	tests := []struct {
+		name        string
+		contentType string
+		wantExt     string
+	}{
+		{"image/png", "image/png", ".png"},
+		{"image/jpeg", "image/jpeg", ".jpg"},
+		{"image/png with charset", "image/png; charset=utf-8", ".png"},
+		{"image/webp", "image/webp", ".webp"},
+		{"image/svg+xml", "image/svg+xml", ".svg"},
+		{"image/gif", "image/gif", ".gif"},
+		{"image/bmp", "image/bmp", ".bmp"},
+		{"image/tiff", "image/tiff", ".tiff"},
+		{"image/x-icon", "image/x-icon", ".ico"},
+		{"image/vnd.microsoft.icon", "image/vnd.microsoft.icon", ".ico"},
+		{"uppercase", "IMAGE/PNG", ".png"},
+		{"with spaces", "  image/png  ", ".png"},
+		{"unknown", "image/unknown", ""},
+		{"not image", "text/html", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := imageExtensionForContentType(tt.contentType)
+			if got != tt.wantExt {
+				t.Errorf("imageExtensionForContentType(%q) = %q, want %q", tt.contentType, got, tt.wantExt)
+			}
+		})
+	}
+}
+
+// TestGetImageMIMETableDriven tests MIME type resolution with more cases
+func TestGetImageMIMETableDriven(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"PNG lowercase", "image.png", "image/png"},
+		{"PNG uppercase", "IMAGE.PNG", "image/png"},
+		{"PNG mixed", "Image.Png", "image/png"},
+		{"JPEG extensions", "photo.jpeg", "image/jpeg"},
+		{"JPG extension", "photo.jpg", "image/jpeg"},
+		{"GIF", "anim.gif", "image/gif"},
+		{"WebP", "modern.webp", "image/webp"},
+		{"SVG", "vector.svg", "image/svg+xml"},
+		{"BMP", "bitmap.bmp", "image/bmp"},
+		{"TIFF", "scan.tiff", "image/tiff"},
+		{"ICO", "favicon.ico", "image/x-icon"},
+		{"No extension", "imagefile", "image/png"},
+		{"Unknown extension", "image.xyz", "image/png"},
+		{"Multiple dots", "image.backup.png", "image/png"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetImageMIME(tt.path)
+			if got != tt.want {
+				t.Errorf("GetImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}

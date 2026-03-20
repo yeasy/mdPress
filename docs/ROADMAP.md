@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-03-18
+> Updated: 2026-03-19
 > Maintainer: mdPress product team
 
 ---
@@ -13,6 +13,7 @@
 v0.1.0 ██████████████████████████████████████████ released
 v0.2.0 ██████████████████████████████████████████ released (2026-03-19)
 v0.3.0 ██████████████████████████████████████████ released (2026-03-19)
+v0.3.1 ██████████████████████████████████████████ released (2026-03-19)
 v0.4.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2026-11)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
@@ -90,39 +91,32 @@ v0.2.0 moves mdPress from a PDF-first generator toward a multi-format publishing
 
 ## v0.3.0 - ePub Output And Plugin System
 
-**Target release**: 2026-08
+**Release date**: 2026-03-19
 **Theme**: broader output support and extensibility
 
-### Planned Features
+v0.3.0 expanded mdPress into a true multi-format publishing platform with a plugin architecture and first-class support for math and diagrams.
+
+### Delivered Features
 
 | Feature | Priority | Description |
 | --- | --- | --- |
-| ePub 3 output | P1 | Generate standard ePub 3 books with cover, TOC, and metadata |
-| Plugin system | P1 | Support Markdown preprocessors and output post-process hooks |
-| LaTeX math | P2 | Render inline and block math via KaTeX or MathJax |
-| Mermaid diagrams | P2 | Native Mermaid handling for PDF and HTML |
-| Better i18n | P1 | Improve language landing pages, switching, and metadata |
-| HTML full-text search | P1 | Client-side search powered by lunr.js |
-| Custom font embedding | P2 | Allow local TTF, OTF, and WOFF2 files |
-| PDF bookmarks | P2 | Generate PDF outlines from chapter structure |
+| ePub 3 output | P0 | Standard ePub 3 books with cover, TOC, and metadata |
+| Plugin system | P0 | Full plugin lifecycle with external process loading and hook registration |
+| KaTeX math support | P1 | Inline (`$...$`) and block (`$$...$$`) LaTeX math via KaTeX |
+| Mermaid diagram support | P1 | Native Mermaid rendering in all HTML-based outputs; `validate --mermaid` syntax checks |
+| GitBook migration tool | P1 | `mdpress migrate` converts GitBook projects to mdPress format |
+| Multi-format `all` shorthand | P1 | `--format all` builds PDF, HTML, site, and ePub in one command |
+| GitHub Actions template | P2 | Pre-built workflow for automated book builds in CI |
 
-### Plugin Preview
+### v0.3.1 Patch (2026-03-19)
 
-```yaml
-plugins:
-  - name: math
-    options:
-      renderer: katex
-  - name: mermaid
-  - name: custom-admonition
-    path: ./plugins/admonition
-```
-
-Planned hook groups:
-
-- `pre-parse`
-- `post-parse`
-- `post-build`
+| Fix | Description |
+| --- | --- |
+| CJK PDF font embedding | Inject `@font-face` rules with `file://` URLs so Chrome can embed CJK glyphs |
+| TOC depth control | `output.toc_max_depth` config to limit heading depth in table of contents |
+| Smart output filename | Derive output filename from book title instead of defaulting to `output.pdf` |
+| Regexp performance | Promote regexp compilation to package level in crossref, glossary, markdown, and image processing |
+| Git author fallback | Fall back to `git config user.name` when no author is specified |
 
 ---
 
