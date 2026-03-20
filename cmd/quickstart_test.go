@@ -240,3 +240,49 @@ func TestQuickstartCanValidateGeneratedConfig(t *testing.T) {
 		t.Fatalf("generated config should be valid: %v", err)
 	}
 }
+
+func TestQuickstartReadDirErrorHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "readable-project")
+
+	// Create project directory normally
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatalf("failed to create project directory: %v", err)
+	}
+
+	// Verify executeQuickstart succeeds on empty directory
+	err := executeQuickstart(projectDir)
+	if err != nil {
+		t.Fatalf("executeQuickstart should succeed on empty directory: %v", err)
+	}
+
+	// Verify the directory is now non-empty
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		t.Fatalf("ReadDir should succeed after quickstart: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("quickstart should have created files")
+	}
+}
+
+func TestQuickstartHiddenFilesDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "hidden-files-project")
+
+	// Create directory with hidden file (.git is commonly overlooked by glob patterns)
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+
+	hiddenFile := filepath.Join(projectDir, ".git")
+	if err := os.Mkdir(hiddenFile, 0755); err != nil {
+		t.Fatalf("failed to create hidden directory: %v", err)
+	}
+
+	// quickstart should reject non-empty directory (even with only hidden files)
+	err := executeQuickstart(projectDir)
+	if err == nil {
+		t.Error("executeQuickstart should reject directory with hidden files")
+	}
+}

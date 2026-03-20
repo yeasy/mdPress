@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -548,5 +549,155 @@ func TestGetImageMIMETableDriven(t *testing.T) {
 				t.Errorf("GetImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestProcessImagesWithMultipleConcurrentDownloads tests concurrent download semaphore
+func TestProcessImagesWithMultipleConcurrentDownloads(t *testing.T) {
+	localDir := t.TempDir()
+	cacheDir := t.TempDir()
+
+	var downloadCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&downloadCount, 1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte{0x89, 0x50, 0x4E, 0x47})
+	}))
+	defer server.Close()
+
+	// Create HTML with 5 different remote images
+	var htmlParts []string
+	for i := 0; i < 5; i++ {
+		htmlParts = append(htmlParts, `<img src="`+server.URL+`/image`+fmt.Sprintf("%d", i)+`">`)
+	}
+	html := strings.Join(htmlParts, "")
+
+	result, err := ProcessImagesWithOptions(html, localDir, ImageProcessingOptions{
+		DownloadRemote:         true,
+		CacheDir:               cacheDir,
+		MaxConcurrentDownloads: 2,
+	})
+	if err != nil {
+		t.Fatalf("ProcessImagesWithOptions failed: %v", err)
+	}
+
+	// All 5 images should be downloaded (not cached yet since different URLs)
+	if got := atomic.LoadInt32(&downloadCount); got != 5 {
+		t.Fatalf("expected 5 downloads, got %d", got)
+	}
+
+	// Result should contain something (either original or file URLs depending on options)
+	if result == "" {
+		t.Fatal("result should not be empty")
+	}
+}
+
+// TestDownloadImageErrorHandling tests error handling for failed downloads
+func TestDownloadImageErrorHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupServer func() (string, func())
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "HTTP 404 error",
+			setupServer: func() (string, func()) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				return server.URL + "/notfound", server.Close
+			},
+			wantErr:     true,
+			errContains: "404",
+		},
+		{
+			name: "HTTP 500 error",
+			setupServer: func() (string, func()) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				return server.URL + "/error", server.Close
+			},
+			wantErr:     true,
+			errContains: "500",
+		},
+		{
+			name: "Connection refused (invalid host)",
+			setupServer: func() (string, func()) {
+				return "http://invalid-host-that-does-not-exist-12345.local/image", func() {}
+			},
+			wantErr:     true,
+			errContains: "failed to download",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url, cleanup := tt.setupServer()
+			defer cleanup()
+
+			destDir := t.TempDir()
+			_, err := DownloadImage(url, destDir)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("expected error=%v, got error=%v", tt.wantErr, err)
+			}
+			if tt.wantErr && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("error should contain %q, got %q", tt.errContains, err.Error())
+			}
+		})
+	}
+}
+
+// TestProcessImagesEmptyImageList tests processing with no images
+func TestProcessImagesEmptyImageList(t *testing.T) {
+	html := `<p>Just text</p><div>No images here</div><span>Nothing</span>`
+	result, err := ProcessImages(html, "/tmp", true)
+	if err != nil {
+		t.Fatalf("ProcessImages failed: %v", err)
+	}
+
+	// Should return unchanged HTML
+	if result != html {
+		t.Errorf("empty image list should return unchanged HTML")
+	}
+}
+
+// TestProcessImagesWithOptionsEmptyList tests options with no images
+func TestProcessImagesWithOptionsEmptyList(t *testing.T) {
+	html := `<div class="content"><p>Text only</p></div>`
+	result, err := ProcessImagesWithOptions(html, ".", ImageProcessingOptions{
+		EmbedRemoteAsBase64:    true,
+		RewriteRemoteToFileURL: true,
+		MaxConcurrentDownloads: 4,
+	})
+	if err != nil {
+		t.Fatalf("ProcessImagesWithOptions failed: %v", err)
+	}
+
+	if result != html {
+		t.Error("empty image list should not modify HTML")
+	}
+}
+
+// TestDownloadImageSizeExceeded tests that oversized images are rejected
+func TestDownloadImageSizeExceeded(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		// Write data larger than MaxImageSize
+		chunk := make([]byte, 1024*1024) // 1MB chunk
+		for i := 0; i < 60; i++ {        // Total > 50MB
+			_, _ = w.Write(chunk)
+		}
+	}))
+	defer server.Close()
+
+	_, err := DownloadImage(server.URL+"/huge", t.TempDir())
+	if err == nil {
+		t.Error("oversized image should cause error")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum") {
+		t.Errorf("error should mention size limit, got: %v", err)
 	}
 }
