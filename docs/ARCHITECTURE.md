@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.4.0
-> Updated: 2026-03-18
+> Version: v0.5.0
+> Updated: 2026-03-20
 
 ## 1. System Overview
 
@@ -30,6 +30,7 @@ Post-Processing
   │  cross-reference resolution
   │  glossary highlighting
   │  GFM Alert / Mermaid conversion
+  │  PlantUML local/server rendering
   ▼
 Assembly
   │  cover + TOC + chapters -> full HTML
@@ -211,7 +212,6 @@ type HeadingInfo struct {
     Text  string
     ID    string
 }
-type DocumentProcessor struct { ... }
 ```
 
 Key methods:
@@ -361,11 +361,11 @@ The `Renderer` type:
 
 - Searches HTML for `language-plantuml` code blocks
 - Encodes PlantUML syntax using deflate + base64 custom alphabet
-- Fetches SVG from the PlantUML online server (or future local command)
+- Fetches SVG from the PlantUML online server or renders locally via `plantuml` CLI / `PLANTUML_JAR`
 - Caches rendered SVGs to avoid repeated network calls
 - Wraps each SVG in a div for styling
 
-Key method: `RenderHTML(html) -> (string, error)` replaces all PlantUML blocks with SVG output.
+Key method: `RenderHTML(html) -> (string, error)` replaces all PlantUML blocks with SVG output. Local rendering detects `plantuml` on PATH or uses `PLANTUML_JAR` env var.
 
 ### 3.18 `internal/server` - Development Server
 
