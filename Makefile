@@ -78,13 +78,21 @@ check:
 		echo "Files need formatting:"; echo "$$UNFMT"; \
 		echo "Run: make fmt"; exit 1; \
 	fi
+	@echo ">>> [check] lint + build + test (parallel)"
+	@$(MAKE) --no-print-directory -j3 _lint _build _test
+	@echo ">>> All checks passed."
+
+# Internal parallel targets for check (not meant to be called directly)
+.PHONY: _lint _build _test
+_lint:
 	@echo ">>> [check] lint"
 	@$(MAKE) --no-print-directory lint
+_build:
 	@echo ">>> [check] go build"
 	@$(GOBUILD) ./...
+_test:
 	@echo ">>> [check] go test -short"
-	@$(GOTEST) -short -count=1 ./...
-	@echo ">>> All checks passed."
+	@$(GOTEST) -short -count=1 -timeout 120s ./...
 
 # Install git hooks (pre-commit runs make check)
 .PHONY: hooks

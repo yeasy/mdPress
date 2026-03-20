@@ -284,11 +284,11 @@ func TestProcessImagesAbsolutePath(t *testing.T) {
 	}
 }
 
-// TestDownloadImageInvalidURL 测试无效 URL 下载
+// TestDownloadImageInvalidURL tests that an invalid URL returns an error.
 func TestDownloadImageInvalidURL(t *testing.T) {
-	_, err := DownloadImage("not-a-url", t.TempDir())
+	_, err := DownloadImage("://bad-scheme", t.TempDir())
 	if err == nil {
-		t.Error("无效 URL 应返回错误")
+		t.Error("invalid URL should return an error")
 	}
 }
 
@@ -623,9 +623,13 @@ func TestDownloadImageErrorHandling(t *testing.T) {
 			errContains: "500",
 		},
 		{
-			name: "Connection refused (invalid host)",
+			name: "Connection refused",
 			setupServer: func() (string, func()) {
-				return "http://invalid-host-that-does-not-exist-12345.local/image", func() {}
+				// Start a server and immediately close it to get a refused port.
+				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				url := s.URL + "/image"
+				s.Close()
+				return url, func() {}
 			},
 			wantErr:     true,
 			errContains: "failed to download",
