@@ -17,6 +17,7 @@ flowchart TD
     root --> validate["validate [directory]<br/>Check config"]
     root --> doctor["doctor [directory]<br/>Check environment"]
     root --> themes["themes<br/>Theme management"]
+    root --> completion["completion &lt;shell&gt;<br/>Shell completion"]
 
     themes --> list["list"]
     themes --> show["show &lt;name&gt;"]
@@ -42,6 +43,7 @@ flowchart TD
 | `mdpress themes list` | List built-in themes | [themes](commands/themes.md) |
 | `mdpress themes show <theme-name>` | Show theme details and config hints | [themes](commands/themes.md) |
 | `mdpress themes preview` | Generate an HTML preview of built-in themes | [themes](commands/themes.md) |
+| `mdpress completion <shell>` | Generate shell completion scripts | [completion](commands/completion.md) |
 
 ## Global Flags
 
@@ -52,6 +54,7 @@ These flags appear in `--help` output for most commands.
 | `--config <path>` | `book.yaml` | Config file path. Mainly relevant for commands that load project config, such as `build`, `serve`, and `validate`. |
 | `--cache-dir <path>` | OS default | Override mdPress runtime cache directory. |
 | `--no-cache` | off | Disable mdPress runtime caches for this command. Forces a full rebuild. |
+| `--summary <path>` | — | Path to SUMMARY.md file. Used by `build` and `serve` to override auto-discovery of chapter structure. |
 | `-v, --verbose` | off | Print more detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -59,6 +62,7 @@ Notes:
 
 - If `--quiet` and `--verbose` are both set, the current implementation gives precedence to `--quiet`.
 - `--config` is a global flag, but not every command actually uses it. `doctor` and `themes` currently ignore it.
+- `--summary` is a global flag, but only `build` and `serve` actually use it. Other commands ignore it.
 
 ## Input Source Rules
 
