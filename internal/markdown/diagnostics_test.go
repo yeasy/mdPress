@@ -134,3 +134,149 @@ func TestParseWithDiagnosticsNormalHeadingNoWarning(t *testing.T) {
 		}
 	}
 }
+
+// TestIsFenceCloseComprehensive tests isFenceClose with table-driven test cases.
+func TestIsFenceCloseComprehensive(t *testing.T) {
+	tests := []struct {
+		name           string
+		line           string
+		fenceChar      byte
+		fenceLen       int
+		expectedResult bool
+	}{
+		{
+			name:           "exact fence length match with backticks",
+			line:           "```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "exact fence length match with tildes",
+			line:           "~~~",
+			fenceChar:      '~',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "longer closing fence than opening",
+			line:           "`````",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "too short closing fence",
+			line:           "``",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: false,
+		},
+		{
+			name:           "wrong fence character",
+			line:           "~~~",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: false,
+		},
+		{
+			name:           "closing fence with trailing whitespace",
+			line:           "```   ",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "closing fence with trailing tabs",
+			line:           "```\t\t",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "closing fence with trailing non-whitespace",
+			line:           "```text",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: false,
+		},
+		{
+			name:           "no leading spaces - 0 leading spaces",
+			line:           "```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "1 leading space valid",
+			line:           " ```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "2 leading spaces valid",
+			line:           "  ```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "3 leading spaces valid",
+			line:           "   ```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "4 leading spaces invalid",
+			line:           "    ```",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: false,
+		},
+		{
+			name:           "leading spaces with trailing whitespace",
+			line:           "  ```  ",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: true,
+		},
+		{
+			name:           "leading spaces with trailing non-whitespace",
+			line:           "  ```text",
+			fenceChar:      '`',
+			fenceLen:       3,
+			expectedResult: false,
+		},
+		{
+			name:           "fence length 4 with exact match",
+			line:           "````",
+			fenceChar:      '`',
+			fenceLen:       4,
+			expectedResult: true,
+		},
+		{
+			name:           "fence length 4 with longer closing",
+			line:           "`````",
+			fenceChar:      '`',
+			fenceLen:       4,
+			expectedResult: true,
+		},
+		{
+			name:           "fence length 4 with shorter closing",
+			line:           "```",
+			fenceChar:      '`',
+			fenceLen:       4,
+			expectedResult: false,
+		},
+	}
+
+	for _, test := range tests {
+		result := isFenceClose(test.line, test.fenceChar, test.fenceLen)
+		if result != test.expectedResult {
+			t.Errorf("%s: expected %v, got %v (line=%q, char=%c, len=%d)",
+				test.name, test.expectedResult, result, test.line, test.fenceChar, test.fenceLen)
+		}
+	}
+}
