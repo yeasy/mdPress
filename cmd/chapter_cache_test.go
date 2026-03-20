@@ -98,7 +98,7 @@ func TestParsedChapterCacheInvalidation(t *testing.T) {
 	}
 
 	// Load it back
-	got1, ok1, err := loadParsedChapterCache(chapterPath, content1, codeTheme)
+	_, ok1, err := loadParsedChapterCache(chapterPath, content1, codeTheme)
 	if err != nil || !ok1 {
 		t.Fatal("first load should hit cache")
 	}
