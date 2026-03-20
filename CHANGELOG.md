@@ -8,6 +8,17 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.4.2] - 2026-03-19
+
+### Changed
+
+- **Parallel pre-commit checks**: `make check` now runs lint, build, and test concurrently via `make -j3`, reducing wall-clock time significantly
+- **Faster plugin timeout test**: Rewritten `TestExternalPlugin_Execute_Timeout` script to respond instantly to `--mdpress-info`/`--mdpress-hooks` queries, eliminating ~10s of query timeouts during test setup
+- **Faster image download tests**: Replaced DNS-dependent invalid host test with closed httptest server (instant connection refused), eliminating ~10s DNS resolution timeout
+- **Go source formatting**: Applied `gofmt` to 8 files with minor alignment fixes
+
+---
+
 ## [0.4.1] - 2026-03-19
 
 ### Fixed
