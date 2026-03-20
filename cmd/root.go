@@ -12,7 +12,7 @@ import (
 
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.3.0"
+	Version = "0.3.1"
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// rootCmd is the root command for the mdpress application.
@@ -66,6 +66,15 @@ Common commands:
 	rootCmd.PersistentFlags().StringVar(&cacheDir, "cache-dir", "", "Override mdpress runtime cache directory")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable mdpress runtime caches for this command")
 
+	// Configure cache environment AFTER Cobra parses flags.
+	// This must be in PersistentPreRun (not before ExecuteContext) so that
+	// --cache-dir and --no-cache flags have been parsed by Cobra.
+	// Note: if a subcommand defines its own PersistentPreRun, it must
+	// manually call configureRuntimeCacheEnv() — Cobra does not chain them.
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		configureRuntimeCacheEnv()
+	}
+
 	// Register subcommands.
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(serveCmd)
@@ -81,7 +90,6 @@ Common commands:
 func Execute() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	configureRuntimeCacheEnv()
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

@@ -73,7 +73,7 @@ fmt:
 .PHONY: check
 check:
 	@echo ">>> [check] gofmt"
-	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*')); \
+	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*' -not -path './.cache/*')); \
 	if [ -n "$$UNFMT" ]; then \
 		echo "Files need formatting:"; echo "$$UNFMT"; \
 		echo "Run: make fmt"; exit 1; \

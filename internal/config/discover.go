@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -77,6 +78,9 @@ func loadFromSummary(dir, summaryPath string) (*BookConfig, error) {
 	}
 	if meta.Author != "" {
 		cfg.Book.Author = meta.Author
+	} else {
+		// Fall back to git config user.name when README.md has no author.
+		cfg.Book.Author = gitConfigAuthor(dir)
 	}
 
 	// Detect GLOSSARY.md.
@@ -237,6 +241,16 @@ func fileNameToTitle(path string) string {
 	return name
 }
 
+// gitConfigAuthor returns the git user.name configured in the given directory,
+// or an empty string when git is unavailable or no name is set.
+func gitConfigAuthor(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "config", "user.name").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // DiscoverError describes auto-discovery failures.
 type DiscoverError struct {
 	Dir string
@@ -331,6 +345,11 @@ func ExtractReadmeMetadata(path string) ReadmeMetadata {
 	// Fallback author to GitHub username.
 	if meta.Author == "" && githubUser != "" {
 		meta.Author = githubUser
+	}
+
+	// Last-resort fallback: try git config user.name in the book directory.
+	if meta.Author == "" {
+		meta.Author = gitConfigAuthor(filepath.Dir(path))
 	}
 
 	return meta

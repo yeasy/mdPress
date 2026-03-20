@@ -85,21 +85,21 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 - `build` 如果没有显式传 `--format`，会先读取 `output.formats`。
 - 如果配置里也没有 `output.formats`，默认构建 `pdf`。
-- 默认输出文件名来自 `output.filename`；默认配置值是 `output.pdf`。
+- 默认输出文件名根据书籍标题自动生成（文件系统不安全字符会被替换）。如果标题为空或为 "Untitled Book"，则使用项目目录名。你可以通过 `output.filename` 手动覆盖。
 - `serve` 默认把预览产物写到项目目录下的 `_book/`。
 
-## PDF 配置
-
-PDF 后端使用 Chromium 进行渲染，下面两个配置选项可以控制其行为：
+## 输出配置
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
+| `output.toc_max_depth` | `2` | 目录中包含的最大标题层级（1–6）。例如 `2` 表示包含 h1 和 h2；`3` 还会包含 h3。 |
 | `output.pdf_timeout` | `120` | 等待 Chromium 完成 PDF 页面渲染的最大秒数。对于很大的书籍可以增加此值。 |
 | `MDPRESS_CHROME_PATH` (环境变量) | 自动检测 | Chrome 或 Chromium 二进制文件的绝对路径。设置后，mdPress 会跳过自动检测直接使用此路径。 |
 
 `book.yaml` 配置示例：
 
     output:
+      toc_max_depth: 3
       pdf_timeout: 300
 
 环境变量使用示例：

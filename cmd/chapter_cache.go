@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -38,6 +39,8 @@ func loadParsedChapterCache(chapterPath, expandedContent, codeTheme string) (*ca
 
 	var cached cachedParsedChapter
 	if err := json.Unmarshal(data, &cached); err != nil {
+		slog.Debug("parsed chapter cache unmarshal failed, treating as cache miss",
+			"path", cachePath, "error", err)
 		return nil, false, nil
 	}
 	return &cached, true, nil

@@ -12,6 +12,13 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// Package-level compiled regexps to avoid recompilation per call.
+var (
+	refPlaceholderRegexp = regexp.MustCompile(`\{\{ref:([a-zA-Z0-9_\-]+)\}\}`)
+	figureCaptionRegexp  = regexp.MustCompile(`<figure\s+id="([^"]+)"([^>]*)>(.*?)</figure>`)
+	tableCaptionRegexp   = regexp.MustCompile(`<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
+)
+
 // ReferenceType 定义引用类型的常量
 type ReferenceType string
 
@@ -186,12 +193,9 @@ func (r *Resolver) Resolve(id string) (*Reference, error) {
 // 输入: "如图 {{ref:fig_demo}} 所示，..."
 // 输出: "如图 图1 所示，..."
 func (r *Resolver) ProcessHTML(html string) string {
-	// 匹配 {{ref:id}} 模式
-	re := regexp.MustCompile(`\{\{ref:([a-zA-Z0-9_\-]+)\}\}`)
-
-	return re.ReplaceAllStringFunc(html, func(match string) string {
+	return refPlaceholderRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		// 提取 ID
-		parts := re.FindStringSubmatch(match)
+		parts := refPlaceholderRegexp.FindStringSubmatch(match)
 		if len(parts) < 2 {
 			return match
 		}
@@ -243,11 +247,8 @@ func (r *Resolver) AddCaptions(html string) string {
 
 // addFigureCaptions 为 figure 元素添加标题
 func (r *Resolver) addFigureCaptions(html string) string {
-	// 匹配 <figure id="id">...</figure> 模式
-	re := regexp.MustCompile(`<figure\s+id="([^"]+)"([^>]*)>(.*?)</figure>`)
-
-	return re.ReplaceAllStringFunc(html, func(match string) string {
-		parts := re.FindStringSubmatch(match)
+	return figureCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
+		parts := figureCaptionRegexp.FindStringSubmatch(match)
 		if len(parts) < 4 {
 			return match
 		}
@@ -278,11 +279,8 @@ func (r *Resolver) addFigureCaptions(html string) string {
 
 // addTableCaptions 为 table 元素添加标题
 func (r *Resolver) addTableCaptions(html string) string {
-	// 匹配 <table id="id">...</table> 模式
-	re := regexp.MustCompile(`<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
-
-	return re.ReplaceAllStringFunc(html, func(match string) string {
-		parts := re.FindStringSubmatch(match)
+	return tableCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
+		parts := tableCaptionRegexp.FindStringSubmatch(match)
 		if len(parts) < 4 {
 			return match
 		}

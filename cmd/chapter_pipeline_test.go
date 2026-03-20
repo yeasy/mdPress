@@ -87,9 +87,11 @@ Some subsection text.
 			t.Errorf("Expected chapter title 'Chapter One', got %q", chapter.Title)
 		}
 
-		// Check that content contains rendered HTML
-		if !strings.Contains(chapter.Content, "Chapter One") {
-			t.Errorf("Chapter content does not contain expected heading text")
+		// The duplicate leading h1 matching the SUMMARY title should be stripped
+		// (the template renders it as <h1 class="chapter-title"> separately).
+		// Content should still contain the subsection heading.
+		if !strings.Contains(chapter.Content, "Section 1.1") {
+			t.Errorf("Chapter content does not contain expected subsection heading")
 		}
 
 		// Check that content contains section text

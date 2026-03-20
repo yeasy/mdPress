@@ -18,6 +18,12 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
+// Package-level compiled regexps for generateHeadingID (called per heading).
+var (
+	headingIDStripRegexp = regexp.MustCompile(`[^\p{L}\p{N}\s\-]`)
+	headingIDSpaceRegexp = regexp.MustCompile(`\s+`)
+)
+
 // HeadingInfo 标题信息结构体，用于目录生成
 type HeadingInfo struct {
 	Level  int    // 标题等级 (1-6)
@@ -195,11 +201,9 @@ func (p *Parser) GetHeadings() []HeadingInfo {
 func generateHeadingID(text string) string {
 	id := bytes.ToLower([]byte(text))
 	// 移除非字母数字字符（保留中文等 Unicode 字符）
-	reg := regexp.MustCompile(`[^\p{L}\p{N}\s\-]`)
-	id = reg.ReplaceAll(id, []byte(""))
+	id = headingIDStripRegexp.ReplaceAll(id, []byte(""))
 	// 空格替换为连字符
-	reg = regexp.MustCompile(`\s+`)
-	id = reg.ReplaceAll(id, []byte("-"))
+	id = headingIDSpaceRegexp.ReplaceAll(id, []byte("-"))
 	id = bytes.Trim(id, "-")
 	if len(id) == 0 {
 		return "heading"
