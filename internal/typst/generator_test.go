@@ -552,3 +552,171 @@ func TestConvertBoldComprehensive(t *testing.T) {
 		}
 	}
 }
+
+// TestReplaceLinksSingle tests replaceLinks with single markdown link conversion.
+func TestReplaceLinksSingle(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name           string
+		input          string
+		expectedOutput string
+	}{
+		{
+			name:           "simple markdown link",
+			input:          "[text](url)",
+			expectedOutput: `#link("url")[text]`,
+		},
+		{
+			name:           "link in sentence",
+			input:          "Click [here](https://example.com) now",
+			expectedOutput: `Click #link("https://example.com")[here] now`,
+		},
+		{
+			name:           "link with empty text",
+			input:          "[](https://example.com)",
+			expectedOutput: `#link("https://example.com")[]`,
+		},
+		{
+			name:           "no links in text",
+			input:          "This is plain text without any links",
+			expectedOutput: "This is plain text without any links",
+		},
+		{
+			name:           "multiple links in one line",
+			input:          "[first](url1) and [second](url2)",
+			expectedOutput: `#link("url1")[first]` + " and " + `#link("url2")[second]`,
+		},
+		{
+			name:           "link with special chars in URL",
+			input:          "[link](https://example.com/path?param=value&other=123)",
+			expectedOutput: `#link("https://example.com/path?param=value&other=123")[link]`,
+		},
+		{
+			name:           "link at start of line",
+			input:          "[start](url) of line",
+			expectedOutput: `#link("url")[start] of line`,
+		},
+		{
+			name:           "link at end of line",
+			input:          "end of [line](url)",
+			expectedOutput: `end of #link("url")[line]`,
+		},
+		{
+			name:           "link with punctuation in text",
+			input:          "[click here!](url)",
+			expectedOutput: `#link("url")[click here!]`,
+		},
+		{
+			name:           "link with special chars in text",
+			input:          "[foo & bar](url)",
+			expectedOutput: `#link("url")[foo & bar]`,
+		},
+		{
+			name:           "image is not converted as link",
+			input:          "![alt](img.png)",
+			expectedOutput: "![alt](img.png)",
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.replaceLinks(test.input)
+		if !strings.Contains(result, test.expectedOutput) {
+			t.Errorf("%s: expected output to contain %q, got %q", test.name, test.expectedOutput, result)
+		}
+	}
+}
+
+// TestReplaceLinksComprehensive tests replaceLinks with comprehensive table-driven test cases.
+func TestReplaceLinksComprehensive(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "markdown link single",
+			input:    "[text](url)",
+			expected: `#link("url")[text]`,
+		},
+		{
+			name:     "no links",
+			input:    "This is plain text",
+			expected: "This is plain text",
+		},
+		{
+			name:     "multiple links on one line",
+			input:    "[first](url1) and [second](url2)",
+			expected: `#link("url1")[first] and #link("url2")[second]`,
+		},
+		{
+			name:     "link with special chars",
+			input:    "[text](http://example.com/path?a=1&b=2#anchor)",
+			expected: `#link("http://example.com/path?a=1&b=2#anchor")[text]`,
+		},
+		{
+			name:     "empty link text",
+			input:    "[](url)",
+			expected: `#link("url")[]`,
+		},
+		{
+			name:     "link at line start",
+			input:    "[link](http://example.com) is here",
+			expected: `#link("http://example.com")[link] is here`,
+		},
+		{
+			name:     "link at line end",
+			input:    "Visit [example](http://example.com)",
+			expected: `Visit #link("http://example.com")[example]`,
+		},
+		{
+			name:     "multiple links with mixed content",
+			input:    "See [docs](docs.html) and [FAQ](faq.html) for help",
+			expected: `See #link("docs.html")[docs] and #link("faq.html")[FAQ] for help`,
+		},
+		{
+			name:     "unclosed bracket should not convert",
+			input:    "[incomplete text and more",
+			expected: "[incomplete text and more",
+		},
+		{
+			name:     "bracket without paren should not convert",
+			input:    "[text] without paren",
+			expected: "[text] without paren",
+		},
+		{
+			name:     "image should skip conversion",
+			input:    "![alt](image.png) is not a link",
+			expected: "![alt](image.png) is not a link",
+		},
+		{
+			name:     "link with numbers",
+			input:    "[123](url)",
+			expected: `#link("url")[123]`,
+		},
+		{
+			name:     "link with emoji-like punctuation",
+			input:    "[hello!?](url)",
+			expected: `#link("url")[hello!?]`,
+		},
+		{
+			name:     "link with relative path",
+			input:    "[relative](../path/to/file.html)",
+			expected: `#link("../path/to/file.html")[relative]`,
+		},
+		{
+			name:     "link text with multiple spaces",
+			input:    "[some longer text](url)",
+			expected: `#link("url")[some longer text]`,
+		},
+	}
+
+	for _, test := range tests {
+		result := converter.replaceLinks(test.input)
+		if result != test.expected {
+			t.Errorf("%s: expected %q, got %q", test.name, test.expected, result)
+		}
+	}
+}
