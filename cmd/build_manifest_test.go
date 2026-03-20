@@ -333,10 +333,14 @@ func TestComputeHashDifferentFiles(t *testing.T) {
 	defer os.Remove(tmpFile2.Name())
 
 	// Write different content
-	tmpFile1.WriteString("# Chapter 1\nContent 1")
+	if _, err := tmpFile1.WriteString("# Chapter 1\nContent 1"); err != nil {
+		t.Fatalf("failed to write first temp file: %v", err)
+	}
 	tmpFile1.Close()
 
-	tmpFile2.WriteString("# Chapter 2\nContent 2")
+	if _, err := tmpFile2.WriteString("# Chapter 2\nContent 2"); err != nil {
+		t.Fatalf("failed to write second temp file: %v", err)
+	}
 	tmpFile2.Close()
 
 	hash1, err := ComputeChapterHash(tmpFile1.Name())

@@ -181,9 +181,9 @@ func TestContainsChineseEdgeCases(t *testing.T) {
 // TestCJKCharacterRanges tests CJK detection across different Unicode ranges
 func TestCJKCharacterRanges(t *testing.T) {
 	tests := []struct {
-		name     string
-		rune     rune
-		isCJK    bool
+		name      string
+		rune      rune
+		isCJK     bool
 		isChinese bool
 	}{
 		// CJK Unified Ideographs (Chinese primary range)

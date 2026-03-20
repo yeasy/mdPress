@@ -102,7 +102,9 @@ func TestRenderHTML(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="white"/></svg>`))
+		if _, err := w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="white"/></svg>`)); err != nil {
+			t.Fatalf("failed to write mock SVG response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -226,7 +228,9 @@ func TestCaching(t *testing.T) {
 		callCount++
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg></svg>`))
+		if _, err := w.Write([]byte(`<svg></svg>`)); err != nil {
+			t.Fatalf("failed to write cached mock response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -263,7 +267,9 @@ func TestVariousDiagramTypes(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg width="100" height="100"></svg>`))
+		if _, err := w.Write([]byte(`<svg width="100" height="100"></svg>`)); err != nil {
+			t.Fatalf("failed to write diagram response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -303,7 +309,9 @@ State1 --> State2`,
 func TestServerError(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Internal Server Error"))
+		if _, err := w.Write([]byte("Internal Server Error")); err != nil {
+			t.Fatalf("failed to write error response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 
@@ -327,7 +335,9 @@ func TestWhitespaceHandling(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg></svg>`))
+		if _, err := w.Write([]byte(`<svg></svg>`)); err != nil {
+			t.Fatalf("failed to write whitespace test response: %v", err)
+		}
 	}))
 	defer mockServer.Close()
 

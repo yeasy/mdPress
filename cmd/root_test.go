@@ -10,10 +10,10 @@ import (
 // TestCacheDirFlagParsing tests that --cache-dir flag is properly parsed
 func TestCacheDirFlagParsing(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      []string
-		wantErr   bool
-		checkEnv  func(t *testing.T)
+		name     string
+		args     []string
+		wantErr  bool
+		checkEnv func(t *testing.T)
 	}{
 		{
 			name: "no cache flags",
