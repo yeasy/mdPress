@@ -3,6 +3,7 @@ package typst
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestConverterHeadings tests heading conversion.
@@ -843,5 +844,125 @@ func TestConvertCodeBlocksComprehensive(t *testing.T) {
 		if !strings.Contains(result, test.expectedOutput) {
 			t.Errorf("%s: expected output to contain %q, got %q", test.name, test.expectedOutput, result)
 		}
+	}
+}
+
+// TestCheckTypstAvailable tests the Typst availability check
+func TestCheckTypstAvailable(t *testing.T) {
+	// This test verifies the function does not panic and returns appropriate result
+	// In environments where typst is not installed, it should return an error
+	err := CheckTypstAvailable()
+	if err != nil {
+		// It's acceptable for typst to not be installed in test environment
+		// Just verify the error message is informative
+		if !strings.Contains(err.Error(), "Typst") && !strings.Contains(err.Error(), "typst") {
+			t.Errorf("error should mention Typst, got: %v", err)
+		}
+	}
+	// If no error, typst is available and working
+}
+
+// TestGeneratorWithMultipleOptions tests Generator creation with various options
+func TestGeneratorWithMultipleOptions(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     []GeneratorOption
+		checkFn  func(*Generator) bool
+		errMsg   string
+	}{
+		{
+			name: "all options set",
+			opts: []GeneratorOption{
+				WithTitle("Test Book"),
+				WithAuthor("Test Author"),
+				WithVersion("1.0.0"),
+				WithPageSize("Letter"),
+				WithFontSize("14pt"),
+				WithLineHeight(1.8),
+				WithLanguage("zh"),
+			},
+			checkFn: func(g *Generator) bool {
+				return g.title == "Test Book" &&
+					g.author == "Test Author" &&
+					g.version == "1.0.0" &&
+					g.pageSize == "Letter" &&
+					g.fontSize == "14pt" &&
+					g.lineHeight == 1.8 &&
+					g.language == "zh"
+			},
+			errMsg: "Generator with all options failed",
+		},
+		{
+			name: "default timeout set",
+			opts: []GeneratorOption{
+				WithTimeout(30 * time.Second),
+			},
+			checkFn: func(g *Generator) bool {
+				return g.timeout == 30*time.Second
+			},
+			errMsg: "timeout option failed",
+		},
+		{
+			name: "margins set",
+			opts: []GeneratorOption{
+				WithMargins("10mm", "15mm", "20mm", "25mm"),
+			},
+			checkFn: func(g *Generator) bool {
+				return g.marginLeft == "10mm" &&
+					g.marginRight == "15mm" &&
+					g.marginTop == "20mm" &&
+					g.marginBottom == "25mm"
+			},
+			errMsg: "margins option failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := NewGenerator(tt.opts...)
+			if !tt.checkFn(gen) {
+				t.Error(tt.errMsg)
+			}
+		})
+	}
+}
+
+// TestGenerateValidation tests Generate function parameter validation
+func TestGenerateValidation(t *testing.T) {
+	gen := NewGenerator()
+
+	tests := []struct {
+		name    string
+		content string
+		output  string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "empty output path",
+			content: "# Test",
+			output:  "",
+			wantErr: true,
+			errMsg:  "empty",
+		},
+		{
+			name:    "empty content",
+			content: "",
+			output:  "/tmp/test.pdf",
+			wantErr: true,
+			errMsg:  "empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := gen.Generate(tt.content, tt.output)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("expected error=%v, got %v", tt.wantErr, err)
+			}
+			if tt.wantErr && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("error should contain %q, got: %v", tt.errMsg, err)
+			}
+		})
 	}
 }
