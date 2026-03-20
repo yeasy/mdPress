@@ -49,6 +49,15 @@ output:
   cover: true
   header: true
   footer: true
+  # watermark: "DRAFT"       # Optional: add watermark text to PDF pages
+  # pdf_backend: "chromium"  # chromium (default) | typst (experimental, no Chrome needed)
   # formats:                 # Optional: output multiple formats at once
   #   - pdf
   #   - html
+  #   - site
+  #   - epub
+
+# PlantUML configuration (optional)
+# plantuml:
+#   server: "https://www.plantuml.com/plantuml"  # PlantUML server URL
+#   format: "svg"                                 # svg | png

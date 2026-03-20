@@ -111,7 +111,10 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Initialize incremental build system
 	cacheDir := filepath.Join(utils.CacheRootDir(), "build")
-	manifest, _ := LoadManifest(cacheDir)
+	manifest, manifestErr := LoadManifest(cacheDir)
+	if manifestErr != nil {
+		slog.Warn("Failed to load build manifest, starting fresh", slog.String("error", manifestErr.Error()))
+	}
 	if manifest == nil {
 		manifest = NewBuildManifest(Version)
 	}

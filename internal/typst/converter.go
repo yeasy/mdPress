@@ -2,6 +2,7 @@
 package typst
 
 import (
+	"log/slog"
 	"regexp"
 	"strings"
 	"unicode"
@@ -12,7 +13,7 @@ import (
 //   - `# Heading` → `= Heading`
 //   - `**bold**` → `*bold*`
 //   - `*italic*` → `_italic_`
-//   - `` `code` `` → `` `code` ``
+//   - “ `code` “ → “ `code` “
 //   - ```code blocks``` → ``` ```code blocks``` ``` (block syntax)
 //   - `![alt](img)` → `#image("img")`
 //   - `[text](url)` → `#link("url")[text]`
@@ -119,6 +120,12 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		// Handle paragraphs
 		result.WriteString(c.convertInline(line))
 		result.WriteString("\n\n")
+	}
+
+	// Warn if a code block was never closed — content inside is silently lost.
+	if inCodeBlock {
+		slog.Warn("Typst converter: unclosed code block at end of input, content may be lost",
+			slog.String("lang", codeBlockLang))
 	}
 
 	return strings.TrimSpace(result.String())

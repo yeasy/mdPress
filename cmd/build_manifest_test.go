@@ -170,13 +170,13 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 
 func TestManifestIsStale(t *testing.T) {
 	tests := []struct {
-		name             string
-		manifest         *BuildManifest
-		appVer           string
-		configHash       string
-		cssHash          string
-		expectStale      bool
-		description      string
+		name        string
+		manifest    *BuildManifest
+		appVer      string
+		configHash  string
+		cssHash     string
+		expectStale bool
+		description string
 	}{
 		{
 			name:        "nil manifest",
