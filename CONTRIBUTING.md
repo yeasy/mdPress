@@ -42,7 +42,7 @@ Feature suggestions are welcome. Please describe in the issue:
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Chrome or Chromium browser (for PDF generation tests)
 - GNU Make
 - (Optional) [golangci-lint](https://golangci-lint.run/) for linting

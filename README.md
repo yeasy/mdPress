@@ -219,6 +219,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | ePub output | **Yes** | No | Plugin | No |
 | Math / KaTeX | **Yes** | Plugin | Plugin | Plugin |
 | PlantUML diagrams | **Yes** | No | Plugin | Plugin |
+| Incremental builds | **Yes** | No | No | Yes |
 | Plugin system | **Yes** | No | Yes | Yes |
 | Live preview | **Yes** | Yes | Yes | Yes |
 | Zero-config mode | **Yes** | No | No | No |

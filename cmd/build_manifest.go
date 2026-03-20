@@ -18,18 +18,18 @@ const buildManifestFilename = "build-manifest.json"
 
 // ManifestEntry represents cached metadata for a single chapter.
 type ManifestEntry struct {
-	SHA256    string    `json:"sha256"`
-	HTMLPath  string    `json:"html_path"`
-	Headings  []string  `json:"headings"`  // List of heading texts for TOC
-	ModTime   time.Time `json:"mod_time"` // Chapter file modification time
+	SHA256   string    `json:"sha256"`
+	HTMLPath string    `json:"html_path"`
+	Headings []string  `json:"headings"` // List of heading texts for TOC
+	ModTime  time.Time `json:"mod_time"` // Chapter file modification time
 }
 
 // BuildManifest stores chapter compilation state for incremental builds.
 type BuildManifest struct {
-	Version  string                 `json:"version"`
-	AppVer   string                 `json:"app_version"`
-	ConfigSH string                 `json:"config_sha256"`
-	CSSHash  string                 `json:"css_hash"`
+	Version  string                   `json:"version"`
+	AppVer   string                   `json:"app_version"`
+	ConfigSH string                   `json:"config_sha256"`
+	CSSHash  string                   `json:"css_hash"`
 	Chapters map[string]ManifestEntry `json:"chapters"`
 }
 

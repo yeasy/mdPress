@@ -11,30 +11,30 @@ import (
 
 // Generator converts HTML/Markdown content to PDF using Typst.
 type Generator struct {
-	timeout       time.Duration
-	pageSize      string
-	marginLeft    string
-	marginRight   string
-	marginTop     string
-	marginBottom  string
-	fontFamily    string
-	fontSize      string
-	lineHeight    float64
-	language      string
-	author        string
-	title         string
-	version       string
-	date          string
+	timeout      time.Duration
+	pageSize     string
+	marginLeft   string
+	marginRight  string
+	marginTop    string
+	marginBottom string
+	fontFamily   string
+	fontSize     string
+	lineHeight   float64
+	language     string
+	author       string
+	title        string
+	version      string
+	date         string
 }
 
 // GeneratorOption customizes a Typst generator.
 type GeneratorOption func(*Generator)
 
 const (
-	defaultTimeout  = 60 * time.Second
-	defaultPageSize = "A4"
-	defaultMargin   = "20mm"
-	defaultFontSize = "12pt"
+	defaultTimeout    = 60 * time.Second
+	defaultPageSize   = "A4"
+	defaultMargin     = "20mm"
+	defaultFontSize   = "12pt"
 	defaultLineHeight = 1.6
 )
 
@@ -234,8 +234,8 @@ func (g *Generator) checkTypstAvailable() error {
 	path, err := exec.LookPath("typst")
 	if err != nil {
 		return fmt.Errorf(
-			"Typst is not installed or not found in PATH.\n"+
-				"Install Typst from https://github.com/typst/typst/releases\n"+
+			"Typst is not installed or not found in PATH.\n" +
+				"Install Typst from https://github.com/typst/typst/releases\n" +
 				"Or set it up with: cargo install typst-cli",
 		)
 	}

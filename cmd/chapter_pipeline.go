@@ -34,16 +34,16 @@ type ChapterPipelineOptions struct {
 
 // parsedChapterData holds the parsed output of a single chapter.
 type parsedChapterData struct {
-	index              int
-	chDef              config.ChapterDef
-	chapterPath        string
-	htmlContent        string
-	headings           []markdown.HeadingInfo
-	diagnostics        []markdown.Diagnostic
-	expandedContent    string
-	depth              int
-	flatChapterIndex   int
-	err                error
+	index            int
+	chDef            config.ChapterDef
+	chapterPath      string
+	htmlContent      string
+	headings         []markdown.HeadingInfo
+	diagnostics      []markdown.Diagnostic
+	expandedContent  string
+	depth            int
+	flatChapterIndex int
+	err              error
 }
 
 // ChapterPipelineResult encapsulates the output of chapter processing.
@@ -125,10 +125,14 @@ func (p *ChapterPipeline) parseChaptersParallel(
 	var mu sync.Mutex
 	var firstErr error
 
-	// Launch workers
+	// Launch workers.
+	// Each worker gets its own Parser instance because goldmark.Parser (and
+	// our wrapper's heading collector) carries mutable per-parse state that is
+	// not safe for concurrent use.
 	var wg sync.WaitGroup
 	for i := 0; i < maxConcurrency; i++ {
 		wg.Add(1)
+		workerParser := markdown.NewParser(markdown.WithCodeTheme(p.parserCodeTheme()))
 		go func() {
 			defer wg.Done()
 			for job := range jobsChan {
@@ -149,8 +153,8 @@ func (p *ChapterPipeline) parseChaptersParallel(
 				}
 				mu.Unlock()
 
-				// Parse this chapter
-				p.parseChapterWorker(ctx, job, imageOptions)
+				// Parse this chapter with the worker-local parser
+				p.parseChapterWorker(ctx, job, imageOptions, workerParser)
 				resultsChan <- job
 			}
 		}()
@@ -207,10 +211,23 @@ func (p *ChapterPipeline) parseChaptersParallel(
 // Returns with job.err != nil if there was a CRITICAL error that should abort the whole pipeline.
 // Returns with job.err == nil if the chapter was skipped (missing file) or successfully parsed.
 // The caller checks if htmlContent is empty to determine if it was skipped.
+// parserCodeTheme returns the code highlighting theme from config or theme.
+func (p *ChapterPipeline) parserCodeTheme() string {
+	codeTheme := p.Config.Style.CodeTheme
+	if codeTheme == "" && p.Theme != nil {
+		codeTheme = p.Theme.CodeTheme
+	}
+	if codeTheme == "" {
+		codeTheme = "github"
+	}
+	return codeTheme
+}
+
 func (p *ChapterPipeline) parseChapterWorker(
 	ctx context.Context,
 	job *parsedChapterData,
 	imageOptions utils.ImageProcessingOptions,
+	workerParser *markdown.Parser,
 ) {
 	chDef := job.chDef
 	chapterPath := job.chapterPath
@@ -247,7 +264,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 	case !cacheHit:
 		// Parse markdown
 		var parseErr error
-		htmlContent, headings, diagnostics, parseErr = p.Parser.ParseWithDiagnostics(content)
+		htmlContent, headings, diagnostics, parseErr = workerParser.ParseWithDiagnostics(content)
 		if parseErr != nil {
 			p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
 			// Skip silently - not a critical error, just skip this chapter

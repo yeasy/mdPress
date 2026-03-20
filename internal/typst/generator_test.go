@@ -379,9 +379,9 @@ func TestMakeTypstFontSize(t *testing.T) {
 // TestConvertMarginToTypst tests margin conversion.
 func TestConvertMarginToTypst(t *testing.T) {
 	tests := []struct {
-		margin      string
-		defaultVal  string
-		expected    string
+		margin     string
+		defaultVal string
+		expected   string
 	}{
 		{"20mm", "15mm", "20mm"},
 		{"", "15mm", "15mm"},

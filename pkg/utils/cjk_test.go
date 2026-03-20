@@ -101,9 +101,9 @@ func TestIsCJKRune(t *testing.T) {
 		{"Arabic digit", '٥', false},
 		{"Latin extended", 'é', false},
 		{"Greek letter", 'α', false},
-		{"CJK range start", 0x4E00, true},   // First CJK unified ideograph
-		{"CJK range end", 0x9FFF, true},     // Last CJK unified ideograph
-		{"Korean range", 0xAC00, true},      // First Korean hangul
+		{"CJK range start", 0x4E00, true},  // First CJK unified ideograph
+		{"CJK range end", 0x9FFF, true},    // Last CJK unified ideograph
+		{"Korean range", 0xAC00, true},     // First Korean hangul
 		{"Japanese hiragana あ", 'あ', true}, // Actual hiragana character
 		{"Japanese katakana ア", 'ア', true}, // Actual katakana character
 	}
@@ -133,7 +133,7 @@ func TestContainsCJKEdgeCases(t *testing.T) {
 		{"Only whitespace", "   \n\t  ", false},
 		{"Mixed with numbers", "123 中 456", true},
 		{"Mixed with punctuation", "中...world", true},
-		{"CJK fullwidth forms", "ＡＢＣ", false}, // These are not CJK ideographs
+		{"CJK fullwidth forms", "ＡＢＣ", false},        // These are not CJK ideographs
 		{"CJK compatibility ideographs", "㐀㐁", true}, // CJK compatibility ideographs
 	}
 

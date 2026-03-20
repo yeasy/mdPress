@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 )
 
 // TypstTemplateData holds the data needed to render a Typst document.
 type TypstTemplateData struct {
-	Title       string
-	Subtitle    string
-	Author      string
-	Date        string
-	Version     string
-	Language    string
-	Content     string // The Typst-formatted body content
-	PageWidth   string // e.g., "210mm" for A4
-	PageHeight  string // e.g., "297mm"
+	Title        string
+	Subtitle     string
+	Author       string
+	Date         string
+	Version      string
+	Language     string
+	Content      string // The Typst-formatted body content
+	PageWidth    string // e.g., "210mm" for A4
+	PageHeight   string // e.g., "297mm"
 	MarginTop    string
 	MarginRight  string
 	MarginBottom string
@@ -135,13 +136,27 @@ func GetPageDimensions(pageSize string) (width, height string) {
 
 // ConvertMarginToTypst converts a margin value (e.g., "20mm", "1in") to a Typst string.
 // If the value is empty, returns a default value.
+// The value is sanitized to prevent Typst code injection.
 func ConvertMarginToTypst(margin string, defaultVal string) string {
 	if margin == "" {
 		return defaultVal
 	}
-	// Validate that it ends with a unit (mm, cm, in, pt, etc.)
-	// For now, assume it's already in a valid Typst format
-	return margin
+	return sanitizeTypstValue(margin)
+}
+
+// sanitizeTypstValue removes characters that could be used for Typst code injection.
+// Only allows alphanumeric characters, digits, dots, and common unit suffixes.
+func sanitizeTypstValue(val string) string {
+	var result strings.Builder
+	for _, ch := range val {
+		// Allow: letters, digits, dot, minus, space, comma, quotes (for font names)
+		if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '.' || ch == '-' ||
+			ch == ' ' || ch == ',' || ch == '"' {
+			result.WriteRune(ch)
+		}
+	}
+	return result.String()
 }
 
 // CurrentDate returns the current date as a formatted string.
@@ -158,17 +173,16 @@ func PrepareTypstContent(content string) string {
 }
 
 // MakeTypstFont converts a CSS font family string to a Typst font list.
+// The input is sanitized to prevent Typst code injection.
 func MakeTypstFont(cssFontFamily string) string {
 	if cssFontFamily == "" {
 		return `"Segoe UI", "Helvetica", sans-serif`
 	}
-	// For now, return the CSS font family as-is.
-	// A more sophisticated implementation might convert common web fonts
-	// to their Typst equivalents.
-	return cssFontFamily
+	return sanitizeTypstValue(cssFontFamily)
 }
 
 // MakeTypstFontSize converts a CSS font size (e.g., "12pt", "14px") to Typst format.
+// The output is sanitized to prevent Typst code injection.
 func MakeTypstFontSize(cssFontSize string) string {
 	if cssFontSize == "" {
 		return "12pt"
@@ -182,7 +196,7 @@ func MakeTypstFontSize(cssFontSize string) string {
 		_, _ = fmt.Sscanf(sizeStr, "%f", &sizeVal)
 		return fmt.Sprintf("%.1fpt", sizeVal*0.75)
 	}
-	return cssFontSize
+	return sanitizeTypstValue(cssFontSize)
 }
 
 // CreateTypstDir ensures the Typst working directory exists.

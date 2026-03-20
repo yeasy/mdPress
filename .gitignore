@@ -45,7 +45,12 @@ mdpress-go-tmp-umask
 *_html/
 
 # Tool caches
+.cache/
 .playwright-cli/
 
 # Internal documents (not part of the release)
 /report.md
+/bugs-found.md
+/PLANTUML_IMPLEMENTATION.md
+/internal/plantuml/QUICK_START.md
+/internal/plantuml/README.md
