@@ -50,27 +50,19 @@ lint:
         path: coverage.txt
     when: always
 
-test:go-1.21:
+test:go-1.25:
   <<: *test-template
-  image: golang:1.21
-
-test:go-1.22:
-  <<: *test-template
-  image: golang:1.22
-
-test:go-1.23:
-  <<: *test-template
-  image: golang:1.23
+  image: golang:1.25
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
 
 # --- Build ---
 
 build:
   stage: build
-  image: golang:1.23
+  image: golang:1.25
   <<: *go-cache
   needs:
-    - test:go-1.23
+    - test:go-1.25
   script:
     - go build -v -o mdpress .
     - ./mdpress --help
