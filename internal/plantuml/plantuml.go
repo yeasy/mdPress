@@ -9,11 +9,15 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"sync"
 )
+
+// maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
+const maxResponseSize = 10 * 1024 * 1024
 
 // Renderer handles the detection and conversion of PlantUML diagrams.
 type Renderer struct {
@@ -119,10 +123,13 @@ func (r *Renderer) renderServer(code string) (string, error) {
 		return "", fmt.Errorf("plantuml server returned status %d", resp.StatusCode)
 	}
 
-	// Read the SVG content
+	// Read the SVG content (capped at maxResponseSize to prevent DoS)
 	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(resp.Body); err != nil {
+	if _, err := io.Copy(&buf, io.LimitReader(resp.Body, maxResponseSize+1)); err != nil {
 		return "", fmt.Errorf("failed to read plantuml response: %w", err)
+	}
+	if buf.Len() > maxResponseSize {
+		return "", fmt.Errorf("plantuml response exceeds maximum size (%d bytes)", maxResponseSize)
 	}
 
 	return buf.String(), nil

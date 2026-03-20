@@ -63,7 +63,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 			heading := strings.TrimSpace(strings.TrimPrefix(line, strings.Repeat("#", level)))
 			if heading != "" {
 				// Convert # to =, ## to ==, etc.
-				typstLevel := strings.Repeat("=", level+1)
+				typstLevel := strings.Repeat("=", level)
 				result.WriteString(typstLevel)
 				result.WriteString(" ")
 				result.WriteString(c.convertInline(heading))
@@ -73,9 +73,10 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		}
 
 		// Handle lists (unordered)
-		if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+		trimmedForList := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmedForList, "- ") || strings.HasPrefix(trimmedForList, "* ") {
 			depth := countLeadingSpaces(line) / 2
-			item := strings.TrimSpace(line[2:])
+			item := strings.TrimSpace(trimmedForList[2:])
 			result.WriteString(strings.Repeat("  ", depth))
 			result.WriteString("- ")
 			result.WriteString(c.convertInline(item))
