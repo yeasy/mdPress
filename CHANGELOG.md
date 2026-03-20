@@ -6,9 +6,21 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.4.0] - 2026-03-19
+
 ### Added
 
-- **PDF brand footer**: Every PDF page now displays a centered "Build with mdPress" watermark at the bottom, with a clickable link to the GitHub project page
+- **Typst PDF backend**: Alternative PDF generator via `--format typst`, enabling PDF generation without Chromium dependency; proof-of-concept for multi-backend architecture
+- **Parallel chapter parsing**: Multi-core Markdown parsing with automatic worker pool; `MaxConcurrency` auto-detects `runtime.NumCPU()` and caps at 8 to prevent memory issues
+- **Parallel format output**: Non-PDF formats (HTML, Site, ePub) now build concurrently via `errgroup`, speeding up multi-format builds
+- **Build manifest system**: SHA-256 hash tracking for chapters, configuration, and stylesheets enabling incremental builds and reproducible output; tracks chapter content and metadata in `build-manifest.json`
+- **PDF watermarks**: `output.watermark` and `output.watermark_opacity` configuration options (0.0-1.0, default 0.1) for document classification (e.g., "DRAFT", "CONFIDENTIAL")
+- **Custom PDF margins**: `output.margin_top`, `output.margin_bottom`, `output.margin_left`, `output.margin_right` with support for multiple units (mm, cm, in, pt, px)
+- **PDF bookmarks**: `output.generate_bookmarks` flag (default true) creates clickable PDF outline from heading hierarchy via Chrome's `GenerateDocumentOutline`; enables document navigation in readers
+- **PDF branded footer**: Every PDF page displays a centered "Build with mdPress" footer with clickable link to GitHub project page, replacing generic watermarks
+- **Expanded test coverage**: New test suites for `config` (488 lines), `pdf` (78+134 lines), `source` (177 lines), `utils/cjk` (106 lines), `utils/image` (193 lines), and `chapter_pipeline` (229 lines); 1200+ new test lines
 
 ### Fixed
 
@@ -17,7 +29,9 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- **PDF bottom margin**: Increased from 0mm to 10mm to accommodate the brand footer
+- **PDF default margins**: Bottom margin increased from 0mm to 10mm to accommodate branded footer; configurable via `output.margin_*` settings
+- **build_run.go orchestration**: Enhanced to support manifest-based incremental builds and parallel format output dispatch
+- **ROADMAP updates**: v0.3.0 and v0.3.1 marked as released; v0.4.0 milestones updated with completed features
 
 ---
 
@@ -159,7 +173,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/yeasy/mdpress/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/yeasy/mdpress/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/yeasy/mdpress/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/yeasy/mdpress/compare/v0.1.0...v0.2.0

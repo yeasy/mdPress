@@ -117,7 +117,7 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. No conf
 
 | Format | Command | Result |
 | --- | --- | --- |
-| PDF | `mdpress build --format pdf` | A printable book with cover, TOC, and page numbers |
+| PDF | `mdpress build --format pdf` | A printable book with cover, TOC, page numbers, margins, and optional watermarks |
 | HTML | `mdpress build --format html` | A single self-contained `.html` file you can email or upload |
 | Site | `mdpress build --format site` | A multi-page website ready for GitHub Pages or Netlify |
 | ePub | `mdpress build --format epub` | An ebook for Kindle, Apple Books, etc. |
@@ -218,6 +218,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | Multi-page site | **Yes** | Yes | Yes | Yes |
 | ePub output | **Yes** | No | Plugin | No |
 | Math / KaTeX | **Yes** | Plugin | Plugin | Plugin |
+| PlantUML diagrams | **Yes** | No | Plugin | Plugin |
 | Plugin system | **Yes** | No | Yes | Yes |
 | Live preview | **Yes** | Yes | Yes | Yes |
 | Zero-config mode | **Yes** | No | No | No |
@@ -239,13 +240,20 @@ Set `style.theme` in `book.yaml` to switch themes.
 ## Requirements
 
 - **Go 1.24+** for installation
-- **Chrome or Chromium** — only needed for PDF output. HTML, site, and ePub work without it.
+- **Chrome or Chromium** — only needed for PDF output with the default backend. HTML, site, and ePub work without it.
+- **Typst CLI** (optional) — enables the `--format typst` backend as a zero-dependency alternative to Chromium.
+
+### Chrome/Chromium Installation
 
 | System | Chrome install |
 | --- | --- |
 | macOS | `brew install chromium` or install Chrome |
 | Ubuntu/Debian | `sudo apt install chromium-browser` |
 | Windows | Install [Google Chrome](https://www.google.com/chrome/) |
+
+### Typst Installation (Optional)
+
+For the Typst backend alternative, install Typst from [typst.app](https://typst.app).
 
 Run `mdpress doctor` to check if everything is ready.
 
