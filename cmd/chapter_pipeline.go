@@ -135,6 +135,16 @@ func (p *ChapterPipeline) parseChaptersParallel(
 		workerParser := markdown.NewParser(markdown.WithCodeTheme(p.parserCodeTheme()))
 		go func() {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("chapter parsing worker panicked", slog.Any("panic", r))
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("worker panic: %v", r)
+					}
+					mu.Unlock()
+				}
+			}()
 			for job := range jobsChan {
 				// Check context cancellation
 				if err := ctx.Err(); err != nil {
