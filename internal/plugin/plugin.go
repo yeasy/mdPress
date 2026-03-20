@@ -84,6 +84,8 @@ type HookContext struct {
 
 	// Metadata is a shared key-value map for passing data between phases or
 	// between consecutive plugins.
+	// No sync protection is needed: each HookContext instance gets its own map,
+	// and RunHook is always called sequentially from the build pipeline.
 	Metadata map[string]interface{}
 }
 
