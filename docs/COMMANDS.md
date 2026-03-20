@@ -61,7 +61,7 @@ These flags appear in `--help` output for most commands.
 Notes:
 
 - If `--quiet` and `--verbose` are both set, the current implementation gives precedence to `--quiet`.
-- `--config` is a global flag, but not every command actually uses it. `doctor` and `themes` currently ignore it.
+- `--config` is a global flag, but not every command actually uses it. `doctor`, `themes`, and `completion` currently ignore it.
 - `--summary` is a global flag, but only `build` and `serve` actually use it. Other commands ignore it.
 
 ## Input Source Rules
