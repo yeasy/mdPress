@@ -240,7 +240,10 @@ func TestExternalPlugin_Execute_Stderr(t *testing.T) {
 
 func TestExternalPlugin_Execute_Timeout(t *testing.T) {
 	dir := t.TempDir()
-	p := writeScript(t, dir, "slow", "sleep 30")
+	// Script responds quickly to --mdpress-info/--mdpress-hooks (so NewExternalPlugin
+	// does not block on the 5s query timeout) but sleeps on normal execution.
+	script := `case "$1" in --mdpress-*) echo '{}';; *) sleep 30;; esac`
+	p := writeScript(t, dir, "slow", script)
 	ep, err := NewExternalPlugin("slow", p, nil)
 	if err != nil {
 		t.Fatal(err)
