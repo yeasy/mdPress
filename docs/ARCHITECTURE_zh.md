@@ -2,8 +2,8 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.4.0
-> 更新日期: 2026-03-18
+> 版本: v0.5.0
+> 更新日期: 2026-03-20
 
 ## 1. 系统架构总览
 
@@ -29,7 +29,7 @@ Markdown 解析 (Parser)
   │  图片处理（base64 嵌入/路径解析）
   │  交叉引用解析（{{ref:id}} → 编号）
   │  术语表高亮（tooltip 注释）
-  │  GFM Alert / Mermaid 转换
+  │  GFM Alert / Mermaid / PlantUML 转换
   ▼
 组装 (Assembly)
   │  封面 + 目录 + 章节 → 完整 HTML
@@ -207,7 +207,6 @@ type HeadingInfo struct {            // 标题信息
     Text  string
     ID    string
 }
-type DocumentProcessor struct { ... } // 批量并发处理器
 ```
 
 **关键方法：**
@@ -320,7 +319,7 @@ type Target struct {
 
 ### 3.17 internal/plantuml — PlantUML 处理
 
-**职责：** 处理 PlantUML 图表，通过 PlantUML 服务或本地命令生成图像。
+**职责：** 处理 PlantUML 图表，支持本地 `plantuml` CLI 命令或通过 `PLANTUML_JAR` 环境变量指定本地 JAR 文件，以及远程 PlantUML 服务生成图像。
 
 ### 3.18 internal/server — 开发服务器
 
