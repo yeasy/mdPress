@@ -8,6 +8,46 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.4.1] - 2026-03-19
+
+### Fixed
+
+- **Typst heading off-by-one**: `# h1` now correctly maps to `= h1` instead of `== h1` in Typst backend
+- **Typst list indent**: Unordered list items with leading whitespace are now correctly extracted
+- **PlantUML response limit**: Server responses capped at 10 MB to prevent excessive memory usage
+- **Typst input sanitization**: `sanitizeTypstValue()` prevents code injection via margin, font, and font-size config fields
+- **Parallel worker panic recovery**: Worker goroutines now catch panics and convert them to errors instead of hanging the build
+- **Landing page atomic write**: Multilingual landing page uses temp-file-then-rename to prevent partial writes
+- **CSS load logging**: Custom CSS load failures now log the file path; successful loads emit a Debug message
+- **Plugin cleanup error handling**: `CleanupAll()` now uses `errors.Join` to preserve all plugin cleanup errors instead of only the last one
+- **Example config accuracy**: Fixed incorrect field names and values in `examples/book.yaml`
+
+### Changed
+
+- **Typst regex performance**: Promoted 3 hot-path `regexp.MustCompile` calls in converter to package-level variables
+- **CI pipeline**: Upgraded to Go 1.25, actions/checkout v5, actions/setup-go v6, golangci-lint-action v9
+- **Dockerfile**: Updated builder stage from Go 1.24 to Go 1.25
+
+### Documentation
+
+- **Architecture docs**: Updated ARCHITECTURE.md (EN + ZH) to v0.4.0 with Typst, PlantUML, and Server module sections; added parallel build and incremental build data flow diagrams
+- **COMMANDS.md**: Fixed incorrect flag descriptions and removed ghost command entry
+- **Typst behavior differences**: Documented Typst vs Chromium backend differences in CHANGELOG
+- **Plugin metadata**: Documented that `HookContext.Metadata` map requires no sync protection (serial access only)
+- **Go version badge**: Updated README badge to Go 1.25
+- **Removed internal planning docs**: Removed 5 outdated internal documents (~3,400 lines)
+
+### Tests
+
+- **920+ new test lines** across 11 files, closing all 15 tracked test gaps (TG-1 through TG-15):
+  - CJK character detection, chapter cache invalidation, image concurrent download
+  - Quickstart ReadDir, Typst generator CLI and options, root flag parsing (new file)
+  - Site flattenChapters, Typst replaceLinks and unclosed code blocks
+  - isFenceClose boundary cases, convertImages/convertBold, deriveLanguageOutputOverride
+- Test-to-code ratio improved from 1.11:1 to 1.15:1
+
+---
+
 ## [0.4.0] - 2026-03-19
 
 ### Added
