@@ -27,6 +27,7 @@ flowchart TD
     build --> html["--format html"]
     build --> site["--format site"]
     build --> epub["--format epub"]
+    build --> typst["--format typst"]
 ```
 
 ## Command Matrix
@@ -90,21 +91,96 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 ## Output Configuration
 
+### Table of Contents and Rendering
+
 | Setting | Default | Description |
 | --- | --- | --- |
 | `output.toc_max_depth` | `2` | Maximum heading level to include in the table of contents (1–6). For example, `2` includes h1 and h2; `3` also includes h3. |
 | `output.pdf_timeout` | `120` | Maximum seconds to wait for Chromium to finish rendering a PDF page. Increase for very large books. |
-| `MDPRESS_CHROME_PATH` (env) | auto-detect | Absolute path to a Chrome or Chromium binary. When set, mdPress skips auto-detection and uses this path directly. |
+
+### PDF Watermarks
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `output.watermark` | — | Text or image to overlay on PDF pages. Examples: `"DRAFT"`, `"CONFIDENTIAL"`, or path to image file. |
+| `output.watermark_opacity` | `0.1` | Watermark transparency (0.0–1.0). Lower values are more subtle. |
+
+### PDF Margins
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `output.margin_top` | — | Top page margin. Examples: `"20mm"`, `"0.8in"`, `"2cm"`. |
+| `output.margin_bottom` | — | Bottom page margin. |
+| `output.margin_left` | — | Left page margin. |
+| `output.margin_right` | — | Right page margin. |
+
+### PDF Bookmarks
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `output.generate_bookmarks` | `true` | Auto-generate PDF bookmarks from heading hierarchy. Improves navigation in PDF readers. |
+
+### Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MDPRESS_CHROME_PATH` | auto-detect | Absolute path to a Chrome or Chromium binary. When set, mdPress skips auto-detection and uses this path directly. |
 
 Example `book.yaml` snippet:
 
     output:
       toc_max_depth: 3
       pdf_timeout: 300
+      watermark: "DRAFT"
+      watermark_opacity: 0.15
+      margin_top: "20mm"
+      margin_bottom: "20mm"
+      margin_left: "25mm"
+      margin_right: "25mm"
+      generate_bookmarks: true
 
 Example environment variable usage:
 
     MDPRESS_CHROME_PATH=/usr/bin/chromium mdpress build --format pdf
+
+## Typst Backend
+
+mdPress supports the Typst typesetting system as an alternative PDF backend, offering zero external dependencies:
+
+    mdpress build --format typst
+
+**Requirements**: The `typst` CLI must be installed on your system. Visit [typst.app](https://typst.app) for installation instructions.
+
+**Advantages over Chromium**:
+- No external browser dependency (Chromium not required)
+- Faster native PDF compilation
+- Professional typesetting quality
+
+**Note**: If `typst` is not installed, the command will fail. For systems without Typst, continue using the default Chromium backend.
+
+## PlantUML Diagram Support
+
+mdPress automatically detects and renders PlantUML diagrams in markdown code blocks:
+
+    ```plantuml
+    @startuml
+    Alice -> Bob: Hello
+    @enduml
+    ```
+
+PlantUML diagrams are rendered as SVG or PNG in HTML-based outputs and embedded in PDF/ePub formats.
+
+**Requirements**: For full support, ensure PlantUML is installed. If not available, diagrams will be rendered as code blocks.
+
+## Parallel Builds and Build Cache
+
+mdPress automatically uses multiple CPU cores when building multi-chapter books:
+
+- **Automatic parallelization**: No configuration needed. Chapter parsing automatically uses available CPU cores.
+- **Build cache**: mdPress maintains a `.mdpress-cache/` directory with chapter hashes and compiled content. Unchanged chapters are reused on subsequent builds.
+- **Force full rebuild**: Use `mdpress build --no-cache` to skip the cache and rebuild all chapters.
+
+This can reduce rebuild times significantly, especially for large books with many chapters.
 
 ## Boundaries Of Auto-Discovery
 

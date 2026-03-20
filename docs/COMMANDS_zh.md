@@ -27,6 +27,7 @@ flowchart TD
     build --> html["--format html"]
     build --> site["--format site"]
     build --> epub["--format epub"]
+    build --> typst["--format typst"]
 ```
 
 ## 命令矩阵
@@ -90,21 +91,96 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 ## 输出配置
 
+### 目录和渲染
+
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `output.toc_max_depth` | `2` | 目录中包含的最大标题层级（1–6）。例如 `2` 表示包含 h1 和 h2；`3` 还会包含 h3。 |
 | `output.pdf_timeout` | `120` | 等待 Chromium 完成 PDF 页面渲染的最大秒数。对于很大的书籍可以增加此值。 |
-| `MDPRESS_CHROME_PATH` (环境变量) | 自动检测 | Chrome 或 Chromium 二进制文件的绝对路径。设置后，mdPress 会跳过自动检测直接使用此路径。 |
+
+### PDF 水印
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `output.watermark` | — | 叠加在 PDF 页面上的文本或图片。示例：`"DRAFT"`、`"CONFIDENTIAL"`、或图片文件路径。 |
+| `output.watermark_opacity` | `0.1` | 水印透明度（0.0–1.0）。数值越小越透明。 |
+
+### PDF 页边距
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `output.margin_top` | — | 页面上边距。示例：`"20mm"`、`"0.8in"`、`"2cm"`。 |
+| `output.margin_bottom` | — | 页面下边距。 |
+| `output.margin_left` | — | 页面左边距。 |
+| `output.margin_right` | — | 页面右边距。 |
+
+### PDF 书签
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `output.generate_bookmarks` | `true` | 从标题层级自动生成 PDF 书签，增强 PDF 阅读器中的导航体验。 |
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `MDPRESS_CHROME_PATH` | 自动检测 | Chrome 或 Chromium 二进制文件的绝对路径。设置后，mdPress 会跳过自动检测直接使用此路径。 |
 
 `book.yaml` 配置示例：
 
     output:
       toc_max_depth: 3
       pdf_timeout: 300
+      watermark: "DRAFT"
+      watermark_opacity: 0.15
+      margin_top: "20mm"
+      margin_bottom: "20mm"
+      margin_left: "25mm"
+      margin_right: "25mm"
+      generate_bookmarks: true
 
 环境变量使用示例：
 
     MDPRESS_CHROME_PATH=/usr/bin/chromium mdpress build --format pdf
+
+## Typst 后端
+
+mdPress 支持使用 Typst 排版系统作为另一种 PDF 生成方案，可实现零外部依赖：
+
+    mdpress build --format typst
+
+**要求**：系统上必须安装 `typst` CLI。访问 [typst.app](https://typst.app) 获取安装说明。
+
+**相比 Chromium 的优势**：
+- 无需外部浏览器依赖（不需要 Chromium）
+- 原生 PDF 编译速度更快
+- 专业级排版质量
+
+**说明**：如果未安装 Typst，命令会失败。在不支持 Typst 的系统上，请继续使用默认的 Chromium 后端。
+
+## PlantUML 图表支持
+
+mdPress 自动检测并渲染 Markdown 代码块中的 PlantUML 图表：
+
+    ```plantuml
+    @startuml
+    Alice -> Bob: 你好
+    @enduml
+    ```
+
+PlantUML 图表在 HTML 输出中渲染为 SVG 或 PNG，在 PDF/ePub 中被嵌入。
+
+**要求**：为获得完整支持，请确保安装了 PlantUML。如未安装，图表将作为代码块显示。
+
+## 并行构建和构建缓存
+
+mdPress 在构建多章节书籍时自动使用多个 CPU 核心：
+
+- **自动并行化**：无需配置。章节解析会自动利用所有可用 CPU 核心。
+- **构建缓存**：mdPress 维护 `.mdpress-cache/` 目录，记录章节 hash 和编译产物。未改动的章节会在后续构建中直接复用。
+- **强制全量重建**：使用 `mdpress build --no-cache` 跳过缓存并重新编译所有章节。
+
+这可以大幅缩短重建时间，尤其是对于有很多章节的大型书籍。
 
 ## 自动发现的边界
 
