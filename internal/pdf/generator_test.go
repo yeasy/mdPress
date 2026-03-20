@@ -351,15 +351,129 @@ func TestChromiumRuntimeEnv(t *testing.T) {
 	}
 	env := chromiumRuntimeEnv(runtime)
 	joined := strings.Join(env, "\n")
+	// HOME and XDG_CACHE_HOME are intentionally not overridden so that Chrome
+	// can access system font caches; only TMPDIR and XDG_CONFIG_HOME are isolated.
 	for _, expected := range []string{
-		"HOME=/tmp/home",
 		"TMPDIR=/tmp/tmp",
 		"XDG_CONFIG_HOME=/tmp/xdg-config",
-		"XDG_CACHE_HOME=/tmp/xdg-cache",
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("expected %q in env, got %v", expected, env)
 		}
+	}
+	for _, unexpected := range []string{"\nHOME=", "XDG_CACHE_HOME="} {
+		if strings.Contains("\n"+joined, unexpected) {
+			t.Fatalf("unexpected %q in env (should not override): %v", unexpected, env)
+		}
+	}
+}
+
+// TestBuildCJKFontFaceCSS tests CJK font face CSS generation.
+func TestBuildCJKFontFaceCSS(t *testing.T) {
+	css := buildCJKFontFaceCSS()
+	// Result depends on environment — if no CJK font is installed, returns empty.
+	if css != "" {
+		if !strings.Contains(css, "@font-face") {
+			t.Error("non-empty CSS should contain @font-face rule")
+		}
+		if !strings.Contains(css, "CJK-Embedded") {
+			t.Error("non-empty CSS should use CJK-Embedded family name")
+		}
+		if !strings.Contains(css, "unicode-range") {
+			t.Error("non-empty CSS should include unicode-range")
+		}
+		if !strings.Contains(css, "file://") {
+			t.Error("non-empty CSS should use file:// URL")
+		}
+		if !strings.Contains(css, "body {") {
+			t.Error("non-empty CSS should include body font-family override")
+		}
+	}
+}
+
+// TestInjectCJKFontFaceCSS tests CSS injection into HTML.
+func TestInjectCJKFontFaceCSS(t *testing.T) {
+	// Test with no CJK fonts available — should return unchanged HTML.
+	// In environments without CJK fonts, this validates the no-op path.
+	html := "<html><head><title>Test</title></head><body>Hello</body></html>"
+	result := injectCJKFontFaceCSS(html)
+
+	// If no CJK fonts installed, result should be unchanged.
+	// If CJK fonts are installed, result should contain the style block.
+	if result != html {
+		if !strings.Contains(result, `data-cjk-fonts="1"`) {
+			t.Error("injected CSS should have data-cjk-fonts attribute")
+		}
+		if !strings.Contains(result, "</head>") {
+			t.Error("injected CSS should preserve </head> tag")
+		}
+		// Style block should appear before </head>
+		styleIdx := strings.Index(result, `data-cjk-fonts="1"`)
+		headIdx := strings.Index(result, "</head>")
+		if styleIdx > headIdx {
+			t.Error("CJK style block should be injected before </head>")
+		}
+	}
+}
+
+// TestInjectCJKFontFaceCSSNoHead tests injection when </head> is missing.
+func TestInjectCJKFontFaceCSSNoHead(t *testing.T) {
+	html := "<body>Hello</body>"
+	result := injectCJKFontFaceCSS(html)
+	// If CJK fonts available, block should be prepended.
+	if result != html && !strings.HasPrefix(result, "<style") {
+		t.Error("when no </head> present, CJK style should be prepended")
+	}
+}
+
+func TestCJKFontSrc(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "ttc collection",
+			path:     "/tmp/fonts/msyh.ttc",
+			expected: `url("file:///tmp/fonts/msyh.ttc#1") format(collection)`,
+		},
+		{
+			name:     "otc collection",
+			path:     "/tmp/fonts/noto.otc",
+			expected: `url("file:///tmp/fonts/noto.otc#1") format(collection)`,
+		},
+		{
+			name:     "otf font",
+			path:     "/tmp/fonts/noto.otf",
+			expected: `url("file:///tmp/fonts/noto.otf") format(opentype)`,
+		},
+		{
+			name:     "ttf font",
+			path:     "/tmp/fonts/noto.ttf",
+			expected: `url("file:///tmp/fonts/noto.ttf") format(truetype)`,
+		},
+		{
+			name:     "unknown extension",
+			path:     "/tmp/fonts/noto.font",
+			expected: `url("file:///tmp/fonts/noto.font")`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cjkFontSrc(cjkFontSource{path: tt.path})
+			if got != tt.expected {
+				t.Fatalf("cjkFontSrc(%q) = %q, want %q", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFileURLForCSS(t *testing.T) {
+	got := fileURLForCSS("/tmp/My Fonts/msyh.ttc")
+	want := "file:///tmp/My%20Fonts/msyh.ttc"
+	if got != want {
+		t.Fatalf("fileURLForCSS() = %q, want %q", got, want)
 	}
 }
 

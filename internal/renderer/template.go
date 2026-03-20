@@ -39,7 +39,7 @@ const htmlTemplate = `<!DOCTYPE html>
     body {
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Roboto", "Droid Sans", "Helvetica Neue", sans-serif;
       line-height: 1.6;
       color: #333;
       background-color: #fff;
@@ -47,7 +47,7 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     .print-brand-footer {
-      position: fixed;
+      position: absolute;
       left: 0;
       right: 0;
       bottom: 8mm;
@@ -77,6 +77,7 @@ const htmlTemplate = `<!DOCTYPE html>
       page-break-after: always;
       background: white;
       color: #1A5490;
+      position: relative;
     }
 
     .cover-content {
@@ -377,10 +378,6 @@ const htmlTemplate = `<!DOCTYPE html>
         display: none !important;
       }
 
-      .print-brand-footer {
-        display: block;
-      }
-
       /* Keep page layout clean during printing — pure white background
          to reduce PDF file size (no decorative backgrounds rendered). */
       body {
@@ -429,7 +426,7 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     @media screen {
-      .print-brand-footer {
+      .cover-page .print-brand-footer {
         display: none;
       }
     }
@@ -457,6 +454,7 @@ const htmlTemplate = `<!DOCTYPE html>
   {{if .CoverHTML}}
   <div class="cover-page">
     {{.CoverHTML}}
+    <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
   </div>
   {{end}}
 
@@ -476,8 +474,6 @@ const htmlTemplate = `<!DOCTYPE html>
     </div>
   </div>
   {{end}}
-
-  <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
 
   <!-- Mermaid: auto-detect and load only when diagrams are present -->
   <script>

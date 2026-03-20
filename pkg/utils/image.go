@@ -29,6 +29,10 @@ func fnv32a(s string) uint32 {
 	return h
 }
 
+// imgSrcRegex matches HTML <img> tags and captures the src attribute.
+// Compiled once at package level to avoid repeated compilation in ProcessImagesWithOptions.
+var imgSrcRegex = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
+
 // MaxImageSize is the maximum allowed size for a downloaded image (50 MB).
 const MaxImageSize = 50 * 1024 * 1024
 
@@ -255,8 +259,6 @@ func ProcessImages(htmlContent string, baseDir string, embedAsBase64 bool, logge
 // ProcessImagesWithOptions resolves image paths in HTML with explicit control
 // over embedding, remote downloads, and file URL rewriting.
 func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageProcessingOptions) (string, error) {
-	imgSrcRegex := regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
-
 	if options.CacheDir == "" {
 		options.CacheDir = filepath.Join(CacheRootDir(), "images")
 	}

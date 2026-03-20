@@ -51,6 +51,7 @@ func TestRenderBasic(t *testing.T) {
 		t.Fatalf("NewHTMLRenderer 失败: %v", err)
 	}
 	parts := &RenderParts{
+		CoverHTML: "<div>cover</div>",
 		ChaptersHTML: []ChapterHTML{
 			{Title: "第一章", ID: "ch1", Content: "<p>内容</p>"},
 		},
@@ -73,8 +74,9 @@ func TestRenderBasic(t *testing.T) {
 	if !strings.Contains(html, "测试作者") {
 		t.Error("应包含作者名")
 	}
+	// Brand footer appears only inside the cover-page div.
 	if !strings.Contains(html, `Build with md<span class="brand-accent">Press</span>`) {
-		t.Error("应包含默认品牌页脚")
+		t.Error("应包含默认品牌页脚（封面内）")
 	}
 	if !strings.Contains(html, "第一章") {
 		t.Error("应包含章节标题")

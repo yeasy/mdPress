@@ -736,3 +736,105 @@ func TestRewriteChapterLinks(t *testing.T) {
 		})
 	}
 }
+
+// Tests for sanitizeBookFilename
+func TestSanitizeBookFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"normal ASCII", "my-book", "my-book"},
+		{"with slash", "my/book", "my_book"},
+		{"with backslash", `my\book`, "my_book"},
+		{"with colon", "my:book", "my_book"},
+		{"with asterisk", "my*book", "my_book"},
+		{"with question mark", "my?book", "my_book"},
+		{"with angle brackets", "my<book>", "my_book_"},
+		{"with pipe", "my|book", "my_book"},
+		{"with quotes", `my"book"`, "my_book_"},
+		{"multiple invalid chars", `a/b\c:d*e?f"g<h>i|j`, "a_b_c_d_e_f_g_h_i_j"},
+		{"CJK characters", "我的书", "我的书"},
+		{"mixed CJK and invalid", "我的/书", "我的_书"},
+		{"empty string", "", "output"},
+		{"whitespace only", "   ", "output"},
+		{"leading trailing spaces", " my book ", "my book"},
+		{"all invalid chars", `/\:*?"<>|`, "output"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeBookFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeBookFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// Tests for deriveOutputFilename
+func TestDeriveOutputFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *config.BookConfig
+		expected string
+	}{
+		{
+			name: "explicit filename",
+			cfg: func() *config.BookConfig {
+				c := &config.BookConfig{}
+				c.Output.Filename = "custom.pdf"
+				return c
+			}(),
+			expected: "custom.pdf",
+		},
+		{
+			name: "default output.pdf falls through to title",
+			cfg: func() *config.BookConfig {
+				c := &config.BookConfig{}
+				c.Output.Filename = "output.pdf"
+				c.Book.Title = "Go Programming"
+				return c
+			}(),
+			expected: "Go Programming.pdf",
+		},
+		{
+			name: "title with invalid chars",
+			cfg: func() *config.BookConfig {
+				c := &config.BookConfig{}
+				c.Book.Title = "Go: The Good Parts?"
+				return c
+			}(),
+			expected: "Go_ The Good Parts_.pdf",
+		},
+		{
+			name: "empty title uses dir name",
+			cfg: func() *config.BookConfig {
+				c := &config.BookConfig{}
+				c.SetBaseDir("/tmp/my-project")
+				c.Book.Title = ""
+				return c
+			}(),
+			expected: "my-project.pdf",
+		},
+		{
+			name: "Untitled Book uses dir name",
+			cfg: func() *config.BookConfig {
+				c := &config.BookConfig{}
+				c.SetBaseDir("/tmp/awesome-book")
+				c.Book.Title = "Untitled Book"
+				return c
+			}(),
+			expected: "awesome-book.pdf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deriveOutputFilename(tt.cfg)
+			if result != tt.expected {
+				t.Errorf("deriveOutputFilename() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}

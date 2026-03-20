@@ -22,6 +22,12 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// Package-level compiled regexps to avoid recompilation in hot paths.
+var (
+	tagPattern    = regexp.MustCompile(`<[^>]+>`)
+	slugifyRegexp = regexp.MustCompile(`[^a-z0-9\-\p{L}]`)
+)
+
 // Term represents a single glossary entry.
 type Term struct {
 	Name       string // Term name.
@@ -148,7 +154,6 @@ func highlightTerm(html string, term Term) string {
 	pattern := regexp.MustCompile(`(?i)\b` + escapedName + `\b`)
 
 	// Split tags from text and only replace in text nodes.
-	tagPattern := regexp.MustCompile(`<[^>]+>`)
 	tagPositions := tagPattern.FindAllStringIndex(html, -1)
 
 	// Build safe replacement segments outside tags.
@@ -186,6 +191,5 @@ func highlightTerm(html string, term Term) string {
 func slugify(s string) string {
 	s = strings.ToLower(s)
 	s = strings.ReplaceAll(s, " ", "-")
-	reg := regexp.MustCompile(`[^a-z0-9\-\p{L}]`)
-	return reg.ReplaceAllString(s, "")
+	return slugifyRegexp.ReplaceAllString(s, "")
 }

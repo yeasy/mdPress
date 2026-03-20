@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/crossref"
@@ -211,6 +213,11 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 			htmlContent = p.Glossary.ProcessHTML(htmlContent)
 		}
 
+		// Remove duplicate leading h1 if it matches the SUMMARY title.
+		// The template already renders chDef.Title as <h1 class="chapter-title">,
+		// so having the same h1 in the content creates a duplicate.
+		htmlContent = stripDuplicateLeadingH1(htmlContent, chDef.Title)
+
 		// Build heading tree for navigation.
 		headingTree := buildHeadingTree(headings, chapterID)
 		chaptersHTML = append(chaptersHTML, renderer.ChapterHTML{
@@ -278,4 +285,39 @@ func pdfChapterImageOptions() utils.ImageProcessingOptions {
 		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
 		MaxConcurrentDownloads: 4,
 	}
+}
+
+// leadingH1Pattern matches the first <h1...>...</h1> at the start of content
+// (allowing only whitespace before it).
+var leadingH1Pattern = regexp.MustCompile(`(?is)^\s*<h1[^>]*>(.*?)</h1>`)
+
+// stripDuplicateLeadingH1 removes the first <h1> from htmlContent if its
+// text matches the summaryTitle. This prevents duplicate headings when the
+// template already renders the SUMMARY.md title as <h1 class="chapter-title">.
+func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
+	if summaryTitle == "" {
+		return htmlContent
+	}
+
+	m := leadingH1Pattern.FindStringSubmatchIndex(htmlContent)
+	if m == nil {
+		return htmlContent
+	}
+
+	// Extract inner text of the <h1>, strip HTML tags for comparison.
+	innerHTML := htmlContent[m[2]:m[3]]
+	innerText := strings.TrimSpace(stripHTMLTags(innerHTML))
+	summaryText := strings.TrimSpace(summaryTitle)
+
+	if innerText == summaryText {
+		return strings.TrimSpace(htmlContent[:m[0]] + htmlContent[m[1]:])
+	}
+	return htmlContent
+}
+
+// htmlTagPattern strips HTML tags for plain-text comparison.
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+func stripHTMLTags(s string) string {
+	return htmlTagPattern.ReplaceAllString(s, "")
 }

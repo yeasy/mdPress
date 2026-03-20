@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/cover"
@@ -164,9 +165,20 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	var tocHTML string
 	if cfg.Output.TOC {
-		entries := toc.NewGenerator().Generate(allHeadings)
+		tocHeadings := allHeadings
+		if maxDepth := cfg.Output.TOCMaxDepth; maxDepth > 0 && maxDepth < 6 {
+			filtered := make([]toc.HeadingInfo, 0, len(allHeadings))
+			for _, h := range allHeadings {
+				if h.Level <= maxDepth {
+					filtered = append(filtered, h)
+				}
+			}
+			tocHeadings = filtered
+		}
+		entries := toc.NewGenerator().Generate(tocHeadings)
 		tocHTML = toc.NewGenerator().RenderHTML(entries)
-		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)))
+		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)),
+			slog.Int("maxDepth", cfg.Output.TOCMaxDepth))
 	}
 	progress.Done()
 
@@ -597,13 +609,48 @@ func resolveRequestedBuildOutput(requested string) (string, error) {
 	return absPath, nil
 }
 
+// deriveOutputFilename returns the base output filename for the book.
+// Priority: explicit config filename > title-based name > directory name > "output".
+func deriveOutputFilename(cfg *config.BookConfig) string {
+	if cfg.Output.Filename != "" && cfg.Output.Filename != "output.pdf" {
+		return cfg.Output.Filename
+	}
+	title := cfg.Book.Title
+	if title == "" || title == "Untitled Book" {
+		title = filepath.Base(cfg.BaseDir())
+	}
+	return sanitizeBookFilename(title) + ".pdf"
+}
+
+// filenameReplacer strips characters that are invalid in file system names.
+var filenameReplacer = strings.NewReplacer(
+	"/", "_", "\\", "_", ":", "_", "*", "_",
+	"?", "_", "\"", "_", "<", "_", ">", "_", "|", "_",
+)
+
+// sanitizeBookFilename strips characters that are invalid in file system names.
+func sanitizeBookFilename(s string) string {
+	result := strings.TrimSpace(filenameReplacer.Replace(s))
+	if !strings.ContainsFunc(result, func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsNumber(r)
+	}) {
+		return "output"
+	}
+	if result == "" {
+		return "output"
+	}
+	return result
+}
+
 func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (string, error) {
+	filename := deriveOutputFilename(cfg)
+
 	if outputOverride == "" {
-		return cfg.ResolvePath(cfg.Output.Filename), nil
+		return cfg.ResolvePath(filename), nil
 	}
 
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
-		return filepath.Join(outputOverride, filepath.Base(cfg.Output.Filename)), nil
+		return filepath.Join(outputOverride, filepath.Base(filename)), nil
 	}
 
 	return outputOverride, nil

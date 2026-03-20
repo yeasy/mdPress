@@ -61,7 +61,7 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`    html, body {` + "\n")
 	buf.WriteString(`      width: 100%;` + "\n")
 	buf.WriteString(`      height: 100%;` + "\n")
-	buf.WriteString(`      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;` + "\n")
+	buf.WriteString(`      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;` + "\n")
 	buf.WriteString(`      background-color: #ffffff;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 

@@ -100,13 +100,14 @@ type HeaderFooterStyle struct {
 
 // OutputConfig stores output-related settings.
 type OutputConfig struct {
-	Filename   string   `yaml:"filename"`
-	TOC        bool     `yaml:"toc"`
-	Cover      bool     `yaml:"cover"`
-	Header     bool     `yaml:"header"`
-	Footer     bool     `yaml:"footer"`
-	Formats    []string `yaml:"formats"`     // Output formats: pdf, html, epub, site (default ["pdf"]).
-	PDFTimeout int      `yaml:"pdf_timeout"` // PDF generation timeout in seconds (default 120).
+	Filename    string   `yaml:"filename"`
+	TOC         bool     `yaml:"toc"`
+	TOCMaxDepth int      `yaml:"toc_max_depth"` // Maximum heading level to include in TOC (1-6, default 2). Level 1 = h1 only, 2 = h1+h2, etc.
+	Cover       bool     `yaml:"cover"`
+	Header      bool     `yaml:"header"`
+	Footer      bool     `yaml:"footer"`
+	Formats     []string `yaml:"formats"`     // Output formats: pdf, html, epub, site (default ["pdf"]).
+	PDFTimeout  int      `yaml:"pdf_timeout"` // PDF generation timeout in seconds (default 120).
 }
 
 // DefaultConfig returns a config populated with reasonable defaults.
@@ -114,7 +115,7 @@ func DefaultConfig() *BookConfig {
 	return &BookConfig{
 		Book: BookMeta{
 			Title:    "Untitled Book",
-			Author:   "Unknown",
+			Author:   "",
 			Version:  "1.0.0",
 			Language: "zh-CN",
 		},
@@ -140,12 +141,13 @@ func DefaultConfig() *BookConfig {
 			},
 		},
 		Output: OutputConfig{
-			Filename:   "output.pdf",
-			TOC:        true,
-			Cover:      true,
-			Header:     true,
-			Footer:     true,
-			PDFTimeout: 120,
+			Filename:    "output.pdf",
+			TOC:         true,
+			TOCMaxDepth: 2,
+			Cover:       true,
+			Header:      true,
+			Footer:      true,
+			PDFTimeout:  120,
 		},
 		baseDir: ".",
 	}

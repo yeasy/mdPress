@@ -85,21 +85,21 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 - If `build` is called without `--format`, it first checks `output.formats`.
 - If `output.formats` is also absent, the default output is `pdf`.
-- The default output filename comes from `output.filename`; the built-in default is `output.pdf`.
+- The default output filename is derived from the book title (with filesystem-unsafe characters replaced). If the title is empty or "Untitled Book", the project directory name is used instead. You can override this with `output.filename`.
 - `serve` writes preview output to `_book/` under the project directory by default.
 
-## PDF Configuration
-
-The PDF backend uses Chromium for rendering. Two configuration options control its behavior:
+## Output Configuration
 
 | Setting | Default | Description |
 | --- | --- | --- |
+| `output.toc_max_depth` | `2` | Maximum heading level to include in the table of contents (1–6). For example, `2` includes h1 and h2; `3` also includes h3. |
 | `output.pdf_timeout` | `120` | Maximum seconds to wait for Chromium to finish rendering a PDF page. Increase for very large books. |
 | `MDPRESS_CHROME_PATH` (env) | auto-detect | Absolute path to a Chrome or Chromium binary. When set, mdPress skips auto-detection and uses this path directly. |
 
 Example `book.yaml` snippet:
 
     output:
+      toc_max_depth: 3
       pdf_timeout: 300
 
 Example environment variable usage:

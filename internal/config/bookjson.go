@@ -117,6 +117,20 @@ func LoadBookJSON(path string) (*BookConfig, error) {
 		cfg.Chapters = chapters
 	}
 
+	// Enrich metadata from README.md for fields not present in book.json.
+	readmeName := "README.md"
+	if raw.Structure.Readme != "" {
+		readmeName = raw.Structure.Readme
+	}
+	readmePath := filepath.Join(dir, readmeName)
+	meta := ExtractReadmeMetadata(readmePath)
+	if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
+		cfg.Book.Version = meta.Version
+	}
+	if cfg.Book.Author == "" && meta.Author != "" {
+		cfg.Book.Author = meta.Author
+	}
+
 	// Auto-detect GLOSSARY.md (honour structure.glossary override).
 	glossaryName := "GLOSSARY.md"
 	if raw.Structure.Glossary != "" {

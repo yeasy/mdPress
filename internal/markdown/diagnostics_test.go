@@ -93,3 +93,44 @@ func TestParseWithDiagnosticsMermaidUnclosedFence(t *testing.T) {
 		t.Fatalf("unexpected position: %d:%d", diagnostics[0].Line, diagnostics[0].Column)
 	}
 }
+
+func TestParseWithDiagnosticsHeadingTooLong(t *testing.T) {
+	parser := NewParser()
+	// Simulate a Setext heading: a long paragraph followed by --- (no blank line)
+	// Goldmark treats the paragraph + --- as a Setext h2 heading.
+	longText := "这是一段非常长的文字，它本来应该是普通段落，但因为后面紧跟了三个短横线而没有空行，所以被错误地解析为了 Setext 风格的二级标题，这会严重影响目录的生成质量。"
+	md := longText + "\n---\n\n正常段落。\n"
+
+	_, _, diagnostics, err := parser.ParseWithDiagnostics([]byte(md))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	found := false
+	for _, diag := range diagnostics {
+		if diag.Rule == "heading-too-long" {
+			found = true
+			if diag.Line != 1 {
+				t.Errorf("expected line 1, got %d", diag.Line)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected heading-too-long diagnostic, got %+v", diagnostics)
+	}
+}
+
+func TestParseWithDiagnosticsNormalHeadingNoWarning(t *testing.T) {
+	parser := NewParser()
+	md := "# 正常标题\n\n这是正常段落。\n\n## 另一个标题\n\n还有内容。\n"
+
+	_, _, diagnostics, err := parser.ParseWithDiagnostics([]byte(md))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	for _, diag := range diagnostics {
+		if diag.Rule == "heading-too-long" {
+			t.Fatalf("did not expect heading-too-long for normal headings, got: %+v", diag)
+		}
+	}
+}

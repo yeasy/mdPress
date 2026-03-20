@@ -385,7 +385,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
 
     body {
       font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-                   'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+                   'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
       font-size: 16px;
       line-height: 1.7;
       color: var(--color-text);

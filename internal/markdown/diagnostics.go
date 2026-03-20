@@ -108,6 +108,7 @@ func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	index := newSourceIndex(source)
 	diagnostics := collectOrderedListDiagnostics(document, source, index)
 	diagnostics = append(diagnostics, collectMermaidDiagnostics(source)...)
+	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
 	sort.SliceStable(diagnostics, func(i, j int) bool {
 		if diagnostics[i].Line != diagnostics[j].Line {
 			return diagnostics[i].Line < diagnostics[j].Line
@@ -415,4 +416,53 @@ func isMatchingBracket(open, close rune) bool {
 
 func runeCountBytes(b []byte) int {
 	return utf8.RuneCountInString(string(b))
+}
+
+// longHeadingThreshold 是触发"标题文本过长"警告的字符数阈值。
+// 超过此长度的标题很可能是 Setext 格式意外创建的：
+// 段落后紧跟 `---`（没有空行）会将整段文字变成 h2。
+const longHeadingThreshold = 80
+
+// collectLongHeadingDiagnostics 检测异常长的标题文本。
+// 这类标题通常是由 Markdown 中的 Setext 语法意外产生的——
+// 当段落后直接跟 `---` 且中间没有空行时，goldmark 会将段落文本
+// 解析为 h2 标题。对于 TOC 和 PDF 排版会造成严重问题。
+func collectLongHeadingDiagnostics(document ast.Node, source []byte, index *sourceIndex) []Diagnostic {
+	var diagnostics []Diagnostic
+
+	for child := document.FirstChild(); child != nil; child = child.NextSibling() {
+		heading, ok := child.(*ast.Heading)
+		if !ok {
+			continue
+		}
+
+		headingText := extractNodeText(heading, source)
+		runeLen := utf8.RuneCountInString(headingText)
+		if runeLen <= longHeadingThreshold {
+			continue
+		}
+
+		line, column := 0, 0
+		if heading.Lines() != nil && heading.Lines().Len() > 0 {
+			line, column = index.lineCol(heading.Lines().At(0).Start)
+		}
+
+		// Truncate the text for the message to avoid overly long diagnostics.
+		preview := headingText
+		if runeLen > 60 {
+			runes := []rune(headingText)
+			preview = string(runes[:57]) + "..."
+		}
+
+		diagnostics = append(diagnostics, Diagnostic{
+			Rule:   "heading-too-long",
+			Line:   line,
+			Column: column,
+			Message: fmt.Sprintf(
+				"标题文本过长（%d 字符）：%q —— 可能是 Setext 标题误判（段落后的 --- 被解析为 h%d），请在 --- 前添加空行",
+				runeLen, preview, heading.Level),
+		})
+	}
+
+	return diagnostics
 }

@@ -13,9 +13,181 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// cjkFontCandidate describes a CJK font with filesystem paths that Chromium
+// can load via file:// URL for embedding in PDF output.
+//
+// Only file:// sources are used — no local() — because fonts resolved through
+// local() are managed by the OS font API (Core Text on macOS) and Chrome's
+// Skia PDF backend cannot embed them.  Fonts loaded via file:// URL are read
+// as raw bytes and can be embedded, ensuring CJK glyphs appear in the PDF.
+type cjkFontCandidate struct {
+	// family is the original font family name (used only for documentation).
+	family string
+	// paths are candidate filesystem paths checked in order; the first
+	// existing file is used as the file:// URL source in the @font-face rule.
+	paths []string
+}
+
+type cjkFontSource struct {
+	path string
+}
+
+// systemCJKFontCandidates lists CJK font paths in preference order.
+// User-installed fonts come first because Chrome can embed them via file:// URL.
+// macOS system fonts (managed by Core Text) come last as a fallback; Chrome
+// may not be able to embed them cleanly, but they are better than nothing.
+var systemCJKFontCandidates = []cjkFontCandidate{
+	// ── User-installed fonts (macOS ~/Library/Fonts) ────────────────────────
+	// Confirmed embeddable: Chrome reads raw bytes via file:// and embeds them.
+	{
+		family: "Microsoft YaHei",
+		paths: func() []string {
+			paths := []string{
+				"/Library/Fonts/msyh.ttc",
+				`C:\Windows\Fonts\msyh.ttc`,
+			}
+			if home, err := os.UserHomeDir(); err == nil {
+				paths = append([]string{filepath.Join(home, "Library", "Fonts", "msyh.ttc")}, paths...)
+			}
+			return paths
+		}(),
+	},
+	// ── Linux / Docker (Noto CJK, WenQuanYi) ──────────────────────────────
+	{
+		family: "Noto Sans SC",
+		paths: []string{
+			"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+			"/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+			"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+			"/usr/share/fonts/google-noto-cjk/NotoSansCJKsc-Regular.otf",
+			"/usr/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf",
+		},
+	},
+	{
+		family: "WenQuanYi Micro Hei",
+		paths: []string{
+			"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+			"/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+		},
+	},
+	// ── macOS system fonts (last resort) ───────────────────────────────────
+	// Chrome may not embed Core Text–managed system fonts cleanly, but they
+	// are better than no font at all on machines without user-installed CJK fonts.
+	{
+		family: "Hiragino Sans GB",
+		paths:  []string{"/System/Library/Fonts/Hiragino Sans GB.ttc"},
+	},
+	{
+		family: "Heiti SC",
+		paths: []string{
+			"/System/Library/Fonts/STHeiti Light.ttc",
+			"/System/Library/Fonts/STHeiti Medium.ttc",
+		},
+	},
+	{
+		family: "Songti SC",
+		paths:  []string{"/System/Library/Fonts/Supplemental/Songti.ttc"},
+	},
+}
+
+// buildCJKFontFaceCSS generates a @font-face rule that aliases the first
+// available CJK font file as "CJK-Embedded", plus a body font-family override
+// that places "CJK-Embedded" first in the stack.
+//
+// Design rationale:
+//   - Chrome's Skia PDF backend silently drops glyphs from fonts that it
+//     cannot embed.  Fonts selected via the normal font-family stack (e.g.
+//     PingFang SC, Hiragino Sans GB) are managed by Core Text and cannot be
+//     embedded; only fonts loaded from raw bytes via file:// URL can be embedded.
+//   - By using a unique alias "CJK-Embedded" backed by a file:// URL and
+//     placing it first in body's font-family, we force Chrome to load the font
+//     from disk for CJK code points — making those glyphs embeddable.
+//   - unicode-range limits "CJK-Embedded" to actual CJK code points; Latin
+//     and other characters continue to use the remaining font-family entries.
+func buildCJKFontFaceCSS() string {
+	const cjkRange = "U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, " +
+		"U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, " +
+		"U+20000-2A6DF, U+2A700-2B73F, U+2B740-2B81F, U+2B820-2CEAF"
+
+	// Find the first available CJK font file.
+	var font cjkFontSource
+	for _, c := range systemCJKFontCandidates {
+		for _, p := range c.paths {
+			if _, err := os.Stat(p); err == nil {
+				font = cjkFontSource{path: p}
+				break
+			}
+		}
+		if font.path != "" {
+			break
+		}
+	}
+	if font.path == "" {
+		return "" // no CJK font found; PDF may show blank squares for CJK characters
+	}
+
+	var css strings.Builder
+	// Declare the embeddable CJK alias restricted to CJK code points.
+	fmt.Fprintf(&css,
+		"@font-face {\n  font-family: \"CJK-Embedded\";\n  src: %s;\n  font-style: normal;\n  font-weight: 400;\n  unicode-range: %s;\n}\n\n",
+		cjkFontSrc(font), cjkRange)
+	// Override body font-family so Chrome selects "CJK-Embedded" for CJK code
+	// points instead of a Core Text–managed system font.
+	css.WriteString("body {\n" +
+		"  font-family: \"CJK-Embedded\", -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n" +
+		"    \"PingFang SC\", \"Hiragino Sans GB\", \"Heiti SC\", \"Heiti TC\",\n" +
+		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
+		"    \"Source Han Sans SC\", \"WenQuanYi Micro Hei\",\n" +
+		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;\n" +
+		"}\n")
+	return css.String()
+}
+
+func cjkFontSrc(src cjkFontSource) string {
+	fontURL := fileURLForCSS(src.path)
+	switch strings.ToLower(filepath.Ext(src.path)) {
+	case ".ttc", ".otc":
+		// Font collections require an explicit fragment to select a single face.
+		// Per CSS Fonts, when the container has no custom fragment scheme, a
+		// 1-based index is used, so "#1" refers to the first face in the collection.
+		return fmt.Sprintf("url(%q) format(collection)", fontURL+"#1")
+	case ".otf":
+		return fmt.Sprintf("url(%q) format(opentype)", fontURL)
+	case ".ttf":
+		return fmt.Sprintf("url(%q) format(truetype)", fontURL)
+	default:
+		return fmt.Sprintf("url(%q)", fontURL)
+	}
+}
+
+func fileURLForCSS(path string) string {
+	return (&url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}).String()
+}
+
+// injectCJKFontFaceCSS inserts a <style> block with CJK @font-face rules
+// immediately before </head> in htmlContent and returns the modified string.
+// When there is no </head> tag the block is prepended to the content.
+// Injecting into the HTML (rather than via JavaScript after page load) ensures
+// Chrome's font-matching pass sees the rules during the initial layout.
+func injectCJKFontFaceCSS(htmlContent string) string {
+	css := buildCJKFontFaceCSS()
+	if css == "" {
+		return htmlContent
+	}
+	block := "<style data-cjk-fonts=\"1\">\n" + css + "</style>\n"
+	if idx := strings.Index(htmlContent, "</head>"); idx != -1 {
+		return htmlContent[:idx] + block + htmlContent[idx:]
+	}
+	return block + htmlContent
+}
 
 // Generator converts HTML into PDF files.
 type Generator struct {
@@ -158,6 +330,11 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 		return fmt.Errorf("HTML content cannot be empty")
 	}
 
+	// Inject @font-face rules for CJK system fonts before writing the HTML
+	// to disk.  Injecting into the HTML (rather than via JS after page load)
+	// ensures Chrome's font-matching pass sees the rules during initial layout.
+	htmlContent = injectCJKFontFaceCSS(htmlContent)
+
 	// Write the HTML to a temporary file first.
 	tmpFile, err := os.CreateTemp("", "mdpress-*.html")
 	if err != nil {
@@ -220,6 +397,29 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(fileURL),
 		chromedp.WaitReady("body"),
+		// Wait for all @font-face sources (including file:// URLs) to finish
+		// loading.  document.fonts.ready is a Promise that resolves only after
+		// all pending font resources have been fetched and parsed, ensuring
+		// the CJK glyphs are available to Skia when PrintToPDF runs.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_, exp, err := runtime.Evaluate(`document.fonts.ready.then(() => 'ok')`).
+				WithAwaitPromise(true).
+				Do(ctx)
+			if exp != nil {
+				// Non-fatal: log but do not abort; the screenshot step below
+				// provides an additional render-sync barrier.
+				_ = exp
+			}
+			return err
+		}),
+		// Force a full compositor paint pass before generating the PDF.
+		// Even after document.fonts.ready resolves, calling CaptureScreenshot
+		// ensures the compositor has produced a fully-rendered frame with all
+		// font metrics applied — a second barrier against timing edge cases.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var buf []byte
+			return chromedp.CaptureScreenshot(&buf).Do(ctx)
+		}),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var err error
 			pdfBuf, _, err = page.PrintToPDF().
@@ -314,6 +514,10 @@ func chromiumAllocatorOptions(execPath string, runtime chromiumRuntimeDirs, outp
 		chromedp.Flag("allow-file-access-from-files", true),
 		chromedp.Flag("disable-crash-reporter", true),
 		chromedp.Flag("noerrdialogs", true),
+		// Disable font hinting so that CJK glyphs render correctly in headless mode.
+		// Without this flag some Chrome builds apply hinting that breaks CJK outlines
+		// and the characters appear as blank squares in the generated PDF.
+		chromedp.Flag("font-render-hinting", "none"),
 	)
 	if output != nil {
 		opts = append(opts, chromedp.CombinedOutput(output))
@@ -387,11 +591,17 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 }
 
 func chromiumRuntimeEnv(runtime chromiumRuntimeDirs) []string {
+	// Do not override HOME: on macOS Chrome uses NSHomeDirectory() (from the passwd
+	// database, not the $HOME env var) for its font metrics cache. Overriding HOME
+	// does not provide meaningful isolation because --user-data-dir already isolates
+	// Chrome's profile, but it can prevent Chrome from finding cached font metrics,
+	// causing CJK characters to appear blank in the generated PDF.
+	// Do not override XDG_CACHE_HOME: fontconfig stores its glyph/font cache there;
+	// pointing it at an empty directory forces a full rescan on every PDF run which
+	// can exceed the rendering timeout and leave CJK characters unresolved.
 	return []string{
-		"HOME=" + runtime.homeDir,
 		"TMPDIR=" + runtime.tmpDir,
 		"XDG_CONFIG_HOME=" + runtime.xdgConfig,
-		"XDG_CACHE_HOME=" + runtime.xdgCache,
 	}
 }
 
