@@ -50,14 +50,15 @@ output:
   header: true
   footer: true
   # watermark: "DRAFT"       # Optional: add watermark text to PDF pages
-  # pdf_backend: "chromium"  # chromium (default) | typst (experimental, no Chrome needed)
+  # watermark_opacity: 0.1   # Watermark transparency (0.0-1.0)
+  # margin_top: "20mm"       # PDF page margins (mm, cm, in, pt, px)
+  # margin_bottom: "20mm"
+  # margin_left: "25mm"
+  # margin_right: "25mm"
+  # generate_bookmarks: true  # Generate PDF bookmarks from headings
+  # pdf_timeout: 120          # PDF generation timeout in seconds
   # formats:                 # Optional: output multiple formats at once
   #   - pdf
   #   - html
   #   - site
   #   - epub
-
-# PlantUML configuration (optional)
-# plantuml:
-#   server: "https://www.plantuml.com/plantuml"  # PlantUML server URL
-#   format: "svg"                                 # svg | png
