@@ -18,13 +18,16 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-var (
-	servePort        int
-	serveHost        string
-	serveDir         string
-	serveOpen        bool
+const (
 	defaultServePort = 9000
 	defaultServeHost = "127.0.0.1"
+)
+
+var (
+	servePort int
+	serveHost string
+	serveDir  string
+	serveOpen bool
 )
 
 // ServeOptions encapsulates configuration for the serve command.
