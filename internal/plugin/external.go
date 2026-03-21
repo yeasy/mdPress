@@ -21,6 +21,15 @@ import (
 	"github.com/yeasy/mdpress/internal/config"
 )
 
+const (
+	// Plugin execution timeout for hook processing.
+	defaultPluginTimeout = 30 * time.Second
+	// Plugin metadata query timeout (--mdpress-info).
+	pluginMetaQueryTimeout = 5 * time.Second
+	// Plugin hooks query timeout (--mdpress-hooks).
+	pluginHooksQueryTimeout = 5 * time.Second
+)
+
 // ExternalPluginRequest is the JSON body sent to the external plugin process.
 // It is serialized and written to the plugin's stdin on every hook invocation.
 type ExternalPluginRequest struct {
@@ -104,7 +113,7 @@ func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) 
 		execPath:     absPath,
 		pluginConfig: pluginCfg,
 		hooks:        queryPluginHooks(absPath),
-		timeout:      30 * time.Second,
+		timeout:      defaultPluginTimeout,
 	}, nil
 }
 
@@ -112,7 +121,7 @@ func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) 
 // Expected stdout: {"version":"1.0.0","description":"..."}
 // Returns safe defaults on any error.
 func queryPluginMeta(execPath string) (version, description string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pluginMetaQueryTimeout)
 	defer cancel()
 
 	out, err := exec.CommandContext(ctx, execPath, "--mdpress-info").Output()
@@ -138,7 +147,7 @@ func queryPluginMeta(execPath string) (version, description string) {
 // Expected stdout: ["after_parse","after_build"]
 // Returns all seven phases on any error so unknown plugins remain active everywhere.
 func queryPluginHooks(execPath string) []Phase {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pluginHooksQueryTimeout)
 	defer cancel()
 
 	out, err := exec.CommandContext(ctx, execPath, "--mdpress-hooks").Output()

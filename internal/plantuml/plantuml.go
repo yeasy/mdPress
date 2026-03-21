@@ -20,8 +20,12 @@ import (
 	"time"
 )
 
-// maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
-const maxResponseSize = 10 * 1024 * 1024
+const (
+	// maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
+	maxResponseSize = 10 * 1024 * 1024
+	// plantumlHTTPTimeout is the timeout for HTTP requests to the PlantUML server.
+	plantumlHTTPTimeout = 30 * time.Second
+)
 
 // Renderer handles the detection and conversion of PlantUML diagrams.
 type Renderer struct {
@@ -44,9 +48,9 @@ func NewRenderer(serverURL string, useLocal bool) *Renderer {
 	return &Renderer{
 		serverURL: strings.TrimSuffix(serverURL, "/"),
 		useLocal:  useLocal,
-		// HTTP timeout of 30 seconds for PlantUML server requests. This balances network
+		// HTTP timeout for PlantUML server requests. This balances network
 		// latency and rendering time for typical diagrams while preventing indefinite hangs.
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: plantumlHTTPTimeout},
 	}
 }
 

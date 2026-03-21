@@ -17,6 +17,13 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+const (
+	// Default PDF generation timeout when not configured.
+	defaultPDFTimeout = 2 * time.Minute
+	// Default Typst PDF generation timeout when not configured.
+	defaultTypstTimeout = 2 * time.Minute
+)
+
 // BuildContext carries all data needed by format builders.
 type BuildContext struct {
 	Config             *config.BookConfig
@@ -97,7 +104,7 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	pageWidth, pageHeight := getPageDimensions(ctx.Config.Style.PageSize)
 	pdfTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
 	if pdfTimeout <= 0 {
-		pdfTimeout = 2 * time.Minute
+		pdfTimeout = defaultPDFTimeout
 	}
 
 	// Prepare margin options from config, with fallback defaults
@@ -273,7 +280,7 @@ func (b *TypstBuilder) Build(ctx *BuildContext, baseName string) error {
 	_, _ = getPageDimensions(ctx.Config.Style.PageSize) // For future use
 	typstTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
 	if typstTimeout <= 0 {
-		typstTimeout = 2 * time.Minute
+		typstTimeout = defaultTypstTimeout
 	}
 
 	typstGen := typst.NewGenerator(
