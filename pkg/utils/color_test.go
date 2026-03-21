@@ -434,8 +434,6 @@ func TestSuccess(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
 	defer func() { os.Stdout = oldStdout }()
 
@@ -498,8 +496,6 @@ func TestWarning(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
 	defer func() { os.Stdout = oldStdout }()
 
@@ -618,8 +614,6 @@ func TestInfo(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
 
 	defer func() { os.Stdout = oldStdout }()
 

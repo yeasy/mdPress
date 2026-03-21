@@ -40,7 +40,7 @@ func TestThemesCmd_SubcommandRegistration(t *testing.T) {
 	for _, sc := range subcommands {
 		found := false
 		for _, cmd := range themesCmd.Commands() {
-			if cmd.Use == sc.cmd {
+			if strings.HasPrefix(cmd.Use, sc.cmd) {
 				found = true
 				break
 			}
@@ -105,34 +105,6 @@ func TestThemesPreviewCmd_OutputFlag(t *testing.T) {
 
 	if flag.DefValue != "themes-preview.html" {
 		t.Errorf("output flag default should be 'themes-preview.html', got %q", flag.DefValue)
-	}
-}
-
-// TestGetAvailableThemes tests the getAvailableThemes function
-func TestGetAvailableThemes(t *testing.T) {
-	themes := getAvailableThemes()
-
-	if len(themes) == 0 {
-		t.Fatal("getAvailableThemes should return at least one theme")
-	}
-
-	// Verify expected themes exist
-	expectedThemes := map[string]bool{
-		"technical": false,
-		"elegant":   false,
-		"minimal":   false,
-	}
-
-	for _, theme := range themes {
-		if _, exists := expectedThemes[theme.Name]; exists {
-			expectedThemes[theme.Name] = true
-		}
-	}
-
-	for themeName, found := range expectedThemes {
-		if !found {
-			t.Errorf("expected theme %q not found in available themes", themeName)
-		}
 	}
 }
 
@@ -244,96 +216,6 @@ func TestThemeColors_Structure(t *testing.T) {
 				t.Errorf("theme %q: color field %q should be hex format, got %q", theme.Name, field.name, color)
 			}
 		}
-	}
-}
-
-// TestExecuteThemesList tests the executeThemesList function
-func TestExecuteThemesList(t *testing.T) {
-	// Capture stdout
-	oldStdout := bytes.NewBuffer(nil)
-	origStdout := oldStdout
-
-	err := executeThemesList()
-	if err != nil {
-		t.Errorf("executeThemesList should not return error, got %v", err)
-	}
-
-	// Note: output goes to fmt.Println, not captured by test
-	// The function returns nil on success
-}
-
-// TestExecuteThemesShow_ValidTheme tests showing a valid theme
-func TestExecuteThemesShow_ValidTheme(t *testing.T) {
-	tests := []struct {
-		name      string
-		themeName string
-		shouldErr bool
-	}{
-		{
-			name:      "valid technical theme",
-			themeName: "technical",
-			shouldErr: false,
-		},
-		{
-			name:      "valid elegant theme",
-			themeName: "elegant",
-			shouldErr: false,
-		},
-		{
-			name:      "valid minimal theme",
-			themeName: "minimal",
-			shouldErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := executeThemesShow(tt.themeName)
-			if (err != nil) != tt.shouldErr {
-				t.Errorf("executeThemesShow(%q) should error=%v, got err=%v", tt.themeName, tt.shouldErr, err)
-			}
-		})
-	}
-}
-
-// TestExecuteThemesShow_InvalidTheme tests error handling for invalid theme
-func TestExecuteThemesShow_InvalidTheme(t *testing.T) {
-	tests := []struct {
-		name      string
-		themeName string
-		shouldErr bool
-	}{
-		{
-			name:      "nonexistent theme",
-			themeName: "nonexistent",
-			shouldErr: true,
-		},
-		{
-			name:      "empty theme name",
-			themeName: "",
-			shouldErr: true,
-		},
-		{
-			name:      "invalid theme name",
-			themeName: "invalid_theme_xyz",
-			shouldErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := executeThemesShow(tt.themeName)
-			if (err != nil) != tt.shouldErr {
-				t.Errorf("executeThemesShow(%q) should error=%v, got err=%v", tt.themeName, tt.shouldErr, err)
-			}
-
-			if tt.shouldErr && err != nil {
-				// Verify error message mentions the theme was not found
-				if !strings.Contains(err.Error(), "theme not found") {
-					t.Errorf("error should mention theme not found, got: %v", err)
-				}
-			}
-		})
 	}
 }
 

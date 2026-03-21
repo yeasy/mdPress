@@ -46,26 +46,26 @@ func TestDiscoverWithBookJSON(t *testing.T) {
 
 	// Create book.json
 	json := `{
-  "title": "Book JSON Title",
-  "chapters": [
-    {"title": "Ch1", "file": "ch1.md"}
-  ]
+  "title": "Book JSON Title"
 }`
 	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(json), 0644); err != nil {
 		t.Fatalf("write book.json failed: %v", err)
 	}
 
-	// Create SUMMARY.md
-	summary := "* [Summary Ch](summary.md)\n"
+	// Create SUMMARY.md (chapters are loaded from here, not from book.json)
+	// NOTE: chapter file must NOT be named "summary.md" because on
+	// case-insensitive file systems (macOS) it overwrites SUMMARY.md.
+	summary := `# Summary
+
+* [Summary Ch](chapter.md)
+`
 	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter files
-	for _, file := range []string{"ch1.md", "summary.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
-			t.Fatalf("write %s failed: %v", file, err)
-		}
+	if err := os.WriteFile(filepath.Join(dir, "chapter.md"), []byte("# Content"), 0644); err != nil {
+		t.Fatalf("write chapter.md failed: %v", err)
 	}
 
 	cfg, err := Discover(dir)
@@ -77,7 +77,7 @@ func TestDiscoverWithBookJSON(t *testing.T) {
 		t.Errorf("expected 'Book JSON Title', got %q", cfg.Book.Title)
 	}
 	if len(cfg.Chapters) != 1 {
-		t.Errorf("expected 1 chapter from JSON, got %d", len(cfg.Chapters))
+		t.Errorf("expected 1 chapter from SUMMARY.md, got %d", len(cfg.Chapters))
 	}
 }
 

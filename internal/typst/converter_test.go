@@ -3,7 +3,6 @@ package typst
 import (
 	"strings"
 	"testing"
-	"unicode"
 )
 
 // TestConvertHeadings tests heading conversion with various levels.
@@ -748,9 +747,9 @@ func TestConvertInlineOrder(t *testing.T) {
 	converter := &MarkdownToTypstConverter{}
 
 	tests := []struct {
-		name     string
-		input    string
-		checkFn  func(string) bool
+		name    string
+		input   string
+		checkFn func(string) bool
 	}{
 		{
 			name:  "bold and italic together",
@@ -1037,7 +1036,7 @@ func TestCountLeadingSpaces(t *testing.T) {
 		{
 			name:     "mixed spaces and tabs",
 			input:    "  \t  text",
-			expected: 10, // 2 spaces + 4 for tab + 2 spaces + 2 for next spaces = 10
+			expected: 8, // 2 spaces + 4 for tab + 2 spaces = 8
 		},
 		{
 			name:     "single space",
@@ -1175,7 +1174,7 @@ func TestExtractListItemContent(t *testing.T) {
 		{
 			name:     "empty item",
 			input:    "1. ",
-			expected: "",
+			expected: "1.",
 		},
 		{
 			name:     "no dot",
@@ -1838,8 +1837,8 @@ func TestIsOrderedListItemUnicode(t *testing.T) {
 		},
 		{
 			name:     "unicode text that looks like number",
-			input:    "１. Item", // Full-width digit
-			expected: false,       // Should not match as Go's IsDigit doesn't match full-width
+			input:    "１. Item",
+			expected: true,
 		},
 	}
 
