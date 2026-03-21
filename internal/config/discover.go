@@ -269,6 +269,13 @@ type ReadmeMetadata struct {
 	Language string // e.g. "zh-CN", "en-US"
 }
 
+// Magic number constants for metadata extraction and detection.
+const (
+	maxReadmeLineCount    = 200 // Maximum lines to scan from README.md
+	minCJKTitleLength     = 4   // Minimum character length for CJK titles
+	cjkDetectionThreshold = 0.2 // Ratio threshold for CJK language detection
+)
+
 // Patterns for extracting metadata from README.md.
 var (
 	// versionBoldPattern matches **vX.Y.Z** or **X.Y.Z**.
@@ -277,6 +284,8 @@ var (
 	githubUserPattern = regexp.MustCompile(`github\.com/([a-zA-Z0-9_-]+)/`)
 	// authorPattern matches explicit author lines.
 	authorPattern = regexp.MustCompile(`(?:作者|[Aa]uthor)[：:]\s*(.+)`)
+	// badgeTitlePattern extracts titles from badge URLs (e.g. badge/([^-\]]+?)[-\]]).
+	badgeTitlePattern = regexp.MustCompile(`badge/([^-\]]+?)[-\]]`)
 )
 
 // ExtractReadmeMetadata reads a README.md and extracts book metadata.
@@ -298,7 +307,7 @@ func ExtractReadmeMetadata(path string) ReadmeMetadata {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		lineCount++
-		if lineCount > 200 {
+		if lineCount > maxReadmeLineCount {
 			break // Only scan the first 200 lines.
 		}
 		line := scanner.Text()
@@ -361,7 +370,6 @@ func ExtractReadmeMetadata(path string) ReadmeMetadata {
 func inferBookTitle(h1Title, content, dir string) string {
 	// 1. Look for a Chinese book title in badge URLs (e.g. Docker%20%E6%8A%80%E6%9C%AF...).
 	// These badges often contain the official book title, URL-encoded.
-	badgeTitlePattern := regexp.MustCompile(`badge/([^-\]]+?)[-\]]`)
 	for _, match := range badgeTitlePattern.FindAllStringSubmatch(content, -1) {
 		if len(match) < 2 {
 			continue
@@ -374,7 +382,7 @@ func inferBookTitle(h1Title, content, dir string) string {
 		candidate = strings.ReplaceAll(candidate, "+", " ")
 		candidate = strings.TrimSpace(candidate)
 		// Filter: must contain CJK characters (to find actual book titles, not "Stars" etc.)
-		if containsCJK(candidate) && len([]rune(candidate)) >= 4 {
+		if containsCJK(candidate) && len([]rune(candidate)) >= minCJKTitleLength {
 			return candidate
 		}
 	}
@@ -423,7 +431,7 @@ func detectContentLanguage(content string) string {
 		return "en-US"
 	}
 	ratio := float64(cjkCount) / float64(totalCount)
-	if ratio > 0.2 {
+	if ratio > cjkDetectionThreshold {
 		return "zh-CN" // Predominantly CJK content.
 	}
 	return "en-US"
