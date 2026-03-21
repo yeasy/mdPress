@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -47,6 +48,8 @@ type doctorReport struct {
 	CacheDisabled      bool                     `json:"cache_disabled"`
 	ChromiumAvailable  bool                     `json:"chromium_available"`
 	CJKFontsAvailable  bool                     `json:"cjk_fonts_available"`
+	PlantUMLAvailable  bool                     `json:"plantuml_available"`
+	PlantUMLNeeded     bool                     `json:"plantuml_needed"`
 	BookYAMLFound      bool                     `json:"book_yaml_found"`
 	SummaryFound       bool                     `json:"summary_found"`
 	LangsFound         bool                     `json:"langs_found"`
@@ -106,6 +109,9 @@ func executeDoctor(targetDir string) error {
 		fmt.Printf("    %s\n", utils.CJKFontInstallHint())
 		report.Warnings = append(report.Warnings, "No CJK fonts detected (PDF output may show blank squares for CJK text)")
 	}
+
+	// Check PlantUML availability for diagram rendering.
+	checkPlantUML(absDir, &report)
 
 	fmt.Println()
 	utils.Header("Project Check")
@@ -204,6 +210,114 @@ func reportDoctorMarkdownLinks(cfg *config.BookConfig, report *doctorReport) {
 	}
 }
 
+func checkPlantUML(targetDir string, report *doctorReport) {
+	// Check if any markdown files contain plantuml blocks
+	hasPlantumlBlocks := hasPlantUMLBlocks(targetDir)
+	report.PlantUMLNeeded = hasPlantumlBlocks
+
+	if !hasPlantumlBlocks {
+		utils.Success("PlantUML not needed (no diagrams detected)")
+		return
+	}
+
+	// Check for Java (required for PlantUML)
+	javaPath, javaErr := exec.LookPath("java")
+	_ = javaPath
+
+	// Check for PLANTUML_JAR environment variable
+	plantUMLJar := os.Getenv("PLANTUML_JAR")
+
+	// Check for plantuml command in PATH
+	plantUMLPath, plantUMLErr := exec.LookPath("plantuml")
+	_ = plantUMLPath
+
+	// Determine status
+	if javaErr != nil && plantUMLJar == "" && plantUMLErr != nil {
+		// Java not found and no plantuml configuration
+		utils.Error("PlantUML not available")
+		msg := "PlantUML not configured — diagrams will be skipped"
+		report.Warnings = append(report.Warnings, msg)
+		if javaErr != nil {
+			fmt.Println("    Java not found — PlantUML diagrams will not render")
+		}
+		fmt.Println("    Install PlantUML: brew install plantuml")
+		fmt.Println("    Or set PLANTUML_JAR=/path/to/plantuml.jar environment variable")
+		return
+	}
+
+	if javaErr != nil {
+		// Java is required but not found
+		utils.Warning("Java not found — PlantUML diagrams will not render")
+		msg := "Java not found — PlantUML diagrams will not render"
+		report.Warnings = append(report.Warnings, msg)
+		return
+	}
+
+	// Java is available; check if we can use plantuml
+	if plantUMLJar != "" {
+		if _, err := os.Stat(plantUMLJar); err == nil {
+			// PLANTUML_JAR is set and points to a valid file
+			report.PlantUMLAvailable = true
+			utils.Success("PlantUML available (via PLANTUML_JAR)")
+		} else {
+			// PLANTUML_JAR is set but file doesn't exist
+			utils.Warning("PLANTUML_JAR is set but points to non-existent file: %s", plantUMLJar)
+			msg := fmt.Sprintf("PLANTUML_JAR is set but points to non-existent file: %s", plantUMLJar)
+			report.Warnings = append(report.Warnings, msg)
+		}
+	} else if plantUMLErr == nil {
+		// plantuml command found in PATH
+		report.PlantUMLAvailable = true
+		utils.Success("PlantUML available (via plantuml command)")
+	} else {
+		// No plantuml command found, but Java is available
+		utils.Warning("PlantUML command not found — install via: brew install plantuml")
+		msg := "PlantUML command not found (Java is available but plantuml is not installed)"
+		report.Warnings = append(report.Warnings, msg)
+	}
+}
+
+// hasPlantUMLBlocks checks if any markdown files in the directory contain plantuml code blocks.
+func hasPlantUMLBlocks(targetDir string) bool {
+	return searchPlantUMLInDir(targetDir)
+}
+
+// searchPlantUMLInDir recursively searches for ```plantuml blocks in markdown files.
+func searchPlantUMLInDir(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		// Skip hidden directories and common excluded directories
+		if strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "_") {
+			continue
+		}
+		if entry.Name() == "node_modules" || entry.Name() == "vendor" {
+			continue
+		}
+
+		path := filepath.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			if searchPlantUMLInDir(path) {
+				return true
+			}
+		} else if strings.HasSuffix(entry.Name(), ".md") {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			if strings.Contains(string(content), "```plantuml") {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func writeDoctorReport(path string, report doctorReport) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -238,6 +352,8 @@ func renderDoctorMarkdown(report doctorReport) string {
 	}
 	fmt.Fprintf(&b, "- Chromium available: %t\n", report.ChromiumAvailable)
 	fmt.Fprintf(&b, "- CJK fonts available: %t\n", report.CJKFontsAvailable)
+	fmt.Fprintf(&b, "- PlantUML needed: %t\n", report.PlantUMLNeeded)
+	fmt.Fprintf(&b, "- PlantUML available: %t\n", report.PlantUMLAvailable)
 	fmt.Fprintf(&b, "- book.yaml found: %t\n", report.BookYAMLFound)
 	fmt.Fprintf(&b, "- SUMMARY.md found: %t\n", report.SummaryFound)
 	fmt.Fprintf(&b, "- LANGS.md found: %t\n", report.LangsFound)
