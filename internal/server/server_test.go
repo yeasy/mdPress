@@ -94,7 +94,7 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestListen_PortAlreadyInUse(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	occupied, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("无法占用测试端口: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestListen_PortAlreadyInUse(t *testing.T) {
 }
 
 func TestListenFrom_SkipsOccupiedPort(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	occupied, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("无法占用测试端口: %v", err)
 	}

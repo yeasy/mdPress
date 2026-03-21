@@ -47,7 +47,7 @@ func TestSiteGeneratorIndexPage(t *testing.T) {
 	if !strings.Contains(indexHTML, "Chapter 1") {
 		t.Error("index.html should contain the first chapter content")
 	}
-	// The SPA router should recognise ch1.html as the active file.
+	// The SPA router should recognize ch1.html as the active file.
 	if !strings.Contains(indexHTML, "ch1.html") {
 		t.Error("index.html should reference ch1.html as the active page")
 	}

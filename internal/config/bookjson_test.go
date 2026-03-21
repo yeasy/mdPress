@@ -170,7 +170,7 @@ func TestLoadBookJSON_LoadsChaptersFromSummary(t *testing.T) {
 	}
 }
 
-// TestLoadBookJSON_CustomSummaryPath checks that structure.summary is honoured.
+// TestLoadBookJSON_CustomSummaryPath checks that structure.summary is honored.
 func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 	dir := t.TempDir()
 

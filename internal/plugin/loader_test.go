@@ -451,9 +451,7 @@ func TestLoadPlugins_ConfigNil(t *testing.T) {
 	// This should panic or handle gracefully - depends on implementation
 	// Most likely it will panic when accessing cfg.Plugins on nil
 	defer func() {
-		if r := recover(); r != nil {
-			// Expected behavior - accessing nil.Plugins
-		}
+		_ = recover() // nil config may panic; either outcome is acceptable
 	}()
 
 	_, _ = LoadPlugins(nil)
