@@ -224,7 +224,7 @@ func TestPluginExecute_WithPlantUML(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`))
+		_, _ = w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>`))
 	}))
 	defer mockServer.Close()
 
@@ -257,7 +257,7 @@ func TestPluginExecute_RenderError(t *testing.T) {
 	// Create a mock server that fails
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Error"))
+		_, _ = w.Write([]byte("Error"))
 	}))
 	defer mockServer.Close()
 
@@ -427,7 +427,7 @@ func TestPluginLifecycle(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/svg+xml")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`<svg></svg>`))
+		_, _ = w.Write([]byte(`<svg></svg>`))
 	}))
 	defer mockServer.Close()
 
