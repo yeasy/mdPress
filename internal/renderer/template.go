@@ -503,7 +503,7 @@ const htmlTemplate = `<!DOCTYPE html>
   if (document.querySelector('.mermaid')) {
     var s = document.createElement('script');
     s.src = '{{MERMAID_CDN_URL}}';
-    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default'}); };
+    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); };
     document.body.appendChild(s);
   }
   </script>

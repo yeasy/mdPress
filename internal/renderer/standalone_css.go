@@ -57,9 +57,9 @@ const standaloneCSS = `    /* ==================================================
        深色模式覆盖
        ============================================================ */
     [data-theme="dark"] {
-      --color-bg:           #0d1117;
-      --color-bg-alt:       #161b22;
-      --color-bg-sidebar:   #161b22;
+      --color-bg:           #1a1a1a;
+      --color-bg-alt:       #2a2a2a;
+      --color-bg-sidebar:   #1c1c1e;
       --color-text:         #c9d1d9;
       --color-text-muted:   #8b949e;
       --color-heading:      #f0f6fc;
@@ -70,8 +70,8 @@ const standaloneCSS = `    /* ==================================================
       --color-accent-light: rgba(88, 166, 255, 0.15);
 
       /* 代码块 */
-      --color-code-bg:      #010409;
-      --color-code-border:  #30363d;
+      --color-code-bg:      #242424;
+      --color-code-border:  #3a3a3a;
       --color-code-text:    #ff7b72;
       --color-code-lang:    #8b949e;
 
@@ -119,9 +119,11 @@ const standaloneCSS = `    /* ==================================================
     body {
       background-color: var(--color-bg);
       color: var(--color-text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
       font-size: 16px;
-      line-height: 1.6;
+      line-height: 1.7;
+      font-feature-settings: 'kern' 1;
+      -webkit-font-smoothing: antialiased;
       transition: background-color 0.3s, color 0.3s;
     }
 
@@ -160,16 +162,25 @@ const standaloneCSS = `    /* ==================================================
       border: none;
       color: var(--color-text);
       cursor: pointer;
-      padding: 0.5rem;
+      padding: 0.5rem 0.75rem;
       border-radius: 6px;
       font-size: 14px;
       white-space: nowrap;
-      transition: background-color 0.2s, color 0.2s;
+      transition: all 0.15s ease;
+      min-height: 44px;
+      min-width: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .toolbar-btn:hover {
       background-color: var(--color-bg-alt);
       color: var(--color-link);
+    }
+
+    .toolbar-btn:active {
+      transform: scale(0.97);
     }
 
     .toolbar-btn.icon-only {
@@ -220,7 +231,7 @@ const standaloneCSS = `    /* ==================================================
       grid-column: 2;
       grid-row: 2;
       overflow-y: auto;
-      padding: 2rem 3rem;
+      padding: 2rem 2.5rem;
     }
 
     .toc {
@@ -257,6 +268,12 @@ const standaloneCSS = `    /* ==================================================
     .toc-group {
       margin: 0;
       padding: 0;
+    }
+
+    .toc-group:first-of-type {
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
     }
 
     .toc-row {
@@ -300,24 +317,28 @@ const standaloneCSS = `    /* ==================================================
       flex: 1;
       text-decoration: none;
       color: var(--color-text);
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      transition: background-color 0.15s, color 0.15s;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      transition: all 0.15s ease;
       display: block;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-size: 14px;
     }
 
     .toc-link:hover {
-      background-color: var(--color-sidebar-hover);
-      color: var(--color-link);
+      background-color: rgba(9, 105, 218, 0.1);
+      color: var(--color-text);
+      transform: translateX(2px);
     }
 
     .toc-link.active {
       color: var(--color-sidebar-active);
-      background-color: var(--color-sidebar-active-bg);
+      background-color: rgba(9, 105, 218, 0.08);
       font-weight: 500;
+      border-left: 3px solid var(--color-accent);
+      padding-left: calc(0.75rem - 3px);
     }
 
     .toc-link-chapter {
@@ -356,8 +377,10 @@ const standaloneCSS = `    /* ==================================================
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(10px);
       z-index: 99;
+      transition: opacity 0.3s ease;
     }
 
     .sidebar-overlay.active {
@@ -368,7 +391,7 @@ const standaloneCSS = `    /* ==================================================
        主内容区域
        ============================================================ */
     .content-area {
-      max-width: 900px;
+      max-width: 860px;
       margin: 0 auto;
     }
 
@@ -394,6 +417,7 @@ const standaloneCSS = `    /* ==================================================
       font-weight: 600;
       margin: 1.5rem 0 0.5rem 0;
       scroll-margin-top: 80px;
+      letter-spacing: -0.02em;
     }
 
     h1 {
@@ -405,7 +429,7 @@ const standaloneCSS = `    /* ==================================================
     h2 {
       font-size: 1.75rem;
       border-bottom: 1px solid var(--color-border);
-      padding-bottom: 0.2rem;
+      padding-bottom: 0.5rem;
     }
 
     h3 { font-size: 1.5rem; }
@@ -446,7 +470,7 @@ const standaloneCSS = `    /* ==================================================
       color: var(--color-code-text);
       padding: 0.2em 0.4em;
       border-radius: 3px;
-      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans Mono CJK SC", monospace;
       font-size: 0.9em;
       border: 1px solid var(--color-code-border);
     }
@@ -455,6 +479,8 @@ const standaloneCSS = `    /* ==================================================
       background-color: var(--color-code-bg);
       border: 1px solid var(--color-code-border);
       border-radius: 8px;
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
       padding: 1rem;
       overflow-x: auto;
       margin: 1rem 0;
@@ -475,6 +501,20 @@ const standaloneCSS = `    /* ==================================================
     .code-block {
       position: relative;
       margin: 1rem 0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .code-block::before {
+      content: attr(data-lang);
+      display: block;
+      background-color: var(--color-bg-alt);
+      padding: 0.5rem 1rem;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-code-lang);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--color-border);
     }
 
     .code-lang {
@@ -486,36 +526,41 @@ const standaloneCSS = `    /* ==================================================
       text-transform: uppercase;
       font-weight: 600;
       z-index: 1;
-      background-color: var(--color-code-bg);
-      padding: 0.25rem 0.5rem;
-      border-radius: 3px;
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      display: none;
     }
 
     .code-copy {
       position: absolute;
       top: 0.5rem;
       right: 0.5rem;
-      background-color: var(--color-bg-alt);
-      border: 1px solid var(--color-border);
-      color: var(--color-text);
-      border-radius: 4px;
-      padding: 0.4rem 0.8rem;
-      font-size: 12px;
+      background-color: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      border-radius: 6px;
+      padding: 0.5rem 0.5rem;
+      font-size: 14px;
       cursor: pointer;
-      transition: background-color 0.2s, border-color 0.2s;
+      transition: all 0.15s ease;
       z-index: 2;
+      opacity: 0;
+    }
+
+    .code-block:hover .code-copy {
+      opacity: 1;
+      color: var(--color-text);
     }
 
     .code-copy:hover {
-      background-color: var(--color-accent-light);
-      border-color: var(--color-accent);
+      background-color: var(--color-bg-alt);
       color: var(--color-accent);
     }
 
     .code-copy.copied {
       background-color: var(--color-accent-light);
       color: var(--color-accent);
-      border-color: var(--color-accent);
     }
 
     /* ============================================================
@@ -539,11 +584,12 @@ const standaloneCSS = `    /* ==================================================
        ============================================================ */
     blockquote {
       margin: 1rem 0;
-      padding-left: 1rem;
-      border-left: 3px solid var(--color-accent);
-      background-color: var(--color-bg-alt);
+      padding-left: 1.5rem;
+      border-left: 3px solid var(--color-border);
+      background-color: transparent;
       padding: 0.5rem 1rem;
-      border-radius: 4px;
+      border-radius: 0;
+      color: var(--color-text-muted);
     }
 
     blockquote p {
@@ -553,11 +599,18 @@ const standaloneCSS = `    /* ==================================================
     /* ============================================================
        表格
        ============================================================ */
+    .table-wrapper {
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      margin: 1rem 0;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 1rem 0;
-      border: 1px solid var(--color-table-header);
+      margin: 0;
+      border: none;
     }
 
     thead {
@@ -567,14 +620,20 @@ const standaloneCSS = `    /* ==================================================
     th {
       padding: 0.75rem;
       text-align: left;
-      font-weight: 600;
-      color: var(--color-heading);
-      border: 1px solid var(--color-border);
+      font-weight: 500;
+      color: var(--color-text);
+      border: none;
+      border-bottom: 1px solid var(--color-border);
     }
 
     td {
       padding: 0.75rem;
-      border: 1px solid var(--color-border);
+      border: none;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
     }
 
     tbody tr:nth-child(even) {
@@ -590,10 +649,23 @@ const standaloneCSS = `    /* ==================================================
        ============================================================ */
     .callout {
       margin: 1rem 0;
-      padding: 1rem;
-      border-left: 4px solid;
-      border-radius: 4px;
+      padding: 1rem 1rem 1rem 3rem;
+      border-left: 3px solid;
+      border-radius: 8px;
       background-color: var(--color-bg-alt);
+      position: relative;
+    }
+
+    .callout::before {
+      position: absolute;
+      left: 1rem;
+      top: 1rem;
+      font-size: 1.25rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .callout-title {
@@ -606,8 +678,12 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-note {
       border-color: var(--callout-note-border);
-      background-color: var(--callout-note-bg);
+      background-color: rgba(219, 234, 254, 0.4);
       color: var(--callout-note-color);
+    }
+
+    .callout-note::before {
+      content: "ℹ️";
     }
 
     .callout-note .callout-title {
@@ -616,8 +692,12 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-warning {
       border-color: var(--callout-warning-border);
-      background-color: var(--callout-warning-bg);
+      background-color: rgba(254, 243, 199, 0.4);
       color: var(--callout-warning-color);
+    }
+
+    .callout-warning::before {
+      content: "⚠️";
     }
 
     .callout-warning .callout-title {
@@ -626,8 +706,12 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-tip {
       border-color: var(--callout-tip-border);
-      background-color: var(--callout-tip-bg);
+      background-color: rgba(220, 252, 231, 0.4);
       color: var(--callout-tip-color);
+    }
+
+    .callout-tip::before {
+      content: "💡";
     }
 
     .callout-tip .callout-title {
@@ -636,8 +720,12 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-important {
       border-color: var(--callout-important-border);
-      background-color: var(--callout-important-bg);
+      background-color: rgba(254, 226, 226, 0.4);
       color: var(--callout-important-color);
+    }
+
+    .callout-important::before {
+      content: "🔴";
     }
 
     .callout-important .callout-title {
@@ -711,15 +799,26 @@ const standaloneCSS = `    /* ==================================================
       align-items: center;
       justify-content: center;
       z-index: 98;
-      transition: background-color 0.3s;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(9, 105, 218, 0.3);
+      opacity: 0;
+      transform: scale(0.9);
     }
 
     #back-to-top.show {
       display: flex;
+      opacity: 1;
+      transform: scale(1);
     }
 
     #back-to-top:hover {
       background-color: var(--color-link-hover);
+      box-shadow: 0 6px 16px rgba(9, 105, 218, 0.4);
+      transform: scale(1.05);
+    }
+
+    #back-to-top:active {
+      transform: scale(0.97);
     }
 
     /* ============================================================
@@ -732,7 +831,8 @@ const standaloneCSS = `    /* ==================================================
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: rgba(0, 0, 0, 0.6);
+      background-color: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
       z-index: 1001;
       align-items: flex-start;
       justify-content: center;
@@ -745,9 +845,9 @@ const standaloneCSS = `    /* ==================================================
 
     .search-box {
       background-color: var(--color-bg);
-      border-radius: 8px;
+      border-radius: 12px;
       width: 90%;
-      max-width: 600px;
+      max-width: 640px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       overflow: hidden;
       display: flex;
@@ -756,13 +856,14 @@ const standaloneCSS = `    /* ==================================================
     }
 
     .search-input {
-      padding: 1rem;
+      padding: 1.25rem 1.5rem;
       border: none;
       font-size: 16px;
       background-color: var(--color-bg);
       color: var(--color-text);
       outline: none;
       border-bottom: 1px solid var(--color-border);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
     .search-input::placeholder {
@@ -772,18 +873,21 @@ const standaloneCSS = `    /* ==================================================
     .search-results {
       overflow-y: auto;
       flex: 1;
-      padding: 0;
+      padding: 0.5rem;
     }
 
     .search-result {
-      padding: 1rem;
-      border-bottom: 1px solid var(--color-border);
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      border-radius: 6px;
       cursor: pointer;
-      transition: background-color 0.15s;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
     }
 
     .search-result:hover {
       background-color: var(--color-bg-alt);
+      border-color: var(--color-accent);
     }
 
     .search-result-title {
@@ -885,13 +989,22 @@ const standaloneCSS = `    /* ==================================================
     @media (max-width: 768px) {
       body {
         grid-template-columns: 1fr;
+        grid-template-rows: 52px 1fr;
+      }
+
+      .toolbar {
+        height: 52px;
+      }
+
+      #reading-progress {
+        top: 52px;
       }
 
       .sidebar {
         position: fixed;
         left: -250px;
-        top: 60px;
-        height: calc(100vh - 60px);
+        top: 52px;
+        height: calc(100vh - 52px);
         z-index: 99;
         transition: left 0.3s;
         width: 250px;
@@ -899,6 +1012,10 @@ const standaloneCSS = `    /* ==================================================
 
       .sidebar.active {
         left: 0;
+      }
+
+      .sidebar-overlay {
+        top: 52px;
       }
 
       .content-area {

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
-	"github.com/yeasy/mdpress/internal/theme"
 )
 
 // TestNewHTMLRenderer_Success tests successful creation of HTMLRenderer
@@ -391,7 +390,7 @@ func TestBuildFullCSS_WithoutTheme(t *testing.T) {
 func TestBuildPrintCSS_DefaultPageSize(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = ""
-	cfg.Style.Margin = config.Margin{Top: 20, Right: 20, Bottom: 20, Left: 20}
+	cfg.Style.Margin = config.MarginConfig{Top: 20, Right: 20, Bottom: 20, Left: 20}
 
 	thm := newTestTheme()
 	r, err := NewHTMLRenderer(cfg, thm)
@@ -412,7 +411,7 @@ func TestBuildPrintCSS_DefaultPageSize(t *testing.T) {
 func TestBuildPrintCSS_CustomPageSize(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = "Letter"
-	cfg.Style.Margin = config.Margin{Top: 25, Right: 25, Bottom: 25, Left: 25}
+	cfg.Style.Margin = config.MarginConfig{Top: 25, Right: 25, Bottom: 25, Left: 25}
 
 	thm := newTestTheme()
 	r, err := NewHTMLRenderer(cfg, thm)
@@ -430,7 +429,7 @@ func TestBuildPrintCSS_CustomPageSize(t *testing.T) {
 func TestBuildPrintCSS_PageBreaks(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = "A4"
-	cfg.Style.Margin = config.Margin{Top: 20, Right: 20, Bottom: 20, Left: 20}
+	cfg.Style.Margin = config.MarginConfig{Top: 20, Right: 20, Bottom: 20, Left: 20}
 
 	thm := newTestTheme()
 	r, err := NewHTMLRenderer(cfg, thm)
@@ -456,7 +455,7 @@ func TestBuildPrintCSS_PageBreaks(t *testing.T) {
 func TestBuildPrintCSS_Margins(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = "A4"
-	cfg.Style.Margin = config.Margin{Top: 30, Right: 25, Bottom: 35, Left: 20}
+	cfg.Style.Margin = config.MarginConfig{Top: 30, Right: 25, Bottom: 35, Left: 20}
 
 	thm := newTestTheme()
 	r, err := NewHTMLRenderer(cfg, thm)

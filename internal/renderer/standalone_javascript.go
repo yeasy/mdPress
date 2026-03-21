@@ -7,13 +7,20 @@ const standaloneJS = `
   'use strict';
 
   // ============================================================
-  // 主题管理：三档切换（light / dark / system），无闪烁
+  // Theme Management: three-way toggle (light / dark / system)
+  // with smooth icon rotation animation
   // ============================================================
   var THEME_KEY = 'mdpress-theme';
   var themeBtn  = document.getElementById('btn-theme');
   var themes    = ['light', 'dark', 'system'];
-  var themeIcons  = { light: '☀️', dark: '🌙', system: '🖥' };
-  var themeLabels = { light: '亮色', dark: '暗色', system: '跟随系统' };
+
+  var themeSvgs = {
+    light: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M23 12h-6m-6 0H1M20.485 3.515l-4.243 4.243m0 5.484l4.243 4.243M3.515 3.515l4.243 4.243m0 5.484l-4.243 4.243"/></svg>',
+    dark: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+    system: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
+  };
+
+  var themeLabels = { light: 'Light', dark: 'Dark', system: 'System' };
   var currentTheme = localStorage.getItem(THEME_KEY) || 'system';
 
   function applyTheme(t) {
@@ -21,8 +28,10 @@ const standaloneJS = `
     try { localStorage.setItem(THEME_KEY, t); } catch(e) {}
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : '');
-    themeBtn.textContent = themeIcons[t];
-    themeBtn.title = '主题：' + themeLabels[t] + '（点击切换）';
+    themeBtn.innerHTML = themeSvgs[t];
+    themeBtn.title = 'Theme: ' + themeLabels[t] + ' (click to toggle)';
+    themeBtn.classList.add('icon-rotating');
+    setTimeout(function() { themeBtn.classList.remove('icon-rotating'); }, 300);
   }
 
   themeBtn.addEventListener('click', function() {
@@ -30,7 +39,7 @@ const standaloneJS = `
     applyTheme(themes[(idx + 1) % themes.length]);
   });
 
-  // 监听系统主题变化（仅在 system 模式下生效）
+  // Listen to system theme changes (only effective in system mode)
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
     if (currentTheme === 'system') applyTheme('system');
   });
@@ -38,12 +47,14 @@ const standaloneJS = `
   applyTheme(currentTheme);
 
   // ============================================================
-  // 侧边栏控制（桌面推拉 + 移动端滑入）
+  // Sidebar control (desktop collapse/expand + mobile slide-in)
+  // with scroll position memory for chapter navigation
   // ============================================================
   var leftSidebar   = document.getElementById('left-sidebar');
   var mainContent   = document.getElementById('main-content');
   var sidebarOverlay = document.getElementById('sidebar-overlay');
   var sidebarHidden = false;
+  var SIDEBAR_SCROLL_PREFIX = 'mdpress-sidebar-scroll-';
 
   function isMobile() { return window.innerWidth <= 768; }
 
@@ -69,22 +80,49 @@ const standaloneJS = `
     }
   }
 
+  function saveSidebarScroll() {
+    try {
+      var scrollPos = leftSidebar.querySelector('#sidebar-nav').scrollTop;
+      localStorage.setItem(SIDEBAR_SCROLL_PREFIX + 'current', scrollPos);
+    } catch(e) {}
+  }
+
+  function restoreSidebarScroll() {
+    try {
+      var scrollPos = localStorage.getItem(SIDEBAR_SCROLL_PREFIX + 'current');
+      if (scrollPos !== null) {
+        leftSidebar.querySelector('#sidebar-nav').scrollTop = parseInt(scrollPos, 10);
+      }
+    } catch(e) {}
+  }
+
   document.getElementById('btn-sidebar').addEventListener('click', function() {
     sidebarHidden ? showSidebar() : hideSidebar();
   });
 
   sidebarOverlay.addEventListener('click', hideSidebar);
 
-  // 移动端点击链接后自动关闭侧边栏
+  // Auto-close sidebar on mobile when link is clicked
   leftSidebar.addEventListener('click', function(e) {
-    if (e.target.tagName === 'A' && isMobile()) hideSidebar();
+    if (e.target.tagName === 'A' && isMobile()) {
+      saveSidebarScroll();
+      hideSidebar();
+    }
   });
 
+  // Save sidebar scroll position periodically and on unload
+  setInterval(saveSidebarScroll, 1000);
+  window.addEventListener('beforeunload', saveSidebarScroll);
+
+  // Restore sidebar scroll on page load
+  restoreSidebarScroll();
+
   // ============================================================
-  // 左侧 TOC 折叠/展开（带过渡动画，支持多个章节同时展开）
+  // Left TOC collapse/expand with transition animations
+  // Supports multiple expanded sections simultaneously
   // ============================================================
 
-  // 用户点击导航时设置此标志，抑制 scroll spy 的手风琴行为
+  // Set flag when user clicks navigation to suppress scroll spy accordion
   var navClickLock = false;
   var navClickTimer = null;
   function lockNavClick() {
@@ -93,14 +131,14 @@ const standaloneJS = `
     navClickTimer = setTimeout(function() { navClickLock = false; }, 600);
   }
 
-  // 判断是否为顶级章节组（父元素是 #sidebar-nav 本身）
+  // Determine if item is a top-level section group (parent is #sidebar-nav)
   function isTopLevelGroup(item) {
     return item && item.parentElement && item.parentElement.id === 'sidebar-nav';
   }
 
-  // 展开子章节列表（带 max-height 动画）
+  // Expand subsection list with max-height animation
   function expandTocGroup(children, btn) {
-    if (!children.hidden && children.style.maxHeight === '') return; // 已展开
+    if (!children.hidden && children.style.maxHeight === '') return; // already expanded
     children.style.maxHeight = '0';
     children.removeAttribute('hidden');
     void children.offsetHeight;
@@ -112,9 +150,9 @@ const standaloneJS = `
     });
   }
 
-  // 折叠子章节列表（带 max-height 动画）
+  // Collapse subsection list with max-height animation
   function collapseTocGroup(children, btn) {
-    if (children.hidden) return; // 已折叠
+    if (children.hidden) return; // already collapsed
     children.style.maxHeight = children.scrollHeight + 'px';
     void children.offsetHeight;
     children.style.maxHeight = '0';
@@ -126,7 +164,7 @@ const standaloneJS = `
     });
   }
 
-  // 收起某节点的同级已展开顶级章节（仅顶级手风琴）
+  // Collapse sibling expanded top-level sections (top-level accordion only)
   function collapseTopLevelSiblings(item) {
     if (!isTopLevelGroup(item)) return;
     var parent = item.parentElement;
@@ -149,7 +187,7 @@ const standaloneJS = `
       if (expanded) {
         collapseTocGroup(children, btn);
       } else {
-        // 仅顶级章节互斥折叠，子章节可同时展开
+        // Only top-level sections are mutually exclusive, subsections can expand together
         collapseTopLevelSiblings(item);
         expandTocGroup(children, btn);
       }
@@ -157,19 +195,33 @@ const standaloneJS = `
   });
 
   // ============================================================
-  // 平滑滚动：拦截 TOC 链接和章节导航按钮的点击，防止页面闪烁
+  // Smooth scroll: intercept TOC links and chapter nav clicks
+  // with offset for sticky header and highlight flash effect
   // ============================================================
   function handleAnchorClick(e) {
     var href = this.getAttribute('href');
     if (!href || href.charAt(0) !== '#') return;
     var targetId = href.slice(1);
-    if (!document.getElementById(targetId)) return;
+    var targetEl = document.getElementById(targetId);
+    if (!targetEl) return;
     e.preventDefault();
-    lockNavClick(); // 抑制滚动期间 scroll spy 的手风琴
-    // 使用 JS 平滑滚动，避免浏览器默认的瞬间跳转（闪烁）
-    document.getElementById(targetId).scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // 更新地址栏 hash，不触发浏览器默认跳转
+    lockNavClick(); // suppress accordion during scroll
+
+    // Smooth scroll with offset for sticky header (80px)
+    var offsetY = 80;
+    var elementPosition = targetEl.getBoundingClientRect().top + window.scrollY - offsetY;
+    window.scrollTo({ top: elementPosition, behavior: 'smooth' });
+
+    // Update address bar hash without triggering default jump
     if (history.pushState) history.pushState(null, '', href);
+
+    // Add brief highlight flash after scroll completes
+    setTimeout(function() {
+      targetEl.classList.add('highlight-flash');
+      setTimeout(function() {
+        targetEl.classList.remove('highlight-flash');
+      }, 1500);
+    }, 300);
   }
 
   function initSmoothNav() {
@@ -255,7 +307,7 @@ const standaloneJS = `
     chapters.forEach(function(ch) { chapterObserver.observe(ch); });
   }
 
-  // 更新左侧 TOC 高亮
+  // Update left TOC highlight
   function updateLeftTOC(chapterId, headingId) {
     var activeTarget = headingId || chapterId;
     document.querySelectorAll('#sidebar-nav .toc-link').forEach(function(link) {
@@ -263,7 +315,7 @@ const standaloneJS = `
       link.classList.toggle('active', target === activeTarget);
     });
 
-    // 展开包含活跃链接的章节组
+    // Expand section groups containing active links
     var activeLink = document.querySelector('#sidebar-nav .toc-link.active');
     if (activeLink) {
       var group = activeLink.closest('.toc-group');
@@ -271,7 +323,7 @@ const standaloneJS = `
         var toggle = group.querySelector(':scope > .toc-row > .toc-toggle');
         var children = group.querySelector(':scope > .toc-children');
         if (toggle && children && children.hidden) {
-          // 仅在非点击导航期间才做顶级手风琴折叠
+          // Only collapse top-level accordion during non-click navigation
           if (!navClickLock) {
             collapseTopLevelSiblings(group);
           }
@@ -281,12 +333,12 @@ const standaloneJS = `
         group = parent ? parent.closest('.toc-group') : null;
       }
 
-      // 确保活跃链接在侧边栏可视区域内
+      // Ensure active link is visible in sidebar
       activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }
 
-  // 右侧页内 TOC 缓存（避免每帧重建 DOM）
+  // Right TOC cache (avoid rebuilding DOM every frame)
   var rightTOCCache = {};
   var currentRightChapter = '';
 
@@ -294,7 +346,7 @@ const standaloneJS = `
     var rightNav = document.getElementById('right-toc-nav');
     if (!rightNav) return;
 
-    // 章节切换时重新构建右侧 TOC 链接列表
+    // Rebuild right TOC link list when chapter changes
     if (chapterId !== currentRightChapter) {
       currentRightChapter = chapterId;
       if (!rightTOCCache[chapterId]) {
@@ -311,26 +363,32 @@ const standaloneJS = `
         a.className = 'right-toc-link rtoc-d' + (item.level - 1);
         a.setAttribute('data-target', item.id);
         a.textContent = item.text;
-        // Use smooth scroll + history.pushState (same behaviour as left TOC links).
+        // Use smooth scroll + history.pushState (same as left TOC links)
         a.addEventListener('click', handleAnchorClick);
         rightNav.appendChild(a);
       });
     }
 
-    // 高亮当前标题
+    // Highlight current heading
     rightNav.querySelectorAll('.right-toc-link').forEach(function(link) {
       link.classList.toggle('active', link.getAttribute('data-target') === headingId);
     });
   }
 
-  // onScroll only handles the reading progress bar and the back-to-top button.
-  // Chapter/heading tracking is now handled by IntersectionObserver in initScrollSpy.
+  // onScroll handles reading progress bar (GPU-accelerated with transform)
+  // and back-to-top button. Chapter/heading tracking uses IntersectionObserver.
   function onScroll() {
     var scrollTop = window.scrollY || document.documentElement.scrollTop;
     var docH = document.documentElement.scrollHeight - window.innerHeight;
     var pct  = docH > 0 ? Math.min(100, (scrollTop / docH) * 100) : 0;
-    document.getElementById('reading-progress').style.width = pct + '%';
-    document.getElementById('back-to-top').classList.toggle('visible', scrollTop > 400);
+
+    // Use transform scaleX for GPU acceleration instead of width
+    var progressBar = document.getElementById('reading-progress');
+    progressBar.style.transform = 'scaleX(' + (pct / 100) + ')';
+    progressBar.style.transformOrigin = '0 50%';
+
+    // Show back-to-top only after scrolling past 300px
+    document.getElementById('back-to-top').classList.toggle('visible', scrollTop > 300);
   }
 
   // Throttle scroll events with requestAnimationFrame to avoid excessive repaints.
@@ -342,11 +400,12 @@ const standaloneJS = `
   }, { passive: true });
 
   // ============================================================
-  // 代码块增强：自动包装 pre > code，添加语言标签和复制按钮
+  // Code block enhancement: auto-wrap pre > code, add language
+  // labels and copy button with icon and feedback animations
   // ============================================================
   function enhanceCodeBlocks() {
     document.querySelectorAll('.chapter-content pre').forEach(function(pre) {
-      // 已处理过的跳过（幂等）
+      // Skip already processed blocks (idempotent)
       if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
 
       var code = pre.querySelector('code');
@@ -359,11 +418,11 @@ const standaloneJS = `
         });
       }
 
-      // 创建包装容器
+      // Create wrapper container
       var wrapper = document.createElement('div');
       wrapper.className = 'code-block-wrapper';
 
-      // 头部：语言标签 + 复制按钮
+      // Header: language label + copy button
       var header = document.createElement('div');
       header.className = 'code-block-header';
 
@@ -373,19 +432,26 @@ const standaloneJS = `
 
       var copyBtn = document.createElement('button');
       copyBtn.className = 'code-copy-btn';
-      copyBtn.textContent = '复制';
-      copyBtn.title = '复制代码';
-      copyBtn.setAttribute('aria-label', '复制代码');
+      copyBtn.title = 'Copy code';
+      copyBtn.setAttribute('aria-label', 'Copy code');
 
-      // 复制逻辑（优先 navigator.clipboard，降级 execCommand）
+      // SVG clipboard icon
+      var clipboardSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
+      var checkmarkSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+
+      copyBtn.innerHTML = clipboardSvg;
+
+      // Copy logic (prefer navigator.clipboard, fallback to execCommand)
       copyBtn.addEventListener('click', function() {
         var text = code ? code.textContent : pre.textContent;
         var doFeedback = function() {
-          copyBtn.textContent = '已复制 ✓';
+          copyBtn.innerHTML = checkmarkSvg;
           copyBtn.classList.add('copied');
+          copyBtn.classList.add('flash-success');
           setTimeout(function() {
-            copyBtn.textContent = '复制';
+            copyBtn.innerHTML = clipboardSvg;
             copyBtn.classList.remove('copied');
+            copyBtn.classList.remove('flash-success');
           }, 2000);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -401,13 +467,13 @@ const standaloneJS = `
       header.appendChild(copyBtn);
       wrapper.appendChild(header);
 
-      // 将原 pre 移入 wrapper
+      // Move original pre into wrapper
       pre.parentNode.insertBefore(wrapper, pre);
       wrapper.appendChild(pre);
     });
   }
 
-  // execCommand 降级复制（用于不支持 Clipboard API 的环境）
+  // execCommand fallback copy (for environments without Clipboard API)
   function fallbackCopy(text, cb) {
     var ta = document.createElement('textarea');
     ta.value = text;
@@ -420,13 +486,13 @@ const standaloneJS = `
   }
 
   // ============================================================
-  // Callout 提示框：将特定格式的 blockquote 转换为彩色提示框
+  // Callout boxes: convert specific blockquote formats to colored callouts
   //
-  // 支持格式（Markdown 中）：
-  //   > **Note**: 内容
-  //   > **Warning**: 内容
-  //   > **Tip**: 内容
-  //   > **Important**: 内容
+  // Supported formats (in Markdown):
+  //   > **Note**: content
+  //   > **Warning**: content
+  //   > **Tip**: content
+  //   > **Important**: content
   // ============================================================
   var CALLOUT_MAP = {
     'Note':      { type: 'note',      icon: 'ℹ️' },
@@ -452,7 +518,7 @@ const standaloneJS = `
       var info    = CALLOUT_MAP[keyword];
       if (!info)  return;
 
-      // 构建 callout 容器
+      // Build callout container
       var callout = document.createElement('div');
       callout.className = 'callout callout-' + info.type;
 
@@ -464,14 +530,14 @@ const standaloneJS = `
       var body = document.createElement('div');
       body.className = 'callout-body';
 
-      // 清理 strong 标签和紧跟的冒号/空格
+      // Clean up strong tag and following colons/spaces
       firstStrong.remove();
       var firstTextNode = firstP.firstChild;
       if (firstTextNode && firstTextNode.nodeType === 3) {
         firstTextNode.textContent = firstTextNode.textContent.replace(/^[:\s]+/, '');
       }
 
-      // 将 blockquote 中的内容移入 body
+      // Move blockquote content into body
       while (bq.firstChild) body.appendChild(bq.firstChild);
 
       callout.appendChild(icon);
@@ -481,7 +547,46 @@ const standaloneJS = `
   }
 
   // ============================================================
-  // 表格包装：使宽表格可横向滚动
+  // Expandable sections: enhance <details> and <summary> elements
+  // with smooth open/close animations and chevron indicator
+  // ============================================================
+  function styleExpandableSections() {
+    document.querySelectorAll('.chapter-content details').forEach(function(details) {
+      if (details.classList.contains('expandable-styled')) return;
+      details.classList.add('expandable-styled');
+
+      var summary = details.querySelector('summary');
+      if (!summary) return;
+
+      summary.classList.add('expandable-header');
+
+      // Add chevron indicator if not already present
+      if (!summary.querySelector('.expandable-chevron')) {
+        var chevron = document.createElement('span');
+        chevron.className = 'expandable-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        chevron.textContent = '▸';
+        summary.insertBefore(chevron, summary.firstChild);
+      }
+
+      // Handle open/close animation
+      details.addEventListener('toggle', function() {
+        if (details.open) {
+          summary.setAttribute('aria-expanded', 'true');
+          summary.classList.add('open');
+        } else {
+          summary.setAttribute('aria-expanded', 'false');
+          summary.classList.remove('open');
+        }
+      });
+
+      summary.setAttribute('aria-expanded', details.open ? 'true' : 'false');
+      if (details.open) summary.classList.add('open');
+    });
+  }
+
+  // ============================================================
+  // Table wrapping: enable horizontal scroll for wide tables
   // ============================================================
   function wrapTables() {
     document.querySelectorAll('.chapter-content table').forEach(function(table) {
@@ -494,37 +599,68 @@ const standaloneJS = `
   }
 
   // ============================================================
-  // 图片灯箱：点击图片全屏查看
+  // Image lightbox with zoom animation, background blur,
+  // and keyboard navigation (Escape, arrow keys)
   // ============================================================
   var lightbox    = document.getElementById('img-lightbox');
   var lightboxImg = document.getElementById('img-lightbox-src');
+  var allImages   = [];
+  var currentImageIndex = -1;
 
   function openLightbox(src, alt) {
     lightboxImg.src = src;
     lightboxImg.alt = alt || '';
     lightbox.classList.add('visible');
+    lightbox.classList.add('zoom-in');
     document.body.style.overflow = 'hidden';
+
+    // Track current image for keyboard navigation
+    currentImageIndex = allImages.findIndex(function(img) { return img.src === src; });
   }
 
   function closeLightbox() {
     lightbox.classList.remove('visible');
+    lightbox.classList.remove('zoom-in');
     document.body.style.overflow = '';
-    // 延迟清空 src，避免图片闪烁
+    currentImageIndex = -1;
+    // Delay clearing src to avoid flicker
     setTimeout(function() { if (!lightbox.classList.contains('visible')) lightboxImg.src = ''; }, 300);
+  }
+
+  function showNextImage() {
+    if (allImages.length === 0) return;
+    currentImageIndex = (currentImageIndex + 1) % allImages.length;
+    openLightbox(allImages[currentImageIndex].src, allImages[currentImageIndex].alt);
+  }
+
+  function showPrevImage() {
+    if (allImages.length === 0) return;
+    currentImageIndex = (currentImageIndex - 1 + allImages.length) % allImages.length;
+    openLightbox(allImages[currentImageIndex].src, allImages[currentImageIndex].alt);
   }
 
   lightbox.addEventListener('click', function(e) {
     if (e.target !== lightboxImg) closeLightbox();
   });
 
+  // Keyboard navigation for lightbox
+  document.addEventListener('keydown', function(e) {
+    if (!lightbox.classList.contains('visible')) return;
+    if (e.key === 'ArrowRight') showNextImage();
+    else if (e.key === 'ArrowLeft') showPrevImage();
+  });
+
   function initLightbox() {
-    document.querySelectorAll('.chapter-content img').forEach(function(img) {
+    allImages = Array.from(document.querySelectorAll('.chapter-content img'));
+    allImages.forEach(function(img) {
+      img.style.cursor = 'zoom-in';
       img.addEventListener('click', function() { openLightbox(img.src, img.alt); });
     });
   }
 
   // ============================================================
-  // 全文搜索（⌘K / Ctrl+K 打开模态框，支持中文）
+  // Full-text Search (⌘K / Ctrl+K to open modal)
+  // with platform-specific keyboard shortcut display
   // ============================================================
   var searchOverlay     = document.getElementById('search-overlay');
   var searchInput       = document.getElementById('search-input');
@@ -543,7 +679,16 @@ const standaloneJS = `
     searchFocusIdx = -1;
   }
 
-  document.getElementById('btn-search').addEventListener('click', openSearch);
+  var btnSearch = document.getElementById('btn-search');
+  btnSearch.addEventListener('click', openSearch);
+
+  // Add keyboard shortcut badge to search button
+  var isMac = navigator.platform.includes('Mac');
+  var shortcutText = isMac ? '⌘K' : 'Ctrl+K';
+  var shortcutBadge = document.createElement('span');
+  shortcutBadge.className = 'search-shortcut-badge';
+  shortcutBadge.textContent = shortcutText;
+  btnSearch.appendChild(shortcutBadge);
 
   searchOverlay.addEventListener('click', function(e) {
     if (e.target === searchOverlay) closeSearch();
@@ -644,11 +789,11 @@ const standaloneJS = `
       }
     });
 
-    searchCountLabel.textContent = results.length + ' 条结果' + (results.length >= 50 ? '（前 50 条）' : '');
+    searchCountLabel.textContent = results.length + ' results' + (results.length >= 50 ? ' (showing first 50)' : '');
 
     if (!results.length) {
       var q = query.replace(/</g, '&lt;');
-      searchResultsList.innerHTML = '<div class="search-no-results">未找到与 "' + q + '" 相关的内容</div>';
+      searchResultsList.innerHTML = '<div class="search-no-results"><div class="search-no-results-title">No results found</div><div class="search-no-results-text">Try different keywords or check the spelling</div></div>';
       return;
     }
 
@@ -658,15 +803,25 @@ const standaloneJS = `
       div.className = 'search-result';
       div.setAttribute('data-target', r.targetId);
 
+      var titleContainer = document.createElement('div');
+      titleContainer.className = 'search-result-header';
+
       var title = document.createElement('div');
       title.className = 'search-result-title';
       title.textContent = r.title;
+
+      var context = document.createElement('div');
+      context.className = 'search-result-context';
+      context.textContent = '→ ' + r.targetId;
+
+      titleContainer.appendChild(title);
+      titleContainer.appendChild(context);
 
       var excerpt = document.createElement('div');
       excerpt.className = 'search-result-excerpt';
       excerpt.innerHTML = r.excerpt.replace(/</g, '&lt;').replace(re2, '<mark>$1</mark>');
 
-      div.appendChild(title);
+      div.appendChild(titleContainer);
       div.appendChild(excerpt);
       div.addEventListener('click', function() {
         scrollToId(r.targetId);
@@ -677,23 +832,24 @@ const standaloneJS = `
   }
 
   // ============================================================
-  // 回到顶部按钮
+  // Back-to-top button with smooth fade and scroll animation
   // ============================================================
   document.getElementById('back-to-top').addEventListener('click', function() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   // ============================================================
-  // 初始化：DOM 就绪后执行所有增强操作
+  // Initialization: run all enhancements when DOM is ready
   // ============================================================
   function init() {
     initScrollSpy();
     initSmoothNav();
     enhanceCodeBlocks();
     transformCallouts();
+    styleExpandableSections();
     wrapTables();
     initLightbox();
-    onScroll(); // 初始化进度条和 TOC 高亮
+    onScroll(); // Initialize progress bar and TOC highlight
   }
 
   if (document.readyState === 'loading') {
