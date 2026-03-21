@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -652,7 +653,9 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 		xdgConfig: filepath.Join(root, "xdg-config"),
 		xdgCache:  filepath.Join(root, "xdg-cache"),
 		cleanup: func() {
-			_ = os.RemoveAll(root)
+			if err := os.RemoveAll(root); err != nil {
+				slog.Debug("Failed to clean up Chrome runtime directory", slog.String("dir", root), slog.String("error", err.Error()))
+			}
 		},
 	}
 	for _, dir := range []string{runtime.homeDir, runtime.userData, runtime.tmpDir, runtime.xdgConfig, runtime.xdgCache} {
@@ -685,7 +688,9 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		Path:   filepath.ToSlash(htmlFilePath),
 	}).String()
 	tmpOutput := outputPath + ".tmp"
-	_ = os.Remove(tmpOutput)
+	if err := os.Remove(tmpOutput); err != nil {
+		slog.Debug("Failed to remove temporary PDF output file", slog.String("file", tmpOutput), slog.String("error", err.Error()))
+	}
 
 	args := []string{
 		"--headless",
