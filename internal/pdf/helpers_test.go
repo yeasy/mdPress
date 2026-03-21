@@ -7,26 +7,28 @@ import (
 
 // TestBuildCJKFontFaceEdgeCases tests edge cases of CJK font face CSS generation
 func TestBuildCJKFontFaceEdgeCases(t *testing.T) {
-	css := buildCJKFontFaceCSS()
+	result := buildCJKFontFaceCSS()
 
 	// CSS is either empty (no fonts found) or contains expected structure
-	if css == "" {
-		t.Log("No CJK fonts found on this system, buildCJKFontFaceCSS returns empty string")
+	if result.css == "" {
+		t.Log("No CJK fonts found on this system, buildCJKFontFaceCSS returns empty result")
 		return
 	}
 
+	t.Logf("Found CJK font: family=%s path=%s", result.family, result.fontPath)
+
 	// When CSS is not empty, it should contain @font-face
-	if !strings.Contains(css, "@font-face") {
+	if !strings.Contains(result.css, "@font-face") {
 		t.Error("CSS should contain @font-face rule when fonts are available")
 	}
 
 	// Should contain unicode-range
-	if !strings.Contains(css, "unicode-range") {
+	if !strings.Contains(result.css, "unicode-range") {
 		t.Error("CSS should contain unicode-range")
 	}
 
 	// Should contain body font-family override
-	if !strings.Contains(css, "body") {
+	if !strings.Contains(result.css, "body") {
 		t.Error("CSS should contain body styling")
 	}
 }
@@ -34,7 +36,7 @@ func TestBuildCJKFontFaceEdgeCases(t *testing.T) {
 // TestInjectCJKFontFaceHeadInjection tests CSS injection before </head>
 func TestInjectCJKFontFaceHeadInjection(t *testing.T) {
 	html := "<html><head><title>Test</title></head><body>content</body></html>"
-	result := injectCJKFontFaceCSS(html)
+	result := injectCJKFontFaceCSS(html, nil)
 
 	// </head> should still be in the result
 	if !strings.Contains(result, "</head>") {
@@ -54,7 +56,7 @@ func TestInjectCJKFontFaceHeadInjection(t *testing.T) {
 // TestInjectCJKFontFacePrependFallback tests CSS prepending when no </head>
 func TestInjectCJKFontFacePrependFallback(t *testing.T) {
 	html := "<body>content</body>"
-	result := injectCJKFontFaceCSS(html)
+	result := injectCJKFontFaceCSS(html, nil)
 
 	// Either no CSS (no fonts), or CSS is prepended
 	if strings.HasPrefix(result, "<style data-cjk-fonts") {

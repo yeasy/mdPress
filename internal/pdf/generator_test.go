@@ -370,23 +370,29 @@ func TestChromiumRuntimeEnv(t *testing.T) {
 
 // TestBuildCJKFontFaceCSS tests CJK font face CSS generation.
 func TestBuildCJKFontFaceCSS(t *testing.T) {
-	css := buildCJKFontFaceCSS()
+	result := buildCJKFontFaceCSS()
 	// Result depends on environment — if no CJK font is installed, returns empty.
-	if css != "" {
-		if !strings.Contains(css, "@font-face") {
+	if result.css != "" {
+		if !strings.Contains(result.css, "@font-face") {
 			t.Error("non-empty CSS should contain @font-face rule")
 		}
-		if !strings.Contains(css, "CJK-Embedded") {
+		if !strings.Contains(result.css, "CJK-Embedded") {
 			t.Error("non-empty CSS should use CJK-Embedded family name")
 		}
-		if !strings.Contains(css, "unicode-range") {
+		if !strings.Contains(result.css, "unicode-range") {
 			t.Error("non-empty CSS should include unicode-range")
 		}
-		if !strings.Contains(css, "file://") {
+		if !strings.Contains(result.css, "file://") {
 			t.Error("non-empty CSS should use file:// URL")
 		}
-		if !strings.Contains(css, "body {") {
+		if !strings.Contains(result.css, "body {") {
 			t.Error("non-empty CSS should include body font-family override")
+		}
+		if result.fontPath == "" {
+			t.Error("non-empty CSS should have a fontPath set")
+		}
+		if result.family == "" {
+			t.Error("non-empty CSS should have a family set")
 		}
 	}
 }
@@ -396,7 +402,7 @@ func TestInjectCJKFontFaceCSS(t *testing.T) {
 	// Test with no CJK fonts available — should return unchanged HTML.
 	// In environments without CJK fonts, this validates the no-op path.
 	html := "<html><head><title>Test</title></head><body>Hello</body></html>"
-	result := injectCJKFontFaceCSS(html)
+	result := injectCJKFontFaceCSS(html, nil)
 
 	// If no CJK fonts installed, result should be unchanged.
 	// If CJK fonts are installed, result should contain the style block.
@@ -419,7 +425,7 @@ func TestInjectCJKFontFaceCSS(t *testing.T) {
 // TestInjectCJKFontFaceCSSNoHead tests injection when </head> is missing.
 func TestInjectCJKFontFaceCSSNoHead(t *testing.T) {
 	html := "<body>Hello</body>"
-	result := injectCJKFontFaceCSS(html)
+	result := injectCJKFontFaceCSS(html, nil)
 	// If CJK fonts available, block should be prepended.
 	if result != html && !strings.HasPrefix(result, "<style") {
 		t.Error("when no </head> present, CJK style should be prepended")
