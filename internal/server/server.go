@@ -114,7 +114,7 @@ func isAddrInUse(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, syscall.EADDRINUSE) || strings.Contains(err.Error(), "address already in use")
+	return errors.Is(err, syscall.EADDRINUSE)
 }
 
 // Start runs the server until the context is canceled.
