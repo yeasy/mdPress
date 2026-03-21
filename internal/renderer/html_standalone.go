@@ -1591,7 +1591,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
         link.classList.toggle('active', target === activeTarget);
       });
 
-      // 展开包含活跃链接的章节组
+      // 展开包含活跃链接的章节组，同时收起同级其他章节（手风琴）
       var activeLink = document.querySelector('#sidebar-nav .toc-link.active');
       if (activeLink) {
         var group = activeLink.closest('.toc-group');
@@ -1599,7 +1599,16 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
           var toggle = group.querySelector(':scope > .toc-row > .toc-toggle');
           var children = group.querySelector(':scope > .toc-children');
           if (toggle && children && children.hidden) {
-            // 带动画展开（scroll spy 触发时同样使用过渡效果）
+            // 先收起同级其他已展开章节
+            var gParent = group.parentElement;
+            if (gParent) {
+              gParent.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
+                if (sib === group) return;
+                var sc = sib.querySelector(':scope > .toc-children');
+                var sb = sib.querySelector(':scope > .toc-row > .toc-toggle');
+                if (sc && !sc.hidden) collapseTocGroup(sc, sb);
+              });
+            }
             expandTocGroup(children, toggle);
           }
           var parent = group.parentElement;
