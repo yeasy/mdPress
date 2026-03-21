@@ -25,8 +25,8 @@ func TestContainsBuildFormat(t *testing.T) {
 		want    bool
 	}{
 		{[]string{"pdf", "html"}, "pdf", true},
-		{[]string{"PDF", "HTML"}, "pdf", true},   // case-insensitive
-		{[]string{" pdf "}, "pdf", true},          // whitespace trimmed
+		{[]string{"PDF", "HTML"}, "pdf", true}, // case-insensitive
+		{[]string{" pdf "}, "pdf", true},       // whitespace trimmed
 		{[]string{"html", "epub"}, "pdf", false},
 		{[]string{}, "pdf", false},
 		{nil, "pdf", false},
