@@ -123,7 +123,7 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 
 	var result strings.Builder
 	if err := r.tmpl.Execute(&result, data); err != nil {
-		return "", fmt.Errorf("渲染 HTML 模板失败: %w", err)
+		return "", fmt.Errorf("failed to render HTML template: %w", err)
 	}
 
 	return result.String(), nil
