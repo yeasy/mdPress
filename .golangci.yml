@@ -11,6 +11,10 @@ linters:
     - govet
     - staticcheck
     - ineffassign
+    - misspell
+    - unconvert
+    - bodyclose
+    - noctx
   settings:
     errcheck:
       # Allow blank identifier assignments like: _ = f() and _, _ = f()
@@ -27,12 +31,18 @@ linters:
         - os.RemoveAll
         - os.Unsetenv
         - os.Setenv
+    misspell:
+      locale: US
   exclusions:
     rules:
       # Idiomatic Go: Close() return values are not actionable in cleanup/defer contexts.
       - linters:
           - errcheck
         text: "Error return value of .*(Close).* is not checked"
+      # bodyclose: Allow unclosed responses in test files
+      - linters:
+          - bodyclose
+        path: ".*_test\\.go"
 
 issues:
   # Show all issues (no limit).
