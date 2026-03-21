@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // Discover auto-discovers project configuration in a directory.
@@ -382,7 +384,7 @@ func inferBookTitle(h1Title, content, dir string) string {
 		candidate = strings.ReplaceAll(candidate, "+", " ")
 		candidate = strings.TrimSpace(candidate)
 		// Filter: must contain CJK characters (to find actual book titles, not "Stars" etc.)
-		if containsCJK(candidate) && len([]rune(candidate)) >= minCJKTitleLength {
+		if utils.ContainsCJK(candidate) && len([]rune(candidate)) >= minCJKTitleLength {
 			return candidate
 		}
 	}
@@ -422,7 +424,7 @@ func detectContentLanguage(content string) string {
 	for _, r := range content {
 		if unicode.IsLetter(r) {
 			totalCount++
-			if isCJK(r) {
+			if utils.IsCJKRune(r) {
 				cjkCount++
 			}
 		}
@@ -437,20 +439,3 @@ func detectContentLanguage(content string) string {
 	return "en-US"
 }
 
-// containsCJK reports whether s contains any CJK character.
-func containsCJK(s string) bool {
-	for _, r := range s {
-		if isCJK(r) {
-			return true
-		}
-	}
-	return false
-}
-
-// isCJK reports whether a rune is a CJK ideograph.
-func isCJK(r rune) bool {
-	return unicode.Is(unicode.Han, r) ||
-		unicode.Is(unicode.Hangul, r) ||
-		unicode.Is(unicode.Katakana, r) ||
-		unicode.Is(unicode.Hiragana, r)
-}

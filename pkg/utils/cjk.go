@@ -10,7 +10,7 @@ import (
 // ContainsCJK reports whether the text contains any CJK (Chinese, Japanese, Korean) characters.
 func ContainsCJK(text string) bool {
 	for _, r := range text {
-		if isCJKRune(r) {
+		if IsCJKRune(r) {
 			return true
 		}
 	}
@@ -28,8 +28,8 @@ func ContainsChinese(text string) bool {
 	return false
 }
 
-// isCJKRune reports whether the rune is a CJK character.
-func isCJKRune(r rune) bool {
+// IsCJKRune reports whether the rune is a CJK character.
+func IsCJKRune(r rune) bool {
 	return unicode.Is(unicode.Han, r) || // CJK Unified Ideographs (Chinese)
 		unicode.Is(unicode.Hangul, r) || // Korean
 		unicode.Is(unicode.Hiragana, r) || // Japanese Hiragana
