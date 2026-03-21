@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"testing"
 )

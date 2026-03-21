@@ -9,29 +9,29 @@ import (
 
 func TestRenderTypstDocument_BasicMetadata(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     TypstTemplateData
+		name          string
+		data          TypstTemplateData
 		shouldContain []string
 	}{
 		{
 			name: "full metadata",
 			data: TypstTemplateData{
-				Title:       "Test Title",
-				Subtitle:    "Test Subtitle",
-				Author:      "John Doe",
-				Date:        "2026-03-21",
-				Version:     "1.0.0",
-				Language:    "en",
-				Content:     "= Introduction\n\nThis is content.",
-				PageWidth:   "210mm",
-				PageHeight:  "297mm",
-				MarginTop:   "20mm",
-				MarginRight: "20mm",
+				Title:        "Test Title",
+				Subtitle:     "Test Subtitle",
+				Author:       "John Doe",
+				Date:         "2026-03-21",
+				Version:      "1.0.0",
+				Language:     "en",
+				Content:      "= Introduction\n\nThis is content.",
+				PageWidth:    "210mm",
+				PageHeight:   "297mm",
+				MarginTop:    "20mm",
+				MarginRight:  "20mm",
 				MarginBottom: "20mm",
-				MarginLeft:  "20mm",
-				FontFamily:  "Helvetica",
-				FontSize:    "12pt",
-				LineHeight:  1.5,
+				MarginLeft:   "20mm",
+				FontFamily:   "Helvetica",
+				FontSize:     "12pt",
+				LineHeight:   1.5,
 			},
 			shouldContain: []string{
 				"= Test Title",
@@ -48,17 +48,17 @@ func TestRenderTypstDocument_BasicMetadata(t *testing.T) {
 		{
 			name: "minimal metadata",
 			data: TypstTemplateData{
-				Title:       "Minimal",
-				Content:     "Hello world",
-				PageWidth:   "210mm",
-				PageHeight:  "297mm",
-				MarginTop:   "20mm",
-				MarginRight: "20mm",
+				Title:        "Minimal",
+				Content:      "Hello world",
+				PageWidth:    "210mm",
+				PageHeight:   "297mm",
+				MarginTop:    "20mm",
+				MarginRight:  "20mm",
 				MarginBottom: "20mm",
-				MarginLeft:  "20mm",
-				FontFamily:  "Helvetica",
-				FontSize:    "12pt",
-				LineHeight:  1.5,
+				MarginLeft:   "20mm",
+				FontFamily:   "Helvetica",
+				FontSize:     "12pt",
+				LineHeight:   1.5,
 			},
 			shouldContain: []string{
 				"= Minimal",
@@ -210,8 +210,8 @@ func TestGetPageDimensions(t *testing.T) {
 		{"Letter", "216mm", "279mm"},
 		{"Legal", "216mm", "356mm"},
 		{"Unknown", "210mm", "297mm"}, // Default to A4
-		{"", "210mm", "297mm"},         // Default to A4
-		{"a4", "210mm", "297mm"},       // Case-sensitive, defaults to A4
+		{"", "210mm", "297mm"},        // Default to A4
+		{"a4", "210mm", "297mm"},      // Case-sensitive, defaults to A4
 	}
 
 	for _, tt := range tests {
@@ -224,7 +224,7 @@ func TestGetPageDimensions(t *testing.T) {
 	}
 }
 
-func TestConvertMarginToTypst(t *testing.T) {
+func TestConvertMarginToTypst_Extended(t *testing.T) {
 	tests := []struct {
 		margin     string
 		defaultVal string
@@ -273,7 +273,7 @@ func TestSanitizeTypstValue(t *testing.T) {
 	}
 }
 
-func TestCurrentDate(t *testing.T) {
+func TestCurrentDate_Format(t *testing.T) {
 	result := CurrentDate()
 	// Should match YYYY-MM-DD format
 	parts := strings.Split(result, "-")
@@ -308,7 +308,7 @@ func TestPrepareTypstContent(t *testing.T) {
 	}
 }
 
-func TestMakeTypstFont(t *testing.T) {
+func TestMakeTypstFont_Extended(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string
@@ -330,7 +330,7 @@ func TestMakeTypstFont(t *testing.T) {
 	}
 }
 
-func TestMakeTypstFontSize(t *testing.T) {
+func TestMakeTypstFontSize_Extended(t *testing.T) {
 	tests := []struct {
 		input    string
 		expected string

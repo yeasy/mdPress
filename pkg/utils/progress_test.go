@@ -272,7 +272,7 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Suppress output
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			_, w, _ := os.Pipe()
 			os.Stdout = w
 
 			tracker := NewProgressTracker(tt.total)
