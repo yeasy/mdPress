@@ -209,7 +209,9 @@ func executeServe(ctx context.Context, inputSource string, opts ServeOptions) er
 		tempOutput := outputDir + ".tmp"
 		if buildErr := buildSiteForServe(ctx, newCfg, tempOutput, logger); buildErr != nil {
 			// Clean up the failed temp build, keep the previous good output.
-			os.RemoveAll(tempOutput)
+			if err := os.RemoveAll(tempOutput); err != nil {
+				logger.Debug("failed to remove temp output directory", slog.String("path", tempOutput), slog.Any("error", err))
+			}
 			return buildErr
 		}
 		// Swap the temp build into the final output directory.
