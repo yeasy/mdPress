@@ -233,20 +233,29 @@ func (r *Resolver) ProcessHTML(html string) string {
 // 输入: <figure id="fig_demo"><img src="demo.png"></figure>
 // 输出: <figure id="fig_demo"><img src="demo.png"><figcaption>图1: 演示图</figcaption></figure>
 func (r *Resolver) AddCaptions(html string) string {
+	// Copy both maps in a single atomic snapshot
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	figuresCopy := make(map[string]*Reference, len(r.figures))
+	for id, ref := range r.figures {
+		figuresCopy[id] = ref
+	}
+	tablesCopy := make(map[string]*Reference, len(r.tables))
+	for id, ref := range r.tables {
+		tablesCopy[id] = ref
+	}
+	r.mu.RUnlock()
 
 	// 为图片添加标题
-	html = r.addFigureCaptions(html)
+	html = r.addFigureCaptions(html, figuresCopy)
 
 	// 为表格添加标题
-	html = r.addTableCaptions(html)
+	html = r.addTableCaptions(html, tablesCopy)
 
 	return html
 }
 
 // addFigureCaptions 为 figure 元素添加标题
-func (r *Resolver) addFigureCaptions(html string) string {
+func (r *Resolver) addFigureCaptions(html string, figures map[string]*Reference) string {
 	return figureCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		parts := figureCaptionRegexp.FindStringSubmatch(match)
 		if len(parts) < 4 {
@@ -258,7 +267,7 @@ func (r *Resolver) addFigureCaptions(html string) string {
 		content := parts[3]
 
 		// 查找该 ID 对应的引用
-		ref, ok := r.figures[id]
+		ref, ok := figures[id]
 		if !ok {
 			return match
 		}
@@ -278,7 +287,7 @@ func (r *Resolver) addFigureCaptions(html string) string {
 }
 
 // addTableCaptions 为 table 元素添加标题
-func (r *Resolver) addTableCaptions(html string) string {
+func (r *Resolver) addTableCaptions(html string, tables map[string]*Reference) string {
 	return tableCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		parts := tableCaptionRegexp.FindStringSubmatch(match)
 		if len(parts) < 4 {
@@ -290,7 +299,7 @@ func (r *Resolver) addTableCaptions(html string) string {
 		content := parts[3]
 
 		// 查找该 ID 对应的引用
-		ref, ok := r.tables[id]
+		ref, ok := tables[id]
 		if !ok {
 			return match
 		}
