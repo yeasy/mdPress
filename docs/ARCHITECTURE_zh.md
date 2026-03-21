@@ -422,6 +422,28 @@ chapter.md (原始 Markdown)
   ChapterHTML { Title, ID, Content }
 ```
 
+### 4.3 并行章节处理
+
+章节解析（`ChapterPipeline`）使用 worker pool 并发处理多个章节：
+
+- `computeMaxConcurrency()` 确定 worker 数量：默认使用 `runtime.NumCPU()`（上限为 8），或遵循配置中的明确 `MaxConcurrency` 设置。
+- `parseChaptersParallel()` 通过 job 和 result 通道将章节分配给 worker 处理。
+- 每个 worker 运行自己的 `markdown.Parser` 实例（Goldmark 的状态非线程安全）。
+- 结果按顺序收集，确保章节序列保持一致，用于目录和组装。
+- 第一个错误会停止所有 worker；panic 会被捕获并转换为错误返回。
+
+### 4.4 增量构建
+
+构建清单（`cmd/build_manifest.go`）通过 SHA-256 哈希使快速增量重构成为可能：
+
+- `LoadManifest()` 从 `build-manifest.json` 读取缓存的章节状态。
+- `ComputeChapterHash()` 计算章节文件内容的 SHA-256 哈希值。
+- `BuildManifest.IsStale()` 检查应用版本、配置或 CSS 是否改变（如果改变则整个缓存失效）。
+- `GetEntry()` 查找未修改章节的缓存 HTML 和标题。
+- 哈希值匹配的章节跳过解析并复用缓存输出。
+
+缓存存储在项目缓存目录中，除非禁用 `mdpress_cache_dir`，否则在构建之间保留。
+
 ## 5. 已实现与计划中的架构扩展
 
 > 5.1 至 5.4 描述的架构已在 **v0.2.0 中实现**。5.5 描述为 v0.3.0 预留的扩展点。
@@ -715,51 +737,52 @@ graph TD
 3. **最小接口原则**：每个接口只定义必要的方法
 4. **Context 传递**：所有可能耗时的操作都接受 `context.Context`
 
-### 6.2 后续建议的重构
+### 6.2 v0.2.0 中已完成的重构
 
-#### 6.2.1 build.go 职责分离
+以下重构已从原计划中完成：
 
-当前 `executeBuild()` 函数承担了过多职责（约 280 行），建议拆分为：
+#### 6.2.1 构建 Pipeline 拆分（已完成）
+
+`BuildOrchestrator`（`cmd/build_orchestrator.go`）和 `ChapterPipeline`（`cmd/chapter_pipeline.go`）现已封装共享的构建工作流。`build` 和 `serve` 两个命令都委托给这些类型：
 
 ```go
-type BuildPipeline struct {
-    config  *config.BookConfig
-    source  source.Source
-    parser  *markdown.Parser
-    theme   *theme.Theme
-    logger  *slog.Logger
+type BuildOrchestrator struct {
+    Config *config.BookConfig
+    Theme  *theme.Theme
+    Parser *markdown.Parser
+    Gloss  *glossary.Glossary
+    Logger *slog.Logger
 }
 
-func (p *BuildPipeline) Run() error {
-    chapters, err := p.processChapters()
-    cover := p.generateCover()
-    toc := p.generateTOC(chapters)
-    html, err := p.assemble(cover, toc, chapters)
-    return p.output(html, chapters)
-}
+func (o *BuildOrchestrator) ProcessChapters() (*ChapterPipelineResult, error)
+func (o *BuildOrchestrator) LoadCustomCSS() string
 ```
 
-#### 6.2.2 消除代码重复
+#### 6.2.2 消除代码重复（已完成）
 
-`cmd/build.go` 和 `cmd/serve.go` 中有大量重复的章节处理逻辑，建议提取为共享的 `processChapters()` 函数。
+`ChapterPipeline` 消除了 `build` 和 `serve` 之间约 135 行重复的章节处理代码。
 
-#### 6.2.3 硬编码提取
+#### 6.2.3 硬编码值提取（已完成）
 
-| 位置 | 硬编码值 | 建议 |
-|------|---------|------|
-| `build.go:272` | `2*time.Minute` PDF 超时 | 提取到 OutputConfig |
-| `pdf/generator.go` | Chrome 候选路径列表 | 支持环境变量 `MDPRESS_CHROME_PATH` |
-| `markdown/postprocess.go` | Mermaid CDN URL | 提取到配置或常量文件 |
-| `renderer/template.go` | A4 页面尺寸默认值 | 从 StyleConfig 获取 |
-| `output/site.go` | 站点模板中硬编码的颜色 | 从 Theme 配置获取 |
+| 原始位置 | 硬编码值 | 改进措施 |
+|---------|---------|---------|
+| PDF 超时 | 默认 2 分钟 | 移至 `OutputConfig.PDFTimeout`（默认 120s） |
+| Chrome 路径 | 候选路径列表 | 支持 `MDPRESS_CHROME_PATH` 环境变量 |
+| Mermaid CDN | CDN URL | 集中到 `pkg/utils/constants.go` 的 `MermaidCDNURL` |
 
-#### 6.2.4 错误处理改进
+#### 6.2.4 错误处理（已完成）
 
-- `renderer.NewHTMLRenderer()` 使用 `panic` 处理模板解析错误，建议改为返回 `error`
-- 部分 `logger.Warn` + `continue` 可改为可配置的"严格模式"（遇错中止）
+- `renderer.NewHTMLRenderer()` 和 `NewStandaloneHTMLRenderer()` 现返回 `(*Type, error)` 而非调用 `panic`
+- `pkg/utils/escape.go` 提供集中式的 `EscapeHTML()`、`EscapeXML()` 和 `EscapeAttr()` 函数
 
-#### 6.2.5 可测试性改进
+#### 6.2.5 可测试性（已完成）
 
-- `executeBuild()` 直接依赖全局变量 `cfgFile`、`verbose`，建议通过参数注入
-- PDF 生成依赖 Chromium 进程，建议在 OutputFormat 接口层做 mock
-- `http.Handle("/", fs)` 使用了默认 ServeMux，serve 命令的测试需要注入自定义 ServeMux
+- `ServeOptions` 结构体替代全局变量用于 serve 配置
+- `internal/pdf/mock.go` 提供 `MockGenerator` 用于无需 Chromium 的测试
+- `server.go` 使用独立的 `http.ServeMux`
+
+### 6.3 剩余的重构机会
+
+- CI：添加 Windows 到测试矩阵
+- `source/github.go`：添加 `GitLabSource` 以支持更广泛的 Git 托管平台
+- 考虑为基于文件哈希的重构缓存提取 `IncrementalBuilder`（v0.4.0）
