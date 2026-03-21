@@ -124,7 +124,7 @@ func processMermaid(html string) string {
 // Only include this when the HTML contains .mermaid elements.
 func MermaidScript() string {
 	return `<script src="` + utils.MermaidCDNURL + `"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:'default'});</script>`
+<script>mermaid.initialize({startOnLoad:true,theme:'default',themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}});</script>`
 }
 
 // NeedsMermaid reports whether the HTML contains any Mermaid diagram elements.

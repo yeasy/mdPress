@@ -12,6 +12,11 @@ import (
 
 // executeThemesPreview generates an HTML preview of all themes.
 func executeThemesPreview(outputPath string) error {
+	// Use default output path if empty
+	if outputPath == "" {
+		outputPath = "themes-preview.html"
+	}
+
 	logger := slog.Default()
 	logger.Info("Generating themes preview", slog.String("output", outputPath))
 
@@ -49,7 +54,7 @@ func generatePreviewHTML(themes []Theme) string {
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: #f5f5f5;
             padding: 40px 20px;
             line-height: 1.6;
@@ -114,7 +119,7 @@ func generatePreviewHTML(themes []Theme) string {
         .theme-code {
             font-size: 0.9em;
             opacity: 0.9;
-            font-family: 'Monaco', 'Courier New', monospace;
+            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
         }
 
         .theme-info {
@@ -159,7 +164,7 @@ func generatePreviewHTML(themes []Theme) string {
         .color-value {
             font-size: 0.7em;
             color: #999;
-            font-family: 'Monaco', 'Courier New', monospace;
+            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
         }
 
         .theme-content {
@@ -180,7 +185,7 @@ func generatePreviewHTML(themes []Theme) string {
         .theme-content code {
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', monospace;
+            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
             font-size: 0.9em;
         }
 
@@ -189,7 +194,7 @@ func generatePreviewHTML(themes []Theme) string {
             padding: 12px;
             border-radius: 4px;
             overflow-x: auto;
-            font-family: 'Monaco', 'Courier New', monospace;
+            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
             font-size: 0.85em;
             line-height: 1.4;
         }

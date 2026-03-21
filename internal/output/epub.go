@@ -383,7 +383,7 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
   <style>
     html, body { height: 100%; margin: 0; }
     body {
-      font-family: serif;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", serif;
       display: flex;
       align-items: center;
       justify-content: center;
