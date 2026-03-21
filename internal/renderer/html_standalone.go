@@ -602,7 +602,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
     /* Expand/collapse child list with a smooth max-height transition. */
     .toc-children {
       overflow: hidden;
-      transition: max-height 0.3s ease;
+      transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     /* ============================================================
@@ -1510,6 +1510,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       var targetId = href.slice(1);
       if (!document.getElementById(targetId)) return;
       e.preventDefault();
+      lockNavClick(); // 抑制滚动期间 scroll spy 的手风琴
       // 使用 JS 平滑滚动，避免浏览器默认的瞬间跳转（闪烁）
       document.getElementById(targetId).scrollIntoView({ behavior: 'smooth', block: 'start' });
       // 更新地址栏 hash，不触发浏览器默认跳转
