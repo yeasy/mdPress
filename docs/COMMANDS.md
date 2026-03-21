@@ -14,6 +14,7 @@ flowchart TD
     root --> serve["serve [source]<br/>Live preview"]
     root --> init["init [directory]<br/>Generate book.yaml"]
     root --> quickstart["quickstart [directory]<br/>Sample project"]
+    root --> migrate["migrate [directory]<br/>GitBook → mdPress"]
     root --> validate["validate [directory]<br/>Check config"]
     root --> doctor["doctor [directory]<br/>Check environment"]
     root --> themes["themes<br/>Theme management"]
@@ -38,6 +39,7 @@ flowchart TD
 | `mdpress serve [source]` | Start the local preview server and watch for file changes | [serve](commands/serve.md) |
 | `mdpress init [directory]` | Scan Markdown files and generate `book.yaml` | [init](commands/init.md) |
 | `mdpress quickstart [directory]` | Create a sample project that can be built immediately | [quickstart](commands/quickstart.md) |
+| `mdpress migrate [directory]` | Convert a GitBook/HonKit project to mdPress format | [migrate](commands/migrate.md) |
 | `mdpress validate [directory]` | Validate config, chapter files, and referenced assets | [validate](commands/validate.md) |
 | `mdpress doctor [directory]` | Check environment readiness and project buildability | [doctor](commands/doctor.md) |
 | `mdpress themes list` | List built-in themes | [themes](commands/themes.md) |

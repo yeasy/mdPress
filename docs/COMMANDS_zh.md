@@ -14,6 +14,7 @@ flowchart TD
     root --> serve["serve [source]<br/>实时预览"]
     root --> init["init [directory]<br/>生成 book.yaml"]
     root --> quickstart["quickstart [directory]<br/>示例项目"]
+    root --> migrate["migrate [directory]<br/>GitBook 转 mdPress"]
     root --> validate["validate [directory]<br/>校验配置"]
     root --> doctor["doctor [directory]<br/>环境检查"]
     root --> themes["themes<br/>主题管理"]
@@ -38,6 +39,7 @@ flowchart TD
 | `mdpress serve [source]` | 启动本地预览服务并监听文件变化 | [serve](commands/serve_zh.md) |
 | `mdpress init [directory]` | 扫描 Markdown 并生成 `book.yaml` | [init](commands/init_zh.md) |
 | `mdpress quickstart [directory]` | 创建可直接构建的示例项目 | [quickstart](commands/quickstart_zh.md) |
+| `mdpress migrate [directory]` | 将 GitBook/HonKit 项目转换为 mdPress 格式 | [migrate](commands/migrate_zh.md) |
 | `mdpress validate [directory]` | 校验配置、章节文件和引用资源 | [validate](commands/validate_zh.md) |
 | `mdpress doctor [directory]` | 检查运行环境和项目可构建性 | [doctor](commands/doctor_zh.md) |
 | `mdpress themes list` | 列出内置主题 | [themes](commands/themes_zh.md) |
