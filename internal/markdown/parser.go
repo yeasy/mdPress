@@ -128,7 +128,7 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	// Post-process: GFM Alerts, Mermaid code blocks, etc.
 	htmlResult := PostProcess(buf.String())
 
-	// Restore math placeholders to KaTeX-recognisable HTML span elements.
+	// Restore math placeholders to KaTeX-recognizable HTML span elements.
 	htmlResult = mathProc.postprocess(htmlResult)
 
 	p.headingsMu.RLock()
@@ -185,6 +185,9 @@ func (p *Parser) extractHeadingInfo(heading *ast.Heading, source []byte, index *
 // SetCodeTheme 设置代码高亮主题
 func (p *Parser) SetCodeTheme(theme string) {
 	p.codeTheme = theme
+	// Note: The highlighting library falls back to a default style on invalid themes,
+	// so no validation is needed here. The goldmark library does not expose errors for
+	// invalid themes during style initialization.
 	p.initGoldmark()
 }
 

@@ -176,7 +176,7 @@ func (p *Parser) SetCodeTheme(theme string)
 **Parameters:**
 - `theme`: Theme name (e.g., "github", "monokai", "dracula")
 
-**Note:** Reinitializes the parser with the new theme
+**Note:** Reinitializes the parser with the new theme. Invalid theme names will fall back to the default style gracefully.
 
 **Supported Themes:**
 - `github` (default)
