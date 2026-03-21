@@ -4,6 +4,7 @@ package pdf
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -189,20 +190,31 @@ func buildCJKFontFaceCSS() cjkFontResult {
 }
 
 func cjkFontSrc(src cjkFontSource) string {
-	fontURL := fileURLForCSS(src.path)
-	switch strings.ToLower(filepath.Ext(src.path)) {
-	case ".ttc", ".otc":
-		// Font collections require an explicit fragment to select a single face.
-		// Per CSS Fonts, when the container has no custom fragment scheme, a
-		// 1-based index is used, so "#1" refers to the first face in the collection.
-		return fmt.Sprintf("url(%q) format(collection)", fontURL+"#1")
-	case ".otf":
-		return fmt.Sprintf("url(%q) format(opentype)", fontURL)
-	case ".ttf":
-		return fmt.Sprintf("url(%q) format(truetype)", fontURL)
-	default:
-		return fmt.Sprintf("url(%q)", fontURL)
+	// Primary strategy: embed the font as a data: URI.
+	// Chrome's headless PrintToPDF on macOS cannot reliably embed fonts loaded
+	// via file:// @font-face into the PDF output (glyphs render on screen but
+	// are silently dropped during PDF serialization).  Inlining the font bytes
+	// as a data: URI guarantees Chrome has the raw font data in memory and can
+	// embed the glyphs into the PDF.
+	data, err := os.ReadFile(src.path)
+	if err == nil {
+		encoded := base64.StdEncoding.EncodeToString(data)
+		mime := "font/ttf"
+		switch strings.ToLower(filepath.Ext(src.path)) {
+		case ".ttc", ".otc":
+			mime = "font/collection"
+		case ".otf":
+			mime = "font/otf"
+		case ".woff":
+			mime = "font/woff"
+		case ".woff2":
+			mime = "font/woff2"
+		}
+		return fmt.Sprintf("url(data:%s;base64,%s)", mime, encoded)
 	}
+	// Fallback: file:// URL (may not work for PDF embedding on macOS).
+	fontURL := fileURLForCSS(src.path)
+	return fmt.Sprintf("url(%q)", fontURL)
 }
 
 func fileURLForCSS(path string) string {

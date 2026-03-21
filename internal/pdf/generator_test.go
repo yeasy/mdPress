@@ -433,33 +433,35 @@ func TestInjectCJKFontFaceCSSNoHead(t *testing.T) {
 }
 
 func TestCJKFontSrc(t *testing.T) {
+	// When the font file does not exist on disk, cjkFontSrc falls back to a
+	// plain file:// URL (no format hint, no data URI).
 	tests := []struct {
 		name     string
 		path     string
 		expected string
 	}{
 		{
-			name:     "ttc collection",
+			name:     "ttc collection fallback",
 			path:     "/tmp/fonts/msyh.ttc",
-			expected: `url("file:///tmp/fonts/msyh.ttc#1") format(collection)`,
+			expected: `url("file:///tmp/fonts/msyh.ttc")`,
 		},
 		{
-			name:     "otc collection",
+			name:     "otc collection fallback",
 			path:     "/tmp/fonts/noto.otc",
-			expected: `url("file:///tmp/fonts/noto.otc#1") format(collection)`,
+			expected: `url("file:///tmp/fonts/noto.otc")`,
 		},
 		{
-			name:     "otf font",
+			name:     "otf font fallback",
 			path:     "/tmp/fonts/noto.otf",
-			expected: `url("file:///tmp/fonts/noto.otf") format(opentype)`,
+			expected: `url("file:///tmp/fonts/noto.otf")`,
 		},
 		{
-			name:     "ttf font",
+			name:     "ttf font fallback",
 			path:     "/tmp/fonts/noto.ttf",
-			expected: `url("file:///tmp/fonts/noto.ttf") format(truetype)`,
+			expected: `url("file:///tmp/fonts/noto.ttf")`,
 		},
 		{
-			name:     "unknown extension",
+			name:     "unknown extension fallback",
 			path:     "/tmp/fonts/noto.font",
 			expected: `url("file:///tmp/fonts/noto.font")`,
 		},
