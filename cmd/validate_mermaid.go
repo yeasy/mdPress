@@ -120,7 +120,7 @@ window.addEventListener('error', function(event) {
     if (!window.mermaid) {
       throw new Error('Mermaid library failed to load');
     }
-    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
     await mermaid.run({ querySelector: '.mermaid' });
     var processed = 0;
     nodes.forEach(function(node) {

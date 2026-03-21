@@ -822,7 +822,7 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	b.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n")
 	b.WriteString("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n")
 	b.WriteString("<title>Language Variants</title>\n<style>\n")
-	b.WriteString("body{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;background:#f6f7fb;color:#1f2937;margin:0;padding:40px;line-height:1.6;} ")
+	b.WriteString("body{font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",\"Noto Sans SC\",sans-serif;background:#f6f7fb;color:#1f2937;margin:0;padding:40px;line-height:1.6;} ")
 	b.WriteString(".wrap{max-width:920px;margin:0 auto;} h1{margin:0 0 8px;font-size:2rem;} p{color:#4b5563;} ")
 	b.WriteString(".notice{margin-top:8px;padding:10px 14px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;color:#3730a3;} ")
 	b.WriteString(".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:24px;} ")
