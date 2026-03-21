@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Golden Test Book</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+      background-color: #ffffff;
+    }
+
+    .cover-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 60px 40px;
+      background-color: #ffffff;
+    }
+
+    .cover-content {
+      text-align: center;
+      color: #1A5490;
+      max-width: 800px;
+    }
+
+    .cover-title {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+      line-height: 1.3;
+    }
+
+    .cover-subtitle {
+      font-size: 20px;
+      font-weight: 400;
+      margin-bottom: 40px;
+    }
+
+    .cover-divider {
+      width: 100px;
+      height: 2px;
+      background-color: #D4D4D4;
+      margin: 30px auto;
+    }
+
+    .cover-metadata {
+      margin-top: 50px;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .cover-meta-item {
+      margin: 10px 0;
+    }
+
+    .cover-meta-label {
+      display: inline-block;
+      font-weight: 600;
+      margin-right: 10px;
+      min-width: 80px;
+    }
+
+    @media print {
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .cover-page {
+        page-break-after: always;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="cover-page">
+    <div class="cover-content">
+      <h1 class="cover-title">Golden Test Book</h1>
+      <h2 class="cover-subtitle">A Subtitle for Testing</h2>
+      <div class="cover-divider"></div>
+      <div class="cover-metadata">
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Author</span>
+          <span>Test Author</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Version</span>
+          <span>1.0.0</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Date</span>
+          <span>DATE_PLACEHOLDER</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

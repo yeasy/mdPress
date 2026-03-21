@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="author" content="Test Author">
+  <meta name="description" content="Golden Test Book">
+  <title>Golden Test Book</title>
+
+  
+  <style>
+     
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Roboto", "Droid Sans", "Helvetica Neue", sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #fff;
+      overflow-wrap: anywhere;
+    }
+
+    .print-brand-footer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 8mm;
+      text-align: center;
+      font-size: 8.5pt;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: #b8bec8;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .print-brand-footer .brand-accent {
+      color: #8ab4f8;
+    }
+
+     
+    .cover-page {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      page-break-after: always;
+      background: white;
+      color: #1A5490;
+      position: relative;
+    }
+
+    .cover-content {
+      padding: 2rem;
+    }
+
+    .cover-title {
+      font-size: 2.5em;
+      font-weight: 700;
+      margin: 1rem 0;
+      line-height: 1.3;
+    }
+
+    .cover-author {
+      font-size: 1.2em;
+      margin-top: 2rem;
+      color: #555;
+    }
+
+     
+    .toc-page {
+      page-break-after: always;
+      page-break-inside: avoid;
+      padding: 0;
+    }
+
+    .toc-title {
+      font-size: 2em;
+      font-weight: 700;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .toc-item {
+      margin: 0.5rem 0;
+      padding-left: 2rem;
+      text-indent: -2rem;
+    }
+
+    .toc-item a {
+      color: #333;
+      text-decoration: none;
+    }
+
+    .toc-item a:hover {
+      text-decoration: underline;
+    }
+
+    .toc-item-level-1 {
+      font-weight: 600;
+      font-size: 1.1em;
+      margin-top: 1rem;
+    }
+
+    .toc-item-level-2 {
+      margin-left: 2rem;
+      font-size: 0.95em;
+      color: #666;
+    }
+
+    .toc-item-level-3 {
+      margin-left: 4rem;
+      font-size: 0.9em;
+      color: #999;
+    }
+
+     
+    .chapter {
+      page-break-before: always;
+      page-break-inside: avoid;
+      padding: 0;
+      margin: 0;
+    }
+
+    .chapter:first-of-type {
+      page-break-before: avoid;
+    }
+
+    .chapter-title {
+      font-size: 2em;
+      font-weight: 700;
+      margin: 0 0 1.5rem 0;
+      color: #222;
+      line-height: 1.3;
+    }
+
+    .chapter-content {
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+     
+    h1 {
+      font-size: 2em;
+      margin: 1.5rem 0 1rem 0;
+      font-weight: 700;
+      color: #222;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 1.5em;
+      margin: 1.3rem 0 0.8rem 0;
+      font-weight: 600;
+      color: #333;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 1.2em;
+      margin: 1rem 0 0.6rem 0;
+      font-weight: 600;
+      color: #444;
+      page-break-after: avoid;
+    }
+
+    h4, h5, h6 {
+      font-size: 1em;
+      margin: 0.8rem 0 0.4rem 0;
+      font-weight: 600;
+      color: #555;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin: 0.8rem 0;
+      text-align: justify;
+    }
+
+     
+    ul, ol {
+      margin: 0.8rem 0;
+      padding-left: 2rem;
+      line-height: 1.8;
+    }
+
+    ul li, ol li {
+      margin: 0.4rem 0;
+    }
+
+    li > p {
+      margin: 0.2rem 0;
+    }
+
+     
+    code {
+      font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans Mono CJK SC", monospace;
+      font-size: 0.85em;
+      color: #333;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    pre {
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      padding: 0.8rem 1rem;
+      overflow-x: auto;
+      font-size: 0.82em;
+      line-height: 1.5;
+      page-break-inside: avoid;
+      margin: 0.8rem 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+      max-width: 100%;
+      background: none;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: #333;
+      white-space: inherit;
+      overflow-wrap: inherit;
+      word-break: inherit;
+      display: block;
+    }
+
+     
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      page-break-inside: avoid;
+      table-layout: fixed;
+    }
+
+    table th {
+      background-color: #f5f5f5;
+      border: 1px solid #ddd;
+      padding: 0.8rem;
+      text-align: left;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    table td {
+      border: 1px solid #ddd;
+      padding: 0.8rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    table tbody tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+
+     
+    blockquote {
+      border-left: 4px solid #667eea;
+      margin: 1rem 0;
+      padding: 0.5rem 0 0.5rem 1rem;
+      background-color: #f9f9f9;
+      color: #666;
+      page-break-inside: avoid;
+    }
+
+    blockquote p {
+      margin: 0.5rem 0;
+    }
+
+     
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 1rem auto;
+      page-break-inside: avoid;
+    }
+
+    figure {
+      margin: 1rem 0;
+      page-break-inside: avoid;
+    }
+
+    figcaption {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+      margin-top: 0.5rem;
+      font-style: italic;
+    }
+
+     
+    a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+     
+    hr {
+      border: none;
+      height: 1px;
+      background-color: #ddd;
+      margin: 2rem 0;
+      page-break-after: avoid;
+    }
+
+     
+    @media print {
+       
+      .no-print {
+        display: none !important;
+      }
+
+       
+      body {
+        margin: 0;
+        padding: 0;
+        background: white !important;
+      }
+
+       
+      table tbody tr:nth-child(even) {
+        background-color: transparent !important;
+      }
+      blockquote {
+        background-color: transparent !important;
+      }
+      table th {
+        background-color: transparent !important;
+      }
+
+       
+      .chapter {
+        page-break-inside: avoid;
+      }
+
+       
+      a {
+        color: inherit;
+      }
+
+       
+      table, pre {
+        page-break-inside: avoid;
+      }
+
+       
+      h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+      }
+
+       
+      ul, ol {
+        page-break-inside: avoid;
+      }
+    }
+
+    @media screen {
+      .cover-page .print-brand-footer {
+        display: none;
+      }
+    }
+
+     
+    @media print {
+      .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 80px;
+        font-weight: bold;
+        color: rgba(0, 0, 0, 0.1);
+        pointer-events: none;
+        z-index: 9999;
+        white-space: nowrap;
+      }
+    }
+
+     
+    @page {
+      size: A4;
+      margin: 2cm;
+    }
+
+    @page :first {
+      margin: 0;
+    }
+
+     
+    /* Auto-generated theme CSS */
+:root {
+  --font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace;
+  --font-size: 11pt;
+  --line-height: 1.60;
+  --color-text: #2C3E50;
+  --color-background: #FFFFFF;
+  --color-heading: #1A5490;
+  --color-link: #0066CC;
+  --color-code-bg: #F5F7F9;
+  --color-code-text: #2C3E50;
+  --color-accent: #0066CC;
+  --color-border: #D4D4D4;
+  --margin-top: 20.00mm;
+  --margin-bottom: 20.00mm;
+  --margin-left: 20.00mm;
+  --margin-right: 20.00mm;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  color: var(--color-text);
+  background-color: var(--color-background);
+  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-heading);
+  font-weight: bold;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+a {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+
+code, pre {
+  background: none;
+  color: var(--color-code-text);
+  font-family: var(--font-family-mono);
+}
+
+pre {
+  padding: 0.8em 1em;
+  font-size: 0.82em;
+  line-height: 1.5;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+blockquote {
+  border-left: 4px solid var(--color-accent);
+  margin-left: 0;
+  padding-left: 1em;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+table th, table td {
+  border: 1px solid var(--color-border);
+  padding: 0.5em;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+table th {
+  background-color: var(--color-code-bg);
+  color: var(--color-heading);
+}
+
+
+
+@page {
+  size: A4;
+  margin: 25mm 20mm 25mm 20mm;
+}
+
+@page :first {
+  margin: 0;
+}
+
+.chapter {
+  page-break-before: always;
+}
+
+.cover-page {
+  page-break-after: always;
+}
+
+.toc-page {
+  page-break-after: always;
+}
+
+  </style>
+</head>
+<body>
+  
+  
+
+  
+  
+  <div class="cover-page">
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Golden Test Book</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+      background-color: #ffffff;
+    }
+
+    .cover-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 60px 40px;
+      background-color: #ffffff;
+    }
+
+    .cover-content {
+      text-align: center;
+      color: #1A5490;
+      max-width: 800px;
+    }
+
+    .cover-title {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+      line-height: 1.3;
+    }
+
+    .cover-subtitle {
+      font-size: 20px;
+      font-weight: 400;
+      margin-bottom: 40px;
+    }
+
+    .cover-divider {
+      width: 100px;
+      height: 2px;
+      background-color: #D4D4D4;
+      margin: 30px auto;
+    }
+
+    .cover-metadata {
+      margin-top: 50px;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .cover-meta-item {
+      margin: 10px 0;
+    }
+
+    .cover-meta-label {
+      display: inline-block;
+      font-weight: 600;
+      margin-right: 10px;
+      min-width: 80px;
+    }
+
+    @media print {
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .cover-page {
+        page-break-after: always;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="cover-page">
+    <div class="cover-content">
+      <h1 class="cover-title">Golden Test Book</h1>
+      <h2 class="cover-subtitle">A Subtitle for Testing</h2>
+      <div class="cover-divider"></div>
+      <div class="cover-metadata">
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Author</span>
+          <span>Test Author</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Version</span>
+          <span>1.0.0</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="cover-meta-label">Date</span>
+          <span>DATE_PLACEHOLDER</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
+    <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
+  </div>
+  
+
+  
+  
+  <div class="toc-page">
+    <nav class="toc">
+  <ul>
+    <li><a href="#chapter-1-introduction">Chapter 1: Introduction</a>
+    <ul>
+      <li><a href="#11-headings-and-paragraphs">1.1 Headings and Paragraphs</a></li>
+      <li><a href="#12-code-block">1.2 Code Block</a></li>
+      <li><a href="#13-links">1.3 Links</a></li>
+    </ul>
+    </li>
+    <li><a href="#chapter-2-tables-and-images">Chapter 2: Tables and Images</a>
+    <ul>
+      <li><a href="#21-table">2.1 Table</a></li>
+      <li><a href="#22-image-reference">2.2 Image Reference</a></li>
+      <li><a href="#23-lists">2.3 Lists</a></li>
+    </ul>
+    </li>
+    <li><a href="#heading">第三章：中文内容</a>
+    <ul>
+      <li><a href="#31-">3.1 中文段落</a></li>
+      <li><a href="#32-">3.2 中文列表</a></li>
+      <li><a href="#33-">3.3 中文代码注释</a></li>
+      <li><a href="#34-">3.4 中文表格</a></li>
+    </ul>
+    </li>
+  </ul>
+</nav>
+
+  </div>
+  
+
+  
+  
+  <div class="chapter" id="ch01">
+    <h1 class="chapter-title">Chapter 1: Introduction</h1>
+    <div class="chapter-content">
+      <h1 id="chapter-1-introduction">Chapter 1: Introduction</h1>
+<p>This is the first chapter demonstrating various Markdown elements.</p>
+<h2 id="11-headings-and-paragraphs">1.1 Headings and Paragraphs</h2>
+<p>This paragraph contains <strong>bold text</strong> and <em>italic text</em> for formatting tests.</p>
+<h2 id="12-code-block">1.2 Code Block</h2>
+<p>Here is a Go code example:</p>
+<pre style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#000;font-weight:bold">package</span> main
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">import</span> <span style="color:#d14">&#34;fmt&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">func</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    fmt.<span style="color:#900;font-weight:bold">Println</span>(<span style="color:#d14">&#34;Hello, World!&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre><h2 id="13-links">1.3 Links</h2>
+<p>Visit <a href="https://golang.org/doc/">Go documentation</a> for more information.</p>
+<p>See also <a href="https://golang.org">the official Go site</a>.</p>
+
+    </div>
+  </div>
+  
+  <div class="chapter" id="ch02">
+    <h1 class="chapter-title">Chapter 2: Tables and Images</h1>
+    <div class="chapter-content">
+      <h1 id="chapter-2-tables-and-images">Chapter 2: Tables and Images</h1>
+<h2 id="21-table">2.1 Table</h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Value</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Foo</td>
+<td>100</td>
+<td>First item</td>
+</tr>
+<tr>
+<td>Bar</td>
+<td>200</td>
+<td>Second item</td>
+</tr>
+<tr>
+<td>Baz</td>
+<td>300</td>
+<td>Third item</td>
+</tr>
+</tbody>
+</table>
+<h2 id="22-image-reference">2.2 Image Reference</h2>
+<p><img src="diagram.png" alt="Architecture Diagram"></p>
+<h2 id="23-lists">2.3 Lists</h2>
+<p>Unordered list:</p>
+<ul>
+<li>Item one</li>
+<li>Item two</li>
+<li>Item three</li>
+</ul>
+<p>Ordered list:</p>
+<ol>
+<li>First step</li>
+<li>Second step</li>
+<li>Third step</li>
+</ol>
+
+    </div>
+  </div>
+  
+  <div class="chapter" id="ch03">
+    <h1 class="chapter-title">Chapter 3: Chinese Content</h1>
+    <div class="chapter-content">
+      <h1 id="heading">第三章：中文内容</h1>
+<p>本章包含中文内容，用于测试中文字符的正确处理。</p>
+<h2 id="31-">3.1 中文段落</h2>
+<p>这是一段中文文本。它包含<strong>粗体</strong>和<em>斜体</em>字符，以验证中文排版。</p>
+<h2 id="32-">3.2 中文列表</h2>
+<ul>
+<li>列表项一</li>
+<li>列表项二</li>
+<li>列表项三</li>
+</ul>
+<h2 id="33-">3.3 中文代码注释</h2>
+<pre style="background-color:#fff;"><code><span style="display:flex;"><span><span style="color:#998;font-style:italic">// 这是中文注释
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">func</span> 求和(a, b <span style="color:#458;font-weight:bold">int</span>) <span style="color:#458;font-weight:bold">int</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">return</span> a <span style="color:#000;font-weight:bold">+</span> b <span style="color:#998;font-style:italic">// 返回两数之和
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre><h2 id="34-">3.4 中文表格</h2>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>值</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>甲</td>
+<td>100</td>
+<td>第一项</td>
+</tr>
+<tr>
+<td>乙</td>
+<td>200</td>
+<td>第二项</td>
+</tr>
+</tbody>
+</table>
+
+    </div>
+  </div>
+  
+
+  
+  <script>
+  if (document.querySelector('.mermaid')) {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default'}); };
+    document.body.appendChild(s);
+  }
+  </script>
+
+  
+  <script>
+  if (document.querySelector('.math')) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+    document.head.appendChild(link);
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+    s.onload = function() {
+      var ar = document.createElement('script');
+      ar.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+      ar.onload = function() {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$',  right: '$',  display: false}
+          ],
+          throwOnError: false
+        });
+      };
+      document.body.appendChild(ar);
+    };
+    document.body.appendChild(s);
+  }
+  </script>
+</body>
+</html>

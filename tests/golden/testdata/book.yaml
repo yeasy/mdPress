@@ -1,0 +1,20 @@
+book:
+  title: "Golden Test Book"
+  subtitle: "A Subtitle for Testing"
+  author: "Test Author"
+  version: "1.0.0"
+  language: "zh-CN"
+chapters:
+  - title: "Chapter 1: Introduction"
+    file: "ch01.md"
+  - title: "Chapter 2: Tables and Images"
+    file: "ch02.md"
+  - title: "Chapter 3: Chinese Content"
+    file: "ch03.md"
+style:
+  theme: "technical"
+  page_size: "A4"
+output:
+  filename: "golden-test.pdf"
+  toc: true
+  cover: true
