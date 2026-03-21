@@ -43,16 +43,20 @@ const standaloneHTMLMiddle = `  </style>
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
   <!-- 左侧栏：全局 TOC 侧边栏 -->
-  <nav class="sidebar" id="sidebar">
-    {{.SidebarHTML}}
+  <nav id="left-sidebar">
+    <div id="sidebar-nav">
+      {{.SidebarHTML}}
+    </div>
   </nav>
 
   <!-- 中间栏：主内容区域 -->
-  <main class="content-area">
+  <main id="main-content">
     {{range .Chapters}}
     <article class="chapter" id="{{.ID}}" data-title="{{.Title}}">
       <h1 class="chapter-title">{{.Title}}</h1>
-      {{.Content | safeHTML}}
+      <div class="chapter-content">
+        {{.Content | safeHTML}}
+      </div>
       {{if or .PrevTitle .NextTitle}}
       <nav class="chapter-nav">
         {{if .PrevTitle}}
@@ -74,13 +78,13 @@ const standaloneHTMLMiddle = `  </style>
   </main>
 
   <!-- 右侧栏：当前页 TOC -->
-  <nav class="toc" id="toc">
+  <nav id="right-toc-nav">
     <div class="toc-title">本页目录</div>
     <div id="toc-list" class="toc-list"></div>
   </nav>
 
   <!-- 搜索对话框 -->
-  <dialog id="search-dialog" class="search-dialog">
+  <div id="search-overlay" class="search-dialog">
     <div class="search-box">
       <input
         id="search-input"
@@ -89,10 +93,10 @@ const standaloneHTMLMiddle = `  </style>
         placeholder="搜索文档... (按 ESC 关闭)"
         autocomplete="off"
       >
-      <div class="search-count" id="search-count"></div>
-      <div class="search-results" id="search-results"></div>
+      <div class="search-count-label" id="search-count-label"></div>
+      <div class="search-results-list" id="search-results-list"></div>
     </div>
-  </dialog>
+  </div>
 
   <!-- 图片灯箱 -->
   <div class="img-lightbox" id="img-lightbox" role="dialog" aria-modal="true" aria-label="图片预览">

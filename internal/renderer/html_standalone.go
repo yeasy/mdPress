@@ -1,6 +1,6 @@
 // html_standalone.go renders a self-contained single-page HTML document.
 // The output embeds CSS and JavaScript and implements a GitBook-style three-column
-// layout: left sidebar (global TOC), centre content area, right in-page TOC.
+// layout: left sidebar (global TOC), center content area, right in-page TOC.
 //
 // Additional features: dark/light/system theme toggle, code copy button with
 // language label, callout boxes, full-text search (⌘K), prev/next navigation,
