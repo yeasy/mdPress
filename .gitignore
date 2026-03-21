@@ -58,3 +58,10 @@ mdpress-go-tmp-umask
 /PLANTUML_IMPLEMENTATION.md
 /internal/plantuml/QUICK_START.md
 /internal/plantuml/README.md
+
+# Generated analysis and log files
+/check.log
+/TEST_COVERAGE_ANALYSIS.md
+
+# Additional temporary directories
+/tmp_pdf_probe/
