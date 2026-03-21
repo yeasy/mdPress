@@ -1429,15 +1429,28 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
     // 左侧 TOC 折叠/展开（带过渡动画，支持多个章节同时展开）
     // ============================================================
 
+    // 用户点击导航时设置此标志，抑制 scroll spy 的手风琴行为
+    var navClickLock = false;
+    var navClickTimer = null;
+    function lockNavClick() {
+      navClickLock = true;
+      if (navClickTimer) clearTimeout(navClickTimer);
+      navClickTimer = setTimeout(function() { navClickLock = false; }, 600);
+    }
+
+    // 判断是否为顶级章节组（父元素是 #sidebar-nav 本身）
+    function isTopLevelGroup(item) {
+      return item && item.parentElement && item.parentElement.id === 'sidebar-nav';
+    }
+
     // 展开子章节列表（带 max-height 动画）
     function expandTocGroup(children, btn) {
+      if (!children.hidden && children.style.maxHeight === '') return; // 已展开
       children.style.maxHeight = '0';
       children.removeAttribute('hidden');
-      // 强制重排，确保 CSS transition 生效
       void children.offsetHeight;
       children.style.maxHeight = children.scrollHeight + 'px';
       if (btn) btn.setAttribute('aria-expanded', 'true');
-      // 动画结束后清除 maxHeight，允许嵌套展开时重新计算高度
       children.addEventListener('transitionend', function onEnd() {
         children.removeEventListener('transitionend', onEnd);
         if (!children.hidden) children.style.maxHeight = '';
@@ -1446,6 +1459,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
 
     // 折叠子章节列表（带 max-height 动画）
     function collapseTocGroup(children, btn) {
+      if (children.hidden) return; // 已折叠
       children.style.maxHeight = children.scrollHeight + 'px';
       void children.offsetHeight;
       children.style.maxHeight = '0';
@@ -1457,9 +1471,22 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       });
     }
 
+    // 收起某节点的同级已展开顶级章节（仅顶级手风琴）
+    function collapseTopLevelSiblings(item) {
+      if (!isTopLevelGroup(item)) return;
+      var parent = item.parentElement;
+      parent.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
+        if (sib === item) return;
+        var sc = sib.querySelector(':scope > .toc-children');
+        var sb = sib.querySelector(':scope > .toc-row > .toc-toggle');
+        if (sc && !sc.hidden) collapseTocGroup(sc, sb);
+      });
+    }
+
     document.querySelectorAll('.toc-toggle').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
+        lockNavClick();
         var item = btn.closest('.toc-group');
         var children = item ? item.querySelector(':scope > .toc-children') : null;
         if (!children) return;
@@ -1467,19 +1494,8 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
         if (expanded) {
           collapseTocGroup(children, btn);
         } else {
-          // 手风琴模式：展开当前章节前，先收起同级的其他已展开章节
-          var parent = item.parentElement;
-          if (parent) {
-            var siblings = parent.querySelectorAll(':scope > .toc-group.has-children');
-            siblings.forEach(function(sib) {
-              if (sib === item) return;
-              var sibChildren = sib.querySelector(':scope > .toc-children');
-              var sibBtn = sib.querySelector(':scope > .toc-row > .toc-toggle');
-              if (sibChildren && !sibChildren.hidden) {
-                collapseTocGroup(sibChildren, sibBtn);
-              }
-            });
-          }
+          // 仅顶级章节互斥折叠，子章节可同时展开
+          collapseTopLevelSiblings(item);
           expandTocGroup(children, btn);
         }
       });
@@ -1591,7 +1607,7 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
         link.classList.toggle('active', target === activeTarget);
       });
 
-      // 展开包含活跃链接的章节组，同时收起同级其他章节（手风琴）
+      // 展开包含活跃链接的章节组
       var activeLink = document.querySelector('#sidebar-nav .toc-link.active');
       if (activeLink) {
         var group = activeLink.closest('.toc-group');
@@ -1599,21 +1615,18 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
           var toggle = group.querySelector(':scope > .toc-row > .toc-toggle');
           var children = group.querySelector(':scope > .toc-children');
           if (toggle && children && children.hidden) {
-            // 先收起同级其他已展开章节
-            var gParent = group.parentElement;
-            if (gParent) {
-              gParent.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
-                if (sib === group) return;
-                var sc = sib.querySelector(':scope > .toc-children');
-                var sb = sib.querySelector(':scope > .toc-row > .toc-toggle');
-                if (sc && !sc.hidden) collapseTocGroup(sc, sb);
-              });
+            // 仅在非点击导航期间才做顶级手风琴折叠
+            if (!navClickLock) {
+              collapseTopLevelSiblings(group);
             }
             expandTocGroup(children, toggle);
           }
           var parent = group.parentElement;
           group = parent ? parent.closest('.toc-group') : null;
         }
+
+        // 确保活跃链接在侧边栏可视区域内
+        activeLink.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     }
 
