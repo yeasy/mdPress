@@ -4,6 +4,7 @@ package pdf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -518,7 +519,11 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 		})
 	}
 	server := &http.Server{Handler: mux}
-	go server.Serve(listener) //nolint:errcheck
+	go func() {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Debug("Font server error", slog.String("error", err.Error()))
+		}
+	}()
 	return &fontServer{
 		listener: listener,
 		server:   server,
