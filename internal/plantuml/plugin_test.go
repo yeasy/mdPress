@@ -148,8 +148,9 @@ func TestPluginInit_InvalidConfigTypes(t *testing.T) {
 			Name: "plantuml",
 			Path: "",
 			Config: map[string]interface{}{
-				"server": 12345,    // Should be string
-				"local":  "true",   // Should be bool
+				// Use wrong types: server should be string, local should be bool.
+				"server": 12345,
+				"local":  "true",
 			},
 		},
 	}
@@ -382,7 +383,7 @@ func TestEnableIfNeeded_MultipleBlocks(t *testing.T) {
 func TestEnableIfNeeded_SimilarButNotPlantUML(t *testing.T) {
 	chapters := []string{
 		"Here's some plantuml documentation",
-		"Use ```plantuml-extended for advanced features",
+		"Use code blocks like ```python or ```bash, but not plantuml",
 	}
 	// These should not match the exact ```plantuml marker
 	if EnableIfNeeded(chapters) {

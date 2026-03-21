@@ -114,9 +114,9 @@ func TestIsCJKRune(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isCJKRune(tt.r)
+			got := IsCJKRune(tt.r)
 			if got != tt.want {
-				t.Errorf("isCJKRune(%U) = %v, want %v", tt.r, got, tt.want)
+				t.Errorf("IsCJKRune(%U) = %v, want %v", tt.r, got, tt.want)
 			}
 		})
 	}
@@ -216,9 +216,9 @@ func TestCJKCharacterRanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isCJKRune(tt.rune)
+			got := IsCJKRune(tt.rune)
 			if got != tt.isCJK {
-				t.Errorf("isCJKRune(U+%04X) = %v, want %v", tt.rune, got, tt.isCJK)
+				t.Errorf("IsCJKRune(U+%04X) = %v, want %v", tt.rune, got, tt.isCJK)
 			}
 
 			got2 := unicode.Is(unicode.Han, tt.rune)
