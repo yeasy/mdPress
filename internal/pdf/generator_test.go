@@ -382,8 +382,11 @@ func TestBuildCJKFontFaceCSS(t *testing.T) {
 		if !strings.Contains(result.css, "unicode-range") {
 			t.Error("non-empty CSS should include unicode-range")
 		}
-		if !strings.Contains(result.css, "file://") {
-			t.Error("non-empty CSS should use file:// URL")
+		if !strings.Contains(result.css, "url(\"/cjk-font\")") {
+			t.Error("non-empty CSS should use relative /cjk-font URL")
+		}
+		if !strings.Contains(result.css, "format(") {
+			t.Error("non-empty CSS should include format() hint")
 		}
 		if !strings.Contains(result.css, "body {") {
 			t.Error("non-empty CSS should include body font-family override")
@@ -433,45 +436,44 @@ func TestInjectCJKFontFaceCSSNoHead(t *testing.T) {
 }
 
 func TestCJKFontSrc(t *testing.T) {
-	// When the font file does not exist on disk, cjkFontSrc falls back to a
-	// plain file:// URL (no format hint, no data URI).
+	// cjkFontSrc returns a relative URL with format() hints based on file extension.
 	tests := []struct {
 		name     string
 		path     string
 		expected string
 	}{
-		{
-			name:     "ttc collection fallback",
-			path:     "/tmp/fonts/msyh.ttc",
-			expected: `url("file:///tmp/fonts/msyh.ttc")`,
-		},
-		{
-			name:     "otc collection fallback",
-			path:     "/tmp/fonts/noto.otc",
-			expected: `url("file:///tmp/fonts/noto.otc")`,
-		},
-		{
-			name:     "otf font fallback",
-			path:     "/tmp/fonts/noto.otf",
-			expected: `url("file:///tmp/fonts/noto.otf")`,
-		},
-		{
-			name:     "ttf font fallback",
-			path:     "/tmp/fonts/noto.ttf",
-			expected: `url("file:///tmp/fonts/noto.ttf")`,
-		},
-		{
-			name:     "unknown extension fallback",
-			path:     "/tmp/fonts/noto.font",
-			expected: `url("file:///tmp/fonts/noto.font")`,
-		},
+		{name: "ttc collection", path: "/tmp/fonts/msyh.ttc", expected: `url("/cjk-font") format("collection")`},
+		{name: "otf font", path: "/tmp/fonts/noto.otf", expected: `url("/cjk-font") format("opentype")`},
+		{name: "ttf font", path: "/tmp/fonts/noto.ttf", expected: `url("/cjk-font") format("truetype")`},
+		{name: "woff font", path: "/tmp/fonts/noto.woff", expected: `url("/cjk-font") format("woff")`},
+		{name: "woff2 font", path: "/tmp/fonts/noto.woff2", expected: `url("/cjk-font") format("woff2")`},
+		{name: "otc collection", path: "/tmp/fonts/noto.otc", expected: `url("/cjk-font") format("collection")`},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := cjkFontSrc(cjkFontSource{path: tt.path})
 			if got != tt.expected {
 				t.Fatalf("cjkFontSrc(%q) = %q, want %q", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCJKFontSrcFallbackFormats(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{name: "ttc", path: "/tmp/fonts/msyh.ttc", expected: `url("file:///tmp/fonts/msyh.ttc")`},
+		{name: "otf", path: "/tmp/fonts/noto.otf", expected: `url("file:///tmp/fonts/noto.otf")`},
+		{name: "ttf", path: "/tmp/fonts/noto.ttf", expected: `url("file:///tmp/fonts/noto.ttf")`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cjkFontSrcFallback(cjkFontSource{path: tt.path})
+			if got != tt.expected {
+				t.Fatalf("cjkFontSrcFallback(%q) = %q, want %q", tt.path, got, tt.expected)
 			}
 		})
 	}
