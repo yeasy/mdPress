@@ -71,7 +71,7 @@ fmt:
 # Invoked by .githooks/pre-commit.
 
 .PHONY: check
-check:
+check: fmt
 	@echo ">>> [check] gofmt"
 	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*' -not -path './.cache/*')); \
 	if [ -n "$$UNFMT" ]; then \

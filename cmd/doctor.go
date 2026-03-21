@@ -221,15 +221,13 @@ func checkPlantUML(targetDir string, report *doctorReport) {
 	}
 
 	// Check for Java (required for PlantUML)
-	javaPath, javaErr := exec.LookPath("java")
-	_ = javaPath
+	_, javaErr := exec.LookPath("java")
 
 	// Check for PLANTUML_JAR environment variable
 	plantUMLJar := os.Getenv("PLANTUML_JAR")
 
 	// Check for plantuml command in PATH
-	plantUMLPath, plantUMLErr := exec.LookPath("plantuml")
-	_ = plantUMLPath
+	_, plantUMLErr := exec.LookPath("plantuml")
 
 	// Determine status
 	if javaErr != nil && plantUMLJar == "" && plantUMLErr != nil {
