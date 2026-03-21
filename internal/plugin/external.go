@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -116,6 +117,7 @@ func queryPluginMeta(execPath string) (version, description string) {
 
 	out, err := exec.CommandContext(ctx, execPath, "--mdpress-info").Output()
 	if err != nil {
+		slog.Debug("Failed to query plugin metadata", slog.String("path", execPath), slog.String("error", err.Error()))
 		return "0.1.0", ""
 	}
 

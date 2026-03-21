@@ -120,7 +120,7 @@ func processMermaid(html string) string {
 	})
 }
 
-// MermaidScript returns the <script> tags needed to load and initialise Mermaid.
+// MermaidScript returns the <script> tags needed to load and initialize Mermaid.
 // Only include this when the HTML contains .mermaid elements.
 func MermaidScript() string {
 	return `<script src="` + utils.MermaidCDNURL + `"></script>

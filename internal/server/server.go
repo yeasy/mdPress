@@ -84,7 +84,7 @@ func NewServer(host string, port int, watchDir, outputDir string, logger *slog.L
 // Listen reserves the configured port and returns the listener.
 func (s *Server) Listen() (net.Listener, error) {
 	addr := net.JoinHostPort(s.Host, fmt.Sprintf("%d", s.Port))
-	ln, err := net.Listen("tcp", addr)
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("address %s is already in use (try mdpress serve --host %s --port %d): %w", addr, s.Host, s.Port+1, err)
 	}
@@ -404,6 +404,8 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		filePath := filepath.Join(s.OutputDir, filepath.Clean(path))
 
 		// Protect against path traversal by keeping access within OutputDir.
+		// Use Clean to normalize paths and case-insensitive comparison to prevent bypasses
+		// on case-insensitive filesystems (e.g., Windows, macOS).
 		absFilePath, err := filepath.Abs(filePath)
 		if err != nil {
 			next.ServeHTTP(w, r)
@@ -414,7 +416,16 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !strings.HasPrefix(absFilePath, absOutputDir+string(filepath.Separator)) && absFilePath != absOutputDir {
+		// Normalize paths and perform case-insensitive comparison on case-insensitive systems
+		cleanFilePath := filepath.Clean(absFilePath)
+		cleanOutputDir := filepath.Clean(absOutputDir)
+		caseInsensitiveCheck := strings.ToLower(cleanFilePath)
+		caseInsensitiveOutputDir := strings.ToLower(cleanOutputDir)
+
+		isWithinOutputDir := caseInsensitiveCheck == caseInsensitiveOutputDir ||
+			strings.HasPrefix(caseInsensitiveCheck, caseInsensitiveOutputDir+string(filepath.Separator))
+
+		if !isWithinOutputDir {
 			s.logger.Warn("Blocked path traversal attempt", slog.String("path", r.URL.Path))
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -726,7 +737,7 @@ func openBrowser(url string) {
 		return
 	}
 
-	if err := exec.Command(cmd, args...).Start(); err != nil {
+	if err := exec.CommandContext(context.Background(), cmd, args...).Start(); err != nil {
 		return
 	}
 }

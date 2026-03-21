@@ -10,7 +10,7 @@ import (
 
 // LoadPlugins reads the plugin declarations from cfg.Plugins, creates an
 // ExternalPlugin for each entry, registers them with a new Manager, and
-// initialises the whole set.  Returns an empty (no-op) Manager when no plugins
+// initializes the whole set.  Returns an empty (no-op) Manager when no plugins
 // are configured.  Plugins are registered and executed in declaration order.
 func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 	mgr := NewManager()

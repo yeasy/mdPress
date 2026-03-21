@@ -131,7 +131,7 @@ func LoadBookJSON(path string) (*BookConfig, error) {
 		cfg.Book.Author = meta.Author
 	}
 
-	// Auto-detect GLOSSARY.md (honour structure.glossary override).
+	// Auto-detect GLOSSARY.md (honor structure.glossary override).
 	glossaryName := "GLOSSARY.md"
 	if raw.Structure.Glossary != "" {
 		glossaryName = raw.Structure.Glossary
@@ -141,7 +141,7 @@ func LoadBookJSON(path string) (*BookConfig, error) {
 		cfg.GlossaryFile = glossaryPath
 	}
 
-	// Auto-detect LANGS.md (honour structure.languages override).
+	// Auto-detect LANGS.md (honor structure.languages override).
 	langsName := "LANGS.md"
 	if raw.Structure.Langs != "" {
 		langsName = raw.Structure.Langs
