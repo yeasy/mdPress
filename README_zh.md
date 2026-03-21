@@ -279,7 +279,7 @@ make test         # 运行所有测试
 
 ## 贡献
 
-参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+参见 [CONTRIBUTING_zh.md](CONTRIBUTING_zh.md)。
 
 ## 许可证
 
