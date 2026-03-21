@@ -438,4 +438,3 @@ func detectContentLanguage(content string) string {
 	}
 	return "en-US"
 }
-

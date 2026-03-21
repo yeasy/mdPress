@@ -277,6 +277,11 @@ func (c *BookConfig) Validate() error {
 		}
 	}
 
+	// Validate TOCMaxDepth range (1-6, or 0 for default).
+	if c.Output.TOCMaxDepth != 0 && (c.Output.TOCMaxDepth < 1 || c.Output.TOCMaxDepth > 6) {
+		return fmt.Errorf("toc_max_depth must be between 1 and 6 (got %d)", c.Output.TOCMaxDepth)
+	}
+
 	return nil
 }
 

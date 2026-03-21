@@ -45,6 +45,9 @@ mdpress-go-tmp-umask
 *_site/
 *_html/
 
+# Generated preview files
+*themes-preview.html
+
 # Tool caches
 .cache/
 .playwright-cli/
