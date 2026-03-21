@@ -531,8 +531,6 @@ Implemented strategies:
 - `SummaryDiscoverer` — parses `SUMMARY.md`
 - `AutoDiscoverer` — scans Markdown files by directory structure
 
-### 5.3 Output Format Abstraction
-
 ### 5.3 Output Format Abstraction (Implemented)
 
 All output formats are normalized behind the `FormatBuilder` interface (in `cmd/format_builders.go`) with a `FormatBuilderRegistry` for registration and dispatch. The build pipeline uses the registry instead of switch-case logic.

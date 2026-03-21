@@ -236,6 +236,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | `mdpress init [directory]` | Generate `book.yaml` from existing Markdown files |
 | `mdpress validate [directory]` | Check your config and files for errors |
 | `mdpress doctor [directory]` | Verify your environment is set up correctly |
+| `mdpress completion [shell]` | Generate shell completion scripts |
 | `mdpress themes list\|show\|preview` | Explore built-in themes |
 
 ## Requirements
