@@ -377,3 +377,522 @@ func TestToCSSAllThemes(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// quoteFontFamily - Table-Driven Tests for Font Family Quoting
+// ---------------------------------------------------------------------------
+
+func TestQuoteFontFamily_TableDriven(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "single family without spaces",
+			input:    "Arial",
+			expected: "Arial",
+		},
+		{
+			name:     "family with spaces needs quotes",
+			input:    "Times New Roman",
+			expected: "'Times New Roman'",
+		},
+		{
+			name:     "already single quoted",
+			input:    "'Arial Black'",
+			expected: "'Arial Black'",
+		},
+		{
+			name:     "already double quoted",
+			input:    `"Courier New"`,
+			expected: `"Courier New"`,
+		},
+		{
+			name:     "generic family serif",
+			input:    "serif",
+			expected: "serif",
+		},
+		{
+			name:     "generic family sans-serif",
+			input:    "sans-serif",
+			expected: "sans-serif",
+		},
+		{
+			name:     "generic family monospace",
+			input:    "monospace",
+			expected: "monospace",
+		},
+		{
+			name:     "multiple families comma-separated",
+			input:    "Arial, sans-serif",
+			expected: "Arial, sans-serif",
+		},
+		{
+			name:     "multiple families with spaces",
+			input:    "Times New Roman, serif",
+			expected: "'Times New Roman', serif",
+		},
+		{
+			name:     "all families with spaces",
+			input:    "Times New Roman, Arial Black",
+			expected: "'Times New Roman', 'Arial Black'",
+		},
+		{
+			name:     "vendor prefixed",
+			input:    "-webkit-system-font",
+			expected: "-webkit-system-font",
+		},
+		{
+			name:     "ui-monospace",
+			input:    "ui-monospace",
+			expected: "ui-monospace",
+		},
+		{
+			name:     "complex mixed list",
+			input:    "Arial, 'Times New Roman', sans-serif, Consolas",
+			expected: "Arial, 'Times New Roman', sans-serif, Consolas",
+		},
+		{
+			name:     "with extra spaces",
+			input:    "  Arial  ,  sans-serif  ",
+			expected: "Arial, sans-serif",
+		},
+		{
+			name:     "CJK font with spaces",
+			input:    "PingFang SC, Hiragino Sans GB",
+			expected: "'PingFang SC', 'Hiragino Sans GB'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quoteFontFamily(tt.input)
+			if result != tt.expected {
+				t.Errorf("quoteFontFamily(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestQuoteFontFamily_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		checkFn  func(string) bool
+		desc     string
+	}{
+		{
+			name:  "empty string",
+			input: "",
+			checkFn: func(s string) bool {
+				return s == ""
+			},
+			desc: "should handle empty input",
+		},
+		{
+			name:  "single space",
+			input: " ",
+			checkFn: func(s string) bool {
+				return s != ""
+			},
+			desc: "should handle single space",
+		},
+		{
+			name:  "only comma",
+			input: ",",
+			checkFn: func(s string) bool {
+				return s != ""
+			},
+			desc: "should handle only comma",
+		},
+		{
+			name:  "multiple commas",
+			input: "Arial,,,sans-serif",
+			checkFn: func(s string) bool {
+				return len(s) > 0
+			},
+			desc: "should handle multiple commas",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quoteFontFamily(tt.input)
+			if !tt.checkFn(result) {
+				t.Errorf("quoteFontFamily(%q) failed %s, got %q", tt.input, tt.desc, result)
+			}
+		})
+	}
+}
+
+func TestQuoteFontFamily_PreservesValidCSS(t *testing.T) {
+	// Test that valid CSS is not corrupted
+	validCSS := []string{
+		"ui-serif",
+		"ui-sans-serif",
+		"ui-monospace",
+		"ui-rounded",
+		"emoji",
+		"math",
+		"fangsong",
+		"cursive",
+		"fantasy",
+		"system-ui",
+	}
+
+	for _, family := range validCSS {
+		result := quoteFontFamily(family)
+		if result != family {
+			t.Errorf("quoteFontFamily(%q) should not modify, got %q", family, result)
+		}
+	}
+}
+
+func TestQuoteFontFamily_CJKFonts(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains string
+	}{
+		{
+			name:     "PingFang SC",
+			input:    "PingFang SC",
+			contains: "PingFang SC",
+		},
+		{
+			name:     "Microsoft YaHei",
+			input:    "Microsoft YaHei",
+			contains: "Microsoft YaHei",
+		},
+		{
+			name:     "Hiragino Sans GB",
+			input:    "Hiragino Sans GB",
+			contains: "Hiragino Sans GB",
+		},
+		{
+			name:     "Noto Sans SC",
+			input:    "Noto Sans SC",
+			contains: "Noto Sans SC",
+		},
+		{
+			name:     "Source Han Sans SC",
+			input:    "Source Han Sans SC",
+			contains: "Source Han Sans SC",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quoteFontFamily(tt.input)
+			if !strings.Contains(result, tt.contains) {
+				t.Errorf("expected result to contain %q, got %q", tt.contains, result)
+			}
+		})
+	}
+}
+
+func TestQuoteFontFamily_MixedQuoteStyles(t *testing.T) {
+	// Test that both single and double quotes work
+	tests := []struct {
+		name    string
+		input   string
+		isValid func(string) bool
+	}{
+		{
+			name:  "single quoted with comma",
+			input: "'Times New Roman', Arial",
+			isValid: func(s string) bool {
+				return strings.Contains(s, "'Times New Roman'") && strings.Contains(s, "Arial")
+			},
+		},
+		{
+			name:  "double quoted with comma",
+			input: `"Courier New", monospace`,
+			isValid: func(s string) bool {
+				return strings.Contains(s, `"Courier New"`) || strings.Contains(s, `'Courier New'`)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quoteFontFamily(tt.input)
+			if !tt.isValid(result) {
+				t.Errorf("quoteFontFamily(%q) = %q, validation failed", tt.input, result)
+			}
+		})
+	}
+}
+
+func TestQuoteFontFamily_RealWorldFontStacks(t *testing.T) {
+	// Test common font stacks used in practice
+	tests := []struct {
+		name     string
+		input    string
+		validate func(string) bool
+	}{
+		{
+			name: "System font stack",
+			input: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+			validate: func(s string) bool {
+				return strings.Contains(s, "-apple-system") && strings.Contains(s, "sans-serif")
+			},
+		},
+		{
+			name: "Bootstrap font stack",
+			input: "Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif",
+			validate: func(s string) bool {
+				return strings.Contains(s, "sans-serif")
+			},
+		},
+		{
+			name: "CJK system stack",
+			input: "PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif",
+			validate: func(s string) bool {
+				return strings.Contains(s, "PingFang") && strings.Contains(s, "sans-serif")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := quoteFontFamily(tt.input)
+			if !tt.validate(result) {
+				t.Errorf("quoteFontFamily(%q) = %q, validation failed", tt.input, result)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ToCSS - Enhanced Tests for CSS Generation
+// ---------------------------------------------------------------------------
+
+func TestThemeToCSS_RootVariables(t *testing.T) {
+	thm := &Theme{
+		Name:       "test",
+		PageSize:   "A4",
+		FontFamily: "Arial",
+		FontSize:   12,
+		LineHeight: 1.5,
+		Colors: ColorScheme{
+			Text:       "#000",
+			Background: "#fff",
+			Heading:    "#333",
+			Link:       "#0066cc",
+			CodeBg:     "#f5f5f5",
+			CodeText:   "#333",
+			Accent:     "#ff6600",
+			Border:     "#ddd",
+		},
+	}
+
+	css := thm.ToCSS()
+
+	requiredVars := []string{
+		"--font-family",
+		"--font-family-mono",
+		"--font-size",
+		"--line-height",
+		"--color-text",
+		"--color-background",
+		"--color-heading",
+		"--color-link",
+		"--color-code-bg",
+		"--color-code-text",
+		"--color-accent",
+		"--color-border",
+		"--margin-top",
+		"--margin-bottom",
+		"--margin-left",
+		"--margin-right",
+	}
+
+	for _, varName := range requiredVars {
+		if !strings.Contains(css, varName) {
+			t.Errorf("CSS missing variable: %s", varName)
+		}
+	}
+}
+
+func TestThemeToCSS_SelectorCoverage(t *testing.T) {
+	thm := &Theme{
+		Name:       "test",
+		PageSize:   "A4",
+		FontFamily: "Arial",
+		FontSize:   12,
+		LineHeight: 1.5,
+		Colors: ColorScheme{
+			Text:       "#000",
+			Background: "#fff",
+			Heading:    "#333",
+			Link:       "#0066cc",
+			CodeBg:     "#f5f5f5",
+			CodeText:   "#333",
+			Accent:     "#ff6600",
+			Border:     "#ddd",
+		},
+	}
+
+	css := thm.ToCSS()
+
+	requiredSelectors := []string{
+		":root",
+		"body {",
+		"h1, h2, h3, h4, h5, h6",
+		"a {",
+		"code, pre",
+		"pre {",
+		"blockquote",
+		"table {",
+		"table th, table td",
+		"table th {",
+	}
+
+	for _, selector := range requiredSelectors {
+		if !strings.Contains(css, selector) {
+			t.Errorf("CSS missing selector: %s", selector)
+		}
+	}
+}
+
+func TestThemeToCSS_NumericalValues(t *testing.T) {
+	thm := &Theme{
+		Name:       "test",
+		PageSize:   "A4",
+		FontFamily: "Arial",
+		FontSize:   16,
+		LineHeight: 1.8,
+		Colors: ColorScheme{
+			Text:       "#000",
+			Background: "#fff",
+			Heading:    "#333",
+			Link:       "#0066cc",
+			CodeBg:     "#f5f5f5",
+			CodeText:   "#333",
+			Accent:     "#ff6600",
+			Border:     "#ddd",
+		},
+		Margins: MarginSettings{
+			Top:    20,
+			Bottom: 20,
+			Left:   15,
+			Right:  15,
+		},
+	}
+
+	css := thm.ToCSS()
+
+	if !strings.Contains(css, "16pt") {
+		t.Error("CSS should contain font size 16pt")
+	}
+
+	if !strings.Contains(css, "1.80") {
+		t.Error("CSS should contain line height 1.80")
+	}
+
+	if !strings.Contains(css, "20.00mm") {
+		t.Error("CSS should contain margin 20.00mm")
+	}
+}
+
+func TestThemeToCSS_FontFamilyProcessing(t *testing.T) {
+	thm := &Theme{
+		Name:       "test",
+		PageSize:   "A4",
+		FontFamily: "Times New Roman, serif",
+		FontSize:   12,
+		LineHeight: 1.5,
+		Colors: ColorScheme{
+			Text:       "#000",
+			Background: "#fff",
+			Heading:    "#333",
+			Link:       "#0066cc",
+			CodeBg:     "#f5f5f5",
+			CodeText:   "#333",
+			Accent:     "#ff6600",
+			Border:     "#ddd",
+		},
+	}
+
+	css := thm.ToCSS()
+
+	// Font family should be processed through quoteFontFamily
+	if !strings.Contains(css, "--font-family") {
+		t.Error("CSS should have font family variable")
+	}
+
+	// Should have properly quoted font name
+	if !strings.Contains(css, "Times") || !strings.Contains(css, "Roman") {
+		t.Error("Font family content should be preserved")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Margin Validation
+// ---------------------------------------------------------------------------
+
+func TestMarginSettings_AllPositive(t *testing.T) {
+	m := MarginSettings{
+		Top:    10.5,
+		Bottom: 20.0,
+		Left:   15.25,
+		Right:  18.75,
+	}
+
+	tests := []struct {
+		name     string
+		value    float64
+		expected float64
+	}{
+		{"top", m.Top, 10.5},
+		{"bottom", m.Bottom, 20.0},
+		{"left", m.Left, 15.25},
+		{"right", m.Right, 18.75},
+	}
+
+	for _, tt := range tests {
+		if tt.value != tt.expected {
+			t.Errorf("%s margin: got %f, want %f", tt.name, tt.value, tt.expected)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ColorScheme Validation
+// ---------------------------------------------------------------------------
+
+func TestColorScheme_AllFieldsSet(t *testing.T) {
+	colors := ColorScheme{
+		Text:       "#333333",
+		Background: "#ffffff",
+		Heading:    "#000000",
+		Link:       "#0066cc",
+		CodeBg:     "#f5f5f5",
+		CodeText:   "#333333",
+		Accent:     "#ff6600",
+		Border:     "#dddddd",
+	}
+
+	tests := []struct {
+		name     string
+		value    string
+		expected string
+	}{
+		{"text", colors.Text, "#333333"},
+		{"background", colors.Background, "#ffffff"},
+		{"heading", colors.Heading, "#000000"},
+		{"link", colors.Link, "#0066cc"},
+		{"codeBg", colors.CodeBg, "#f5f5f5"},
+		{"codeText", colors.CodeText, "#333333"},
+		{"accent", colors.Accent, "#ff6600"},
+		{"border", colors.Border, "#dddddd"},
+	}
+
+	for _, tt := range tests {
+		if tt.value != tt.expected {
+			t.Errorf("%s color: got %s, want %s", tt.name, tt.value, tt.expected)
+		}
+	}
+}
