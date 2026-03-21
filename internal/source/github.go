@@ -2,6 +2,7 @@
 package source
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -75,13 +76,15 @@ func (s *GitHubSource) Prepare() (string, error) {
 	}
 	args = append(args, cloneURL, tempDir)
 
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(context.Background(), "git", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
 		// Clean up the clone directory on failure.
-		os.RemoveAll(tempDir)
+		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+			slog.Warn("Failed to clean up temporary directory after clone failure", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+		}
 		s.tempDir = ""
 		hint := ""
 		if os.Getenv("GITHUB_TOKEN") == "" {
@@ -107,19 +110,25 @@ func (s *GitHubSource) Prepare() (string, error) {
 		// Prevent path traversal through the subdirectory.
 		cleanSubDir := filepath.Clean(s.opts.SubDir)
 		if filepath.IsAbs(cleanSubDir) || strings.HasPrefix(cleanSubDir, "..") {
-			os.RemoveAll(tempDir)
+			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+			}
 			s.tempDir = ""
 			return "", fmt.Errorf("unsafe subdirectory path: %q", s.opts.SubDir)
 		}
 		targetDir = filepath.Join(tempDir, cleanSubDir)
 		info, err := os.Stat(targetDir)
 		if err != nil {
-			os.RemoveAll(tempDir)
+			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+			}
 			s.tempDir = ""
 			return "", fmt.Errorf("requested subdirectory does not exist in the repository: %s", s.opts.SubDir)
 		}
 		if !info.IsDir() {
-			os.RemoveAll(tempDir)
+			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+			}
 			s.tempDir = ""
 			return "", fmt.Errorf("requested subdirectory is not a directory: %s", s.opts.SubDir)
 		}

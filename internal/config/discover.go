@@ -5,6 +5,7 @@ package config
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -246,7 +247,7 @@ func fileNameToTitle(path string) string {
 // gitConfigAuthor returns the git user.name configured in the given directory,
 // or an empty string when git is unavailable or no name is set.
 func gitConfigAuthor(dir string) string {
-	out, err := exec.Command("git", "-C", dir, "config", "user.name").Output()
+	out, err := exec.CommandContext(context.Background(), "git", "-C", dir, "config", "user.name").Output()
 	if err != nil {
 		return ""
 	}

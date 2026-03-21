@@ -300,6 +300,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 	processedHTML, err := utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
 	if err != nil {
 		p.Logger.Warn("Failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		p.Logger.Warn("Using original HTML without image processing", slog.String("file", chDef.File))
 	} else {
 		htmlContent = processedHTML
 	}
@@ -347,6 +348,12 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 	for i, parsed := range parsedChapters {
 		// Skip chapters with no content (they were skipped during parsing)
 		if parsed.htmlContent == "" {
+			continue
+		}
+
+		// Bounds check: ensure flatChapters index is valid
+		if i >= len(flatChapters) {
+			p.Logger.Error("Internal error: chapter index out of bounds", slog.Int("index", i), slog.Int("flatChapters_len", len(flatChapters)))
 			continue
 		}
 

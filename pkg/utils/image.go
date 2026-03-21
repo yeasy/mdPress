@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
@@ -100,11 +101,19 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 	// Download with a timeout so unresponsive servers do not hang forever.
 	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(urlStr)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request for image download: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		// Retry once for transient network errors.
 		time.Sleep(1 * time.Second)
-		resp, err = client.Get(urlStr)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+		if err != nil {
+			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
+		}
+		resp, err = client.Do(req)
 		if err != nil {
 			return "", fmt.Errorf("failed to download image %q (after retry): %w", urlStr, err)
 		}
@@ -351,6 +360,7 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 		if options.Logger != nil {
 			options.Logger.Debug("Failed to ensure cache directory exists", slog.String("dir", options.CacheDir), slog.String("error", err.Error()))
 		}
+		return nil
 	}
 
 	results := make(map[string]string, len(unique))

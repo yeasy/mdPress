@@ -484,7 +484,7 @@ type fontServer struct {
 // newFontServer starts an HTTP server on a random localhost port, serving
 // the given HTML content at "/" and the CJK font file at "/cjk-font".
 func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start font server: %w", err)
 	}
@@ -527,8 +527,12 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 }
 
 func (fs *fontServer) Close() {
-	fs.server.Close()
-	fs.listener.Close()
+	if err := fs.server.Close(); err != nil {
+		slog.Debug("Failed to close font server", slog.String("error", err.Error()))
+	}
+	if err := fs.listener.Close(); err != nil {
+		slog.Debug("Failed to close font server listener", slog.String("error", err.Error()))
+	}
 }
 
 // Generate renders an HTML string to a PDF file.
@@ -899,7 +903,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	args = append(args, strings.Fields(os.Getenv("CHROME_FLAGS"))...)
 	args = append(args, fileURL)
 
-	cmd := exec.Command(chromePath, args...)
+	cmd := exec.CommandContext(context.Background(), chromePath, args...)
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

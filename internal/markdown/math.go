@@ -74,7 +74,7 @@ func (m *mathPreprocessor) preprocess(md string) string {
 }
 
 // postprocess restores placeholders to HTML elements that KaTeX auto-render
-// can recognise and render.
+// can recognize and render.
 //
 // Display math placeholder → <span class="math math-display">$$...$$</span>
 // Inline math placeholder  → <span class="math math-inline">$...$</span>

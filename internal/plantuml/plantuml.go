@@ -7,6 +7,7 @@ package plantuml
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
@@ -40,9 +42,11 @@ func NewRenderer(serverURL string, useLocal bool) *Renderer {
 		serverURL = "http://www.plantuml.com/plantuml"
 	}
 	return &Renderer{
-		serverURL:  strings.TrimSuffix(serverURL, "/"),
-		useLocal:   useLocal,
-		httpClient: &http.Client{Timeout: 30000000000}, // 30 second timeout
+		serverURL: strings.TrimSuffix(serverURL, "/"),
+		useLocal:  useLocal,
+		// HTTP timeout of 30 seconds for PlantUML server requests. This balances network
+		// latency and rendering time for typical diagrams while preventing indefinite hangs.
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -115,13 +119,24 @@ func (r *Renderer) renderServer(code string) (string, error) {
 	url := fmt.Sprintf("%s/svg/%s", r.serverURL, encoded)
 
 	// Fetch the SVG
-	resp, err := r.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request for plantuml diagram: %w", err)
+	}
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch plantuml diagram: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Read error response body (capped to prevent excessive logging)
+		var errBuf bytes.Buffer
+		_, _ = io.Copy(&errBuf, io.LimitReader(resp.Body, 1024))
+		errMsg := errBuf.String()
+		if errMsg != "" {
+			return "", fmt.Errorf("plantuml server returned status %d: %s", resp.StatusCode, errMsg)
+		}
 		return "", fmt.Errorf("plantuml server returned status %d", resp.StatusCode)
 	}
 
@@ -184,7 +199,7 @@ func localPlantumlCmd() (*exec.Cmd, error) {
 		if err != nil {
 			return nil, fmt.Errorf("PLANTUML_JAR is set but java is not in PATH: %w", err)
 		}
-		return exec.Command(javaPath, "-jar", jar, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
+		return exec.CommandContext(context.Background(), javaPath, "-jar", jar, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
 	}
 
 	// Fall back to the plantuml wrapper script / binary.
@@ -195,7 +210,7 @@ func localPlantumlCmd() (*exec.Cmd, error) {
 				"or set PLANTUML_JAR=/path/to/plantuml.jar",
 		)
 	}
-	return exec.Command(path, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
+	return exec.CommandContext(context.Background(), path, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
 }
 
 // encodeForServer encodes PlantUML code for the online server using deflate + base64.

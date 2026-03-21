@@ -41,7 +41,9 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		tmpFile.Close() //nolint:errcheck
 		return fmt.Errorf("failed to write temporary Mermaid validation file: %w", err)
 	}
-	tmpFile.Close() //nolint:errcheck
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary Mermaid validation file: %w", err)
+	}
 
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()

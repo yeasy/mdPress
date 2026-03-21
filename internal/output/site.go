@@ -762,6 +762,36 @@ body.sidebar-open::before {
   }
 }
 
+/* ===== Focus Visible for Keyboard Navigation ===== */
+a:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+  .sidebar, .sidebar-toggle, .sidebar-overlay, .route-progress { display: none !important; }
+  .main { margin-left: 0; }
+  .content { padding: 0; margin: 0; max-width: 100%; }
+  .page-header, .page-nav, .build-meta { display: none !important; }
+  body { background: white; color: black; }
+  * { background: transparent !important; box-shadow: none !important; color: black !important; }
+  a { color: #0969da; text-decoration: underline; }
+  a::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #999; }
+  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+  p, pre, blockquote { page-break-inside: avoid; }
+  img { max-width: 100%; page-break-inside: avoid; }
+  table { page-break-inside: avoid; }
+}
+
 /* ===== Custom Theme CSS ===== */
 {{safeCSS .CSS}}
 
