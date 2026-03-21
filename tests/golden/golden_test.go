@@ -222,3 +222,179 @@ func TestGoldenCover(t *testing.T) {
 
 	checkGolden(t, filepath.Join(goldenDir(t), "cover.html"), got)
 }
+
+// TestGoldenCodeBlocks tests rendering of Markdown with code blocks.
+func TestGoldenCodeBlocks(t *testing.T) {
+	parser := markdown.NewParser()
+
+	markdownContent := "# Code Block Test\n\n## Go Example\n```go\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n    fmt.Println(\"Hello, World!\")\n}\n```\n\n## Python Example\n```python\ndef hello():\n    print(\"Hello, World!\")\n\nif __name__ == \"__main__\":\n    hello()\n```\n\n## Inline code\nThis is inline `code` in the text.\n\n## Code with syntax highlighting\n```javascript\nconst greeting = \"Hello, World!\";\nconsole.log(greeting);\n```\n"
+
+	html, headings, err := parser.Parse([]byte(markdownContent))
+	if err != nil {
+		t.Fatalf("failed to parse markdown with code blocks: %v", err)
+	}
+
+	// Sanity checks before golden comparison.
+	if !strings.Contains(html, "<pre") {
+		t.Error("code blocks should be wrapped in <pre> tags")
+	}
+	if !strings.Contains(html, "<code") {
+		t.Error("code should be wrapped in <code> tags")
+	}
+	if !strings.Contains(html, "Hello, World!") {
+		t.Error("code content should be preserved")
+	}
+	if !strings.Contains(html, "func") || !strings.Contains(html, "main") {
+		t.Error("Go code should be present")
+	}
+
+	// Verify headings were extracted
+	if len(headings) < 2 {
+		t.Errorf("expected at least 2 headings, got %d", len(headings))
+	}
+
+	checkGolden(t, filepath.Join(goldenDir(t), "code_blocks.html"), html)
+}
+
+// TestGoldenTables tests rendering of Markdown with tables.
+func TestGoldenTables(t *testing.T) {
+	parser := markdown.NewParser()
+
+	markdownContent := "# Table Test\n\n## Simple Table\n| Name    | Age | City      |\n|---------|-----|-----------|" +
+		"\n| Alice   | 30  | New York  |\n| Bob     | 25  | London    |\n| Charlie | 35  | Paris     |" +
+		"\n\n## Complex Table\n| Header 1 | Header 2       | Header 3  |\n|----------|----------------|-----------|" +
+		"\n| Cell 1.1 | Cell 1.2       | Cell 1.3  |\n| Cell 2.1 | Multi-line     | Cell 2.3  |" +
+		"\n|          | Cell 2.2 cont. |           |\n| Cell 3.1 | Cell 3.2       | Cell 3.3  |" +
+		"\n\n## Nested Formatting in Table\n| **Bold** | *Italic* | `Code` |\n|----------|----------|---------|" +
+		"\n| Text     | More     | More    |\n"
+
+	html, headings, err := parser.Parse([]byte(markdownContent))
+	if err != nil {
+		t.Fatalf("failed to parse markdown with tables: %v", err)
+	}
+
+	// Sanity checks before golden comparison.
+	if !strings.Contains(html, "<table") {
+		t.Error("tables should be rendered with <table> tags")
+	}
+	if !strings.Contains(html, "<thead") {
+		t.Error("tables should have <thead> for headers")
+	}
+	if !strings.Contains(html, "<tbody") {
+		t.Error("tables should have <tbody> for content")
+	}
+	if !strings.Contains(html, "<tr") {
+		t.Error("tables should have rows")
+	}
+	if !strings.Contains(html, "<td") {
+		t.Error("tables should have data cells")
+	}
+
+	// Verify table content
+	if !strings.Contains(html, "Alice") || !strings.Contains(html, "New York") {
+		t.Error("table content should be preserved")
+	}
+
+	// Verify headings were extracted
+	if len(headings) < 2 {
+		t.Errorf("expected at least 2 headings, got %d", len(headings))
+	}
+
+	checkGolden(t, filepath.Join(goldenDir(t), "tables.html"), html)
+}
+
+// TestGoldenImages tests rendering of Markdown with image references.
+func TestGoldenImages(t *testing.T) {
+	parser := markdown.NewParser()
+
+	markdownContent := "# Image Test\n\n## Image with alt text\n![A sample image](./images/sample.png)\n\n" +
+		"## Image with link\n[![Click me](./images/button.png)](https://example.com)\n\n" +
+		"## Multiple images\n![First](./img1.png)\n![Second](./img2.png)\n\n" +
+		"## Image in paragraph\nThis paragraph contains an ![inline image](./inline.png) within text.\n\n" +
+		"## Image with title\n![Image with title](./titled.png \"Image Title\")\n"
+
+	html, headings, err := parser.Parse([]byte(markdownContent))
+	if err != nil {
+		t.Fatalf("failed to parse markdown with images: %v", err)
+	}
+
+	// Sanity checks before golden comparison.
+	if !strings.Contains(html, "<img") {
+		t.Error("images should be rendered with <img> tags")
+	}
+	if !strings.Contains(html, "src=") {
+		t.Error("images should have src attribute")
+	}
+	if !strings.Contains(html, "alt=") {
+		t.Error("images should have alt attribute for accessibility")
+	}
+
+	// Verify headings were extracted
+	if len(headings) < 2 {
+		t.Errorf("expected at least 2 headings, got %d", len(headings))
+	}
+
+	checkGolden(t, filepath.Join(goldenDir(t), "images.html"), html)
+}
+
+// TestGoldenCJKContent tests rendering of CJK (Chinese, Japanese, Korean) characters.
+func TestGoldenCJKContent(t *testing.T) {
+	parser := markdown.NewParser()
+
+	markdownContent := "# CJK 字符测试\n\n## 中文内容\n这是一个包含中文字符的测试。mdPress 应该能够正确处理 CJK 字符，包括：\n\n" +
+		"- **粗体中文** 和 *斜体中文*\n- 中文代码变量：`变量名`\n- 中文链接：[示例链接](https://example.com)\n\n" +
+		"### 中文代码块\n```go\n// 中文注释\nfunc 主程序() {\n    格式.打印(\"你好，世界！\")\n}\n```\n\n" +
+		"## 混合内容\nEnglish and 中文 mixed together.\n\n" +
+		"| 列1   | 列2       |\n|-------|-----------|" +
+		"\n| 中文  | 英文      |\n| 数据1 | 数据2     |\n\n" +
+		"## 日文内容\nこれは日本語のテストです。\n\n" +
+		"## 韓文內容\n이것은 한국어 테스트입니다.\n\n" +
+		"## 特殊符号\n- 数学表达式：x² + y² = z²\n- 货币：¥100, $50, €75\n- 其他符号：©2024, ®Brand, ™Mark\n"
+
+	html, headings, err := parser.Parse([]byte(markdownContent))
+	if err != nil {
+		t.Fatalf("failed to parse markdown with CJK content: %v", err)
+	}
+
+	// Sanity checks before golden comparison.
+	if !strings.Contains(html, "中文") {
+		t.Error("Chinese content should be preserved")
+	}
+	if !strings.Contains(html, "日本語") {
+		t.Error("Japanese content should be preserved")
+	}
+	if !strings.Contains(html, "한국어") {
+		t.Error("Korean content should be preserved")
+	}
+	if !strings.Contains(html, "粗体中文") {
+		t.Error("CJK in bold should be preserved")
+	}
+	if !strings.Contains(html, "变量名") {
+		t.Error("CJK in code should be preserved")
+	}
+	if !strings.Contains(html, "<table") {
+		t.Error("tables with CJK content should render")
+	}
+	if !strings.Contains(html, "<code") {
+		t.Error("code blocks with CJK should render")
+	}
+
+	// Verify headings were extracted (including CJK headings)
+	if len(headings) < 3 {
+		t.Errorf("expected at least 3 headings, got %d", len(headings))
+	}
+
+	// Check for CJK heading extraction
+	var foundCJKHeading bool
+	for _, h := range headings {
+		if strings.Contains(h.Text, "中文") || strings.Contains(h.Text, "日本語") || strings.Contains(h.Text, "한국어") {
+			foundCJKHeading = true
+			break
+		}
+	}
+	if !foundCJKHeading {
+		t.Error("CJK headings should be extracted")
+	}
+
+	checkGolden(t, filepath.Join(goldenDir(t), "cjk_content.html"), html)
+}
