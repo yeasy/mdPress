@@ -172,6 +172,15 @@ Closes #42
 - 涉及 CLI 命令和文件 I/O 的功能，需要添加端到端测试
 - PDF 生成相关的测试可使用 build tag 标记（如 `//go:build e2e`），避免 CI 环境无 Chromium 时失败
 
+### Golden 测试（快照测试）
+
+Golden 测试是基于快照的回归测试，用于验证 HTML 生成输出是否符合预期。它们能够捕捉到对渲染输出的意外改变。
+
+- **运行 Golden 测试**：`go test ./tests/golden/...`
+- **更新 Golden 文件**：`go test ./tests/golden/... -update`
+- **何时更新**：仅在对 HTML 输出进行了刻意变更（样式、结构、功能）后再更新 Golden 文件。Golden 文件存储在 `tests/golden/testdata/golden/` 中
+- **工作原理**：测试将 Markdown 输入渲染为 HTML，对易变字段（如日期）进行规范化处理，然后与之前保存的 Golden 文件进行对比。首次运行时，Golden 文件会被创建，测试会跳过以便进行人工审查。
+
 ### 真实样本回归测试
 
 - 涉及 GitBook 兼容、章节链接、目录解析、多语言等能力的改动，除了合成测试外，应至少用一个真实书籍样本做回归

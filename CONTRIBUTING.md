@@ -172,6 +172,15 @@ Closes #42
 - Features involving CLI commands and file I/O should have e2e tests
 - PDF generation tests can use build tags (e.g., `//go:build e2e`) to skip when Chromium is not available in CI
 
+### Golden Tests
+
+Golden tests are snapshot-based regression tests that capture the expected output of HTML generation. They help catch unintended changes to rendering output.
+
+- **Run golden tests**: `go test ./tests/golden/...`
+- **Update golden files**: `go test ./tests/golden/... -update`
+- **When to update**: Only update golden files after intentional changes to HTML output (styling, structure, features). Golden files are stored in `tests/golden/testdata/golden/`
+- **How they work**: Tests render markdown input to HTML, normalize volatile fields (dates), and compare against previously captured golden files. On first run, golden files are created and the test is skipped for manual review.
+
 ### Regression Testing with Real Samples
 
 - Changes to GitBook compatibility, chapter links, TOC parsing, or multi-language features should be regression-tested against at least one real book sample
