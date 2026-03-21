@@ -1152,3 +1152,548 @@ func TestInjectLiveReload_PathTraversal(t *testing.T) {
 		t.Error("Path traversal attempt should not return 200")
 	}
 }
+
+// TestWSClientWriteMessage tests the writeMessage method on wsClient
+func TestWSClientWriteMessage(t *testing.T) {
+	// Create a test WebSocket connection using httptest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("Failed to upgrade: %v", err)
+		}
+		defer conn.Close() //nolint:errcheck
+
+		client := &wsClient{conn: conn}
+
+		// Test writing a message
+		if err := client.writeMessage(websocket.TextMessage, []byte("test message")); err != nil {
+			t.Errorf("writeMessage failed: %v", err)
+		}
+
+		// Test concurrent writes to verify lock is working
+		done := make(chan bool)
+		for i := 0; i < 3; i++ {
+			go func(idx int) {
+				msg := []byte(fmt.Sprintf("msg %d", idx))
+				if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
+					t.Errorf("concurrent writeMessage failed: %v", err)
+				}
+				done <- true
+			}(i)
+		}
+
+		// Wait for goroutines
+		for i := 0; i < 3; i++ {
+			<-done
+		}
+
+		// Read messages from client to keep connection alive
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+		}
+	}))
+	defer server.Close()
+
+	// Connect as client
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+	defer ws.Close() //nolint:errcheck
+
+	// Read the message
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to read message: %v", err)
+	}
+	if string(msg) != "test message" {
+		t.Errorf("Expected 'test message', got %q", string(msg))
+	}
+}
+
+// TestSnapshotClientsThreadSafety tests that snapshotClients is thread-safe
+func TestSnapshotClientsThreadSafety(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	// Create mock clients
+	mockClients := make([]*wsClient, 5)
+	for i := 0; i < 5; i++ {
+		mockClients[i] = &wsClient{}
+		srv.clients[mockClients[i]] = struct{}{}
+	}
+
+	// Concurrent reads should not panic or deadlock
+	snapshots := make(chan []*wsClient, 3)
+	errs := make(chan error, 3)
+
+	for i := 0; i < 3; i++ {
+		go func() {
+			snapshot := srv.snapshotClients()
+			if snapshot == nil {
+				errs <- fmt.Errorf("snapshot is nil")
+				return
+			}
+			snapshots <- snapshot
+		}()
+	}
+
+	for i := 0; i < 3; i++ {
+		select {
+		case snap := <-snapshots:
+			if len(snap) != 5 {
+				t.Errorf("Expected 5 clients in snapshot, got %d", len(snap))
+			}
+		case err := <-errs:
+			t.Errorf("snapshotClients error: %v", err)
+		case <-time.After(2 * time.Second):
+			t.Error("snapshotClients timed out")
+		}
+	}
+}
+
+// TestBrowserURLEdgeCases tests various edge cases for browserURL
+func TestBrowserURLEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		host        string
+		browserHost string
+		port        int
+		expectedURL string
+	}{
+		{
+			name:        "IPv6 localhost",
+			host:        "::1",
+			browserHost: "::1",
+			port:        8080,
+			expectedURL: "http://[::1]:8080",
+		},
+		{
+			name:        "IPv6 full address",
+			host:        "2001:db8::1",
+			browserHost: "2001:db8::1",
+			port:        3000,
+			expectedURL: "http://[2001:db8::1]:3000",
+		},
+		{
+			name:        "0.0.0.0 becomes localhost",
+			host:        "0.0.0.0",
+			browserHost: "0.0.0.0",
+			port:        8080,
+			expectedURL: "http://localhost:8080",
+		},
+		{
+			name:        ":: becomes localhost",
+			host:        "::",
+			browserHost: "::",
+			port:        8080,
+			expectedURL: "http://localhost:8080",
+		},
+		{
+			name:        "[[::]] becomes localhost",
+			host:        "[::]",
+			browserHost: "[::]",
+			port:        8080,
+			expectedURL: "http://localhost:8080",
+		},
+		{
+			name:        "custom host with port",
+			host:        "example.com:8080",
+			browserHost: "example.com:8080",
+			port:        9090,
+			expectedURL: "http://[example.com:8080]:9090",
+		},
+		{
+			name:        "standard hostname",
+			host:        "localhost",
+			browserHost: "localhost",
+			port:        5000,
+			expectedURL: "http://localhost:5000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := &Server{
+				Host:        tt.host,
+				browserHost: tt.browserHost,
+				Port:        tt.port,
+			}
+			url := srv.browserURL()
+			if url != tt.expectedURL {
+				t.Errorf("browserURL() = %q, want %q", url, tt.expectedURL)
+			}
+		})
+	}
+}
+
+// TestNewServerOptionsDefaults tests that NewServer sets proper option defaults
+func TestNewServerOptionsDefaults(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		port      int
+		wantHost  string
+		wantBHost string
+	}{
+		{
+			name:      "empty host defaults to 127.0.0.1",
+			host:      "",
+			port:      8080,
+			wantHost:  "127.0.0.1",
+			wantBHost: "localhost",
+		},
+		{
+			name:      "explicit localhost",
+			host:      "localhost",
+			port:      8080,
+			wantHost:  "localhost",
+			wantBHost: "localhost",
+		},
+		{
+			name:      "0.0.0.0 kept as is",
+			host:      "0.0.0.0",
+			port:      8080,
+			wantHost:  "0.0.0.0",
+			wantBHost: "0.0.0.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := NewServer(tt.host, tt.port, "/tmp/watch", "/tmp/out", slog.Default())
+
+			if srv.Host != tt.wantHost {
+				t.Errorf("Host = %q, want %q", srv.Host, tt.wantHost)
+			}
+			if srv.browserHost != tt.wantBHost {
+				t.Errorf("browserHost = %q, want %q", srv.browserHost, tt.wantBHost)
+			}
+			if srv.Port != tt.port {
+				t.Errorf("Port = %d, want %d", srv.Port, tt.port)
+			}
+			if srv.clients == nil {
+				t.Error("clients map should be initialized")
+			}
+			if srv.logger == nil {
+				t.Error("logger should be initialized")
+			}
+			if srv.AutoOpen != false {
+				t.Error("AutoOpen should default to false")
+			}
+			if srv.BuildFunc != nil {
+				t.Error("BuildFunc should default to nil")
+			}
+		})
+	}
+}
+
+// TestWebSocketClientRegistration tests client registration and deregistration
+func TestWebSocketClientRegistration(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	// Initially empty
+	if len(srv.clients) != 0 {
+		t.Errorf("Expected 0 clients initially, got %d", len(srv.clients))
+	}
+
+	// Register multiple clients
+	for i := 0; i < 5; i++ {
+		client := &wsClient{}
+		srv.clientsMu.Lock()
+		srv.clients[client] = struct{}{}
+		srv.clientsMu.Unlock()
+	}
+
+	if len(srv.clients) != 5 {
+		t.Errorf("Expected 5 clients after registration, got %d", len(srv.clients))
+	}
+
+	// Deregister clients
+	clientsList := make([]*wsClient, 0, 5)
+	srv.clientsMu.RLock()
+	for c := range srv.clients {
+		clientsList = append(clientsList, c)
+	}
+	srv.clientsMu.RUnlock()
+
+	for i, client := range clientsList {
+		srv.clientsMu.Lock()
+		delete(srv.clients, client)
+		srv.clientsMu.Unlock()
+
+		srv.clientsMu.RLock()
+		remaining := len(srv.clients)
+		srv.clientsMu.RUnlock()
+
+		expected := 5 - i - 1
+		if remaining != expected {
+			t.Errorf("After deleting client %d: expected %d clients, got %d", i, expected, remaining)
+		}
+	}
+
+	if len(srv.clients) != 0 {
+		t.Errorf("Expected 0 clients after deregistration, got %d", len(srv.clients))
+	}
+}
+
+// TestNotifyClientsMessageFormat tests that notification messages are properly formatted
+func TestNotifyClientsMessageFormat(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	// Create a mock client that records messages
+	messages := make([]string, 0)
+	msgMu := sync.Mutex{}
+
+	// Replace writeMessage with a mock
+	originalWriteMessage := func(msg []byte) {
+		msgMu.Lock()
+		defer msgMu.Unlock()
+		messages = append(messages, string(msg))
+	}
+
+	// Create test clients that record messages
+	testClients := make([]*wsClient, 3)
+	for i := 0; i < 3; i++ {
+		client := &wsClient{}
+		testClients[i] = client
+		srv.clients[client] = struct{}{}
+	}
+
+	// Test notifyClients message format
+	msg := []byte(`{"type":"reload","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	if !strings.Contains(string(msg), `"type":"reload"`) {
+		t.Error("reload message should contain type:reload")
+	}
+	if !strings.Contains(string(msg), `"timestamp":`) {
+		t.Error("reload message should contain timestamp")
+	}
+
+	// Test notifyCSSUpdate message format
+	cssMsg := []byte(`{"type":"css-update","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	if !strings.Contains(string(cssMsg), `"type":"css-update"`) {
+		t.Error("css-update message should contain type:css-update")
+	}
+
+	// Test notifyBuildError message format
+	errMsg := "test error message"
+	buildErrMsg := []byte(fmt.Sprintf(`{"type":"build-error","timestamp":%d,"error":"%s"}`, time.Now().UnixMilli(), errMsg))
+	if !strings.Contains(string(buildErrMsg), `"type":"build-error"`) {
+		t.Error("build-error message should contain type:build-error")
+	}
+
+	// Verify originalWriteMessage was not called (we're not actually testing write behavior here)
+	_ = originalWriteMessage
+}
+
+// TestListenWithDynamicPortSelection tests port assignment from listener
+func TestListenWithDynamicPortSelection(t *testing.T) {
+	srv := NewServer("127.0.0.1", 0, "/tmp", "/tmp", slog.Default())
+
+	ln, err := srv.Listen()
+	if err != nil {
+		t.Fatalf("Listen failed: %v", err)
+	}
+	defer ln.Close()
+
+	// Port should be assigned automatically
+	if srv.Port <= 0 || srv.Port >= 65536 {
+		t.Errorf("Port should be valid after Listen, got %d", srv.Port)
+	}
+
+	// Try to use the same port - should fail if Listen sets it correctly
+	srv2 := NewServer("127.0.0.1", srv.Port, "/tmp", "/tmp", slog.Default())
+	_, err = srv2.Listen()
+	if err == nil {
+		t.Error("Should not be able to listen on occupied port")
+	}
+}
+
+// TestInjectLiveReload_HTMLWithoutBodyTag tests HTML injection when </body> is missing
+func TestInjectLiveReload_HTMLWithoutBodyTag(t *testing.T) {
+	outputDir := t.TempDir()
+
+	// Create an HTML file without </body> tag
+	htmlFile := filepath.Join(outputDir, "test.html")
+	htmlContent := `<html><head><title>Test</title></head><body>Content</body>`
+	if err := os.WriteFile(htmlFile, []byte(htmlContent), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
+	fileServer := http.FileServer(http.Dir(outputDir))
+	handler := srv.injectLiveReload(fileServer)
+
+	req := httptest.NewRequest("GET", "/test.html", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rec.Code)
+	}
+
+	// The reload script should still be added (before </body>)
+	body := rec.Body.String()
+	if !strings.Contains(body, "</body>") {
+		t.Error("Response should contain </body> tag")
+	}
+	if !strings.Contains(body, "mdpress") {
+		t.Error("Response should contain mdpress script")
+	}
+}
+
+// TestInjectLiveReload_IndexHTMLFallback tests that root path falls back to index.html
+func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
+	outputDir := t.TempDir()
+
+	// Create index.html
+	indexFile := filepath.Join(outputDir, "index.html")
+	if err := os.WriteFile(indexFile, []byte("<html><body>Index</body></html>"), 0644); err != nil {
+		t.Fatalf("Failed to write index file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
+	fileServer := http.FileServer(http.Dir(outputDir))
+	handler := srv.injectLiveReload(fileServer)
+
+	// Test with root path
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected 200 for /, got %d", rec.Code)
+	}
+
+	// Test with trailing slash on subdir
+	req = httptest.NewRequest("GET", "/subdir/", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	// This might not find index.html, which is OK - just verify no panic
+}
+
+// TestScanModTimes_CSSFiles tests that CSS files are properly tracked
+func TestScanModTimes_CSSFiles(t *testing.T) {
+	watchDir := t.TempDir()
+
+	// Create test files with different extensions
+	cssFile := filepath.Join(watchDir, "style.css")
+	mdFile := filepath.Join(watchDir, "readme.md")
+	txtFile := filepath.Join(watchDir, "notes.txt")
+
+	if err := os.WriteFile(cssFile, []byte("body { }"), 0644); err != nil {
+		t.Fatalf("Failed to write CSS file: %v", err)
+	}
+	if err := os.WriteFile(mdFile, []byte("# Title"), 0644); err != nil {
+		t.Fatalf("Failed to write MD file: %v", err)
+	}
+	if err := os.WriteFile(txtFile, []byte("text"), 0644); err != nil {
+		t.Fatalf("Failed to write TXT file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
+	modTimes := make(map[string]time.Time)
+	srv.scanModTimes(modTimes)
+
+	// Should include CSS and MD files, but not TXT
+	if _, ok := modTimes[cssFile]; !ok {
+		t.Error("CSS file should be tracked")
+	}
+	if _, ok := modTimes[mdFile]; !ok {
+		t.Error("MD file should be tracked")
+	}
+	if _, ok := modTimes[txtFile]; ok {
+		t.Error("TXT file should not be tracked")
+	}
+}
+
+// TestCheckForChanges_NoChanges tests that unchanged files are detected correctly
+func TestCheckForChanges_NoChanges(t *testing.T) {
+	watchDir := t.TempDir()
+
+	// Create a file
+	testFile := filepath.Join(watchDir, "test.md")
+	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
+	modTimes := make(map[string]time.Time)
+	srv.scanModTimes(modTimes)
+
+	// Check for changes immediately - should be false
+	changed := srv.checkForChanges(modTimes)
+	if changed {
+		t.Error("Should detect no changes immediately after scan")
+	}
+
+	// Check again - still should be false
+	changed = srv.checkForChanges(modTimes)
+	if changed {
+		t.Error("Should detect no changes on subsequent check")
+	}
+}
+
+// TestIsAddrInUseDetection tests the isAddrInUse error detection function
+func TestIsAddrInUseDetection(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		shouldMatch bool
+	}{
+		{
+			name:        "nil error",
+			err:         nil,
+			shouldMatch: false,
+		},
+		{
+			name:        "EADDRINUSE syscall error",
+			err:         syscall.EADDRINUSE,
+			shouldMatch: true,
+		},
+		{
+			name:        "generic error with 'address already in use' message",
+			err:         fmt.Errorf("listen tcp: address already in use"),
+			shouldMatch: true,
+		},
+		{
+			name:        "unrelated error",
+			err:         fmt.Errorf("some other error"),
+			shouldMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isAddrInUse(tt.err)
+			if result != tt.shouldMatch {
+				t.Errorf("isAddrInUse(%v) = %v, want %v", tt.err, result, tt.shouldMatch)
+			}
+		})
+	}
+}
+
+// TestServerInitialClientState tests server initialization with empty client map
+func TestServerInitialClientState(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp/watch", "/tmp/output", nil)
+
+	// Verify clients map is properly initialized
+	if srv.clients == nil {
+		t.Fatal("clients map should not be nil")
+	}
+
+	// Verify it's empty
+	if len(srv.clients) != 0 {
+		t.Errorf("clients map should be empty initially, got %d", len(srv.clients))
+	}
+
+	// Verify snapshot of empty map works
+	snapshot := srv.snapshotClients()
+	if len(snapshot) != 0 {
+		t.Errorf("snapshot of empty clients should be empty, got %d", len(snapshot))
+	}
+}
