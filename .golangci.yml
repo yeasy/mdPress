@@ -15,6 +15,9 @@ linters:
     - unconvert
     - bodyclose
     - noctx
+    - gosec
+    - gocritic
+    - gofmt
   settings:
     errcheck:
       # Allow blank identifier assignments like: _ = f() and _, _ = f()
@@ -42,6 +45,10 @@ linters:
       # bodyclose: Allow unclosed responses in test files
       - linters:
           - bodyclose
+        path: ".*_test\\.go"
+      # gosec: Suppress warnings in test files (hardcoded credentials, temp files, etc.)
+      - linters:
+          - gosec
         path: ".*_test\\.go"
 
 issues:
