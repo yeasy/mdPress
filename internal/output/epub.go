@@ -115,7 +115,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		Method: zip.Store, // Uncompressed
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create mimetype header: %w", err)
 	}
 	if _, err := mimeWriter.Write([]byte("application/epub+zip")); err != nil {
 		return fmt.Errorf("failed to write mimetype entry: %w", err)
@@ -123,50 +123,50 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 2. META-INF/container.xml
 	if err := writeZipFile(w, "META-INF/container.xml", containerXML); err != nil {
-		return err
+		return fmt.Errorf("failed to write container.xml: %w", err)
 	}
 
 	// 3. OEBPS/content.opf
 	opf := g.generateOPF(chapters, coverAsset, chapterAssets)
 	if err := writeZipFile(w, "OEBPS/content.opf", opf); err != nil {
-		return err
+		return fmt.Errorf("failed to write content.opf: %w", err)
 	}
 
 	// 4. EPUB 3 nav document.
 	nav := g.generateNavDocument(chapters)
 	if err := writeZipFile(w, "OEBPS/nav.xhtml", nav); err != nil {
-		return err
+		return fmt.Errorf("failed to write nav.xhtml: %w", err)
 	}
 
 	// 5. NCX kept for broader reader compatibility.
 	ncx := g.generateNCX(chapters)
 	if err := writeZipFile(w, "OEBPS/toc.ncx", ncx); err != nil {
-		return err
+		return fmt.Errorf("failed to write toc.ncx: %w", err)
 	}
 
 	// 6. Optional generated title page.
 	if g.meta.IncludeCover {
 		if err := writeZipFile(w, "OEBPS/cover.xhtml", g.generateCoverPage(coverAsset)); err != nil {
-			return err
+			return fmt.Errorf("failed to write cover.xhtml: %w", err)
 		}
 	}
 
 	// 7. Optional cover image asset.
 	if coverAsset != nil {
 		if err := writeZipBinaryFile(w, "OEBPS/"+coverAsset.Filename, coverAsset.Data); err != nil {
-			return err
+			return fmt.Errorf("failed to write cover image asset: %w", err)
 		}
 	}
 	for _, asset := range chapterAssets {
 		if err := writeZipBinaryFile(w, "OEBPS/"+asset.Filename, asset.Data); err != nil {
-			return err
+			return fmt.Errorf("failed to write asset %s: %w", asset.Filename, err)
 		}
 	}
 
 	// 8. OEBPS/style.css
 	if g.css != "" {
 		if err := writeZipFile(w, "OEBPS/style.css", g.css); err != nil {
-			return err
+			return fmt.Errorf("failed to write style.css: %w", err)
 		}
 	}
 
@@ -174,7 +174,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	for _, ch := range chapters {
 		xhtml := g.wrapXHTML(ch.Title, ch.HTML)
 		if err := writeZipFile(w, "OEBPS/"+ch.Filename, xhtml); err != nil {
-			return err
+			return fmt.Errorf("failed to write chapter %s: %w", ch.Filename, err)
 		}
 	}
 
