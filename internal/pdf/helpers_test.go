@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -83,37 +84,45 @@ func TestFileURLForCSSFormat(t *testing.T) {
 	}
 }
 
-// TestCJKFontSrcFormats tests different font format handling
-func TestCJKFontSrcFormats(t *testing.T) {
-	tests := []struct {
-		name       string
-		path       string
-		wantFormat string
-	}{
-		{"TTC collection", "/fonts/font.ttc", "collection"},
-		{"TTF truetype", "/fonts/font.ttf", "truetype"},
-		{"OTF opentype", "/fonts/font.otf", "opentype"},
-		{"OTC collection", "/fonts/font.otc", "collection"},
+// TestCJKFontSrcFallback tests that non-existent files produce file:// URL fallback
+func TestCJKFontSrcFallback(t *testing.T) {
+	src := cjkFontSource{path: "/nonexistent/font.ttc"}
+	result := cjkFontSrc(src)
+
+	// Non-existent file should fall back to file:// URL
+	if !strings.Contains(result, "file://") {
+		t.Errorf("Expected file:// fallback for non-existent file, got %q", result)
 	}
+	if !strings.Contains(result, "url(") {
+		t.Error("Should contain url() wrapper")
+	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			src := cjkFontSource{path: tt.path}
-			result := cjkFontSrc(src)
+// TestCJKFontSrcDataURI tests that existing files produce data: URI
+func TestCJKFontSrcDataURI(t *testing.T) {
+	// Create a temp font file
+	tmp, err := os.CreateTemp("", "test-font-*.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmp.Name())
+	tmp.Write([]byte("fake font data"))
+	tmp.Close()
 
-			if !strings.Contains(result, "format("+tt.wantFormat+")") {
-				t.Errorf("Expected format(%s), got %q", tt.wantFormat, result)
-			}
-		})
+	src := cjkFontSource{path: tmp.Name()}
+	result := cjkFontSrc(src)
+
+	if !strings.Contains(result, "data:font/ttf;base64,") {
+		t.Errorf("Expected data: URI for existing file, got %q", result)
 	}
 }
 
 // TestCJKFontSrcUnknownFormat tests fallback for unknown formats
 func TestCJKFontSrcUnknownFormat(t *testing.T) {
-	src := cjkFontSource{path: "/fonts/font.xyz"}
+	src := cjkFontSource{path: "/nonexistent/font.xyz"}
 	result := cjkFontSrc(src)
 
-	// Should still generate valid url() CSS
+	// Should still generate valid url() CSS (file:// fallback)
 	if !strings.Contains(result, "url(") {
 		t.Error("Should contain url() even for unknown format")
 	}
