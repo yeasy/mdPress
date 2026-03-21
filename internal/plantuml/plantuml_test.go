@@ -385,11 +385,6 @@ func TestLocalPlantumlCmdWithJar(t *testing.T) {
 	}
 	t.Setenv("PLANTUML_JAR", jarPath)
 
-	// java must be on PATH; if not, skip so CI without java still passes.
-	if _, err := os.LookupEnv("JAVA_HOME"); err {
-		// Fine – localPlantumlCmd will try LookPath("java"), which may succeed.
-	}
-
 	cmd, err := localPlantumlCmd()
 	if err != nil {
 		// Acceptable if java is not on PATH in this environment.
