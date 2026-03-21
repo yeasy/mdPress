@@ -87,7 +87,7 @@ func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, e
 // Render 将各个部分组装成完整的 HTML 文档
 func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	if parts == nil {
-		return "", fmt.Errorf("渲染部件不能为空")
+		return "", fmt.Errorf("render parts cannot be nil")
 	}
 
 	// 组装 CSS：主题 CSS + 自定义 CSS + 打印 CSS
