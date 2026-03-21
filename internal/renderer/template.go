@@ -12,7 +12,7 @@ package renderer
 //	.HeaderText - Header text
 //	.FooterText - Footer text
 const htmlTemplate = `<!DOCTYPE html>
-<html lang="{{if .Language}}{{.Language}}{{else}}zh-CN{{end}}">
+<html lang="{{if .Language}}{{.Language}}{{else}}en{{end}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
