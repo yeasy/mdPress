@@ -1172,20 +1172,19 @@ func TestWSClientWriteMessage(t *testing.T) {
 		}
 
 		// Test concurrent writes to verify lock is working
-		done := make(chan bool)
+		errs := make(chan error, 3)
 		for i := 0; i < 3; i++ {
 			go func(idx int) {
 				msg := []byte(fmt.Sprintf("msg %d", idx))
-				if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
-					t.Errorf("concurrent writeMessage failed: %v", err)
-				}
-				done <- true
+				errs <- client.writeMessage(websocket.TextMessage, msg)
 			}(i)
 		}
 
-		// Wait for goroutines
+		// Wait for goroutines and collect errors
 		for i := 0; i < 3; i++ {
-			<-done
+			if err := <-errs; err != nil {
+				t.Errorf("concurrent writeMessage failed: %v", err)
+			}
 		}
 
 		// Read messages from client to keep connection alive
@@ -1206,13 +1205,15 @@ func TestWSClientWriteMessage(t *testing.T) {
 	}
 	defer ws.Close() //nolint:errcheck
 
-	// Read the message
-	_, msg, err := ws.ReadMessage()
-	if err != nil {
-		t.Fatalf("Failed to read message: %v", err)
-	}
-	if string(msg) != "test message" {
-		t.Errorf("Expected 'test message', got %q", string(msg))
+	// Read all messages (1 initial + 3 concurrent)
+	for i := 0; i < 4; i++ {
+		_, msg, err := ws.ReadMessage()
+		if err != nil {
+			t.Fatalf("Failed to read message %d: %v", i, err)
+		}
+		if i == 0 && string(msg) != "test message" {
+			t.Errorf("Expected 'test message', got %q", string(msg))
+		}
 	}
 }
 
