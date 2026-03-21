@@ -28,6 +28,7 @@ type StandaloneHTMLRenderer struct {
 type standaloneData struct {
 	Title       string
 	Author      string
+	Language    string
 	CSS         template.CSS
 	Chapters    []standaloneChapter
 	SidebarHTML template.HTML
@@ -130,6 +131,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	data := standaloneData{
 		Title:       r.config.Book.Title,
 		Author:      r.config.Book.Author,
+		Language:    r.config.Book.Language,
 		CSS:         template.CSS(cssBuilder.String()),
 		Chapters:    chapters,
 		SidebarHTML: template.HTML(r.buildSidebar(parts.ChaptersHTML)),
@@ -241,7 +243,7 @@ func buildStandaloneSidebarTree(chapters []ChapterHTML) []standaloneSidebarChapt
 
 // standaloneHTMLTemplate 自包含单页 HTML 模板（GitBook 风格三栏布局）
 const standaloneHTMLTemplate = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="{{if .Language}}{{.Language}}{{else}}en{{end}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1459,13 +1461,25 @@ const standaloneHTMLTemplate = `<!DOCTYPE html>
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
         var item = btn.closest('.toc-group');
-        var children = item ? item.querySelector('.toc-children') : null;
+        var children = item ? item.querySelector(':scope > .toc-children') : null;
         if (!children) return;
         var expanded = btn.getAttribute('aria-expanded') === 'true';
-        // 直接切换当前章节，不关闭其他已展开章节（非手风琴模式）
         if (expanded) {
           collapseTocGroup(children, btn);
         } else {
+          // 手风琴模式：展开当前章节前，先收起同级的其他已展开章节
+          var parent = item.parentElement;
+          if (parent) {
+            var siblings = parent.querySelectorAll(':scope > .toc-group.has-children');
+            siblings.forEach(function(sib) {
+              if (sib === item) return;
+              var sibChildren = sib.querySelector(':scope > .toc-children');
+              var sibBtn = sib.querySelector(':scope > .toc-row > .toc-toggle');
+              if (sibChildren && !sibChildren.hidden) {
+                collapseTocGroup(sibChildren, sibBtn);
+              }
+            });
+          }
           expandTocGroup(children, btn);
         }
       });
