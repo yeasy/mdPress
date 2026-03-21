@@ -78,12 +78,43 @@ var systemCJKFontCandidates = []cjkFontCandidate{
 			"/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
 		},
 	},
-	// ── macOS system fonts (last resort) ───────────────────────────────────
-	// Chrome may not embed Core Text–managed system fonts cleanly, but they
-	// are better than no font at all on machines without user-installed CJK fonts.
+	// ── Homebrew / user-installed Noto CJK (macOS) ───────────────────────
+	{
+		family: "Noto Sans CJK SC (Homebrew)",
+		paths: func() []string {
+			var paths []string
+			for _, prefix := range []string{"/opt/homebrew/share/fonts", "/usr/local/share/fonts"} {
+				paths = append(paths,
+					prefix+"/NotoSansCJKsc-Regular.otf",
+					prefix+"/NotoSansCJK-Regular.ttc",
+				)
+			}
+			return paths
+		}(),
+	},
+	// ── macOS system fonts ────────────────────────────────────────────────
+	// PingFang SC is the default CJK font on macOS 10.11+.
+	// Chrome can embed fonts loaded via file:// URL even from the sealed
+	// system volume, because Chromium reads raw bytes via open(2), bypassing
+	// Core Text.
+	{
+		family: "PingFang SC",
+		paths:  []string{"/System/Library/Fonts/PingFang.ttc"},
+	},
 	{
 		family: "Hiragino Sans GB",
-		paths:  []string{"/System/Library/Fonts/Hiragino Sans GB.ttc"},
+		paths: []string{
+			"/System/Library/Fonts/Hiragino Sans GB.ttc",
+			"/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+			"/System/Library/Fonts/HiraginoSans-W3.ttc",
+		},
+	},
+	{
+		family: "Songti SC",
+		paths: []string{
+			"/System/Library/Fonts/Supplemental/Songti.ttc",
+			"/System/Library/Fonts/STSong.ttf",
+		},
 	},
 	{
 		family: "Heiti SC",
@@ -91,10 +122,6 @@ var systemCJKFontCandidates = []cjkFontCandidate{
 			"/System/Library/Fonts/STHeiti Light.ttc",
 			"/System/Library/Fonts/STHeiti Medium.ttc",
 		},
-	},
-	{
-		family: "Songti SC",
-		paths:  []string{"/System/Library/Fonts/Supplemental/Songti.ttc"},
 	},
 }
 
@@ -112,17 +139,27 @@ var systemCJKFontCandidates = []cjkFontCandidate{
 //     from disk for CJK code points — making those glyphs embeddable.
 //   - unicode-range limits "CJK-Embedded" to actual CJK code points; Latin
 //     and other characters continue to use the remaining font-family entries.
-func buildCJKFontFaceCSS() string {
+//
+// cjkFontResult holds the @font-face CSS and the path of the selected font.
+type cjkFontResult struct {
+	css      string // empty when no CJK font is found
+	fontPath string // filesystem path of the selected font
+	family   string // family name of the selected candidate
+}
+
+func buildCJKFontFaceCSS() cjkFontResult {
 	const cjkRange = "U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, " +
 		"U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, " +
 		"U+20000-2A6DF, U+2A700-2B73F, U+2B740-2B81F, U+2B820-2CEAF"
 
 	// Find the first available CJK font file.
 	var font cjkFontSource
+	var family string
 	for _, c := range systemCJKFontCandidates {
 		for _, p := range c.paths {
 			if _, err := os.Stat(p); err == nil {
 				font = cjkFontSource{path: p}
+				family = c.family
 				break
 			}
 		}
@@ -131,7 +168,7 @@ func buildCJKFontFaceCSS() string {
 		}
 	}
 	if font.path == "" {
-		return "" // no CJK font found; PDF may show blank squares for CJK characters
+		return cjkFontResult{} // no CJK font found
 	}
 
 	var css strings.Builder
@@ -148,7 +185,7 @@ func buildCJKFontFaceCSS() string {
 		"    \"Source Han Sans SC\", \"WenQuanYi Micro Hei\",\n" +
 		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;\n" +
 		"}\n")
-	return css.String()
+	return cjkFontResult{css: css.String(), fontPath: font.path, family: family}
 }
 
 func cjkFontSrc(src cjkFontSource) string {
@@ -180,12 +217,18 @@ func fileURLForCSS(path string) string {
 // When there is no </head> tag the block is prepended to the content.
 // Injecting into the HTML (rather than via JavaScript after page load) ensures
 // Chrome's font-matching pass sees the rules during the initial layout.
-func injectCJKFontFaceCSS(htmlContent string) string {
-	css := buildCJKFontFaceCSS()
-	if css == "" {
+func injectCJKFontFaceCSS(htmlContent string, logger *slog.Logger) string {
+	result := buildCJKFontFaceCSS()
+	if result.css == "" {
+		if logger != nil {
+			logger.Warn("No CJK font file found on system — PDF may show blank squares for CJK text")
+		}
 		return htmlContent
 	}
-	block := "<style data-cjk-fonts=\"1\">\n" + css + "</style>\n"
+	if logger != nil {
+		logger.Info("CJK font for PDF embedding", slog.String("family", result.family), slog.String("path", result.fontPath))
+	}
+	block := "<style data-cjk-fonts=\"1\">\n" + result.css + "</style>\n"
 	if idx := strings.Index(htmlContent, "</head>"); idx != -1 {
 		return htmlContent[:idx] + block + htmlContent[idx:]
 	}
@@ -397,7 +440,7 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	// Inject @font-face rules for CJK system fonts before writing the HTML
 	// to disk.  Injecting into the HTML (rather than via JS after page load)
 	// ensures Chrome's font-matching pass sees the rules during initial layout.
-	htmlContent = injectCJKFontFaceCSS(htmlContent)
+	htmlContent = injectCJKFontFaceCSS(htmlContent, slog.Default())
 
 	// Write the HTML to a temporary file first.
 	tmpFile, err := os.CreateTemp("", "mdpress-*.html")
