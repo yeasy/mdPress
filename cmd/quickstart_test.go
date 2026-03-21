@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -285,4 +286,590 @@ func TestQuickstartHiddenFilesDetection(t *testing.T) {
 	if err == nil {
 		t.Error("executeQuickstart should reject directory with hidden files")
 	}
+}
+
+// Test quickstart command creation and basic properties
+func TestQuickstartCommand(t *testing.T) {
+	if quickstartCmd == nil {
+		t.Fatal("quickstartCmd should not be nil")
+	}
+
+	if quickstartCmd.Use != "quickstart [directory]" {
+		t.Errorf("expected Use %q, got %q", "quickstart [directory]", quickstartCmd.Use)
+	}
+
+	if quickstartCmd.Short == "" {
+		t.Error("quickstartCmd.Short should not be empty")
+	}
+
+	if quickstartCmd.Long == "" {
+		t.Error("quickstartCmd.Long should not be empty")
+	}
+}
+
+// Test that command has correct argument validation
+func TestQuickstartCommandArgsValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "no arguments",
+			args:    []string{},
+			wantErr: false,
+		},
+		{
+			name:    "one argument",
+			args:    []string{"my-book"},
+			wantErr: false,
+		},
+		{
+			name:    "two arguments should error",
+			args:    []string{"dir1", "dir2"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := quickstartCmd.Args(quickstartCmd, tt.args)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("expected error %v, got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+// Test directory validation with empty vs non-empty checks
+func TestDirectoryValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func(dir string) error
+		expectError  bool
+		errorPattern string
+	}{
+		{
+			name: "non-existent directory",
+			setup: func(dir string) error {
+				return nil // don't create it
+			},
+			expectError: false,
+		},
+		{
+			name: "empty existing directory",
+			setup: func(dir string) error {
+				return os.MkdirAll(dir, 0755)
+			},
+			expectError: false,
+		},
+		{
+			name: "directory with regular file",
+			setup: func(dir string) error {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0644)
+			},
+			expectError:  true,
+			errorPattern: "already exists and is not empty",
+		},
+		{
+			name: "directory with subdirectory",
+			setup: func(dir string) error {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return err
+				}
+				return os.MkdirAll(filepath.Join(dir, "subdir"), 0755)
+			},
+			expectError:  true,
+			errorPattern: "already exists and is not empty",
+		},
+		{
+			name: "directory with hidden file",
+			setup: func(dir string) error {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					return err
+				}
+				return os.WriteFile(filepath.Join(dir, ".hidden"), []byte("hidden"), 0644)
+			},
+			expectError:  true,
+			errorPattern: "already exists and is not empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			projectDir := filepath.Join(tmpDir, "test-project")
+
+			if err := tt.setup(projectDir); err != nil {
+				t.Fatalf("setup failed: %v", err)
+			}
+
+			err := executeQuickstart(projectDir)
+			if (err != nil) != tt.expectError {
+				t.Errorf("expected error %v, got %v: %v", tt.expectError, err != nil, err)
+			}
+			if tt.expectError && err != nil && tt.errorPattern != "" {
+				if !strings.Contains(err.Error(), tt.errorPattern) {
+					t.Errorf("expected error containing %q, got %q", tt.errorPattern, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// Test template file generation with table-driven tests
+func TestTemplateGeneration(t *testing.T) {
+	tests := []struct {
+		name             string
+		filePath         string
+		projectName      string
+		shouldContain    []string
+		shouldNotContain []string
+	}{
+		{
+			name:        "book.yaml generation",
+			filePath:    "book.yaml",
+			projectName: "test-book",
+			shouldContain: []string{
+				"title: \"test-book\"",
+				"subtitle: \"A sample book created with mdpress\"",
+				"author: \"Your Name\"",
+				"version: \"1.0.0\"",
+				"language: \"en-US\"",
+				"chapters:",
+				"Preface",
+				"Chapter 1: Getting Started",
+				"output:",
+				"filename: \"test-book.pdf\"",
+			},
+			shouldNotContain: []string{},
+		},
+		{
+			name:        "README.md generation",
+			filePath:    "README.md",
+			projectName: "my-project",
+			shouldContain: []string{
+				"# my-project",
+				"mdpress",
+				"Book configuration",
+				"Quick Start",
+				"mdpress build",
+				"mdpress serve",
+			},
+			shouldNotContain: []string{},
+		},
+		{
+			name:     "preface.md generation",
+			filePath: "preface.md",
+			shouldContain: []string{
+				"# Preface",
+				"Welcome to this sample book",
+				"mdpress",
+				"Markdown authoring",
+				"Multiple output formats",
+			},
+			shouldNotContain: []string{},
+		},
+		{
+			name:     "chapter01 generation",
+			filePath: filepath.Join("chapter01", "README.md"),
+			shouldContain: []string{
+				"# Getting Started",
+				"Install mdpress",
+				"Create a Project",
+				"Write Content",
+				"Build Output",
+			},
+			shouldNotContain: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			projectDir := filepath.Join(tmpDir, tt.projectName)
+
+			if err := executeQuickstart(projectDir); err != nil {
+				t.Fatalf("executeQuickstart failed: %v", err)
+			}
+
+			filePath := filepath.Join(projectDir, tt.filePath)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("failed to read file %s: %v", tt.filePath, err)
+			}
+
+			contentStr := string(content)
+			for _, substr := range tt.shouldContain {
+				if !strings.Contains(contentStr, substr) {
+					t.Errorf("expected file to contain %q, got:\n%s", substr, contentStr[:min(len(contentStr), 500)])
+				}
+			}
+
+			for _, substr := range tt.shouldNotContain {
+				if strings.Contains(contentStr, substr) {
+					t.Errorf("expected file to NOT contain %q", substr)
+				}
+			}
+		})
+	}
+}
+
+// Test book.yaml content generation with different project names
+func TestBookYAMLContent(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectName string
+		checks      func(t *testing.T, content string)
+	}{
+		{
+			name:        "simple project name",
+			projectName: "my-book",
+			checks: func(t *testing.T, content string) {
+				if !strings.Contains(content, `title: "my-book"`) {
+					t.Error("expected title to match project name")
+				}
+				if !strings.Contains(content, `filename: "my-book.pdf"`) {
+					t.Error("expected filename to match project name")
+				}
+			},
+		},
+		{
+			name:        "long project name",
+			projectName: "very-long-project-name-with-many-words",
+			checks: func(t *testing.T, content string) {
+				if !strings.Contains(content, `title: "very-long-project-name-with-many-words"`) {
+					t.Error("expected title to match project name")
+				}
+			},
+		},
+		{
+			name:        "special characters in name",
+			projectName: "project-with-dashes_and_underscores",
+			checks: func(t *testing.T, content string) {
+				if !strings.Contains(content, `filename: "project-with-dashes_and_underscores.pdf"`) {
+					t.Error("expected filename to preserve special characters")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			yaml := generateQuickstartBookYAML(tt.projectName)
+			tt.checks(t, yaml)
+		})
+	}
+}
+
+// Test SVG cover generation with special characters and truncation
+func TestPlaceholderCoverSVG(t *testing.T) {
+	tests := []struct {
+		name        string
+		title       string
+		expectedSVG string
+		shouldMatch bool
+	}{
+		{
+			name:        "simple title",
+			title:       "My Book",
+			expectedSVG: "My Book",
+			shouldMatch: true,
+		},
+		{
+			name:        "title with special chars",
+			title:       "Book & Guide",
+			expectedSVG: "Book &amp; Guide",
+			shouldMatch: true,
+		},
+		{
+			name:        "title with angle brackets",
+			title:       "Book <advanced>",
+			expectedSVG: "Book &lt;advanced&gt;",
+			shouldMatch: true,
+		},
+		{
+			name:        "long title truncation",
+			title:       "This is a very long book title that should be truncated",
+			expectedSVG: "This is a very long ...",
+			shouldMatch: true,
+		},
+		{
+			name:        "SVG structure",
+			title:       "Test",
+			expectedSVG: "<svg xmlns=",
+			shouldMatch: true,
+		},
+		{
+			name:        "gradient definition",
+			title:       "Test",
+			expectedSVG: "linearGradient",
+			shouldMatch: true,
+		},
+		{
+			name:        "mdpress attribution",
+			title:       "Test",
+			expectedSVG: "Built with mdpress",
+			shouldMatch: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svg := generatePlaceholderCoverSVG(tt.title)
+			if tt.shouldMatch {
+				if !strings.Contains(svg, tt.expectedSVG) {
+					t.Errorf("expected SVG to contain %q, got:\n%s", tt.expectedSVG, svg[:min(len(svg), 300)])
+				}
+			} else {
+				if strings.Contains(svg, tt.expectedSVG) {
+					t.Errorf("expected SVG to NOT contain %q", tt.expectedSVG)
+				}
+			}
+		})
+	}
+}
+
+// Test error handling for path resolution
+func TestPathResolutionError(t *testing.T) {
+	// This is challenging to test without mocking or special setup.
+	// We test a normal case where path resolution should work.
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "path-test")
+
+	err := executeQuickstart(projectDir)
+	if err != nil {
+		t.Fatalf("executeQuickstart with normal path should not error: %v", err)
+	}
+
+	// Verify the directory was created
+	if _, err := os.Stat(projectDir); err != nil {
+		t.Errorf("project directory should exist: %v", err)
+	}
+}
+
+// Test content of generated chapters
+func TestGeneratedChapterContent(t *testing.T) {
+	tests := []struct {
+		name          string
+		chapterPath   string
+		shouldContain []string
+	}{
+		{
+			name:        "chapter01 content",
+			chapterPath: filepath.Join("chapter01", "README.md"),
+			shouldContain: []string{
+				"Getting Started",
+				"Install mdpress",
+				"Build Output",
+			},
+		},
+		{
+			name:        "chapter02 content",
+			chapterPath: filepath.Join("chapter02", "README.md"),
+			shouldContain: []string{
+				"Advanced Usage",
+				"Config File",
+				"Live Preview",
+			},
+		},
+		{
+			name:        "chapter03 content",
+			chapterPath: filepath.Join("chapter03", "README.md"),
+			shouldContain: []string{
+				"Best Practices",
+				"Project Organization",
+				"Version Control",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			projectDir := filepath.Join(tmpDir, "chapter-test")
+
+			if err := executeQuickstart(projectDir); err != nil {
+				t.Fatalf("executeQuickstart failed: %v", err)
+			}
+
+			filePath := filepath.Join(projectDir, tt.chapterPath)
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				t.Fatalf("failed to read chapter file: %v", err)
+			}
+
+			contentStr := string(content)
+			for _, substr := range tt.shouldContain {
+				if !strings.Contains(contentStr, substr) {
+					t.Errorf("expected chapter to contain %q", substr)
+				}
+			}
+		})
+	}
+}
+
+// Test images directory structure
+func TestImagesDirectoryStructure(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "images-structure-test")
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("executeQuickstart failed: %v", err)
+	}
+
+	imagesDir := filepath.Join(projectDir, "images")
+	expectedFiles := []string{
+		filepath.Join(imagesDir, "README.md"),
+		filepath.Join(imagesDir, "cover.svg"),
+	}
+
+	for _, expectedFile := range expectedFiles {
+		if _, err := os.Stat(expectedFile); err != nil {
+			t.Errorf("expected file %s to exist: %v", expectedFile, err)
+		}
+	}
+
+	// Verify README.md in images directory has useful content
+	imagesReadmePath := filepath.Join(imagesDir, "README.md")
+	content, err := os.ReadFile(imagesReadmePath)
+	if err != nil {
+		t.Fatalf("failed to read images/README.md: %v", err)
+	}
+
+	contentStr := string(content)
+	expectedTexts := []string{"Image Assets", "Supported Formats", "PNG", "JPEG", "SVG"}
+	for _, text := range expectedTexts {
+		if !strings.Contains(contentStr, text) {
+			t.Errorf("expected images README to contain %q", text)
+		}
+	}
+}
+
+// Test all chapters are listed in book.yaml
+func TestChaptersInBookYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "chapters-yaml-test")
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("executeQuickstart failed: %v", err)
+	}
+
+	bookPath := filepath.Join(projectDir, "book.yaml")
+	content, err := os.ReadFile(bookPath)
+	if err != nil {
+		t.Fatalf("failed to read book.yaml: %v", err)
+	}
+
+	contentStr := string(content)
+	expectedChapters := []string{
+		"Preface",
+		"preface.md",
+		"Chapter 1: Getting Started",
+		"chapter01/README.md",
+		"Chapter 2: Advanced Usage",
+		"chapter02/README.md",
+		"Chapter 3: Best Practices",
+		"chapter03/README.md",
+	}
+
+	for _, chapter := range expectedChapters {
+		if !strings.Contains(contentStr, chapter) {
+			t.Errorf("expected book.yaml to contain %q", chapter)
+		}
+	}
+}
+
+// Test default directory name
+func TestDefaultDirectoryName(t *testing.T) {
+	tmpDir := t.TempDir()
+	defaultDir := filepath.Join(tmpDir, "my-book")
+
+	// Create a test scenario where we simulate default behavior
+	err := executeQuickstart(defaultDir)
+	if err != nil {
+		t.Fatalf("executeQuickstart with default name should not error: %v", err)
+	}
+
+	// Verify project was created
+	if _, err := os.Stat(filepath.Join(defaultDir, "book.yaml")); err != nil {
+		t.Errorf("book.yaml should exist in default directory: %v", err)
+	}
+}
+
+// Test nested directory creation
+func TestNestedDirectoryCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Create a path with multiple non-existent parent directories
+	projectDir := filepath.Join(tmpDir, "parent", "child", "project")
+
+	err := executeQuickstart(projectDir)
+	if err != nil {
+		t.Fatalf("executeQuickstart should create nested directories: %v", err)
+	}
+
+	// Verify the nested directory structure was created
+	if _, err := os.Stat(projectDir); err != nil {
+		t.Errorf("nested project directory should exist: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(projectDir, "book.yaml")); err != nil {
+		t.Errorf("book.yaml should exist in nested directory: %v", err)
+	}
+}
+
+// Test SVG XML special character handling
+func TestSVGSpecialCharacterHandling(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "ampersand",
+			input:    "Fish & Chips",
+			expected: "Fish &amp; Chips",
+		},
+		{
+			name:     "less than",
+			input:    "Value < 10",
+			expected: "Value &lt; 10",
+		},
+		{
+			name:     "greater than",
+			input:    "Value > 10",
+			expected: "Value &gt; 10",
+		},
+		{
+			name:     "multiple special chars",
+			input:    "A & B < C > D",
+			expected: "A &amp; B &lt; C &gt; D",
+		},
+		{
+			name:     "no special chars",
+			input:    "Normal Title",
+			expected: "Normal Title",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svg := generatePlaceholderCoverSVG(tt.input)
+			if !strings.Contains(svg, tt.expected) {
+				t.Errorf("expected SVG to contain %q, got:\n%s", tt.expected, svg)
+			}
+		})
+	}
+}
+
+// Helper function
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
