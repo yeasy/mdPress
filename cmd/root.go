@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -100,9 +101,13 @@ func Execute() error {
 
 func configureRuntimeCacheEnv() {
 	if cacheDir != "" {
-		_ = os.Setenv("MDPRESS_CACHE_DIR", cacheDir)
+		if err := os.Setenv("MDPRESS_CACHE_DIR", cacheDir); err != nil {
+			slog.Debug("Failed to set MDPRESS_CACHE_DIR environment variable", slog.String("error", err.Error()))
+		}
 	}
 	if noCache {
-		_ = os.Setenv("MDPRESS_DISABLE_CACHE", "1")
+		if err := os.Setenv("MDPRESS_DISABLE_CACHE", "1"); err != nil {
+			slog.Debug("Failed to set MDPRESS_DISABLE_CACHE environment variable", slog.String("error", err.Error()))
+		}
 	}
 }

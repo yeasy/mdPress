@@ -101,7 +101,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	defer func() {
 		if !success {
 			if !fileClosed {
-				f.Close()
+				f.Close() //nolint:errcheck
 			}
 			os.Remove(outputPath)
 		}

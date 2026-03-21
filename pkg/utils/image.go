@@ -347,7 +347,11 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 	if len(unique) == 0 {
 		return nil
 	}
-	_ = EnsureDir(options.CacheDir)
+	if err := EnsureDir(options.CacheDir); err != nil {
+		if options.Logger != nil {
+			options.Logger.Debug("Failed to ensure cache directory exists", slog.String("dir", options.CacheDir), slog.String("error", err.Error()))
+		}
+	}
 
 	results := make(map[string]string, len(unique))
 	var mu sync.Mutex
