@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // GitHubSource clones content from a GitHub repository.
@@ -76,7 +77,11 @@ func (s *GitHubSource) Prepare() (string, error) {
 	}
 	args = append(args, cloneURL, tempDir)
 
-	cmd := exec.CommandContext(context.Background(), "git", args...)
+	// Create a context with a 5-minute timeout for git clone.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
