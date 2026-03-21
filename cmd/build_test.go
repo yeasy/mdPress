@@ -347,8 +347,6 @@ func TestRewriteMarkdownLinksInHTML_ValidTargets(t *testing.T) {
 
 // TestBuildVariables_Initialization tests that build variables are initialized
 func TestBuildVariables_Initialization(t *testing.T) {
-	// These variables should be defined (even if empty by default)
-	// We're testing that they exist and are accessible
 	_ = buildFormat
 	_ = buildBranch
 	_ = buildSubDir
@@ -375,5 +373,67 @@ func TestBuildCommand_SupportsMultipleFormats(t *testing.T) {
 		if !strings.Contains(buildCmd.Long, format) {
 			t.Errorf("build help should mention %q format", format)
 		}
+	}
+}
+
+// TestNewBuildCmd ensures newBuildCmd creates proper cobra command
+func TestNewBuildCmd(t *testing.T) {
+	if buildCmd == nil {
+		t.Fatal("buildCmd must not be nil")
+	}
+
+	if buildCmd.Use == "" {
+		t.Error("buildCmd.Use should not be empty")
+	}
+
+	if buildCmd.Short == "" {
+		t.Error("buildCmd.Short should not be empty")
+	}
+
+	if buildCmd.RunE == nil {
+		t.Error("buildCmd.RunE should not be nil")
+	}
+}
+
+// TestBuildFlagTypes ensures all flags have correct types
+func TestBuildFlagTypes(t *testing.T) {
+	formatFlag := buildCmd.Flags().Lookup("format")
+	if formatFlag == nil {
+		t.Fatal("format flag should exist")
+	}
+	if formatFlag.Value.Type() != "string" {
+		t.Errorf("format flag should be string type, got %q", formatFlag.Value.Type())
+	}
+
+	branchFlag := buildCmd.Flags().Lookup("branch")
+	if branchFlag == nil {
+		t.Fatal("branch flag should exist")
+	}
+	if branchFlag.Value.Type() != "string" {
+		t.Errorf("branch flag should be string type, got %q", branchFlag.Value.Type())
+	}
+
+	subdirFlag := buildCmd.Flags().Lookup("subdir")
+	if subdirFlag == nil {
+		t.Fatal("subdir flag should exist")
+	}
+	if subdirFlag.Value.Type() != "string" {
+		t.Errorf("subdir flag should be string type, got %q", subdirFlag.Value.Type())
+	}
+
+	outputFlag := buildCmd.Flags().Lookup("output")
+	if outputFlag == nil {
+		t.Fatal("output flag should exist")
+	}
+	if outputFlag.Value.Type() != "string" {
+		t.Errorf("output flag should be string type, got %q", outputFlag.Value.Type())
+	}
+
+	summaryFlag := buildCmd.Flags().Lookup("summary")
+	if summaryFlag == nil {
+		t.Fatal("summary flag should exist")
+	}
+	if summaryFlag.Value.Type() != "string" {
+		t.Errorf("summary flag should be string type, got %q", summaryFlag.Value.Type())
 	}
 }
