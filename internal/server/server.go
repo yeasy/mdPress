@@ -596,13 +596,16 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 	defer ticker.Stop()
 
 	var debounceTimer *time.Timer
+	var debounceMu sync.Mutex
 
 	// Stop any pending debounce timer when the watcher exits to prevent
 	// the callback from firing after the server has begun shutting down.
 	defer func() {
+		debounceMu.Lock()
 		if debounceTimer != nil {
 			debounceTimer.Stop()
 		}
+		debounceMu.Unlock()
 	}()
 
 	for {
@@ -612,6 +615,7 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 		case <-ticker.C:
 			changed := s.checkForChanges(lastModTimes)
 			if changed {
+				debounceMu.Lock()
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
@@ -626,6 +630,7 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 					s.logger.Info("Build completed, notifying browser to reload")
 					s.notifyClients()
 				})
+				debounceMu.Unlock()
 			}
 		}
 	}
