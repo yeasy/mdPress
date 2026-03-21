@@ -4,9 +4,10 @@ package pdf
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -179,40 +180,71 @@ func buildCJKFontFaceCSS() cjkFontResult {
 		cjkFontSrc(font), cjkRange)
 	// Override body font-family so Chrome selects "CJK-Embedded" for CJK code
 	// points instead of a Core Text–managed system font.
+	// Use !important to win the CSS cascade over theme CSS which sets
+	// body { font-family: var(--font-family); } and would otherwise
+	// override this injection, causing CJK characters to render as tofu.
 	css.WriteString("body {\n" +
 		"  font-family: \"CJK-Embedded\", -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n" +
 		"    \"PingFang SC\", \"Hiragino Sans GB\", \"Heiti SC\", \"Heiti TC\",\n" +
 		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
 		"    \"Source Han Sans SC\", \"WenQuanYi Micro Hei\",\n" +
-		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;\n" +
+		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif !important;\n" +
+		"}\n")
+	// Override monospace elements too — code/pre have their own font-family
+	// that does not inherit from body, so CJK characters in code blocks would
+	// be missing without this rule.
+	css.WriteString("code, pre, kbd, samp, .hljs {\n" +
+		"  font-family: \"CJK-Embedded\", ui-monospace, \"SF Mono\", Menlo, Monaco,\n" +
+		"    Consolas, \"Liberation Mono\", \"Courier New\",\n" +
+		"    \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\",\n" +
+		"    \"Noto Sans Mono CJK SC\", monospace !important;\n" +
+		"}\n")
+	// Override Mermaid SVG text elements — Mermaid renders diagrams as SVG
+	// and sets font-family directly on <text>/<foreignObject> elements.
+	// Without this rule, CJK characters in diagrams render as tofu in PDF.
+	css.WriteString(".mermaid text, .mermaid tspan, .mermaid foreignObject,\n" +
+		".mermaid .label, .mermaid .nodeLabel, .mermaid .edgeLabel,\n" +
+		".mermaid .cluster-label, .mermaid .titleText,\n" +
+		".mermaid [class*=\"Label\"] {\n" +
+		"  font-family: \"CJK-Embedded\", \"PingFang SC\", \"Hiragino Sans GB\",\n" +
+		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
+		"    \"Source Han Sans SC\", sans-serif !important;\n" +
 		"}\n")
 	return cjkFontResult{css: css.String(), fontPath: font.path, family: family}
 }
 
 func cjkFontSrc(src cjkFontSource) string {
-	// Primary strategy: embed the font as a data: URI.
-	// Chrome's headless PrintToPDF on macOS cannot reliably embed fonts loaded
-	// via file:// @font-face into the PDF output (glyphs render on screen but
-	// are silently dropped during PDF serialization).  Inlining the font bytes
-	// as a data: URI guarantees Chrome has the raw font data in memory and can
-	// embed the glyphs into the PDF.
-	data, err := os.ReadFile(src.path)
-	if err == nil {
-		encoded := base64.StdEncoding.EncodeToString(data)
-		mime := "font/ttf"
-		switch strings.ToLower(filepath.Ext(src.path)) {
-		case ".ttc", ".otc":
-			mime = "font/collection"
-		case ".otf":
-			mime = "font/otf"
-		case ".woff":
-			mime = "font/woff"
-		case ".woff2":
-			mime = "font/woff2"
-		}
-		return fmt.Sprintf("url(data:%s;base64,%s)", mime, encoded)
+	// Use a relative URL that will be resolved by the local HTTP server
+	// started in Generate().  Previous approaches (file:// URLs and data:
+	// URIs) failed on macOS because:
+	//   - file:// fonts: Chrome's Skia PDF backend cannot embed fonts loaded
+	//     from file:// @font-face on macOS (glyphs render on screen but are
+	//     silently dropped during PDF serialization).
+	//   - data: URIs: TTC font files are 20+ MB; base64 encoding produces
+	//     30+ MB of inline CSS that Chrome cannot reliably parse.
+	// Serving fonts via HTTP (localhost) lets Chrome's network stack fetch
+	// the raw font bytes, which Skia can then embed into the PDF output.
+	//
+	// A format() hint helps Chrome correctly identify the font format,
+	// especially for TTC (TrueType Collection) files like PingFang.ttc.
+	ext := strings.ToLower(filepath.Ext(src.path))
+	switch ext {
+	case ".ttc", ".otc":
+		return `url("/cjk-font") format("collection")`
+	case ".otf":
+		return `url("/cjk-font") format("opentype")`
+	case ".woff":
+		return `url("/cjk-font") format("woff")`
+	case ".woff2":
+		return `url("/cjk-font") format("woff2")`
+	default: // .ttf or unknown
+		return `url("/cjk-font") format("truetype")`
 	}
-	// Fallback: file:// URL (may not work for PDF embedding on macOS).
+}
+
+// cjkFontSrcFallback returns a file:// URL for use in non-HTTP contexts
+// (e.g. when the HTML is loaded directly from disk without the font server).
+func cjkFontSrcFallback(src cjkFontSource) string {
 	fontURL := fileURLForCSS(src.path)
 	return fmt.Sprintf("url(%q)", fontURL)
 }
@@ -440,6 +472,65 @@ func WarnIfCJKFontsMissing(htmlContent string, logger interface{ Warn(string, ..
 	}
 }
 
+// fontServer serves HTML and CJK font files over localhost HTTP so that
+// Chrome can load fonts via standard HTTP requests.  This avoids file:// and
+// data: URI issues with font embedding on macOS.
+type fontServer struct {
+	listener net.Listener
+	server   *http.Server
+	baseURL  string
+}
+
+// newFontServer starts an HTTP server on a random localhost port, serving
+// the given HTML content at "/" and the CJK font file at "/cjk-font".
+func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to start font server: %w", err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(htmlContent)) //nolint:errcheck
+	})
+	if fontPath != "" {
+		mux.HandleFunc("/cjk-font", func(w http.ResponseWriter, r *http.Request) {
+			ext := strings.ToLower(filepath.Ext(fontPath))
+			switch ext {
+			case ".ttf":
+				w.Header().Set("Content-Type", "font/ttf")
+			case ".otf":
+				w.Header().Set("Content-Type", "font/otf")
+			case ".ttc", ".otc":
+				w.Header().Set("Content-Type", "font/collection")
+			case ".woff":
+				w.Header().Set("Content-Type", "font/woff")
+			case ".woff2":
+				w.Header().Set("Content-Type", "font/woff2")
+			default:
+				w.Header().Set("Content-Type", "application/octet-stream")
+			}
+			http.ServeFile(w, r, fontPath)
+		})
+	}
+	server := &http.Server{Handler: mux}
+	go server.Serve(listener) //nolint:errcheck
+	return &fontServer{
+		listener: listener,
+		server:   server,
+		baseURL:  fmt.Sprintf("http://%s", listener.Addr().String()),
+	}, nil
+}
+
+func (fs *fontServer) Close() {
+	fs.server.Close()
+	fs.listener.Close()
+}
+
 // Generate renders an HTML string to a PDF file.
 func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if outputPath == "" {
@@ -449,12 +540,39 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 		return fmt.Errorf("HTML content cannot be empty")
 	}
 
-	// Inject @font-face rules for CJK system fonts before writing the HTML
-	// to disk.  Injecting into the HTML (rather than via JS after page load)
-	// ensures Chrome's font-matching pass sees the rules during initial layout.
-	htmlContent = injectCJKFontFaceCSS(htmlContent, slog.Default())
+	// Find a CJK font and inject @font-face CSS into the HTML.
+	cjkResult := buildCJKFontFaceCSS()
+	if cjkResult.css != "" {
+		slog.Info("CJK font for PDF embedding",
+			slog.String("family", cjkResult.family),
+			slog.String("path", cjkResult.fontPath))
+		block := "<style data-cjk-fonts=\"1\">\n" + cjkResult.css + "</style>\n"
+		if idx := strings.Index(htmlContent, "</head>"); idx != -1 {
+			htmlContent = htmlContent[:idx] + block + htmlContent[idx:]
+		} else {
+			htmlContent = block + htmlContent
+		}
+	} else {
+		slog.Warn("No CJK font file found on system — PDF may show blank squares for CJK text")
+	}
 
-	// Write the HTML to a temporary file first.
+	// Start a local HTTP server to serve HTML + CJK font.  Chrome loads the
+	// page from http://localhost which lets it fetch the font via standard
+	// HTTP — avoiding file:// and data: URI embedding issues on macOS.
+	srv, err := newFontServer(htmlContent, cjkResult.fontPath)
+	if err != nil {
+		// Fall back to file-based approach if HTTP server fails.
+		slog.Warn("Failed to start font server, falling back to file:// approach",
+			slog.String("error", err.Error()))
+		return g.generateFromString(htmlContent, outputPath)
+	}
+	defer srv.Close()
+
+	return g.generateFromURL(srv.baseURL, outputPath)
+}
+
+// generateFromString writes HTML to a temp file and generates PDF from it.
+func (g *Generator) generateFromString(htmlContent string, outputPath string) error {
 	tmpFile, err := os.CreateTemp("", "mdpress-*.html")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
@@ -481,6 +599,16 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 		return fmt.Errorf("HTML file does not exist: %w", err)
 	}
 
+	fileURL := (&url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(absHTMLPath),
+	}).String()
+
+	return g.generateFromURL(fileURL, outputPath)
+}
+
+// generateFromURL opens pageURL in Chrome and prints it to PDF.
+func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	chromePath, err := resolveChromiumPath()
 	if err != nil {
 		return err
@@ -496,45 +624,55 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
 	defer cancel()
 
-	// Create the chromedp context.
 	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
-	// Apply the timeout.
 	ctx, cancel = context.WithTimeout(ctx, g.timeout)
 	defer cancel()
 
-	fileURL := (&url.URL{
-		Scheme: "file",
-		Path:   filepath.ToSlash(absHTMLPath),
-	}).String()
-
-	// Convert millimeters to inches because PrintToPDF expects inches.
 	mmToInch := func(mm float64) float64 { return mm / 25.4 }
 
 	var pdfBuf []byte
 	err = chromedp.Run(ctx,
-		chromedp.Navigate(fileURL),
+		chromedp.Navigate(pageURL),
 		chromedp.WaitReady("body"),
-		// Wait for all @font-face sources (including file:// URLs) to finish
-		// loading.  document.fonts.ready is a Promise that resolves only after
-		// all pending font resources have been fetched and parsed, ensuring
-		// the CJK glyphs are available to Skia when PrintToPDF runs.
+		// Wait for all @font-face sources to finish loading.
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, exp, err := runtime.Evaluate(`document.fonts.ready.then(() => 'ok')`).
 				WithAwaitPromise(true).
 				Do(ctx)
 			if exp != nil {
-				// Non-fatal: log but do not abort; the screenshot step below
-				// provides an additional render-sync barrier.
 				_ = exp
 			}
 			return err
 		}),
+		// Log font loading diagnostics for CJK debugging.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			result, _, err := runtime.Evaluate(
+				`(function() {` +
+					`var diag = {` +
+					`  fontsLoaded: document.fonts.size,` +
+					`  cjkAvailable: document.fonts.check('16px "CJK-Embedded"'),` +
+					`  hasChinese: /[\u4e00-\u9fff]/.test(document.body.innerText.substring(0,1000)),` +
+					`  bodyFont: getComputedStyle(document.body).fontFamily.substring(0,150),` +
+					`  codeFont: document.querySelector('code') ? getComputedStyle(document.querySelector('code')).fontFamily.substring(0,150) : 'no-code-element'` +
+					`};` +
+					// Check all loaded font faces for CJK-related entries
+					`var cjkFonts = [];` +
+					`document.fonts.forEach(function(f) {` +
+					`  if (f.family.indexOf('CJK') >= 0 || f.status !== 'unloaded') {` +
+					`    cjkFonts.push(f.family + ':' + f.status);` +
+					`  }` +
+					`});` +
+					`diag.fontFaces = cjkFonts.join(', ');` +
+					`return JSON.stringify(diag);` +
+					`})()`).Do(ctx)
+			if err == nil && result != nil && result.Value != nil {
+				slog.Info("PDF font diagnostics", slog.String("info", string(result.Value)))
+			}
+			return nil // non-fatal
+		}),
 		// Force a full compositor paint pass before generating the PDF.
-		// Even after document.fonts.ready resolves, calling CaptureScreenshot
-		// ensures the compositor has produced a fully-rendered frame with all
-		// font metrics applied — a second barrier against timing edge cases.
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var buf []byte
 			return chromedp.CaptureScreenshot(&buf).Do(ctx)
@@ -557,7 +695,6 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 				if g.headerTemplate != "" {
 					cmd = cmd.WithHeaderTemplate(g.headerTemplate)
 				} else {
-					// Empty header to avoid Chrome's default header.
 					cmd = cmd.WithHeaderTemplate("<span></span>")
 				}
 				if g.footerTemplate != "" {
@@ -569,18 +706,20 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 		}),
 	)
 	if err != nil {
-		if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, absHTMLPath, outputPath); fallbackErr == nil {
-			return nil
-		} else {
-			details := strings.TrimSpace(chromeOutput.String())
-			if details != "" {
-				return fmt.Errorf("failed to generate PDF with Chrome at %q (flags: %s): %w\nchrome output:\n%s\nfallback error: %v", chromePath, strings.TrimSpace(os.Getenv("CHROME_FLAGS")), err, details, fallbackErr)
+		// Only try CLI fallback for file:// URLs.
+		if strings.HasPrefix(pageURL, "file://") {
+			htmlPath := strings.TrimPrefix(pageURL, "file://")
+			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, htmlPath, outputPath); fallbackErr == nil {
+				return nil
 			}
-			return fmt.Errorf("failed to generate PDF with Chrome at %q (flags: %s): %w\nfallback error: %v", chromePath, strings.TrimSpace(os.Getenv("CHROME_FLAGS")), err, fallbackErr)
 		}
+		details := strings.TrimSpace(chromeOutput.String())
+		if details != "" {
+			return fmt.Errorf("failed to generate PDF with Chrome at %q: %w\nchrome output:\n%s", chromePath, err, details)
+		}
+		return fmt.Errorf("failed to generate PDF with Chrome at %q: %w", chromePath, err)
 	}
 
-	// Write the generated PDF bytes.
 	if err := os.WriteFile(outputPath, pdfBuf, 0644); err != nil {
 		return fmt.Errorf("failed to write PDF file: %w", err)
 	}
