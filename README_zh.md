@@ -236,6 +236,7 @@ $ mdpress themes list
 | `mdpress init [directory]` | 从已有 Markdown 生成 `book.yaml` |
 | `mdpress validate [directory]` | 检查配置和文件是否有错误 |
 | `mdpress doctor [directory]` | 检查环境是否配置正确 |
+| `mdpress completion [shell]` | 生成 Shell 补全脚本 |
 | `mdpress themes list\|show\|preview` | 浏览内置主题 |
 
 ## 环境要求
