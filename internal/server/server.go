@@ -23,6 +23,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// WebSocket message type constants and timing
+const (
+	msgTypeReload       = "reload"
+	msgTypeCSSUpdate    = "css-update"
+	msgTypeBuildErr     = "build-error"
+	shutdownTimeout     = 5 * time.Second
+	debounceInterval    = 500 * time.Millisecond
+	fileWatcherInterval = 1 * time.Second
+	browserOpenDelay    = 500 * time.Millisecond
+)
+
 // wsClient wraps a single WebSocket connection with a dedicated write lock.
 type wsClient struct {
 	conn    *websocket.Conn
@@ -34,6 +45,21 @@ func (c *wsClient) writeMessage(msgType int, data []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return c.conn.WriteMessage(msgType, data)
+}
+
+// buildWSMessage constructs a WebSocket JSON message with timestamp.
+func buildWSMessage(msgType string) []byte {
+	return []byte(`{"type":"` + msgType + `","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+}
+
+// buildWSErrorMessage constructs a build-error WebSocket message with escaped error text.
+func buildWSErrorMessage(errMsg string) ([]byte, error) {
+	// Use json.Marshal to properly escape all special characters
+	escapedBytes, err := json.Marshal(errMsg)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(fmt.Sprintf(`{"type":"%s","timestamp":%d,"error":%s}`, msgTypeBuildErr, time.Now().UnixMilli(), escapedBytes)), nil
 }
 
 // Server implements the live preview server.
@@ -164,7 +190,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 		}
 		s.clientsMu.Unlock()
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			s.logger.Debug("Server shutdown returned error", slog.String("error", err.Error()))
@@ -182,7 +208,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	// Open the browser when requested.
 	if s.AutoOpen {
 		go func() {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(browserOpenDelay)
 			openBrowser(s.browserURL())
 		}()
 	}
@@ -209,7 +235,7 @@ func (s *Server) snapshotClients() []*wsClient {
 
 // notifyClients sends a reload message to all connected WebSocket clients.
 func (s *Server) notifyClients() {
-	msg := []byte(`{"type":"reload","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	msg := buildWSMessage(msgTypeReload)
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
@@ -219,7 +245,7 @@ func (s *Server) notifyClients() {
 
 // notifyCSSUpdate sends a CSS-only update message to all connected WebSocket clients.
 func (s *Server) notifyCSSUpdate() {
-	msg := []byte(`{"type":"css-update","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	msg := buildWSMessage(msgTypeCSSUpdate)
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
@@ -229,14 +255,11 @@ func (s *Server) notifyCSSUpdate() {
 
 // notifyBuildError sends a build error message to all connected WebSocket clients.
 func (s *Server) notifyBuildError(errMsg string) {
-	// Use json.Marshal to properly escape all special characters including
-	// \b, \f, Unicode control characters, etc.
-	escapedBytes, err := json.Marshal(errMsg)
+	msg, err := buildWSErrorMessage(errMsg)
 	if err != nil {
 		s.logger.Error("Failed to marshal build error message", slog.String("error", err.Error()))
 		return
 	}
-	msg := []byte(fmt.Sprintf(`{"type":"build-error","timestamp":%d,"error":%s}`, time.Now().UnixMilli(), escapedBytes))
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
 			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
@@ -567,7 +590,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			}
 			// else: keep the previous non-CSS ext so a full reload is triggered
 			capturedExt := lastTriggeredExt
-			debounceTimer = time.AfterFunc(500*time.Millisecond, func() {
+			debounceTimer = time.AfterFunc(debounceInterval, func() {
 				s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
 				if s.BuildFunc != nil {
 					if err := s.BuildFunc(); err != nil {
@@ -603,7 +626,7 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 	lastModTimes := make(map[string]time.Time)
 	s.scanModTimes(lastModTimes)
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(fileWatcherInterval)
 	defer ticker.Stop()
 
 	var debounceTimer *time.Timer
@@ -630,7 +653,7 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 				if debounceTimer != nil {
 					debounceTimer.Stop()
 				}
-				debounceTimer = time.AfterFunc(500*time.Millisecond, func() {
+				debounceTimer = time.AfterFunc(debounceInterval, func() {
 					s.logger.Info("File change detected, rebuilding...")
 					if s.BuildFunc != nil {
 						if err := s.BuildFunc(); err != nil {

@@ -11,6 +11,15 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+const (
+	// Mermaid rendering timeout via Chromium.
+	mermaidRenderTimeout = 30 * time.Second
+	// Mermaid render completion polling timeout.
+	mermaidRenderPollTimeout = 20 * time.Second
+	// Mermaid render completion polling interval.
+	mermaidRenderPollInterval = 200 * time.Millisecond
+)
+
 type mermaidRenderStatus struct {
 	Done      bool   `json:"done"`
 	OK        bool   `json:"ok"`
@@ -48,7 +57,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel = context.WithTimeout(ctx, mermaidRenderTimeout)
 	defer cancel()
 
 	fileURL := "file://" + tmpPath
@@ -57,7 +66,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		chromedp.Navigate(fileURL),
 		chromedp.WaitReady("body"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			deadline := time.Now().Add(20 * time.Second)
+			deadline := time.Now().Add(mermaidRenderPollTimeout)
 			for time.Now().Before(deadline) {
 				if err := chromedp.Run(ctx, chromedp.Evaluate(`window.__mdpressMermaidStatus`, &status)); err != nil {
 					return err
@@ -65,7 +74,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 				if status.Done {
 					break
 				}
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(mermaidRenderPollInterval)
 			}
 			if !status.Done {
 				return fmt.Errorf("mermaid rendering timed out")

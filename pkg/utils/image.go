@@ -34,8 +34,14 @@ func fnv32a(s string) uint32 {
 // Compiled once at package level to avoid repeated compilation in ProcessImagesWithOptions.
 var imgSrcRegex = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
 
-// MaxImageSize is the maximum allowed size for a downloaded image (50 MB).
-const MaxImageSize = 50 * 1024 * 1024
+const (
+	// MaxImageSize is the maximum allowed size for a downloaded image (50 MB).
+	MaxImageSize = 50 * 1024 * 1024
+	// imageDownloadTimeout is the timeout for downloading a single image.
+	imageDownloadTimeout = 30 * time.Second
+	// imageDownloadRetryDelay is the delay before retrying a failed image download.
+	imageDownloadRetryDelay = 1 * time.Second
+)
 
 // IsRemoteURL reports whether a path is an HTTP(S) URL.
 func IsRemoteURL(path string) bool {
@@ -100,7 +106,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	}
 
 	// Download with a timeout so unresponsive servers do not hang forever.
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: imageDownloadTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for image download: %w", err)
@@ -108,7 +114,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		// Retry once for transient network errors.
-		time.Sleep(1 * time.Second)
+		time.Sleep(imageDownloadRetryDelay)
 		req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
