@@ -3,6 +3,7 @@ package plantuml
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -155,7 +156,8 @@ func TestRenderHTML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := renderer.RenderHTML(tt.html)
+			ctx := context.Background()
+			result, err := renderer.RenderHTML(ctx, tt.html)
 			if err != nil && tt.wantSVG {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -234,11 +236,12 @@ func TestCaching(t *testing.T) {
 	defer mockServer.Close()
 
 	renderer := NewRenderer(mockServer.URL, false)
+	ctx := context.Background()
 
 	code := "Alice -> Bob: Hello"
 
 	// First call should hit the server
-	svg1, err := renderer.getSVG(code)
+	svg1, err := renderer.getSVG(ctx, code)
 	if err != nil {
 		t.Fatalf("first getSVG failed: %v", err)
 	}
@@ -247,7 +250,7 @@ func TestCaching(t *testing.T) {
 	}
 
 	// Second call should use cache
-	svg2, err := renderer.getSVG(code)
+	svg2, err := renderer.getSVG(ctx, code)
 	if err != nil {
 		t.Fatalf("second getSVG failed: %v", err)
 	}
@@ -289,8 +292,9 @@ State1 --> State2`,
 
 	for name, code := range diagrams {
 		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
 			html := `<pre><code class="language-plantuml">` + code + `</code></pre>`
-			result, err := renderer.RenderHTML(html)
+			result, err := renderer.RenderHTML(ctx, html)
 			if err != nil {
 				t.Fatalf("rendering failed: %v", err)
 			}
@@ -315,9 +319,10 @@ func TestServerError(t *testing.T) {
 	defer mockServer.Close()
 
 	renderer := NewRenderer(mockServer.URL, false)
+	ctx := context.Background()
 
 	html := `<pre><code class="language-plantuml">Alice -> Bob</code></pre>`
-	result, err := renderer.RenderHTML(html)
+	result, err := renderer.RenderHTML(ctx, html)
 	// RenderHTML returns an error when the server fails, but the content
 	// is returned unchanged
 	if err == nil {
@@ -341,13 +346,14 @@ func TestWhitespaceHandling(t *testing.T) {
 	defer mockServer.Close()
 
 	renderer := NewRenderer(mockServer.URL, false)
+	ctx := context.Background()
 
 	html := `<pre><code class="language-plantuml">
     Alice -> Bob: Hello
 
     Bob -> Alice: Hi
   </code></pre>`
-	result, err := renderer.RenderHTML(html)
+	result, err := renderer.RenderHTML(ctx, html)
 	if err != nil {
 		t.Fatalf("rendering failed: %v", err)
 	}
@@ -366,7 +372,8 @@ func TestLocalPlantumlCmdNoneAvailable(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PATH", dir)
 
-	_, err := localPlantumlCmd()
+	ctx := context.Background()
+	_, err := localPlantumlCmd(ctx)
 	if err == nil {
 		t.Fatal("expected an error when plantuml is not available")
 	}
@@ -383,7 +390,8 @@ func TestLocalPlantumlCmdWithJar(t *testing.T) {
 	}
 	t.Setenv("PLANTUML_JAR", jarPath)
 
-	cmd, err := localPlantumlCmd()
+	ctx := context.Background()
+	cmd, err := localPlantumlCmd(ctx)
 	if err != nil {
 		// Acceptable if java is not on PATH in this environment.
 		if strings.Contains(err.Error(), "java is not in PATH") {
@@ -414,8 +422,9 @@ func TestRenderLocalNotFound(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PATH", dir)
 
+	ctx := context.Background()
 	r := NewRenderer("", true)
-	_, err := r.renderLocal("Alice -> Bob")
+	_, err := r.renderLocal(ctx, "Alice -> Bob")
 	if err == nil {
 		t.Fatal("expected an error when plantuml is not available")
 	}
@@ -439,8 +448,9 @@ func TestRenderLocalWithFakePlantuml(t *testing.T) {
 	t.Setenv("PLANTUML_JAR", "")
 	t.Setenv("PATH", dir)
 
+	ctx := context.Background()
 	r := NewRenderer("", true)
-	svg, err := r.renderLocal("Alice -> Bob: Hello")
+	svg, err := r.renderLocal(ctx, "Alice -> Bob: Hello")
 	if err != nil {
 		t.Fatalf("renderLocal failed: %v", err)
 	}
