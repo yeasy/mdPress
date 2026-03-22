@@ -149,8 +149,8 @@ func TestLoadBookJSON_Plugins(t *testing.T) {
 	}
 }
 
-// TestLoadBookJSON_LoadsChaptersFromSummary confirms that SUMMARY.md in the
-// same directory is parsed and populates cfg.Chapters.
+// TestLoadBookJSON_LoadsChaptersFromSummary confirms that LoadBookJSON does NOT
+// load chapters from SUMMARY.md (that's Discover's responsibility).
 func TestLoadBookJSON_LoadsChaptersFromSummary(t *testing.T) {
 	dir := t.TempDir()
 	writeSummary(t, dir)
@@ -165,12 +165,14 @@ func TestLoadBookJSON_LoadsChaptersFromSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
-	if len(cfg.Chapters) != 2 {
-		t.Errorf("Chapters len = %d, want 2", len(cfg.Chapters))
+	// LoadBookJSON should NOT load chapters from SUMMARY.md; that's Discover's job
+	if len(cfg.Chapters) != 0 {
+		t.Errorf("Chapters len = %d, want 0 (LoadBookJSON does not load chapters)", len(cfg.Chapters))
 	}
 }
 
-// TestLoadBookJSON_CustomSummaryPath checks that structure.summary is honored.
+// TestLoadBookJSON_CustomSummaryPath checks that LoadBookJSON does not use structure.summary.
+// Chapter loading is handled by Discover(), not LoadBookJSON().
 func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 	dir := t.TempDir()
 
@@ -196,8 +198,9 @@ func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
-	if len(cfg.Chapters) != 1 {
-		t.Errorf("Chapters len = %d, want 1", len(cfg.Chapters))
+	// LoadBookJSON does not load chapters from structure.summary; that's Discover's responsibility
+	if len(cfg.Chapters) != 0 {
+		t.Errorf("Chapters len = %d, want 0 (LoadBookJSON does not load chapters)", len(cfg.Chapters))
 	}
 }
 

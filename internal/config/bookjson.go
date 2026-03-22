@@ -53,10 +53,9 @@ func (v *jsonStringOrSlice) UnmarshalJSON(data []byte) error {
 
 // LoadBookJSON reads a GitBook book.json file and returns an equivalent BookConfig.
 //
-// Chapter definitions are loaded from the SUMMARY.md referenced in
-// book.json's structure.summary field (defaults to SUMMARY.md in the same
-// directory). If no SUMMARY.md is present, chapters are left empty and the
-// caller is expected to populate them via auto-discovery.
+// Metadata fields (title, author, description, language, plugins) are loaded from book.json.
+// Chapter definitions are NOT loaded here; instead, Discover() handles chapters via SUMMARY.md
+// or auto-discovery, which allows proper priority orchestration of configuration sources.
 func LoadBookJSON(path string) (*BookConfig, error) {
 	const maxSize = 10 * 1024 * 1024 // 10 MB
 	fi, err := os.Stat(path)
@@ -103,19 +102,9 @@ func LoadBookJSON(path string) (*BookConfig, error) {
 	// Convert plugins: skip entries prefixed with "-" (GitBook disables them).
 	cfg.Plugins = convertBookJSONPlugins(raw.Plugins, raw.PluginsCfg)
 
-	// Resolve the SUMMARY.md path (may be overridden in book.json structure).
-	summaryName := "SUMMARY.md"
-	if raw.Structure.Summary != "" {
-		summaryName = raw.Structure.Summary
-	}
-	summaryPath := filepath.Join(dir, summaryName)
-	if _, err := os.Stat(summaryPath); err == nil {
-		chapters, err := ParseSummary(summaryPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s referenced from book.json: %w", summaryName, err)
-		}
-		cfg.Chapters = chapters
-	}
+	// Note: Chapter definitions are NOT loaded here. The Discover() function handles
+	// loading chapters from SUMMARY.md (or other sources), which allows proper
+	// orchestration of configuration sources and avoids redundant parsing.
 
 	// Enrich metadata from README.md for fields not present in book.json.
 	readmeName := "README.md"
