@@ -155,7 +155,7 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// 请求根路径（应该注入脚本）
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -202,7 +202,7 @@ func TestInjectLiveReload_NonHTML(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequest("GET", "/style.css", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -231,7 +231,7 @@ func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// 请求以 / 结尾的路径
-	req := httptest.NewRequest("GET", "/chapter1/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/chapter1/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -637,7 +637,7 @@ func TestInjectLiveReload_MissingFile(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequest("GET", "/nonexistent.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1143,7 +1143,7 @@ func TestInjectLiveReload_PathTraversal(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Try to access a file outside the output directory
-	req := httptest.NewRequest("GET", "/../../../etc/passwd.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/../../../etc/passwd.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1529,7 +1529,7 @@ func TestInjectLiveReload_HTMLWithoutBodyTag(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequest("GET", "/test.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1562,7 +1562,7 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Test with root path
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1571,7 +1571,7 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	}
 
 	// Test with trailing slash on subdir
-	req = httptest.NewRequest("GET", "/subdir/", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/subdir/", nil)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	// This might not find index.html, which is OK - just verify no panic
