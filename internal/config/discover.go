@@ -33,72 +33,81 @@ func Discover(dir string) (*BookConfig, error) {
 		return Load(bookYamlPath)
 	}
 
-	// Priority 2: load book.json (GitBook compatibility).
+	// Priority 2: load book.json (GitBook compatibility) for metadata.
 	bookJSONPath := filepath.Join(absDir, "book.json")
+	hasBookJSON := false
+	var cfg *BookConfig
+	var bookJSONErr error
 	if _, err := os.Stat(bookJSONPath); err == nil {
-		return LoadBookJSON(bookJSONPath)
+		hasBookJSON = true
+		cfg, bookJSONErr = LoadBookJSON(bookJSONPath)
+		if bookJSONErr != nil {
+			return nil, bookJSONErr
+		}
 	}
 
-	// Priority 3: load SUMMARY.md.
+	// Priority 3: load SUMMARY.md (can coexist with book.json).
 	summaryPath := filepath.Join(absDir, "SUMMARY.md")
 	if _, err := os.Stat(summaryPath); err == nil {
-		return loadFromSummary(absDir, summaryPath)
+		chapters, err := ParseSummary(summaryPath)
+		if err != nil {
+			return nil, err
+		}
+		// If we have chapters from SUMMARY.md, use them
+		if len(chapters) > 0 {
+			if cfg == nil {
+				cfg = DefaultConfig()
+				cfg.baseDir = absDir
+			}
+			cfg.Chapters = chapters
+
+			// Extract rich metadata from README.md.
+			readmePath := filepath.Join(absDir, "README.md")
+			meta := ExtractReadmeMetadata(readmePath)
+			if meta.Title != "" {
+				cfg.Book.Title = meta.Title
+			} else if cfg.Book.Title == "" {
+				cfg.Book.Title = filepath.Base(absDir)
+			}
+			if meta.Version != "" {
+				cfg.Book.Version = meta.Version
+			}
+			if meta.Language != "" {
+				cfg.Book.Language = meta.Language
+			}
+			if meta.Author != "" {
+				cfg.Book.Author = meta.Author
+			} else if cfg.Book.Author == "" {
+				cfg.Book.Author = gitConfigAuthor(absDir)
+			}
+
+			// Detect GLOSSARY.md.
+			glossaryPath := filepath.Join(absDir, "GLOSSARY.md")
+			if _, err := os.Stat(glossaryPath); err == nil {
+				cfg.GlossaryFile = glossaryPath
+			}
+
+			// Detect LANGS.md.
+			langsPath := filepath.Join(absDir, "LANGS.md")
+			if _, err := os.Stat(langsPath); err == nil {
+				cfg.LangsFile = langsPath
+			}
+
+			return cfg, nil
+		}
+		// If book.json doesn't exist and SUMMARY.md has no chapters, return error
+		if !hasBookJSON {
+			return nil, fmt.Errorf("SUMMARY.md contains no chapter definitions")
+		}
+	}
+
+	// If book.json was found and we got this far, return the config from it
+	if hasBookJSON {
+		return cfg, nil
 	}
 
 	// Priority 4: scan .md files directly.
 	return autoDiscover(absDir)
-}
-
-// loadFromSummary builds config from SUMMARY.md.
-func loadFromSummary(dir, summaryPath string) (*BookConfig, error) {
-	chapters, err := ParseSummary(summaryPath)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := DefaultConfig()
-	cfg.baseDir = dir
-	cfg.Chapters = chapters
-
-	if len(chapters) == 0 {
-		return nil, fmt.Errorf("SUMMARY.md contains no chapter definitions")
-	}
-
-	// Extract rich metadata from README.md (title, version, language, author).
-	readmePath := filepath.Join(dir, "README.md")
-	meta := ExtractReadmeMetadata(readmePath)
-	if meta.Title != "" {
-		cfg.Book.Title = meta.Title
-	} else {
-		// Fallback: use directory name as title.
-		cfg.Book.Title = filepath.Base(dir)
-	}
-	if meta.Version != "" {
-		cfg.Book.Version = meta.Version
-	}
-	if meta.Language != "" {
-		cfg.Book.Language = meta.Language
-	}
-	if meta.Author != "" {
-		cfg.Book.Author = meta.Author
-	} else {
-		// Fall back to git config user.name when README.md has no author.
-		cfg.Book.Author = gitConfigAuthor(dir)
-	}
-
-	// Detect GLOSSARY.md.
-	glossaryPath := filepath.Join(dir, "GLOSSARY.md")
-	if _, err := os.Stat(glossaryPath); err == nil {
-		cfg.GlossaryFile = glossaryPath
-	}
-
-	// Detect LANGS.md.
-	langsPath := filepath.Join(dir, "LANGS.md")
-	if _, err := os.Stat(langsPath); err == nil {
-		cfg.LangsFile = langsPath
-	}
-
-	return cfg, nil
 }
 
 // autoDiscover scans Markdown files and generates config automatically.
