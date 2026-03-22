@@ -142,7 +142,7 @@ func TestSiteGeneratorInteractiveSidebar(t *testing.T) {
 	if !strings.Contains(html, "function setGroupExpanded(group, shouldExpand)") {
 		t.Error("generated page should include multi-expand sidebar helper")
 	}
-	if !strings.Contains(html, "grid-template-rows 0.24s ease") {
+	if !strings.Contains(html, "grid-template-rows 0.28s cubic-bezier") {
 		t.Error("generated page should include expand/collapse transition styles")
 	}
 	if !strings.Contains(html, "window.requestAnimationFrame") {
