@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -357,29 +359,53 @@ func TestExecuteThemesPreview(t *testing.T) {
 		name       string
 		outputPath string
 		shouldErr  bool
+		useTempDir bool
 	}{
 		{
 			name:       "default output",
 			outputPath: "themes-preview.html",
 			shouldErr:  false,
+			useTempDir: true,
 		},
 		{
 			name:       "custom output path",
-			outputPath: "/tmp/test-themes-preview.html",
+			outputPath: filepath.Join(t.TempDir(), "test-themes-preview.html"),
 			shouldErr:  false,
+			useTempDir: false,
 		},
 		{
 			name:       "empty output path",
 			outputPath: "",
 			shouldErr:  false,
+			useTempDir: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := executeThemesPreview(tt.outputPath)
+			outputPath := tt.outputPath
+
+			// For tests that use relative paths, use a temp directory
+			if tt.useTempDir {
+				tmpDir := t.TempDir()
+				if tt.outputPath == "" {
+					outputPath = ""
+				} else {
+					outputPath = filepath.Join(tmpDir, tt.outputPath)
+				}
+				originalDir, err := os.Getwd()
+				if err != nil {
+					t.Fatalf("failed to get current directory: %v", err)
+				}
+				if err := os.Chdir(tmpDir); err != nil {
+					t.Fatalf("failed to change directory: %v", err)
+				}
+				defer func() { _ = os.Chdir(originalDir) }()
+			}
+
+			err := executeThemesPreview(outputPath)
 			if (err != nil) != tt.shouldErr {
-				t.Errorf("executeThemesPreview(%q) should error=%v, got err=%v", tt.outputPath, tt.shouldErr, err)
+				t.Errorf("executeThemesPreview(%q) should error=%v, got err=%v", outputPath, tt.shouldErr, err)
 			}
 		})
 	}
