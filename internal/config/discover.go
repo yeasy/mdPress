@@ -57,8 +57,8 @@ func Discover(dir string) (*BookConfig, error) {
 		if len(chapters) > 0 {
 			if cfg == nil {
 				cfg = DefaultConfig()
-				cfg.baseDir = absDir
 			}
+			cfg.baseDir = absDir
 			cfg.Chapters = chapters
 
 			// Extract rich metadata from README.md.
