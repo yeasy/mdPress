@@ -210,7 +210,9 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 	}
 
 	// Run: typst compile <input.typ> <output.pdf>
-	cmd := exec.CommandContext(context.Background(), "typst", "compile", absTypPath, absOutputPath)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "typst", "compile", absTypPath, absOutputPath)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -240,7 +242,9 @@ func (g *Generator) checkTypstAvailable() error {
 		)
 	}
 	// Verify it's actually a working typst binary by checking version
-	cmd := exec.CommandContext(context.Background(), path, "--version")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, path, "--version")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("typst command found at %s but failed to run: %w", path, err)
 	}
