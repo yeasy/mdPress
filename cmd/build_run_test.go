@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -506,9 +507,10 @@ func TestMultilingualLandingPath(t *testing.T) {
 			// Note: This test will only pass for non-directory cases since
 			// we can't mock os.Stat. The directory cases need special setup.
 			if tt.outputOverride == "" || (tt.outputOverride != "" && !isDirectoryPath(tt.outputOverride)) {
-				result := multilingualLandingPath(tt.rootDir, tt.outputOverride)
-				if result != tt.expected {
-					t.Errorf("got %q, want %q", result, tt.expected)
+				result := multilingualLandingPath(filepath.FromSlash(tt.rootDir), filepath.FromSlash(tt.outputOverride))
+				expected := filepath.FromSlash(tt.expected)
+				if result != expected {
+					t.Errorf("got %q, want %q", result, expected)
 				}
 			}
 		})
