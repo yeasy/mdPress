@@ -896,3 +896,179 @@ func TestColorScheme_AllFieldsSet(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// GetThemeDescription - Tests for Theme Description Lookup
+// ---------------------------------------------------------------------------
+
+// TestGetThemeDescription_KnownThemes 测试获取已知主题的描述
+func TestGetThemeDescription_KnownThemes(t *testing.T) {
+	tests := []struct {
+		name           string
+		themeName      string
+		expectedSubstr string
+	}{
+		{
+			name:           "technical theme",
+			themeName:      "technical",
+			expectedSubstr: "干净、专业",
+		},
+		{
+			name:           "elegant theme",
+			themeName:      "elegant",
+			expectedSubstr: "优雅",
+		},
+		{
+			name:           "minimal theme",
+			themeName:      "minimal",
+			expectedSubstr: "极简",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desc := GetThemeDescription(tt.themeName)
+			if desc == "" {
+				t.Errorf("GetThemeDescription(%q) returned empty string", tt.themeName)
+			}
+			if !strings.Contains(desc, tt.expectedSubstr) {
+				t.Errorf("GetThemeDescription(%q) = %q, want to contain %q", tt.themeName, desc, tt.expectedSubstr)
+			}
+		})
+	}
+}
+
+// TestGetThemeDescription_UnknownTheme 测试获取未知主题的描述
+func TestGetThemeDescription_UnknownTheme(t *testing.T) {
+	unknownThemes := []string{
+		"nonexistent",
+		"unknown-theme",
+		"xyz",
+		"not-a-theme",
+	}
+
+	expectedDefault := "未知的主题"
+
+	for _, themeName := range unknownThemes {
+		t.Run(themeName, func(t *testing.T) {
+			desc := GetThemeDescription(themeName)
+			if desc != expectedDefault {
+				t.Errorf("GetThemeDescription(%q) = %q, want %q", themeName, desc, expectedDefault)
+			}
+		})
+	}
+}
+
+// TestGetThemeDescription_EmptyString 测试空字符串输入
+func TestGetThemeDescription_EmptyString(t *testing.T) {
+	desc := GetThemeDescription("")
+	expectedDefault := "未知的主题"
+	if desc != expectedDefault {
+		t.Errorf("GetThemeDescription(%q) = %q, want %q", "", desc, expectedDefault)
+	}
+}
+
+// TestGetThemeDescription_CaseSensitive 测试主题名称大小写敏感性
+func TestGetThemeDescription_CaseSensitive(t *testing.T) {
+	tests := []struct {
+		name      string
+		themeName string
+		isKnown   bool
+	}{
+		{
+			name:      "lowercase technical",
+			themeName: "technical",
+			isKnown:   true,
+		},
+		{
+			name:      "uppercase TECHNICAL",
+			themeName: "TECHNICAL",
+			isKnown:   false,
+		},
+		{
+			name:      "mixed case Technical",
+			themeName: "Technical",
+			isKnown:   false,
+		},
+		{
+			name:      "lowercase elegant",
+			themeName: "elegant",
+			isKnown:   true,
+		},
+		{
+			name:      "uppercase ELEGANT",
+			themeName: "ELEGANT",
+			isKnown:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desc := GetThemeDescription(tt.themeName)
+			expectedDefault := "未知的主题"
+
+			if tt.isKnown {
+				if desc == expectedDefault {
+					t.Errorf("GetThemeDescription(%q) returned unknown theme message, expected a known description", tt.themeName)
+				}
+			} else {
+				if desc != expectedDefault {
+					t.Errorf("GetThemeDescription(%q) = %q, want unknown theme message", tt.themeName, desc)
+				}
+			}
+		})
+	}
+}
+
+// TestGetThemeDescription_AllKnownThemes 测试所有已知主题
+func TestGetThemeDescription_AllKnownThemes(t *testing.T) {
+	expectedDefault := "未知的主题"
+
+	for themeName := range ThemeVariants {
+		desc := GetThemeDescription(themeName)
+		if desc == "" {
+			t.Errorf("GetThemeDescription(%q) returned empty string", themeName)
+		}
+		if desc == expectedDefault {
+			t.Errorf("GetThemeDescription(%q) returned default message for known theme", themeName)
+		}
+		// Each description should be non-empty and not just whitespace
+		if strings.TrimSpace(desc) == "" {
+			t.Errorf("GetThemeDescription(%q) returned whitespace-only string", themeName)
+		}
+	}
+}
+
+// TestGetThemeDescription_NonEmptyDescriptions 测试已知主题返回非空描述
+func TestGetThemeDescription_NonEmptyDescriptions(t *testing.T) {
+	knownThemes := []string{"technical", "elegant", "minimal"}
+
+	for _, themeName := range knownThemes {
+		desc := GetThemeDescription(themeName)
+
+		if desc == "" {
+			t.Errorf("GetThemeDescription(%q) returned empty string, expected non-empty description", themeName)
+		}
+
+		if len(strings.TrimSpace(desc)) == 0 {
+			t.Errorf("GetThemeDescription(%q) returned whitespace-only string, expected meaningful content", themeName)
+		}
+	}
+}
+
+// TestGetThemeDescription_ConsistentResults 测试多次调用返回一致结果
+func TestGetThemeDescription_ConsistentResults(t *testing.T) {
+	themeName := "technical"
+
+	first := GetThemeDescription(themeName)
+	second := GetThemeDescription(themeName)
+	third := GetThemeDescription(themeName)
+
+	if first != second {
+		t.Errorf("GetThemeDescription(%q) returned different results on successive calls: %q vs %q", themeName, first, second)
+	}
+
+	if second != third {
+		t.Errorf("GetThemeDescription(%q) returned different results on successive calls: %q vs %q", themeName, second, third)
+	}
+}
