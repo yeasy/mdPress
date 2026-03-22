@@ -421,7 +421,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		// For HTML responses, inject the reload script.
 		path := r.URL.Path
 		if path == "/" || strings.HasSuffix(path, "/") {
-			path = path + "index.html"
+			path += "index.html"
 		}
 
 		filePath := filepath.Join(s.OutputDir, filepath.Clean(path))

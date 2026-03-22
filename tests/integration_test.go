@@ -19,7 +19,7 @@ import (
 // 获取测试数据目录路径
 func getTestDataDir() string {
 	// Go tests run from the package directory, so testdata is relative to here
-	return filepath.Join("testdata")
+	return "testdata"
 }
 
 // TestConfigLoadAndValidate 测试加载和验证配置文件
