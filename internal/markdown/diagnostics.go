@@ -106,7 +106,7 @@ func (s *sourceIndex) lineCol(offset int) (int, int) {
 // CollectDiagnostics 收集 Markdown 文档中的结构化 warning。
 func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	index := newSourceIndex(source)
-	diagnostics := collectOrderedListDiagnostics(document, source, index)
+	diagnostics := collectOrderedListDiagnostics(source, index)
 	diagnostics = append(diagnostics, collectMermaidDiagnostics(source)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
 	sort.SliceStable(diagnostics, func(i, j int) bool {
@@ -121,9 +121,8 @@ func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	return diagnostics
 }
 
-func collectOrderedListDiagnostics(document ast.Node, source []byte, index *sourceIndex) []Diagnostic {
+func collectOrderedListDiagnostics(source []byte, index *sourceIndex) []Diagnostic {
 	diagnostics := make([]Diagnostic, 0)
-	_ = document
 
 	lastMarkerByIndent := make(map[int]int)
 	lines := strings.Split(string(source), "\n")

@@ -200,6 +200,9 @@ func TestLoadPlugins_InitFailure(t *testing.T) {
 	dir := t.TempDir()
 	// Create a valid test plugin (graceful degradation during metadata query)
 	pluginPath := createTestPlugin(t, dir, "valid-plugin")
+	if _, err := os.Stat(pluginPath); err != nil {
+		t.Fatalf("plugin fixture not created at %q: %v", pluginPath, err)
+	}
 
 	cfg := config.DefaultConfig()
 	cfg.SetBaseDir(dir) // Ensure base directory is set correctly
@@ -229,7 +232,11 @@ func TestLoadPlugins_ResolvePath(t *testing.T) {
 		t.Fatalf("failed to create plugin directory: %v", err)
 	}
 
-	createTestPlugin(t, pluginDir, "myplugin")
+	// Create the test plugin fixture in the plugins subdirectory
+	pluginPath := createTestPlugin(t, pluginDir, "myplugin")
+	if _, err := os.Stat(pluginPath); err != nil {
+		t.Fatalf("plugin fixture not created at %q: %v", pluginPath, err)
+	}
 
 	cfg := config.DefaultConfig()
 	cfg.SetBaseDir(baseDir) // Set base directory so relative paths resolve correctly
