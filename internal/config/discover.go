@@ -64,10 +64,13 @@ func Discover(dir string) (*BookConfig, error) {
 			// Extract rich metadata from README.md.
 			readmePath := filepath.Join(absDir, "README.md")
 			meta := ExtractReadmeMetadata(readmePath)
-			if meta.Title != "" {
-				cfg.Book.Title = meta.Title
-			} else if cfg.Book.Title == "" {
-				cfg.Book.Title = filepath.Base(absDir)
+			defaultTitle := DefaultConfig().Book.Title
+			if cfg.Book.Title == "" || cfg.Book.Title == defaultTitle {
+				if meta.Title != "" {
+					cfg.Book.Title = meta.Title
+				} else {
+					cfg.Book.Title = filepath.Base(absDir)
+				}
 			}
 			if meta.Version != "" {
 				cfg.Book.Version = meta.Version
@@ -401,7 +404,11 @@ func inferBookTitle(h1Title, content, dir string) string {
 
 	// 2. Check if SUMMARY.md has a top-level title.
 	summaryPath := filepath.Join(dir, "SUMMARY.md")
-	if summaryTitle := extractTitleFromFile(summaryPath); summaryTitle != "" && summaryTitle != "目录" && summaryTitle != "Table of Contents" && summaryTitle != "Summary" {
+	genericSummaryTitles := map[string]bool{
+		"目录": true, "table of contents": true, "summary": true,
+		"在线阅读": true, "read online": true, "contents": true,
+	}
+	if summaryTitle := extractTitleFromFile(summaryPath); summaryTitle != "" && !genericSummaryTitles[strings.ToLower(summaryTitle)] {
 		return summaryTitle
 	}
 
