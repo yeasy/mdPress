@@ -54,7 +54,20 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		return fmt.Errorf("failed to close temporary Mermaid validation file: %w", err)
 	}
 
-	ctx, cancel := chromedp.NewContext(context.Background())
+	// Use a custom allocator so we can pass --no-sandbox (required in CI
+	// containers and environments where unprivileged user namespaces are
+	// disabled, e.g. Ubuntu 23.10+ with AppArmor).
+	allocOpts := append([]chromedp.ExecAllocatorOption{},
+		chromedp.DefaultExecAllocatorOptions[:]...,
+	)
+	allocOpts = append(allocOpts,
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("allow-file-access-from-files", true),
+	)
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), allocOpts...)
+	defer allocCancel()
+
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 
 	ctx, cancel = context.WithTimeout(ctx, mermaidRenderTimeout)
