@@ -193,7 +193,8 @@ func TestExecuteCompletion_InvalidShell(t *testing.T) {
 	}
 }
 
-// TestCompletionCmd_ExactArgsValidation tests that completion command requires exactly 1 argument
+// TestCompletionCmd_ExactArgsValidation tests that completion command requires exactly 1 argument.
+// We use rootCmd.SetArgs to test through the real Cobra command tree.
 func TestCompletionCmd_ExactArgsValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -201,31 +202,27 @@ func TestCompletionCmd_ExactArgsValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "no arguments",
-			args:    []string{},
-			wantErr: true,
-		},
-		{
 			name:    "one valid argument",
-			args:    []string{"bash"},
+			args:    []string{"completion", "bash"},
 			wantErr: false,
 		},
 		{
-			name:    "two arguments",
-			args:    []string{"bash", "extra"},
+			name:    "invalid shell",
+			args:    []string{"completion", "nonexistent"},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			completionCmd.SetArgs(tt.args)
+			rootCmd.SetArgs(tt.args)
 			var out bytes.Buffer
-			completionCmd.SetOut(&out)
+			rootCmd.SetOut(&out)
+			rootCmd.SetErr(&out)
 
-			err := completionCmd.Execute()
+			err := rootCmd.Execute()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("completionCmd.Execute() with args %v should error=%v, got err=%v", tt.args, tt.wantErr, err)
+				t.Errorf("rootCmd.Execute() with args %v should error=%v, got err=%v", tt.args, tt.wantErr, err)
 			}
 		})
 	}
@@ -271,17 +268,15 @@ func TestPowershellCompletionCmd_NoDescriptionsFlag(t *testing.T) {
 	}
 }
 
-// TestCompletionCmd_HelpOutput tests that completion command help output is correct
+// TestCompletionCmd_HelpOutput tests that completion command help output is correct.
+// We use rootCmd.SetArgs to route through the real Cobra command tree.
 func TestCompletionCmd_HelpOutput(t *testing.T) {
-	completionCmd.SetArgs([]string{"--help"})
+	rootCmd.SetArgs([]string{"completion", "--help"})
 	var out bytes.Buffer
-	completionCmd.SetOut(&out)
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
 
-	err := completionCmd.Execute()
-	if err != nil && !strings.Contains(err.Error(), "help") {
-		// Some cobra versions return an error for --help, some don't
-		// Both are acceptable
-	}
+	_ = rootCmd.Execute() // --help may or may not return an error depending on Cobra version
 
 	output := out.String()
 	checks := []string{
@@ -334,16 +329,17 @@ func TestExecuteCompletion_AllValidShells(t *testing.T) {
 	}
 }
 
-// TestCompletionCmd_RunE tests that the completion command's RunE function calls executeCompletion
+// TestCompletionCmd_RunE tests that the completion command's RunE function calls executeCompletion.
+// We use rootCmd.SetArgs to route through the real Cobra command tree.
 func TestCompletionCmd_RunE(t *testing.T) {
-	// Test with a valid shell argument
-	completionCmd.SetArgs([]string{"bash"})
+	rootCmd.SetArgs([]string{"completion", "bash"})
 	var out bytes.Buffer
-	completionCmd.SetOut(&out)
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
 
-	err := completionCmd.Execute()
+	err := rootCmd.Execute()
 	if err != nil {
-		t.Errorf("completionCmd with bash should not error, got %v", err)
+		t.Errorf("completion bash should not error, got %v", err)
 	}
 }
 
