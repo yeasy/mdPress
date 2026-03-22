@@ -85,6 +85,7 @@ Common commands:
 	rootCmd.AddCommand(themesCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(completionCmd)
 }
 
 // Execute runs the root command.
