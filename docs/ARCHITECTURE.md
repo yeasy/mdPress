@@ -481,14 +481,73 @@ The `Source` interface abstracts "where content comes from" so mdPress can read 
 Interface:
 
 ```go
+// Source defines a unified abstraction for content sources
 type Source interface {
+    // Open opens and prepares the content source (e.g., clone repo, download files)
     Open(ctx context.Context) error
+
+    // ReadFile reads the file content at the specified path
     ReadFile(path string) ([]byte, error)
+
+    // ListFiles lists all files matching the pattern
     ListFiles(pattern string) ([]string, error)
+
+    // Resolve resolves a relative path to an absolute path within the source
     Resolve(base, rel string) string
+
+    // Close closes the source and cleans up temporary resources
     Close() error
+
+    // Type returns the source type identifier
     Type() string
 }
+```
+
+Class diagram:
+
+```mermaid
+classDiagram
+    class Source {
+        <<interface>>
+        +Open(ctx) error
+        +ReadFile(path) ([]byte, error)
+        +ListFiles(pattern) ([]string, error)
+        +Resolve(base, rel) string
+        +Close() error
+        +Type() string
+    }
+
+    class LocalSource {
+        -rootDir string
+        +Open(ctx) error
+        +ReadFile(path) ([]byte, error)
+    }
+
+    class GitHubSource {
+        -owner string
+        -repo string
+        -ref string
+        -localDir string
+        +Open(ctx) error
+        +ReadFile(path) ([]byte, error)
+    }
+
+    class GitLabSource {
+        -projectID string
+        -ref string
+        +Open(ctx) error
+    }
+
+    class URLSource {
+        -baseURL string
+        -cacheDir string
+        +Open(ctx) error
+    }
+
+    Source <|.. LocalSource
+    Source <|.. GitHubSource
+    Source <|.. GitLabSource : future extension
+    Source <|.. URLSource : future extension
 ```
 
 Current implementations:
@@ -508,19 +567,32 @@ Integration:
 
 Priority:
 
-1. Chapters explicitly defined in `book.yaml`
-2. `SUMMARY.md` in the same directory
-3. Automatic scanning of Markdown files
+```
+1. Chapters explicitly defined in book.yaml      ← Highest priority
+   │ (if chapters is empty)
+   ▼
+2. SUMMARY.md in the same directory              ← GitBook compatible
+   │ (if SUMMARY.md does not exist)
+   ▼
+3. Automatic scanning of *.md files              ← Zero-config experience
+   by directory structure + filename order
+   excludes: README.md, SUMMARY.md, GLOSSARY.md, LANGS.md
+```
 
-Types:
+Design:
 
 ```go
+// ConfigDiscovery represents the config discovery chain
 type ConfigDiscovery struct {
     discoverers []Discoverer
 }
 
+// Discoverer represents a single discovery strategy
 type Discoverer interface {
+    // Name returns the strategy name
     Name() string
+    // Discover attempts to discover chapter configuration
+    // Returns nil to indicate not found, passing control to next strategy
     Discover(baseDir string) ([]ChapterDef, error)
 }
 ```
@@ -573,9 +645,30 @@ type FormatBuilderRegistry struct {
 
 The development server provides file watching and browser reload for `serve`.
 
+Architecture diagram:
+
+```mermaid
+graph LR
+    subgraph serve command
+        Watcher[fsnotify file watching]
+        Builder[incremental builder]
+        Server[HTTP Server]
+        WS[WebSocket Hub]
+    end
+
+    FS[file system *.md] -->|file changes| Watcher
+    Watcher -->|debounce 500ms| Builder
+    Builder -->|rebuild| Server
+    Builder -->|notify| WS
+    WS -->|reload message| Browser[browser]
+    Browser -->|HTTP request| Server
+    Browser -->|WS connection| WS
+```
+
 Key components:
 
 ```go
+// DevServer is the development server
 type DevServer struct {
     config    *config.BookConfig
     outputDir string
@@ -585,6 +678,7 @@ type DevServer struct {
     builder   *IncrementalBuilder
 }
 
+// WSHub manages WebSocket connections
 type WSHub struct {
     clients    map[*websocket.Conn]bool
     broadcast  chan []byte
@@ -592,10 +686,11 @@ type WSHub struct {
     unregister chan *websocket.Conn
 }
 
+// IncrementalBuilder handles incremental builds
 type IncrementalBuilder struct {
-    source   Source
-    cache    map[string]*BuildCache
-    debounce time.Duration
+    source    Source
+    cache     map[string]*BuildCache  // file path → build cache
+    debounce  time.Duration
 }
 ```
 
@@ -610,27 +705,37 @@ Expansion from current behavior:
 
 Goal: reserve plugin lifecycle hooks in v0.2 even if the full plugin system ships later.
 
-Lifecycle hook plan:
+Lifecycle hooks:
 
-- `ConfigLoaded`
-- `BeforeParse`
-- `AfterParse`
-- `BeforeRender`
-- `AfterRender`
-- `BeforeOutput`
-- `AfterOutput`
+```mermaid
+graph TD
+    ConfigLoaded[ConfigLoaded - after config loading]
+    BeforeParse[BeforeParse - before Markdown parsing]
+    AfterParse[AfterParse - after Markdown parsing]
+    BeforeRender[BeforeRender - before HTML assembly]
+    AfterRender[AfterRender - after HTML assembly]
+    BeforeOutput[BeforeOutput - before output]
+    AfterOutput[AfterOutput - after output]
+
+    ConfigLoaded --> BeforeParse
+    BeforeParse --> AfterParse
+    AfterParse --> BeforeRender
+    BeforeRender --> AfterRender
+    AfterRender --> BeforeOutput
+    BeforeOutput --> AfterOutput
+```
 
 Capability matrix:
 
-| Hook | Typical Use |
-| --- | --- |
-| `ConfigLoaded` | Inject defaults or environment-derived config |
-| `BeforeParse` | Preprocess Markdown, include directives, custom syntax |
-| `AfterParse` | Transform generated HTML |
-| `BeforeRender` | Modify `RenderParts` |
-| `AfterRender` | Inject SEO tags or watermarks |
-| `BeforeOutput` | Intercept output destination or output metadata |
-| `AfterOutput` | Upload artifacts or send notifications |
+| Hook | Typical Use | Example Plugins |
+| --- | --- | --- |
+| `ConfigLoaded` | Inject defaults or environment-derived config | Environment variable injection |
+| `BeforeParse` | Preprocess Markdown, include directives, custom syntax | Custom syntax plugins, include directives |
+| `AfterParse` | Transform generated HTML | Automatic link checking |
+| `BeforeRender` | Modify `RenderParts` | Custom cover plugins |
+| `AfterRender` | Inject SEO tags or watermarks | SEO plugins, watermark plugins |
+| `BeforeOutput` | Intercept output destination or output metadata | Output path customization |
+| `AfterOutput` | Upload artifacts or send notifications | CDN upload, notification plugins |
 
 ## 6. Refactoring Notes
 
