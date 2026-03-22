@@ -428,27 +428,31 @@ func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 	}
 }
 
-// TestThemesShowCmd_MissingArgument tests show command without argument
+// TestThemesShowCmd_MissingArgument tests show command without argument.
+// Uses rootCmd.SetArgs to route through the real Cobra command tree.
 func TestThemesShowCmd_MissingArgument(t *testing.T) {
-	themesShowCmd.SetArgs([]string{})
+	rootCmd.SetArgs([]string{"themes", "show"})
 	var out bytes.Buffer
-	themesShowCmd.SetOut(&out)
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
 
 	// Should require exactly 1 argument
-	err := themesShowCmd.Execute()
+	err := rootCmd.Execute()
 	if err == nil {
 		t.Error("show command should error when theme name is missing")
 	}
 }
 
-// TestThemesShowCmd_TooManyArguments tests show command with too many arguments
+// TestThemesShowCmd_TooManyArguments tests show command with too many arguments.
+// Uses rootCmd.SetArgs to route through the real Cobra command tree.
 func TestThemesShowCmd_TooManyArguments(t *testing.T) {
-	themesShowCmd.SetArgs([]string{"technical", "extra"})
+	rootCmd.SetArgs([]string{"themes", "show", "technical", "extra"})
 	var out bytes.Buffer
-	themesShowCmd.SetOut(&out)
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
 
 	// Should require exactly 1 argument
-	err := themesShowCmd.Execute()
+	err := rootCmd.Execute()
 	if err == nil {
 		t.Error("show command should error with too many arguments")
 	}
