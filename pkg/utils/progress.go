@@ -4,11 +4,13 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
 // ProgressTracker tracks build progress.
 type ProgressTracker struct {
+	mu      sync.Mutex
 	total   int       // Total number of steps.
 	current int       // Current step index.
 	start   time.Time // Build start time.
@@ -24,6 +26,8 @@ func NewProgressTracker(total int) *ProgressTracker {
 
 // Start marks the beginning of a new step and prints the pending state.
 func (p *ProgressTracker) Start(description string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.current++
 	prefix := fmt.Sprintf("[%d/%d]", p.current, p.total)
 
