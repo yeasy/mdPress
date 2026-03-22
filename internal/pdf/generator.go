@@ -24,6 +24,32 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// allowedChromiumFlags is a whitelist of safe Chromium command-line flags
+// that users are permitted to set via the CHROME_FLAGS environment variable.
+var allowedChromiumFlags = map[string]bool{
+	"no-sandbox":                       true,
+	"disable-gpu":                      true,
+	"headless":                         true,
+	"disable-dev-shm-usage":            true,
+	"font-render-hinting":              true,
+	"disable-software-rasterizer":      true,
+	"disable-extensions":               true,
+	"disable-background-networking":    true,
+	"disable-sync":                     true,
+	"disable-translate":                true,
+	"mute-audio":                       true,
+	"no-first-run":                     true,
+	"safebrowsing-disable-auto-update": true,
+	"hide-scrollbars":                  true,
+	"disable-notifications":            true,
+	"disable-crash-reporter":           true,
+	"noerrdialogs":                     true,
+	"allow-file-access-from-files":     true,
+	"no-pdf-header-footer":             true,
+	"print-to-pdf":                     true,
+	"user-data-dir":                    true,
+}
+
 // cjkFontCandidate describes a CJK font with filesystem paths that Chromium
 // can load via file:// URL for embedding in PDF output.
 //
@@ -818,6 +844,21 @@ func parseChromiumFlags(raw string) map[string]interface{} {
 		if flag == "" {
 			continue
 		}
+
+		// Extract the flag name (before '=' if present)
+		flagName := flag
+		if parts := strings.SplitN(flag, "=", 2); len(parts) == 2 {
+			flagName = parts[0]
+		}
+
+		// Validate against whitelist
+		if !allowedChromiumFlags[flagName] {
+			sanitized := strings.NewReplacer("\n", "", "\r", "").Replace(flagName)
+			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
+			continue
+		}
+
+		// Parse the flag value
 		if parts := strings.SplitN(flag, "=", 2); len(parts) == 2 {
 			switch strings.ToLower(parts[1]) {
 			case "true":
@@ -832,6 +873,37 @@ func parseChromiumFlags(raw string) map[string]interface{} {
 		flags[flag] = true
 	}
 	return flags
+}
+
+// filterChromiumCLIFlags filters command-line arguments from CHROME_FLAGS environment variable
+// to only include whitelisted flags, preventing command injection.
+func filterChromiumCLIFlags(flagsString string) []string {
+	var filtered []string
+	for _, item := range strings.Fields(flagsString) {
+		if !strings.HasPrefix(item, "--") {
+			continue
+		}
+		flag := strings.TrimPrefix(item, "--")
+		if flag == "" {
+			continue
+		}
+
+		// Extract the flag name (before '=' if present)
+		flagName := flag
+		if parts := strings.SplitN(flag, "=", 2); len(parts) == 2 {
+			flagName = parts[0]
+		}
+
+		// Validate against whitelist
+		if !allowedChromiumFlags[flagName] {
+			sanitized := strings.NewReplacer("\n", "", "\r", "").Replace(flagName)
+			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
+			continue
+		}
+
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
@@ -905,10 +977,12 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		"--no-pdf-header-footer",
 		"--user-data-dir=" + runtime.userData,
 	}
-	args = append(args, strings.Fields(os.Getenv("CHROME_FLAGS"))...)
+	args = append(args, filterChromiumCLIFlags(os.Getenv("CHROME_FLAGS"))...)
 	args = append(args, fileURL)
 
-	cmd := exec.CommandContext(context.Background(), chromePath, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, chromePath, args...)
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
