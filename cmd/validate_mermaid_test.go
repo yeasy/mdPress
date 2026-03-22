@@ -5,6 +5,8 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/pdf"
 )
 
 // ---------------------------------------------------------------------------
@@ -264,7 +266,11 @@ func TestValidateRenderedMermaidHTML_EmptyHTML(t *testing.T) {
 }
 
 func TestValidateRenderedMermaidHTML_Whitespace(t *testing.T) {
-	// Whitespace-only content should be treated as empty
+	// Whitespace-only content requires Chrome for validation;
+	// skip when Chrome is not available.
+	if err := pdf.CheckChromiumAvailable(); err != nil {
+		t.Skipf("Chrome unavailable: %v", err)
+	}
 	err := validateRenderedMermaidHTML("   \n\t  ")
 	if err != nil {
 		t.Errorf("whitespace-only HTML should not error: %v", err)
