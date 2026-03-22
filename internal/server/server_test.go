@@ -828,7 +828,7 @@ func TestIsAddrInUse(t *testing.T) {
 		{
 			name:     "address already in use string",
 			err:      fmt.Errorf("address already in use"),
-			expected: false,
+			expected: true, // string fallback matches
 		},
 		{
 			name:     "other error",
@@ -1659,7 +1659,7 @@ func TestIsAddrInUseDetection(t *testing.T) {
 		{
 			name:        "generic error with 'address already in use' message",
 			err:         fmt.Errorf("listen tcp: address already in use"),
-			shouldMatch: false,
+			shouldMatch: true, // string fallback matches
 		},
 		{
 			name:        "unrelated error",

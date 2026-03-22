@@ -623,7 +623,7 @@ func inferTitleFromPath(relPath string) string {
 	// "chapter01/README.md" → "chapter01"
 	// "preface.md" → "preface"
 	// "part1/intro.md" → "part1/intro"
-	name := relPath
+	name := filepath.ToSlash(relPath)
 
 	// Strip the .md suffix.
 	name = strings.TrimSuffix(name, ".md")
@@ -631,7 +631,7 @@ func inferTitleFromPath(relPath string) string {
 
 	// Use the parent directory when the file is named README.
 	if strings.HasSuffix(strings.ToUpper(name), "/README") || strings.EqualFold(name, "README") {
-		dir := filepath.Dir(relPath)
+		dir := filepath.ToSlash(filepath.Dir(relPath))
 		if dir != "." {
 			name = dir
 		}

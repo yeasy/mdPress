@@ -6,18 +6,20 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
 
 // writeScript creates a temporary executable script that writes the given
 // body to stdout when run.  On Unix it creates a shell script; on Windows
-// it creates a .bat file.
+// it creates a .bat file with translated commands.
 func writeScript(t *testing.T, dir, name, body string) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
 		p := filepath.Join(dir, name+".bat")
-		if err := os.WriteFile(p, []byte("@echo off\r\n"+body), 0755); err != nil {
+		winBody := toWindowsBatch(body)
+		if err := os.WriteFile(p, []byte("@echo off\r\n"+winBody+"\r\n"), 0755); err != nil {
 			t.Fatal(err)
 		}
 		return p
@@ -27,6 +29,27 @@ func writeScript(t *testing.T, dir, name, body string) string {
 		t.Fatal(err)
 	}
 	return p
+}
+
+// toWindowsBatch translates common Unix shell idioms to Windows batch equivalents.
+func toWindowsBatch(body string) string {
+	// Replace Unix command separator ";" with Windows "&"
+	body = strings.ReplaceAll(body, "; ", "& ")
+	// Replace "exit 1" with "exit /b 1" (batch requires /b to exit script, not cmd.exe)
+	body = strings.ReplaceAll(body, "exit 1", "exit /b 1")
+	// Replace bare "true" (Unix noop) with "rem noop"
+	if body == "true" {
+		return "rem noop"
+	}
+	// Strip single quotes from echo commands (Windows echo doesn't use them)
+	if strings.HasPrefix(body, "echo '") && strings.HasSuffix(body, "'") {
+		body = "echo " + body[6:len(body)-1]
+	}
+	// Handle echo with single quotes followed by other commands (e.g. "echo '...' >&2& ...")
+	body = strings.ReplaceAll(body, "echo '", "echo ")
+	body = strings.ReplaceAll(body, "' >&2", " 1>&2")
+	body = strings.ReplaceAll(body, "' >", " >")
+	return body
 }
 
 // --- NewExternalPlugin tests ---
@@ -239,6 +262,9 @@ func TestExternalPlugin_Execute_Stderr(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_Timeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script syntax required; skipping on Windows")
+	}
 	dir := t.TempDir()
 	// Script responds quickly to --mdpress-info/--mdpress-hooks (so NewExternalPlugin
 	// does not block on the 5s query timeout) but sleeps on normal execution.
@@ -315,6 +341,9 @@ func TestTruncate(t *testing.T) {
 // --- queryPluginMeta / queryPluginHooks tests ---
 
 func TestQueryPluginMeta_ValidResponse(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script syntax required; skipping on Windows")
+	}
 	dir := t.TempDir()
 	meta, _ := json.Marshal(map[string]string{"version": "2.0.0", "description": "test plugin"})
 	// The script checks for --mdpress-info flag
@@ -348,6 +377,9 @@ func TestQueryPluginMeta_Fallback(t *testing.T) {
 }
 
 func TestQueryPluginHooks_ValidResponse(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script syntax required; skipping on Windows")
+	}
 	dir := t.TempDir()
 	hooks, _ := json.Marshal([]string{"after_parse", "after_build"})
 	script := `

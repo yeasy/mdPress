@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -437,6 +438,9 @@ func TestRenderLocalNotFound(t *testing.T) {
 // script that emits a minimal SVG, verifying the happy path without a real
 // installation.
 func TestRenderLocalWithFakePlantuml(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based test; skipping on Windows")
+	}
 	// Write a tiny shell script that prints a valid SVG to stdout.
 	dir := t.TempDir()
 	script := dir + "/plantuml"

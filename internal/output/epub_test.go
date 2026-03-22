@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -645,6 +646,10 @@ func TestGenerateNCXDocument(t *testing.T) {
 // TestGeneratePreservesPartialFileOnZipError simulates a write error to verify cleanup.
 // Note: This test verifies the behavior by checking that the file is cleaned up.
 func TestGeneratePartialFileCleanup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file-permission semantics required; skipping on Windows")
+	}
+
 	tmpDir := t.TempDir()
 
 	// Make tmpDir read-only to cause write failure
