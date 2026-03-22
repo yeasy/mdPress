@@ -43,6 +43,19 @@ const (
 	imageDownloadRetryDelay = 1 * time.Second
 )
 
+// ImageExtensionMap maps MIME types to file extensions.
+// This is used by multiple packages (epub, etc.) to ensure consistent MIME type handling.
+var ImageExtensionMap = map[string]string{
+	"image/jpeg":    ".jpg",
+	"image/png":     ".png",
+	"image/gif":     ".gif",
+	"image/webp":    ".webp",
+	"image/svg+xml": ".svg",
+	"image/bmp":     ".bmp",
+	"image/tiff":    ".tiff",
+	"image/x-icon":  ".ico",
+}
+
 // IsRemoteURL reports whether a path is an HTTP(S) URL.
 func IsRemoteURL(path string) bool {
 	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://")
@@ -107,20 +120,30 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 	// Download with a timeout so unresponsive servers do not hang forever.
 	client := &http.Client{Timeout: imageDownloadTimeout}
-	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for image download: %w", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		// Close response body if there was an error but resp is not nil.
+		if resp != nil {
+			resp.Body.Close() //nolint:errcheck
+		}
 		// Retry once for transient network errors.
 		time.Sleep(imageDownloadRetryDelay)
-		req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
 		}
 		resp, err = client.Do(req)
 		if err != nil {
+			// Close response body if there was an error on retry but resp is not nil.
+			if resp != nil {
+				resp.Body.Close() //nolint:errcheck
+			}
 			return "", fmt.Errorf("failed to download image %q (after retry): %w", urlStr, err)
 		}
 	}
@@ -202,9 +225,14 @@ func ImageToBase64(path string) (string, error) {
 func GetImageMIME(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	mimeTypes := map[string]string{
+	// Handle .jpeg as an alias for .jpg
+	if ext == ".jpeg" {
+		return "image/jpeg"
+	}
+
+	// Map extension to MIME type
+	mimeTypesByExt := map[string]string{
 		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
 		".png":  "image/png",
 		".gif":  "image/gif",
 		".webp": "image/webp",
@@ -214,7 +242,7 @@ func GetImageMIME(path string) string {
 		".ico":  "image/x-icon",
 	}
 
-	if mimeType, ok := mimeTypes[ext]; ok {
+	if mimeType, ok := mimeTypesByExt[ext]; ok {
 		return mimeType
 	}
 
@@ -405,7 +433,21 @@ func resolveLocalImagePath(baseDir string, src string) string {
 	if filepath.IsAbs(src) {
 		return src
 	}
-	return filepath.Clean(filepath.Join(baseDir, src))
+	resolved := filepath.Clean(filepath.Join(baseDir, src))
+	// Ensure the resolved path stays within baseDir
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return resolved
+	}
+	absResolved, err := filepath.Abs(resolved)
+	if err != nil {
+		return resolved
+	}
+	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
+		// Path escapes baseDir, return empty to prevent traversal
+		return ""
+	}
+	return resolved
 }
 
 func filePathToURL(path string) string {
@@ -422,32 +464,23 @@ func filePathToURL(path string) string {
 
 func imageExtensionForContentType(contentType string) string {
 	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
-	switch contentType {
-	case "image/jpeg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "image/webp":
-		return ".webp"
-	case "image/svg+xml":
-		return ".svg"
-	case "image/bmp":
-		return ".bmp"
-	case "image/tiff":
-		return ".tiff"
-	case "image/x-icon", "image/vnd.microsoft.icon":
+	// Handle alternate MIME type for ico
+	if contentType == "image/vnd.microsoft.icon" {
 		return ".ico"
-	default:
-		return ""
 	}
+	// Look up extension from the shared map
+	if ext, ok := ImageExtensionMap[contentType]; ok {
+		return ext
+	}
+	return ""
 }
 
 // StableHash returns a stable SHA-256 hex digest for the given strings.
 func StableHash(parts ...string) string {
 	h := sha256.New()
 	for _, part := range parts {
+		// Errors from io.WriteString on hash.Hash are always nil;
+		// hash writes never fail.
 		_, _ = io.WriteString(h, part)
 		_, _ = io.WriteString(h, "\x00")
 	}
