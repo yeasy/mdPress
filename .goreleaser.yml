@@ -49,19 +49,20 @@ changelog:
       - '^chore:'
       - '^ci:'
 
-brews:
+homebrew_casks:
   - name: mdpress
+    ids:
+      - binaries
+    binaries:
+      - mdpress
     repository:
       owner: yeasy
       name: homebrew-tap
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/yeasy/mdpress"
     description: "Markdown publishing CLI for book-style and documentation-style projects"
-    license: "MIT"
-    install: |
-      bin.install "mdpress"
-    test: |
-      system "#{bin}/mdpress", "--help"
+    url:
+      verified: "github.com/yeasy/mdPress/"
 
 release:
   github:
