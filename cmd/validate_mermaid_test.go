@@ -13,81 +13,81 @@ import (
 
 func TestBuildMermaidValidationHTML_TableDriven(t *testing.T) {
 	tests := []struct {
-		name         string
-		bodyHTML     string
+		name          string
+		bodyHTML      string
 		expectDoctype bool
-		expectBody   bool
-		expectStatus bool
-		expectScript bool
-		checkContent func(html string) bool
+		expectBody    bool
+		expectStatus  bool
+		expectScript  bool
+		checkContent  func(html string) bool
 	}{
 		{
-			name:         "empty body HTML",
-			bodyHTML:     "",
+			name:          "empty body HTML",
+			bodyHTML:      "",
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				return strings.Contains(html, "<body>") && strings.Contains(html, "</body>")
 			},
 		},
 		{
-			name:         "simple mermaid diagram",
-			bodyHTML:     `<div class="mermaid">graph TD; A-->B;</div>`,
+			name:          "simple mermaid diagram",
+			bodyHTML:      `<div class="mermaid">graph TD; A-->B;</div>`,
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				return strings.Contains(html, `<div class="mermaid">`)
 			},
 		},
 		{
-			name:         "multiple mermaid blocks",
-			bodyHTML:     `<div class="mermaid">graph A</div><div class="mermaid">graph B</div>`,
+			name:          "multiple mermaid blocks",
+			bodyHTML:      `<div class="mermaid">graph A</div><div class="mermaid">graph B</div>`,
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				count := strings.Count(html, `<div class="mermaid">`)
 				return count == 2
 			},
 		},
 		{
-			name:         "mermaid with special characters",
-			bodyHTML:     `<div class="mermaid">graph TD; A["Node &amp; Text"] --> B;</div>`,
+			name:          "mermaid with special characters",
+			bodyHTML:      `<div class="mermaid">graph TD; A["Node &amp; Text"] --> B;</div>`,
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				return strings.Contains(html, "Node &amp; Text")
 			},
 		},
 		{
-			name:         "mermaid with newlines",
-			bodyHTML:     `<div class="mermaid">
+			name: "mermaid with newlines",
+			bodyHTML: `<div class="mermaid">
 graph TD
 A-->B
 B-->C
 </div>`,
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				return strings.Contains(html, "graph TD")
 			},
 		},
 		{
-			name:         "complex HTML structure",
-			bodyHTML:     `<div><p>Text before</p><div class="mermaid">graph</div><p>Text after</p></div>`,
+			name:          "complex HTML structure",
+			bodyHTML:      `<div><p>Text before</p><div class="mermaid">graph</div><p>Text after</p></div>`,
 			expectDoctype: true,
-			expectBody:   true,
-			expectStatus: true,
-			expectScript: true,
+			expectBody:    true,
+			expectStatus:  true,
+			expectScript:  true,
 			checkContent: func(html string) bool {
 				return strings.Contains(html, "Text before") && strings.Contains(html, "Text after")
 			},
@@ -173,10 +173,10 @@ func TestBuildMermaidValidationHTML_JavaScriptFeatures(t *testing.T) {
 func TestBuildMermaidValidationHTML_StatusProperties(t *testing.T) {
 	html := buildMermaidValidationHTML("")
 
-	// Check for all status properties in initialization
+	// Check for all status properties in initialization (JS object keys are unquoted)
 	statusProps := []string{"done", "ok", "error", "total", "rendered", "processed"}
 	for _, prop := range statusProps {
-		if !strings.Contains(html, `"`+prop+`":`) && !strings.Contains(html, `'`+prop+`':`) {
+		if !strings.Contains(html, prop+":") {
 			t.Errorf("missing status property: %s", prop)
 		}
 	}
@@ -364,7 +364,7 @@ graph TD
 
 	html := buildMermaidValidationHTML(htmlWithCJK)
 
-	if !strings.Contains(html, "charset=UTF-8") {
+	if !strings.Contains(html, `charset="UTF-8"`) {
 		t.Error("should declare UTF-8 charset")
 	}
 
