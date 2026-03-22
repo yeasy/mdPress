@@ -140,7 +140,16 @@ func isAddrInUse(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, syscall.EADDRINUSE)
+	// On Unix, the underlying error is syscall.EADDRINUSE.
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return true
+	}
+	// On Windows, the underlying Winsock error (WSAEADDRINUSE = 10048)
+	// may not match the invented syscall.EADDRINUSE constant.
+	// Fall back to string matching for cross-platform reliability.
+	msg := err.Error()
+	return strings.Contains(msg, "address already in use") ||
+		strings.Contains(msg, "Only one usage of each socket address")
 }
 
 // Start runs the server until the context is canceled.

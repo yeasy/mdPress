@@ -639,10 +639,11 @@ func TestResolvePathTableDriven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := DefaultConfig()
-			cfg.baseDir = tt.baseDir
+			cfg.baseDir = filepath.FromSlash(tt.baseDir)
 			got := cfg.ResolvePath(tt.input)
-			if got != tt.want {
-				t.Errorf("ResolvePath(%q) = %q, want %q", tt.input, got, tt.want)
+			want := filepath.FromSlash(tt.want)
+			if got != want {
+				t.Errorf("ResolvePath(%q) = %q, want %q", tt.input, got, want)
 			}
 		})
 	}

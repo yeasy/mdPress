@@ -3,6 +3,7 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -12,8 +13,15 @@ import (
 
 func createTestPlugin(t *testing.T, dir, name string) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		scriptPath := filepath.Join(dir, name+".bat")
+		script := "@echo off\r\necho {}\r\n"
+		if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+			t.Fatalf("failed to create test plugin: %v", err)
+		}
+		return scriptPath
+	}
 	scriptPath := filepath.Join(dir, name)
-	// Create a simple script that responds to our plugin protocol
 	script := "#!/bin/sh\necho '{}'\n"
 	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
 		t.Fatalf("failed to create test plugin: %v", err)

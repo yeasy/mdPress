@@ -5,6 +5,7 @@ package source
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -39,6 +40,9 @@ func TestDetect_InvalidGitHubURLs(t *testing.T) {
 
 // TestLocalSource_PermissionDenied 测试无权限目录的处理
 func TestLocalSource_PermissionDenied(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file-permission semantics required; skipping on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root 用户无法测试权限限制")
 	}
@@ -92,6 +96,9 @@ func TestLocalSource_SymlinkPath(t *testing.T) {
 
 // TestLocalSource_SubDirPermission 测试子目录权限问题
 func TestLocalSource_SubDirPermission(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix file-permission semantics required; skipping on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root 用户无法测试权限限制")
 	}
