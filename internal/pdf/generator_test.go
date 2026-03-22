@@ -2,6 +2,8 @@ package pdf
 
 import (
 	"bytes"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -318,11 +320,12 @@ func TestParseChromiumFlags(t *testing.T) {
 	if value, ok := args["disable-dev-shm-usage"]; !ok || value != true {
 		t.Fatalf("expected disable-dev-shm-usage=true, got %v", value)
 	}
-	if value, ok := args["remote-debugging-port"]; !ok || value != "0" {
-		t.Fatalf("expected remote-debugging-port=\"0\", got %v", value)
+	// remote-debugging-port and single-process are not in the allowlist and must be rejected.
+	if _, ok := args["remote-debugging-port"]; ok {
+		t.Fatal("expected remote-debugging-port to be rejected by allowlist")
 	}
-	if value, ok := args["single-process"]; !ok || value != false {
-		t.Fatalf("expected single-process=false, got %v", value)
+	if _, ok := args["single-process"]; ok {
+		t.Fatal("expected single-process to be rejected by allowlist")
 	}
 }
 
@@ -343,19 +346,25 @@ func TestPrepareChromiumRuntimeDirs(t *testing.T) {
 }
 
 func TestChromiumRuntimeEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	homeDir := filepath.Join(tmpDir, "home")
+	runtimeTmpDir := filepath.Join(tmpDir, "tmp")
+	xdgConfigDir := filepath.Join(tmpDir, "xdg-config")
+	xdgCacheDir := filepath.Join(tmpDir, "xdg-cache")
+
 	runtime := chromiumRuntimeDirs{
-		homeDir:   "/tmp/home",
-		tmpDir:    "/tmp/tmp",
-		xdgConfig: "/tmp/xdg-config",
-		xdgCache:  "/tmp/xdg-cache",
+		homeDir:   homeDir,
+		tmpDir:    runtimeTmpDir,
+		xdgConfig: xdgConfigDir,
+		xdgCache:  xdgCacheDir,
 	}
 	env := chromiumRuntimeEnv(runtime)
 	joined := strings.Join(env, "\n")
 	// HOME and XDG_CACHE_HOME are intentionally not overridden so that Chrome
 	// can access system font caches; only TMPDIR and XDG_CONFIG_HOME are isolated.
 	for _, expected := range []string{
-		"TMPDIR=/tmp/tmp",
-		"XDG_CONFIG_HOME=/tmp/xdg-config",
+		"TMPDIR=" + runtimeTmpDir,
+		"XDG_CONFIG_HOME=" + xdgConfigDir,
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("expected %q in env, got %v", expected, env)
@@ -437,17 +446,18 @@ func TestInjectCJKFontFaceCSSNoHead(t *testing.T) {
 
 func TestCJKFontSrc(t *testing.T) {
 	// cjkFontSrc returns a relative URL with format() hints based on file extension.
+	tmpDir := t.TempDir()
 	tests := []struct {
 		name     string
 		path     string
 		expected string
 	}{
-		{name: "ttc collection", path: "/tmp/fonts/msyh.ttc", expected: `url("/cjk-font") format("collection")`},
-		{name: "otf font", path: "/tmp/fonts/noto.otf", expected: `url("/cjk-font") format("opentype")`},
-		{name: "ttf font", path: "/tmp/fonts/noto.ttf", expected: `url("/cjk-font") format("truetype")`},
-		{name: "woff font", path: "/tmp/fonts/noto.woff", expected: `url("/cjk-font") format("woff")`},
-		{name: "woff2 font", path: "/tmp/fonts/noto.woff2", expected: `url("/cjk-font") format("woff2")`},
-		{name: "otc collection", path: "/tmp/fonts/noto.otc", expected: `url("/cjk-font") format("collection")`},
+		{name: "ttc collection", path: filepath.Join(tmpDir, "msyh.ttc"), expected: `url("/cjk-font") format("collection")`},
+		{name: "otf font", path: filepath.Join(tmpDir, "noto.otf"), expected: `url("/cjk-font") format("opentype")`},
+		{name: "ttf font", path: filepath.Join(tmpDir, "noto.ttf"), expected: `url("/cjk-font") format("truetype")`},
+		{name: "woff font", path: filepath.Join(tmpDir, "noto.woff"), expected: `url("/cjk-font") format("woff")`},
+		{name: "woff2 font", path: filepath.Join(tmpDir, "noto.woff2"), expected: `url("/cjk-font") format("woff2")`},
+		{name: "otc collection", path: filepath.Join(tmpDir, "noto.otc"), expected: `url("/cjk-font") format("collection")`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -460,14 +470,15 @@ func TestCJKFontSrc(t *testing.T) {
 }
 
 func TestCJKFontSrcFallbackFormats(t *testing.T) {
+	tmpDir := t.TempDir()
 	tests := []struct {
 		name     string
 		path     string
 		expected string
 	}{
-		{name: "ttc", path: "/tmp/fonts/msyh.ttc", expected: `url("file:///tmp/fonts/msyh.ttc")`},
-		{name: "otf", path: "/tmp/fonts/noto.otf", expected: `url("file:///tmp/fonts/noto.otf")`},
-		{name: "ttf", path: "/tmp/fonts/noto.ttf", expected: `url("file:///tmp/fonts/noto.ttf")`},
+		{name: "ttc", path: filepath.Join(tmpDir, "msyh.ttc"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "msyh.ttc")))},
+		{name: "otf", path: filepath.Join(tmpDir, "noto.otf"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "noto.otf")))},
+		{name: "ttf", path: filepath.Join(tmpDir, "noto.ttf"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "noto.ttf")))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -480,23 +491,36 @@ func TestCJKFontSrcFallbackFormats(t *testing.T) {
 }
 
 func TestFileURLForCSS(t *testing.T) {
-	got := fileURLForCSS("/tmp/My Fonts/msyh.ttc")
-	want := "file:///tmp/My%20Fonts/msyh.ttc"
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "My Fonts", "msyh.ttc")
+	got := fileURLForCSS(path)
+	want := (&url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}).String()
 	if got != want {
 		t.Fatalf("fileURLForCSS() = %q, want %q", got, want)
 	}
 }
 
 func TestChromiumAllocatorOptionsIncludeRuntimeOverrides(t *testing.T) {
+	tmpDir := t.TempDir()
+	userDataDir := filepath.Join(tmpDir, "user-data")
+	homeDir := filepath.Join(tmpDir, "home")
+	runtimeTmpDir := filepath.Join(tmpDir, "tmp")
+	xdgConfigDir := filepath.Join(tmpDir, "xdg-config")
+	xdgCacheDir := filepath.Join(tmpDir, "xdg-cache")
+	chromePath := filepath.Join(tmpDir, "chrome")
+
 	runtime := chromiumRuntimeDirs{
-		userData:  "/tmp/user-data",
-		homeDir:   "/tmp/home",
-		tmpDir:    "/tmp/tmp",
-		xdgConfig: "/tmp/xdg-config",
-		xdgCache:  "/tmp/xdg-cache",
+		userData:  userDataDir,
+		homeDir:   homeDir,
+		tmpDir:    runtimeTmpDir,
+		xdgConfig: xdgConfigDir,
+		xdgCache:  xdgCacheDir,
 	}
 	var output bytes.Buffer
-	opts := chromiumAllocatorOptions("/tmp/chrome", runtime, &output)
+	opts := chromiumAllocatorOptions(chromePath, runtime, &output)
 	if len(opts) == 0 {
 		t.Fatal("chromiumAllocatorOptions returned no options")
 	}

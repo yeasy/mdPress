@@ -12,12 +12,13 @@ import (
 
 // executeThemesPreview generates an HTML preview of all themes.
 func executeThemesPreview(outputPath string) error {
+	logger := slog.Default()
+
 	// Use default output path if empty
 	if outputPath == "" {
 		outputPath = "themes-preview.html"
 	}
 
-	logger := slog.Default()
 	logger.Info("Generating themes preview", slog.String("output", outputPath))
 
 	themes := getAvailableThemes()
