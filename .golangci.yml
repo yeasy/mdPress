@@ -33,6 +33,22 @@ linters:
         - os.RemoveAll
         - os.Unsetenv
         - os.Setenv
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+    gosec:
+      excludes:
+        - G104  # errors unhandled — covered by errcheck + nolint
+        - G112  # Slowloris — internal dev server only
+        - G203  # template.HTML — mdpress generates HTML by design
+        - G204  # subprocess — CLI tool calls external binaries
+        - G301  # directory permissions 0755 — standard for user dirs
+        - G304  # file inclusion via variable — file-processing CLI
+        - G306  # WriteFile 0644 — standard for user-facing files
+        - G702  # command injection — trusted CLI args
+        - G703  # path traversal — trusted local paths
+        - G704  # SSRF — downloading user-specified resources
+        - G705  # XSS — HTML generation tool
     misspell:
       locale: US
   exclusions:
