@@ -394,7 +394,7 @@ body {
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
   border-top: 5px solid currentColor;
-  transition: transform 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .nav-group.collapsed .nav-toggle::before { transform: rotate(-90deg); }
 .nav-toggle-placeholder::before { content: ""; }
@@ -418,7 +418,7 @@ body {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: grid-template-rows 0.24s ease, opacity 0.18s ease;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
 }
 .nav-children-inner {
   min-height: 0;
@@ -428,6 +428,10 @@ body {
 .nav-group.expanded > .nav-children {
   grid-template-rows: 1fr;
   opacity: 1;
+}
+.nav-group.collapsed > .nav-children {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
 
 /* ===== Page Header ===== */
@@ -1003,6 +1007,7 @@ body {
   function expandGroupChain(group) {
     var current = group;
     while (current) {
+      collapseSiblingGroups(current);
       setGroupExpanded(current, true);
       current = current.parentElement ? current.parentElement.closest('.nav-group') : null;
     }
@@ -1012,13 +1017,36 @@ body {
     if (!group || !group.querySelector('.nav-children')) return;
     group.classList.toggle('collapsed', !shouldExpand);
     group.classList.toggle('expanded', shouldExpand);
-    var toggle = group.querySelector('.nav-toggle');
+    var toggle = group.querySelector(':scope > .nav-row > .nav-toggle');
     if (toggle) toggle.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
+  }
+
+  function collapseSiblingGroups(group) {
+    if (!group || !group.parentElement) return;
+    var container = group.parentElement;
+    var siblings = container.querySelectorAll(':scope > .nav-group');
+    for (var i = 0; i < siblings.length; i++) {
+      if (siblings[i] !== group && siblings[i].classList.contains('expanded')) {
+        collapseGroupRecursive(siblings[i]);
+      }
+    }
+  }
+
+  function collapseGroupRecursive(group) {
+    var childGroups = group.querySelectorAll('.nav-group.expanded');
+    for (var i = 0; i < childGroups.length; i++) {
+      setGroupExpanded(childGroups[i], false);
+    }
+    setGroupExpanded(group, false);
   }
 
   function toggleGroup(group) {
     if (!group) return;
-    setGroupExpanded(group, group.classList.contains('collapsed'));
+    var shouldExpand = group.classList.contains('collapsed');
+    if (shouldExpand) {
+      collapseSiblingGroups(group);
+    }
+    setGroupExpanded(group, shouldExpand);
   }
 
   function smoothScrollToElement(element, hash) {

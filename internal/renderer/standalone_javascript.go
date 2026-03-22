@@ -131,11 +131,6 @@ const standaloneJS = `
     navClickTimer = setTimeout(function() { navClickLock = false; }, 600);
   }
 
-  // Determine if item is a top-level section group (parent is #sidebar-nav)
-  function isTopLevelGroup(item) {
-    return item && item.parentElement && item.parentElement.id === 'sidebar-nav';
-  }
-
   // Expand subsection list with max-height animation
   function expandTocGroup(children, btn) {
     if (!children.hidden && children.style.maxHeight === '') return; // already expanded
@@ -164,15 +159,23 @@ const standaloneJS = `
     });
   }
 
-  // Collapse sibling expanded top-level sections (top-level accordion only)
-  function collapseTopLevelSiblings(item) {
-    if (!isTopLevelGroup(item)) return;
-    var parent = item.parentElement;
-    parent.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
+  // Collapse sibling groups at any level (accordion behavior)
+  function collapseSiblingGroups(item) {
+    if (!item || !item.parentElement) return;
+    var container = item.parentElement;
+    container.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
       if (sib === item) return;
       var sc = sib.querySelector(':scope > .toc-children');
       var sb = sib.querySelector(':scope > .toc-row > .toc-toggle');
-      if (sc && !sc.hidden) collapseTocGroup(sc, sb);
+      if (sc && !sc.hidden) {
+        // Also collapse any expanded children within the sibling
+        sib.querySelectorAll('.toc-group.has-children').forEach(function(nested) {
+          var nc = nested.querySelector(':scope > .toc-children');
+          var nb = nested.querySelector(':scope > .toc-row > .toc-toggle');
+          if (nc && !nc.hidden) collapseTocGroup(nc, nb);
+        });
+        collapseTocGroup(sc, sb);
+      }
     });
   }
 
@@ -187,8 +190,7 @@ const standaloneJS = `
       if (expanded) {
         collapseTocGroup(children, btn);
       } else {
-        // Only top-level sections are mutually exclusive, subsections can expand together
-        collapseTopLevelSiblings(item);
+        collapseSiblingGroups(item);
         expandTocGroup(children, btn);
       }
     });
@@ -323,9 +325,9 @@ const standaloneJS = `
         var toggle = group.querySelector(':scope > .toc-row > .toc-toggle');
         var children = group.querySelector(':scope > .toc-children');
         if (toggle && children && children.hidden) {
-          // Only collapse top-level accordion during non-click navigation
+          // Collapse sibling sections during non-click navigation
           if (!navClickLock) {
-            collapseTopLevelSiblings(group);
+            collapseSiblingGroups(group);
           }
           expandTocGroup(children, toggle);
         }
