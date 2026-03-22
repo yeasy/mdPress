@@ -225,7 +225,7 @@ const standaloneCSS = `    /* ==================================================
       overflow-y: auto;
       padding: 1rem 0;
       max-height: calc(100vh - 60px);
-      transition: transform 0.25s ease;
+      transition: transform 0.25s ease, left 0.25s ease;
     }
 
     #main-content {
@@ -462,7 +462,7 @@ const standaloneCSS = `    /* ==================================================
     a {
       color: var(--color-link);
       text-decoration: none;
-      transition: color 0.15s ease;
+      transition: color 0.15s ease, text-decoration 0.15s ease;
     }
 
     a:hover {
@@ -571,7 +571,7 @@ const standaloneCSS = `    /* ==================================================
       padding: 0.5rem 0.5rem;
       font-size: 14px;
       cursor: pointer;
-      transition: opacity 0.2s ease, background 0.15s ease;
+      transition: opacity 0.2s ease, background 0.15s ease, color 0.15s ease;
       z-index: 2;
       opacity: 0;
     }
@@ -1034,12 +1034,14 @@ const standaloneCSS = `    /* ==================================================
         top: 52px;
         height: calc(100vh - 52px);
         z-index: 99;
-        transition: left 0.3s;
+        transition: left 0.25s ease;
         width: 250px;
+        transform: translateX(0);
       }
 
       #left-sidebar.mobile-open {
         left: 0;
+        transform: translateX(0);
       }
 
       .sidebar-overlay {
@@ -1064,6 +1066,10 @@ const standaloneCSS = `    /* ==================================================
 
       .chapter-nav {
         grid-template-columns: 1fr;
+      }
+
+      #right-toc-nav {
+        display: none;
       }
 
       #back-to-top {
@@ -1107,7 +1113,8 @@ const standaloneCSS = `    /* ==================================================
       #right-toc-nav,
       .sidebar-overlay,
       #back-to-top,
-      #search-overlay {
+      #search-overlay,
+      #reading-progress {
         display: none !important;
       }
 
@@ -1138,10 +1145,11 @@ const standaloneCSS = `    /* ==================================================
         text-decoration: underline;
       }
 
-      a::after {
+      a[href]::after {
         content: " (" attr(href) ")";
-        font-size: 0.8em;
+        font-size: 0.75em;
         color: #656d76;
+        word-break: break-all;
       }
 
       .code-block,
