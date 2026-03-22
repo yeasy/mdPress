@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -30,7 +31,7 @@ type mermaidRenderStatus struct {
 }
 
 func validateRenderedMermaidHTML(htmlContent string) error {
-	if htmlContent == "" {
+	if strings.TrimSpace(htmlContent) == "" {
 		return nil
 	}
 
