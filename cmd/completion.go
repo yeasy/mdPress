@@ -115,7 +115,7 @@ To use this in your PowerShell profile, run:
 
 // executeCompletion handles the parent-command path ("mdpress completion <shell>").
 // Descriptions are always enabled here; use the per-shell subcommands with
-// --no-descriptions for control over that behaviour.
+// --no-descriptions for control over that behavior.
 func executeCompletion(shell string) error {
 	switch shell {
 	case "bash":
