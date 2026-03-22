@@ -233,6 +233,7 @@ $ mdpress themes list
 | `mdpress build [source]` | 构建 PDF、HTML、站点或 ePub |
 | `mdpress serve [source]` | 启动实时预览（自动刷新） |
 | `mdpress quickstart [name]` | 创建完整示例项目 |
+| `mdpress migrate [directory]` | 从 GitBook/HonKit 迁移到 mdPress |
 | `mdpress init [directory]` | 从已有 Markdown 生成 `book.yaml` |
 | `mdpress validate [directory]` | 检查配置和文件是否有错误 |
 | `mdpress doctor [directory]` | 检查环境是否配置正确 |
