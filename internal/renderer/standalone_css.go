@@ -119,7 +119,7 @@ const standaloneCSS = `    /* ==================================================
     body {
       background-color: var(--color-bg);
       color: var(--color-text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
       font-size: 16px;
       line-height: 1.7;
       font-feature-settings: 'kern' 1;
@@ -225,6 +225,7 @@ const standaloneCSS = `    /* ==================================================
       overflow-y: auto;
       padding: 1rem 0;
       max-height: calc(100vh - 60px);
+      transition: transform 0.25s ease;
     }
 
     #main-content {
@@ -461,7 +462,7 @@ const standaloneCSS = `    /* ==================================================
     a {
       color: var(--color-link);
       text-decoration: none;
-      transition: color 0.2s;
+      transition: color 0.15s ease;
     }
 
     a:hover {
@@ -497,7 +498,7 @@ const standaloneCSS = `    /* ==================================================
       color: var(--color-code-text);
       padding: 0.2em 0.4em;
       border-radius: 3px;
-      font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans Mono CJK SC", monospace;
+      font-family: "JetBrains Mono", "Fira Code", "Source Code Pro", "Cascadia Code", "Noto Sans Mono CJK SC", monospace;
       font-size: 0.9em;
       border: 1px solid var(--color-code-border);
     }
@@ -570,7 +571,7 @@ const standaloneCSS = `    /* ==================================================
       padding: 0.5rem 0.5rem;
       font-size: 14px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: opacity 0.2s ease, background 0.15s ease;
       z-index: 2;
       opacity: 0;
     }
