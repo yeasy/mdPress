@@ -319,13 +319,25 @@ body {
 
 /* ===== Sidebar ===== */
 .sidebar {
-  width: 280px; min-width: 280px;
+  width: 280px; min-width: 200px; max-width: 50vw;
   background: #fafafa; border-right: 1px solid #e8e8e8;
   padding: 20px 0; overflow-y: auto;
   position: fixed; top: 0; bottom: 0; left: 0; z-index: 100;
   transition: transform 0.3s;
   view-transition-name: site-sidebar;
 }
+.sidebar-resize-handle {
+  position: absolute; top: 0; right: -3px; width: 6px; height: 100%;
+  cursor: col-resize; z-index: 101; background: transparent;
+  transition: background 0.15s;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.active {
+  background: rgba(66, 133, 244, 0.3);
+}
+body.sidebar-resizing { cursor: col-resize; user-select: none; }
+body.sidebar-resizing .sidebar { transition: none; }
+body.sidebar-resizing .main { transition: none; }
 .sidebar-header {
   padding: 16px 20px; border-bottom: 1px solid #e8e8e8;
   margin-bottom: 10px;
@@ -418,7 +430,7 @@ body {
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .nav-children-inner {
   min-height: 0;
@@ -428,10 +440,6 @@ body {
 .nav-group.expanded > .nav-children {
   grid-template-rows: 1fr;
   opacity: 1;
-}
-.nav-group.collapsed > .nav-children {
-  grid-template-rows: 0fr;
-  opacity: 0;
 }
 
 /* ===== Page Header ===== */
@@ -473,8 +481,9 @@ body {
 
 /* ===== Main Content ===== */
 .main {
-  margin-left: 280px; flex: 1; min-width: 0;
+  margin-left: var(--sidebar-width, 280px); flex: 1; min-width: 0;
   view-transition-name: site-main;
+  transition: margin-left 0.3s;
 }
 .content {
   max-width: 860px; margin: 0 auto; padding: 40px 50px 80px; overflow-wrap: anywhere;
@@ -726,7 +735,8 @@ body.sidebar-open::before {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: 2px 0 12px rgba(0,0,0,.2); }
   .sidebar-toggle { display: flex; }
-  .main { margin-left: 0; }
+  .sidebar-resize-handle { display: none; }
+  .main { margin-left: 0 !important; }
   .content { padding: 60px 20px 80px; }
   .page-header { padding: 16px 20px; }
   .page-nav {
@@ -819,6 +829,7 @@ body {
   </button>
 
   <nav class="sidebar">
+    <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     <div class="sidebar-header">
       <h1>{{.SiteTitle}}</h1>
       {{if .Author}}<div class="author">{{.Author}}</div>{{end}}
@@ -1009,7 +1020,9 @@ body {
     while (current) {
       collapseSiblingGroups(current);
       setGroupExpanded(current, true);
-      current = current.parentElement ? current.parentElement.closest('.nav-group') : null;
+      var parent = current.parentElement ? current.parentElement.closest('.nav-group') : null;
+      if (!parent) break;
+      current = parent;
     }
   }
 
@@ -1582,6 +1595,56 @@ body {
       toggleSidebar(false);
     }
   });
+
+  // Sidebar resize by dragging
+  (function() {
+    var handle = document.getElementById('sidebar-resize-handle');
+    var mainEl = document.querySelector('.main');
+    if (!handle || !sidebar || !mainEl) return;
+    var sidebarWidthKey = 'mdpress-sidebar-width';
+    var minW = 200, maxW = Math.floor(window.innerWidth * 0.5);
+
+    // Restore saved width
+    var saved = localStorage.getItem(sidebarWidthKey);
+    if (saved) {
+      var w = parseInt(saved, 10);
+      if (w >= minW && w <= maxW) {
+        sidebar.style.width = w + 'px';
+        document.documentElement.style.setProperty('--sidebar-width', w + 'px');
+      }
+    }
+
+    var startX, startW;
+    function onMouseMove(e) {
+      var newW = Math.min(maxW, Math.max(minW, startW + (e.clientX - startX)));
+      sidebar.style.width = newW + 'px';
+      document.documentElement.style.setProperty('--sidebar-width', newW + 'px');
+    }
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      handle.classList.remove('active');
+      document.body.classList.remove('sidebar-resizing');
+      var finalW = parseInt(sidebar.style.width, 10);
+      if (finalW) localStorage.setItem(sidebarWidthKey, finalW);
+    }
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      startX = e.clientX;
+      startW = sidebar.getBoundingClientRect().width;
+      maxW = Math.floor(window.innerWidth * 0.5);
+      handle.classList.add('active');
+      document.body.classList.add('sidebar-resizing');
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+    // Double-click to reset width
+    handle.addEventListener('dblclick', function() {
+      sidebar.style.width = '';
+      document.documentElement.style.setProperty('--sidebar-width', '280px');
+      localStorage.removeItem(sidebarWidthKey);
+    });
+  })();
   </script>
 </body>
 </html>`
