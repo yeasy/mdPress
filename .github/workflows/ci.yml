@@ -34,13 +34,13 @@ jobs:
       run: go vet ./...
 
     - name: Run tests
-      run: go test -v -race -coverprofile=./coverage.txt -covermode=atomic ./...
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Upload coverage
       if: matrix.os == 'ubuntu-latest'
       uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.txt
+        file: coverage.txt
 
   build:
     name: Build
