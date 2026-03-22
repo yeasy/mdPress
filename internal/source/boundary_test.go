@@ -227,10 +227,8 @@ func TestDetect_WhitespaceVariations(t *testing.T) {
 				if src != nil {
 					t.Errorf("Detect(%q) 错误时 source 应为 nil", tt.input)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Detect(%q) 不应返回错误: %v", tt.input, err)
-				}
+			} else if err != nil {
+				t.Errorf("Detect(%q) 不应返回错误: %v", tt.input, err)
 			}
 		})
 	}

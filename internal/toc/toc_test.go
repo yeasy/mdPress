@@ -227,10 +227,8 @@ func TestGetEntry(t *testing.T) {
 			if entry.Title != tt.title {
 				t.Errorf("ID=%q 的标题错误: got %q, want %q", tt.id, entry.Title, tt.title)
 			}
-		} else {
-			if entry != nil {
-				t.Errorf("ID=%q 应不存在", tt.id)
-			}
+		} else if entry != nil {
+			t.Errorf("ID=%q 应不存在", tt.id)
 		}
 	}
 }

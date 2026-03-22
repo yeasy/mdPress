@@ -161,10 +161,8 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 	entry2, ok := loaded.GetEntry("ch02.md")
 	if !ok {
 		t.Error("ch02.md not found in manifest")
-	} else {
-		if entry2.SHA256 != "hash2" {
-			t.Errorf("ch02 hash mismatch: expected hash2, got %q", entry2.SHA256)
-		}
+	} else if entry2.SHA256 != "hash2" {
+		t.Errorf("ch02 hash mismatch: expected hash2, got %q", entry2.SHA256)
 	}
 }
 

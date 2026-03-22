@@ -338,7 +338,7 @@ func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	err = executeThemesPreview("")
 	if err != nil {
@@ -456,7 +456,7 @@ func TestExecuteThemesPreview_RelativePath(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	relPath := "relative-preview.html"
 	err = executeThemesPreview(relPath)

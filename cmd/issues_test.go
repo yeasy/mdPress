@@ -67,7 +67,7 @@ func TestFormatIssueSummary_Sorted(t *testing.T) {
 		t.Errorf("Not all rules found in summary: %q", result)
 	}
 
-	if !(aIdx < mIdx && mIdx < zIdx) {
+	if aIdx >= mIdx || mIdx >= zIdx {
 		t.Errorf("Rules not properly sorted in summary: %q", result)
 	}
 }

@@ -391,7 +391,7 @@ func main() {
 		"<table>":      "表格",
 		"<blockquote>": "引用块",
 		"<hr":          "分隔线",
-		"<a ":          "链接",
+		"<a ":          "链接", //nolint:gocritic // intentional trailing space to match tag prefix
 		"<pre":         "代码块",
 	}
 
