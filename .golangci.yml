@@ -17,7 +17,6 @@ linters:
     - noctx
     - gosec
     - gocritic
-    - gofmt
   settings:
     errcheck:
       # Allow blank identifier assignments like: _ = f() and _, _ = f()

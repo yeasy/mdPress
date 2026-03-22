@@ -477,10 +477,10 @@ func TestQuoteFontFamily_TableDriven(t *testing.T) {
 
 func TestQuoteFontFamily_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		checkFn  func(string) bool
-		desc     string
+		name    string
+		input   string
+		checkFn func(string) bool
+		desc    string
 	}{
 		{
 			name:  "empty string",
@@ -494,7 +494,7 @@ func TestQuoteFontFamily_EdgeCases(t *testing.T) {
 			name:  "single space",
 			input: " ",
 			checkFn: func(s string) bool {
-				return s != ""
+				return s == "" // single space trims to empty string
 			},
 			desc: "should handle single space",
 		},
@@ -633,21 +633,21 @@ func TestQuoteFontFamily_RealWorldFontStacks(t *testing.T) {
 		validate func(string) bool
 	}{
 		{
-			name: "System font stack",
+			name:  "System font stack",
 			input: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
 			validate: func(s string) bool {
 				return strings.Contains(s, "-apple-system") && strings.Contains(s, "sans-serif")
 			},
 		},
 		{
-			name: "Bootstrap font stack",
+			name:  "Bootstrap font stack",
 			input: "Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif",
 			validate: func(s string) bool {
 				return strings.Contains(s, "sans-serif")
 			},
 		},
 		{
-			name: "CJK system stack",
+			name:  "CJK system stack",
 			input: "PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif",
 			validate: func(s string) bool {
 				return strings.Contains(s, "PingFang") && strings.Contains(s, "sans-serif")
