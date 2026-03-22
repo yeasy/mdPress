@@ -77,7 +77,7 @@ func (p *Plugin) Execute(hookCtx *plugin.HookContext) (*plugin.HookResult, error
 	}
 
 	// Process the HTML content
-	result, err := p.renderer.RenderHTML(hookCtx.Content)
+	result, err := p.renderer.RenderHTML(hookCtx.Context, hookCtx.Content)
 	if err != nil {
 		// Log the error but don't fail the build
 		if hookCtx.Metadata == nil {

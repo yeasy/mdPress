@@ -59,7 +59,7 @@ var plantumlPattern = regexp.MustCompile(
 	`<pre[^>]*><code[^>]*class="[^"]*language-plantuml[^"]*"[^>]*>([\s\S]*?)</code></pre>`)
 
 // RenderHTML processes HTML content and replaces PlantUML code blocks with SVG output.
-func (r *Renderer) RenderHTML(html string) (string, error) {
+func (r *Renderer) RenderHTML(ctx context.Context, html string) (string, error) {
 	var err error
 	result := plantumlPattern.ReplaceAllStringFunc(html, func(match string) string {
 		parts := plantumlPattern.FindStringSubmatch(match)
@@ -73,7 +73,7 @@ func (r *Renderer) RenderHTML(html string) (string, error) {
 		code = strings.TrimSpace(code)
 
 		// Try to get SVG (from cache or by rendering)
-		svg, cacheErr := r.getSVG(code)
+		svg, cacheErr := r.getSVG(ctx, code)
 		if cacheErr != nil {
 			err = cacheErr
 			return match // Return original on error
@@ -86,7 +86,7 @@ func (r *Renderer) RenderHTML(html string) (string, error) {
 }
 
 // getSVG returns the SVG for the given PlantUML code, using cache when available.
-func (r *Renderer) getSVG(code string) (string, error) {
+func (r *Renderer) getSVG(ctx context.Context, code string) (string, error) {
 	// Check cache first
 	if cached, ok := r.cache.Load(code); ok {
 		return cached.(string), nil
@@ -96,9 +96,9 @@ func (r *Renderer) getSVG(code string) (string, error) {
 	var err error
 
 	if r.useLocal {
-		svg, err = r.renderLocal(code)
+		svg, err = r.renderLocal(ctx, code)
 	} else {
-		svg, err = r.renderServer(code)
+		svg, err = r.renderServer(ctx, code)
 	}
 
 	if err != nil {
@@ -111,7 +111,7 @@ func (r *Renderer) getSVG(code string) (string, error) {
 }
 
 // renderServer renders PlantUML using the online server.
-func (r *Renderer) renderServer(code string) (string, error) {
+func (r *Renderer) renderServer(ctx context.Context, code string) (string, error) {
 	// Encode the PlantUML code using deflate + base64 encoding
 	// PlantUML uses a custom encoding alphabet
 	encoded, err := encodeForServer(code)
@@ -123,7 +123,7 @@ func (r *Renderer) renderServer(code string) (string, error) {
 	url := fmt.Sprintf("%s/svg/%s", r.serverURL, encoded)
 
 	// Fetch the SVG
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for plantuml diagram: %w", err)
 	}
@@ -163,8 +163,8 @@ func (r *Renderer) renderServer(code string) (string, error) {
 //  2. "plantuml" on PATH   — runs "plantuml -tsvg -pipe"
 //
 // If neither is available the error message includes install instructions.
-func (r *Renderer) renderLocal(code string) (string, error) {
-	cmd, err := localPlantumlCmd()
+func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error) {
+	cmd, err := localPlantumlCmd(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -193,7 +193,7 @@ func (r *Renderer) renderLocal(code string) (string, error) {
 
 // localPlantumlCmd builds an exec.Cmd for the local PlantUML renderer.
 // It checks PLANTUML_JAR first, then falls back to "plantuml" on PATH.
-func localPlantumlCmd() (*exec.Cmd, error) {
+func localPlantumlCmd(ctx context.Context) (*exec.Cmd, error) {
 	// Prefer an explicit jar path from the environment.
 	if jar := os.Getenv("PLANTUML_JAR"); jar != "" {
 		if _, err := os.Stat(jar); err != nil {
@@ -203,7 +203,7 @@ func localPlantumlCmd() (*exec.Cmd, error) {
 		if err != nil {
 			return nil, fmt.Errorf("PLANTUML_JAR is set but java is not in PATH: %w", err)
 		}
-		return exec.CommandContext(context.Background(), javaPath, "-jar", jar, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
+		return exec.CommandContext(ctx, javaPath, "-jar", jar, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
 	}
 
 	// Fall back to the plantuml wrapper script / binary.
@@ -214,7 +214,7 @@ func localPlantumlCmd() (*exec.Cmd, error) {
 				"or set PLANTUML_JAR=/path/to/plantuml.jar",
 		)
 	}
-	return exec.CommandContext(context.Background(), path, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
+	return exec.CommandContext(ctx, path, "-tsvg", "-pipe", "-charset", "UTF-8"), nil
 }
 
 // encodeForServer encodes PlantUML code for the online server using deflate + base64.
