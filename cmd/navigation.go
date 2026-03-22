@@ -62,9 +62,15 @@ func buildHeadingTree(headings []markdown.HeadingInfo, chapterID string) []navHe
 			trimmed = append(trimmed, entries[1:]...)
 		}
 		entries = trimmed
+
+		// If stripping removed all entries, return nil
+		if len(entries) == 0 {
+			return nil
+		}
 	}
 
-	return toNavHeadings(entries)
+	result := toNavHeadings(entries)
+	return result
 }
 
 func toNavHeadings(entries []toc.TOCEntry) []navHeading {

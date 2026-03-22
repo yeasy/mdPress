@@ -3,10 +3,12 @@
 package cmd
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/toc"
 )
 
@@ -203,14 +205,53 @@ func TestToNavHeadings_EmptySlice(t *testing.T) {
 }
 
 func TestToNavHeadings_SingleItem(t *testing.T) {
-	// Note: This is a test of conversion from toc.TOCEntry to navHeading
-	// which requires building via buildHeadingTree first.
-	// Testing the core conversion indirectly through the pipeline.
+	// Test direct conversion from a single TOC entry
+	entries := []toc.TOCEntry{
+		{Title: "Test Heading", ID: "test-heading"},
+	}
+	result := toNavHeadings(entries)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result))
+	}
+	if result[0].Title != "Test Heading" {
+		t.Errorf("expected title 'Test Heading', got %q", result[0].Title)
+	}
+	if result[0].ID != "test-heading" {
+		t.Errorf("expected ID 'test-heading', got %q", result[0].ID)
+	}
+	if len(result[0].Children) != 0 {
+		t.Errorf("expected no children, got %d", len(result[0].Children))
+	}
 }
 
 func TestToNavHeadings_NestedStructure(t *testing.T) {
-	// This function is used internally by buildHeadingTree
-	// Testing through integration with buildHeadingTree
+	// Test conversion with nested TOC entries
+	entries := []toc.TOCEntry{
+		{
+			Title: "Parent",
+			ID:    "parent",
+			Children: []toc.TOCEntry{
+				{Title: "Child 1", ID: "child-1"},
+				{Title: "Child 2", ID: "child-2"},
+			},
+		},
+	}
+	result := toNavHeadings(entries)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 top-level item, got %d", len(result))
+	}
+	if result[0].Title != "Parent" {
+		t.Errorf("expected parent title 'Parent', got %q", result[0].Title)
+	}
+	if len(result[0].Children) != 2 {
+		t.Fatalf("expected 2 children, got %d", len(result[0].Children))
+	}
+	if result[0].Children[0].Title != "Child 1" {
+		t.Errorf("expected child title 'Child 1', got %q", result[0].Children[0].Title)
+	}
+	if result[0].Children[1].Title != "Child 2" {
+		t.Errorf("expected child title 'Child 2', got %q", result[0].Children[1].Title)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -387,5 +428,416 @@ func TestFlattenChaptersWithDepth_PreservesChapterData(t *testing.T) {
 	result := flattenChaptersWithDepth(chapters)
 	if result[0].Def.Title != originalTitle {
 		t.Errorf("chapter title not preserved: expected %q, got %q", originalTitle, result[0].Def.Title)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Table-driven tests for comprehensive coverage
+// ---------------------------------------------------------------------------
+
+func TestFlattenChaptersWithDepth_TableDriven(t *testing.T) {
+	tests := []struct {
+		name          string
+		chapters      []config.ChapterDef
+		expectedCount int
+		checkDepths   func([]flattenedChapter) bool
+	}{
+		{
+			name:          "empty input",
+			chapters:      nil,
+			expectedCount: 0,
+			checkDepths: func(fc []flattenedChapter) bool {
+				return len(fc) == 0
+			},
+		},
+		{
+			name:          "single flat chapter",
+			chapters:      []config.ChapterDef{{Title: "Ch1", File: "ch1.md"}},
+			expectedCount: 1,
+			checkDepths: func(fc []flattenedChapter) bool {
+				return fc[0].Depth == 0
+			},
+		},
+		{
+			name: "one chapter with two sections",
+			chapters: []config.ChapterDef{
+				{
+					Title: "Ch1",
+					File:  "ch1.md",
+					Sections: []config.ChapterDef{
+						{Title: "Sec1", File: "sec1.md"},
+						{Title: "Sec2", File: "sec2.md"},
+					},
+				},
+			},
+			expectedCount: 3,
+			checkDepths: func(fc []flattenedChapter) bool {
+				return fc[0].Depth == 0 && fc[1].Depth == 1 && fc[2].Depth == 1
+			},
+		},
+		{
+			name: "two top-level chapters with nested sections",
+			chapters: []config.ChapterDef{
+				{
+					Title: "Ch1",
+					File:  "ch1.md",
+					Sections: []config.ChapterDef{
+						{Title: "Sec1.1", File: "sec1.1.md"},
+					},
+				},
+				{
+					Title: "Ch2",
+					File:  "ch2.md",
+					Sections: []config.ChapterDef{
+						{Title: "Sec2.1", File: "sec2.1.md"},
+					},
+				},
+			},
+			expectedCount: 4,
+			checkDepths: func(fc []flattenedChapter) bool {
+				return fc[0].Depth == 0 && fc[1].Depth == 1 &&
+					fc[2].Depth == 0 && fc[3].Depth == 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := flattenChaptersWithDepth(tt.chapters)
+			if len(result) != tt.expectedCount {
+				t.Errorf("expected %d items, got %d", tt.expectedCount, len(result))
+			}
+			if !tt.checkDepths(result) {
+				t.Error("depth check failed")
+			}
+		})
+	}
+}
+
+func TestBuildHeadingTree_TableDriven(t *testing.T) {
+	tests := []struct {
+		name       string
+		headings   []markdown.HeadingInfo
+		chapterID  string
+		expectNil  bool
+		expectLen  int
+		firstTitle string
+	}{
+		{
+			name:      "nil headings",
+			headings:  nil,
+			chapterID: "ch1",
+			expectNil: true,
+		},
+		{
+			name:      "empty headings slice",
+			headings:  []markdown.HeadingInfo{},
+			chapterID: "ch1",
+			expectNil: true,
+		},
+		{
+			name: "single heading that matches chapter ID (stripped)",
+			headings: []markdown.HeadingInfo{
+				{Level: 1, Text: "Chapter", ID: "chapter"},
+			},
+			chapterID: "chapter",
+			expectNil: true, // Should be stripped since it matches chapter ID
+		},
+		{
+			name: "multiple headings with matching chapter ID",
+			headings: []markdown.HeadingInfo{
+				{Level: 1, Text: "Main", ID: "main"},
+				{Level: 2, Text: "Sub", ID: "sub"},
+			},
+			chapterID: "main",
+			expectLen: 1, // Main is stripped, Sub remains
+		},
+		{
+			name: "multiple headings with non-matching chapter ID",
+			headings: []markdown.HeadingInfo{
+				{Level: 1, Text: "Chapter 1", ID: "ch1"},
+				{Level: 2, Text: "Section", ID: "section"},
+			},
+			chapterID:  "different-id",
+			expectLen:  1, // Chapter 1 is root with Section as child
+			firstTitle: "Chapter 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildHeadingTree(tt.headings, tt.chapterID)
+			if tt.expectNil && result != nil {
+				t.Errorf("expected nil result, got %v", result)
+			}
+			if !tt.expectNil && result == nil {
+				t.Fatal("expected non-nil result")
+			}
+			if !tt.expectNil && len(result) != tt.expectLen {
+				t.Errorf("expected %d results, got %d", tt.expectLen, len(result))
+			}
+			if tt.firstTitle != "" && len(result) > 0 && result[0].Title != tt.firstTitle {
+				t.Errorf("expected first title %q, got %q", tt.firstTitle, result[0].Title)
+			}
+		})
+	}
+}
+
+func TestToRendererNavHeadings_TableDriven(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []navHeading
+		expectLen int
+		validate  func([]renderer.NavHeading) error
+	}{
+		{
+			name:      "nil input",
+			input:     nil,
+			expectLen: 0,
+		},
+		{
+			name:      "empty slice",
+			input:     []navHeading{},
+			expectLen: 0,
+		},
+		{
+			name: "single item no children",
+			input: []navHeading{
+				{Title: "Item 1", ID: "item-1"},
+			},
+			expectLen: 1,
+			validate: func(result []renderer.NavHeading) error {
+				if result[0].Title != "Item 1" {
+					return fmt.Errorf("expected title 'Item 1', got %q", result[0].Title)
+				}
+				if result[0].ID != "item-1" {
+					return fmt.Errorf("expected ID 'item-1', got %q", result[0].ID)
+				}
+				return nil
+			},
+		},
+		{
+			name: "multiple items with children",
+			input: []navHeading{
+				{
+					Title: "Parent 1",
+					ID:    "p1",
+					Children: []navHeading{
+						{Title: "Child 1.1", ID: "c1-1"},
+					},
+				},
+				{
+					Title: "Parent 2",
+					ID:    "p2",
+				},
+			},
+			expectLen: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := toRendererNavHeadings(tt.input)
+			if len(result) != tt.expectLen {
+				t.Errorf("expected %d items, got %d", tt.expectLen, len(result))
+			}
+			if tt.validate != nil {
+				if err := tt.validate(result); err != nil {
+					t.Errorf("validation failed: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Edge case tests
+// ---------------------------------------------------------------------------
+
+func TestFlattenChaptersWithDepth_LargeNesting(t *testing.T) {
+	// Test with a larger nesting level
+	chapters := []config.ChapterDef{
+		{
+			Title: "L0",
+			File:  "l0.md",
+			Sections: []config.ChapterDef{
+				{
+					Title: "L1",
+					File:  "l1.md",
+					Sections: []config.ChapterDef{
+						{
+							Title: "L2",
+							File:  "l2.md",
+							Sections: []config.ChapterDef{
+								{Title: "L3", File: "l3.md"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := flattenChaptersWithDepth(chapters)
+	if len(result) != 4 {
+		t.Errorf("expected 4 items, got %d", len(result))
+	}
+	depths := []int{0, 1, 2, 3}
+	for i, d := range depths {
+		if result[i].Depth != d {
+			t.Errorf("item %d: expected depth %d, got %d", i, d, result[i].Depth)
+		}
+	}
+}
+
+func TestBuildHeadingTree_VariousHeadingLevels(t *testing.T) {
+	// Test with headings of various levels (1-6)
+	headings := []markdown.HeadingInfo{
+		{Level: 1, Text: "H1", ID: "h1"},
+		{Level: 2, Text: "H2", ID: "h2"},
+		{Level: 3, Text: "H3", ID: "h3"},
+		{Level: 4, Text: "H4", ID: "h4"},
+		{Level: 5, Text: "H5", ID: "h5"},
+		{Level: 6, Text: "H6", ID: "h6"},
+	}
+	result := buildHeadingTree(headings, "different-id")
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+}
+
+func TestToRendererNavHeadings_LargeHierarchy(t *testing.T) {
+	// Test with a larger nested hierarchy
+	input := []navHeading{
+		{
+			Title: "Root 1",
+			ID:    "root1",
+			Children: []navHeading{
+				{
+					Title: "Branch 1",
+					ID:    "branch1",
+					Children: []navHeading{
+						{Title: "Leaf 1", ID: "leaf1"},
+						{Title: "Leaf 2", ID: "leaf2"},
+					},
+				},
+				{
+					Title: "Branch 2",
+					ID:    "branch2",
+					Children: []navHeading{
+						{Title: "Leaf 3", ID: "leaf3"},
+					},
+				},
+			},
+		},
+	}
+	result := toRendererNavHeadings(input)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 root, got %d", len(result))
+	}
+	root := result[0]
+	if len(root.Children) != 2 {
+		t.Errorf("expected 2 branches, got %d", len(root.Children))
+	}
+	if len(root.Children[0].Children) != 2 {
+		t.Errorf("expected 2 leaves in branch 1, got %d", len(root.Children[0].Children))
+	}
+	if len(root.Children[1].Children) != 1 {
+		t.Errorf("expected 1 leaf in branch 2, got %d", len(root.Children[1].Children))
+	}
+}
+
+func TestToNavHeadings_NestedDeep(t *testing.T) {
+	// Test deep recursion in toNavHeadings
+	entries := []toc.TOCEntry{
+		{
+			Title: "L1",
+			ID:    "l1",
+			Children: []toc.TOCEntry{
+				{
+					Title: "L2",
+					ID:    "l2",
+					Children: []toc.TOCEntry{
+						{
+							Title: "L3",
+							ID:    "l3",
+							Children: []toc.TOCEntry{
+								{Title: "L4", ID: "l4"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	result := toNavHeadings(entries)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result))
+	}
+	current := result[0]
+	expected := []string{"L1", "L2", "L3", "L4"}
+	for i, exp := range expected {
+		if i > 0 {
+			if len(current.Children) == 0 {
+				t.Fatalf("expected child at level %d", i)
+			}
+			current = current.Children[0]
+		}
+		if current.Title != exp {
+			t.Errorf("level %d: expected title %q, got %q", i, exp, current.Title)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Comprehensive integration test
+// ---------------------------------------------------------------------------
+
+func TestCompleteNavigationWorkflow(t *testing.T) {
+	// Simulate a complete workflow: chapters with sections, headings, and navigation trees
+	chapters := []config.ChapterDef{
+		{
+			Title: "Introduction",
+			File:  "intro.md",
+			Sections: []config.ChapterDef{
+				{Title: "Getting Started", File: "getting-started.md"},
+			},
+		},
+		{
+			Title: "Main Content",
+			File:  "main.md",
+			Sections: []config.ChapterDef{
+				{Title: "Section A", File: "sec-a.md"},
+				{Title: "Section B", File: "sec-b.md"},
+			},
+		},
+	}
+
+	// Step 1: Flatten chapters
+	flattened := flattenChaptersWithDepth(chapters)
+	if len(flattened) != 5 {
+		t.Fatalf("flattening: expected 5 items, got %d", len(flattened))
+	}
+
+	// Step 2: Build heading tree for one of the chapters
+	headings := []markdown.HeadingInfo{
+		{Level: 1, Text: "Main Content", ID: "main"},
+		{Level: 2, Text: "Part A", ID: "part-a"},
+		{Level: 3, Text: "Detail A.1", ID: "detail-a-1"},
+		{Level: 2, Text: "Part B", ID: "part-b"},
+	}
+	navTree := buildHeadingTree(headings, "main")
+	if navTree == nil {
+		t.Fatal("expected non-nil navigation tree")
+	}
+
+	// Step 3: Convert to renderer format
+	rendererNav := toRendererNavHeadings(navTree)
+	if len(rendererNav) == 0 {
+		t.Error("expected non-empty renderer nav")
+	}
+
+	// Verify structure is preserved through conversions
+	if len(rendererNav) > 0 && rendererNav[0].Title == "" {
+		t.Error("renderer nav item has empty title")
 	}
 }
