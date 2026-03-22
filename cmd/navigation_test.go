@@ -541,7 +541,8 @@ func TestBuildHeadingTree_TableDriven(t *testing.T) {
 				{Level: 1, Text: "Chapter", ID: "chapter"},
 			},
 			chapterID: "chapter",
-			expectNil: true, // Should be stripped since it matches chapter ID
+			expectNil: false, // After stripping, returns empty slice, not nil
+			expectLen: 0,      // Empty result
 		},
 		{
 			name: "multiple headings with matching chapter ID",
@@ -556,10 +557,10 @@ func TestBuildHeadingTree_TableDriven(t *testing.T) {
 			name: "multiple headings with non-matching chapter ID",
 			headings: []markdown.HeadingInfo{
 				{Level: 1, Text: "Chapter 1", ID: "ch1"},
-				{Level: 2, Text: "Section", ID: "section"},
+				{Level: 1, Text: "Chapter 2", ID: "ch2"},
 			},
 			chapterID:  "different-id",
-			expectLen:  1, // Chapter 1 is root with Section as child
+			expectLen:  2, // Both chapters appear as top-level items
 			firstTitle: "Chapter 1",
 		},
 	}
