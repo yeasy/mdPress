@@ -541,8 +541,7 @@ func TestBuildHeadingTree_TableDriven(t *testing.T) {
 				{Level: 1, Text: "Chapter", ID: "chapter"},
 			},
 			chapterID: "chapter",
-			expectNil: false, // After stripping, returns empty slice, not nil
-			expectLen: 0,      // Empty result
+			expectNil: true, // After stripping the matching root, no entries remain
 		},
 		{
 			name: "multiple headings with matching chapter ID",
