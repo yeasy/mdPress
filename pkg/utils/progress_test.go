@@ -40,7 +40,7 @@ func TestProgressTracker_Start(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "[1/3]") {
@@ -68,7 +68,7 @@ func TestProgressTracker_MultipleStarts(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "[1/3]") {
@@ -98,7 +98,7 @@ func TestProgressTracker_Done(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Should contain either the checkmark or just "✓"
@@ -120,7 +120,7 @@ func TestProgressTracker_Fail(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Should contain the cross mark
@@ -142,7 +142,7 @@ func TestProgressTracker_Skip(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Should contain skip marker and reason
@@ -164,7 +164,7 @@ func TestProgressTracker_DoneWithDetail(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "5 files compiled") {
@@ -191,7 +191,7 @@ func TestProgressTracker_Finish(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "Build completed") {
@@ -217,7 +217,7 @@ func TestProgressTracker_FinishWithError(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	if !strings.Contains(output, "Build failed") {
@@ -306,7 +306,7 @@ func TestProgressTracker_Timing(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Should have captured elapsed time
@@ -349,7 +349,7 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 
 	// Just verify we got output
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 }
 
 func TestProgressTracker_ColorOutput(t *testing.T) {
@@ -370,7 +370,7 @@ func TestProgressTracker_ColorOutput(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	outputWithColor := buf.String()
 
 	// Restore
@@ -400,7 +400,7 @@ func TestProgressTracker_NoColorOutput(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	outputNoColor := buf.String()
 
 	// Restore
@@ -437,7 +437,7 @@ func TestProgressTracker_WorkflowSequence(t *testing.T) {
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Verify all steps appear

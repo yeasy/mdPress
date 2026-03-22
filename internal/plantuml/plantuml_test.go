@@ -167,10 +167,8 @@ func TestRenderHTML(t *testing.T) {
 				if tt.wantSVG && !strings.Contains(result, "<svg") {
 					t.Fatal("result should contain SVG element")
 				}
-			} else {
-				if !strings.Contains(result, tt.html) {
-					t.Fatal("result should contain original HTML when no plantuml found")
-				}
+			} else if !strings.Contains(result, tt.html) {
+				t.Fatal("result should contain original HTML when no plantuml found")
 			}
 		})
 	}

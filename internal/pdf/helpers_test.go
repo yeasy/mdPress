@@ -59,12 +59,12 @@ func TestInjectCJKFontFacePrependFallback(t *testing.T) {
 	result := injectCJKFontFaceCSS(html, nil)
 
 	// Either no CSS (no fonts), or CSS is prepended
-	if strings.HasPrefix(result, "<style data-cjk-fonts") {
+	switch {
+	case strings.HasPrefix(result, "<style data-cjk-fonts"):
 		t.Log("CSS was prepended (fonts available)")
-	} else if result == html {
+	case result == html:
 		t.Log("No CSS injected (no fonts found)")
-	} else {
-		// Some modification happened
+	default:
 		t.Log("HTML was modified but not by prepending style")
 	}
 }
