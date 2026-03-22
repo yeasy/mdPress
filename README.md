@@ -233,6 +233,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | `mdpress build [source]` | Build PDF, HTML, site, or ePub |
 | `mdpress serve [source]` | Start live preview with auto-reload |
 | `mdpress quickstart [name]` | Create a complete sample project |
+| `mdpress migrate [directory]` | Migrate from GitBook/HonKit to mdPress |
 | `mdpress init [directory]` | Generate `book.yaml` from existing Markdown files |
 | `mdpress validate [directory]` | Check your config and files for errors |
 | `mdpress doctor [directory]` | Verify your environment is set up correctly |
