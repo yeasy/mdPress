@@ -590,7 +590,7 @@ func TestHeadingIDTransformer_Transform_PreexistingIDs(t *testing.T) {
 	// Create heading 2 without pre-existing ID
 	heading2 := ast.NewHeading(1)
 	text2 := ast.NewText()
-	text2.Segment = text.NewSegment(11, 17) // "Second"
+	text2.Segment = text.NewSegment(11, 16) // "Second"
 	heading2.AppendChild(heading2, text2)
 	doc.AppendChild(doc, heading2)
 
