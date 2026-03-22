@@ -590,7 +590,7 @@ func TestHeadingIDTransformer_Transform_PreexistingIDs(t *testing.T) {
 	// Create heading 2 without pre-existing ID
 	heading2 := ast.NewHeading(1)
 	text2 := ast.NewText()
-	text2.Segment = text.NewSegment(11, 16) // "Second"
+	text2.Segment = text.NewSegment(11, 17) // "Second"
 	heading2.AppendChild(heading2, text2)
 	doc.AppendChild(doc, heading2)
 
@@ -635,14 +635,14 @@ func TestHeadingIDTransformer_Transform_NestedStructure(t *testing.T) {
 	// Create a paragraph
 	para := ast.NewParagraph()
 	paraText := ast.NewText()
-	paraText.Segment = text.NewSegment(16, 34) // "Introduction text."
+	paraText.Segment = text.NewSegment(14, 32) // "Introduction text."
 	para.AppendChild(para, paraText)
 	doc.AppendChild(doc, para)
 
 	// Create heading 2
 	heading2 := ast.NewHeading(2)
 	text2 := ast.NewText()
-	text2.Segment = text.NewSegment(39, 50) // "Subsection"
+	text2.Segment = text.NewSegment(37, 47) // "Subsection"
 	heading2.AppendChild(heading2, text2)
 	doc.AppendChild(doc, heading2)
 
