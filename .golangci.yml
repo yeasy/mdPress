@@ -47,6 +47,7 @@ linters:
         - G306  # WriteFile 0644 — standard for user-facing files
         - G702  # command injection — trusted CLI args
         - G703  # path traversal — trusted local paths
+        - G706  # log injection — slog values are sanitized before logging
         - G704  # SSRF — downloading user-specified resources
         - G705  # XSS — HTML generation tool
         - G118  # context.Background in goroutine — used for shutdown contexts
