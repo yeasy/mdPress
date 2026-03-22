@@ -44,8 +44,10 @@ func goldenDir(t *testing.T) string {
 // datePattern matches ISO dates like 2006-01-02 embedded in HTML output.
 var datePattern = regexp.MustCompile(`\d{4}-\d{2}-\d{2}`)
 
-// normalizeOutput replaces volatile fields (dates) with a stable placeholder.
+// normalizeOutput replaces volatile fields (dates) with a stable placeholder
+// and normalizes line endings to LF for cross-platform consistency.
 func normalizeOutput(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return datePattern.ReplaceAllString(s, "DATE_PLACEHOLDER")
 }
 
@@ -77,7 +79,7 @@ func checkGolden(t *testing.T, path, got string) {
 		t.Fatalf("failed to read golden file %s: %v", path, err)
 	}
 
-	want := string(data)
+	want := strings.ReplaceAll(string(data), "\r\n", "\n")
 	if normalized != want {
 		t.Errorf("output does not match golden file %s\n\nwant:\n%s\n\ngot:\n%s",
 			path, want, normalized)
