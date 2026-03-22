@@ -8,7 +8,25 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-## [0.5.0] - 2026-03-20 (pending tag)
+## [0.5.1] - 2026-03-21
+
+### Added
+
+- **Accordion sidebar navigation**: Expanding a chapter section now automatically collapses sibling sections at the same level, providing a cleaner GitBook-like navigation experience in both `serve` and `build --format site/html` outputs
+- **Smoother sidebar transitions**: Upgraded CSS transitions to Material Design easing curves (`cubic-bezier(0.4, 0, 0.2, 1)`) for expand/collapse animations
+
+### Fixed
+
+- **PlantUML context propagation**: Replaced `context.Background()` with caller-provided context in PlantUML renderer, ensuring build timeout and cancellation signals propagate correctly to HTTP requests and external processes
+- **Generic SUMMARY.md title filtering**: Titles like "在线阅读", "Read Online", and "Contents" are now correctly recognized as generic navigation headings and skipped during book title inference
+- **book.json title priority**: When `book.json` provides a title, it is no longer overwritten by README.md inference during auto-discovery
+- **Missing `migrate` command in README**: Added the `migrate` command to the "All Commands" table in both English and Chinese READMEs
+- **GitLab CI lint version mismatch**: Aligned golangci-lint from v2.1 to v2.11.3 to match GitHub Actions
+- **Misspelling in completion command**: Fixed `behaviour` → `behavior` in comment
+
+---
+
+## [0.5.0] - 2026-03-20
 
 ### Added
 
@@ -278,7 +296,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/yeasy/mdpress/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yeasy/mdpress/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/yeasy/mdpress/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/yeasy/mdpress/compare/v0.4.1...v0.4.2
