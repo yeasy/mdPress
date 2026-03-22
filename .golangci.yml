@@ -49,6 +49,8 @@ linters:
         - G703  # path traversal — trusted local paths
         - G704  # SSRF — downloading user-specified resources
         - G705  # XSS — HTML generation tool
+        - G118  # context.Background in goroutine — used for shutdown contexts
+        - G122  # filepath.Walk TOCTOU — trusted local project files
     misspell:
       locale: US
   exclusions:
