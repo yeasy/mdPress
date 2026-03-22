@@ -28,7 +28,7 @@ variables:
 
 lint:
   stage: lint
-  image: golangci/golangci-lint:v2.1
+  image: golangci/golangci-lint:v2.11.3
   <<: *go-cache
   script:
     - golangci-lint run ./...
