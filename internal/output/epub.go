@@ -765,22 +765,10 @@ func sanitizeAssetFilename(name string) string {
 }
 
 func extensionForMediaType(mediaType string) string {
-	switch strings.ToLower(mediaType) {
-	case "image/jpeg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "image/webp":
-		return ".webp"
-	case "image/svg+xml":
-		return ".svg"
-	case "image/bmp":
-		return ".bmp"
-	case "image/tiff":
-		return ".tiff"
-	default:
-		return ""
+	// Use the shared image extension map from utils to avoid duplication.
+	// This ensures consistent MIME type handling across the codebase.
+	if ext, ok := utils.ImageExtensionMap[strings.ToLower(mediaType)]; ok {
+		return ext
 	}
+	return ""
 }
