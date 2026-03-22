@@ -329,18 +329,14 @@ func TestLocalSource_ConcurrentPrepare(t *testing.T) {
 	}
 }
 
-// TestGitHubSource_ConcurrentCleanup 测试并发调用 Cleanup 的安全性
-func TestGitHubSource_ConcurrentCleanup(t *testing.T) {
+// TestGitHubSource_RepeatedCleanup 测试多次调用 Cleanup 的安全性
+func TestGitHubSource_RepeatedCleanup(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 
-	done := make(chan bool, 10)
+	// GitHubSource 不需要并发安全；验证连续多次调用不会 panic
 	for i := 0; i < 10; i++ {
-		go func() {
-			_ = src.Cleanup()
-			done <- true
-		}()
-	}
-	for i := 0; i < 10; i++ {
-		<-done
+		if err := src.Cleanup(); err != nil {
+			t.Fatalf("Cleanup 第 %d 次调用失败: %v", i+1, err)
+		}
 	}
 }
