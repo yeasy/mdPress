@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -160,4 +161,38 @@ func RelPath(basePath, targetPath string) string {
 	relPath = strings.ReplaceAll(relPath, "\\", "/")
 
 	return relPath
+}
+
+// ExtractTitleFromFile scans a Markdown file and returns the first H1 heading.
+// For performance, scanning stops after 50 lines.
+func ExtractTitleFromFile(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close() //nolint:errcheck
+
+	scanner := bufio.NewScanner(f)
+	lineCount := 0
+	const maxLines = 50
+
+	for scanner.Scan() {
+		lineCount++
+		if lineCount > maxLines {
+			break // Stop scanning after 50 lines for performance.
+		}
+
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		}
+	}
+
+	// Check for scanner errors; silently ignore them for best-effort title extraction.
+	if err := scanner.Err(); err != nil {
+		// Error occurred during scanning, but we continue with empty result.
+		// This is best-effort title extraction.
+		_ = err
+	}
+	return ""
 }
