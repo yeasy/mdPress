@@ -8,6 +8,20 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.5.3] - 2026-03-23
+
+### Fixed
+
+- **Invisible code block text in site/serve output**: Chroma syntax highlighter injected inline `style="background-color:#fff"` on `<pre>` elements, overriding the site CSS dark-themed text color and making code blocks unreadable (white text on white background). Fix strips chroma's inline style from `<pre>` tags during post-processing so each output format's CSS controls code block appearance.
+- **Site code block color scheme**: Changed site output code blocks from dark theme (`#2d2d2d` background) to light theme (`#f6f8fa` background, `#24292e` text) matching the chroma "github" syntax highlighting palette.
+
+### Changed
+
+- **Documentation updates**: Updated ARCHITECTURE docs version to v0.5.2, fixed ROADMAP version section ordering, added Typst format to README "What You Get" table, replaced text comparison table with emoji icons.
+- **Removed outdated NEXT-STEPS.md**: Deleted stale planning document that referenced v0.4.3 as latest.
+
+---
+
 ## [0.5.2] - 2026-03-22
 
 ### Added
