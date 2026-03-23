@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Go modules dependency scanning
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: main
+    pull-requests:
+      max-number: 5
+
+  # GitHub Actions scanning
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: main
+    pull-requests:
+      max-number: 5
