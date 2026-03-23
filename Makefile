@@ -10,6 +10,16 @@ GO      := go
 GOTEST  := $(GO) test
 GOBUILD := $(GO) build
 
+# Keep tool caches inside the workspace for build/check commands so they work
+# in restricted environments without changing the install target's semantics.
+CACHE_DIR ?= $(CURDIR)/.cache
+CHECK_GOPATH ?= $(CACHE_DIR)/go
+CHECK_GOCACHE ?= $(CACHE_DIR)/go-build
+CHECK_GOMODCACHE ?= $(CACHE_DIR)/gomod
+CHECK_GOLANGCI_LINT_CACHE ?= $(CACHE_DIR)/golangci-lint
+GO_RUN_ENV = GOPATH=$(CHECK_GOPATH) GOCACHE=$(CHECK_GOCACHE) GOMODCACHE=$(CHECK_GOMODCACHE)
+LINT_RUN_ENV = $(GO_RUN_ENV) GOLANGCI_LINT_CACHE=$(CHECK_GOLANGCI_LINT_CACHE)
+
 # Docker
 DOCKER_REPO ?= yeasy/mdpress
 
@@ -24,7 +34,7 @@ all: lint test build
 build:
 	@echo ">>> Building $(BINARY_NAME)..."
 	@mkdir -p bin
-	$(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME) .
+	$(GO_RUN_ENV) $(GOBUILD) $(LDFLAGS) -o bin/$(BINARY_NAME) .
 	@echo ">>> Build complete: bin/$(BINARY_NAME)"
 
 # Install to $GOPATH/bin
@@ -38,14 +48,14 @@ install:
 .PHONY: test
 test:
 	@echo ">>> Running tests..."
-	$(GOTEST) -race -count=1 ./...
+	$(GO_RUN_ENV) $(GOTEST) -race -count=1 ./...
 
 # Test coverage
 .PHONY: coverage
 coverage:
 	@echo ">>> Generating coverage report..."
-	$(GOTEST) -coverprofile=coverage.txt -covermode=atomic ./...
-	$(GO) tool cover -html=coverage.txt -o coverage.html
+	$(GO_RUN_ENV) $(GOTEST) -coverprofile=coverage.txt -covermode=atomic ./...
+	$(GO_RUN_ENV) $(GO) tool cover -html=coverage.txt -o coverage.html
 	@echo ">>> Coverage report: coverage.html"
 
 # ---------- Static checks ----------
@@ -53,9 +63,9 @@ coverage:
 .PHONY: lint
 lint:
 	@echo ">>> Running static checks..."
-	$(GO) vet ./...
+	$(GO_RUN_ENV) $(GO) vet ./...
 	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
+		$(LINT_RUN_ENV) golangci-lint run ./...; \
 	else \
 		echo "Tip: install golangci-lint for more complete checks"; \
 	fi
@@ -64,7 +74,7 @@ lint:
 .PHONY: fmt
 fmt:
 	@echo ">>> Formatting code..."
-	$(GO) fmt ./...
+	$(GO_RUN_ENV) $(GO) fmt ./...
 
 # ---------- Pre-commit quality gate ----------
 # fmt check + lint + build + fast tests.
@@ -89,10 +99,10 @@ _lint:
 	@$(MAKE) --no-print-directory lint
 _build:
 	@echo ">>> [check] go build"
-	@$(GOBUILD) ./...
+	@$(GO_RUN_ENV) $(GOBUILD) ./...
 _test:
 	@echo ">>> [check] go test -short"
-	@$(GOTEST) -short -count=1 -timeout 120s ./...
+	@$(GO_RUN_ENV) $(GOTEST) -short -count=1 -timeout 120s ./...
 
 # Install git hooks (pre-commit runs make check)
 .PHONY: hooks
