@@ -58,7 +58,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push minimal image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: minimal
@@ -72,7 +72,7 @@ jobs:
             ghcr.io/${{ steps.version.outputs.REPO_LC }}:latest
 
       - name: Build and push full image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: full
