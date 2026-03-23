@@ -602,12 +602,22 @@ const standaloneJS = `
 
   // ============================================================
   // Image lightbox with zoom animation, background blur,
-  // and keyboard navigation (Escape, arrow keys)
+  // keyboard navigation (Escape, arrow keys), and focus trap
   // ============================================================
   var lightbox    = document.getElementById('img-lightbox');
   var lightboxImg = document.getElementById('img-lightbox-src');
   var allImages   = [];
   var currentImageIndex = -1;
+  var lightboxPrevFocus = null;
+
+  // Get all focusable elements within lightbox
+  function getLightboxFocusableElements() {
+    var focusableSelector = 'button, a, [tabindex]:not([tabindex="-1"])';
+    var focusables = lightbox.querySelectorAll(focusableSelector);
+    return Array.from(focusables).filter(function(el) {
+      return el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+    });
+  }
 
   function openLightbox(src, alt) {
     lightboxImg.src = src;
@@ -615,6 +625,7 @@ const standaloneJS = `
     lightbox.classList.add('visible');
     lightbox.classList.add('zoom-in');
     document.body.style.overflow = 'hidden';
+    lightboxPrevFocus = document.activeElement;
 
     // Track current image for keyboard navigation
     currentImageIndex = allImages.findIndex(function(img) { return img.src === src; });
@@ -625,6 +636,9 @@ const standaloneJS = `
     lightbox.classList.remove('zoom-in');
     document.body.style.overflow = '';
     currentImageIndex = -1;
+    if (lightboxPrevFocus && typeof lightboxPrevFocus.focus === 'function') {
+      lightboxPrevFocus.focus();
+    }
     // Delay clearing src to avoid flicker
     setTimeout(function() { if (!lightbox.classList.contains('visible')) lightboxImg.src = ''; }, 300);
   }
@@ -643,6 +657,23 @@ const standaloneJS = `
 
   lightbox.addEventListener('click', function(e) {
     if (e.target !== lightboxImg) closeLightbox();
+  });
+
+  // Focus trap for lightbox: handle Tab key to cycle within lightbox
+  lightbox.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    if (!lightbox.classList.contains('visible')) return;
+    var focusables = getLightboxFocusableElements();
+    if (focusables.length === 0) return;
+    var currentIdx = focusables.indexOf(document.activeElement);
+    var nextIdx;
+    if (e.shiftKey) {
+      nextIdx = (currentIdx - 1 + focusables.length) % focusables.length;
+    } else {
+      nextIdx = (currentIdx + 1) % focusables.length;
+    }
+    e.preventDefault();
+    focusables[nextIdx].focus();
   });
 
   // Keyboard navigation for lightbox
@@ -669,9 +700,20 @@ const standaloneJS = `
   var searchResultsList = document.getElementById('search-results-list');
   var searchCountLabel  = document.getElementById('search-count-label');
   var searchFocusIdx    = -1;
+  var searchPrevFocus   = null;
+
+  // Get all focusable elements within search modal
+  function getSearchFocusableElements() {
+    var focusableSelector = 'input, button, a, [tabindex]:not([tabindex="-1"])';
+    var focusables = searchOverlay.querySelectorAll(focusableSelector);
+    return Array.from(focusables).filter(function(el) {
+      return el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden';
+    });
+  }
 
   function openSearch() {
     searchOverlay.classList.add('visible');
+    searchPrevFocus = document.activeElement;
     searchInput.focus();
     searchInput.select();
   }
@@ -679,6 +721,9 @@ const standaloneJS = `
   function closeSearch() {
     searchOverlay.classList.remove('visible');
     searchFocusIdx = -1;
+    if (searchPrevFocus && typeof searchPrevFocus.focus === 'function') {
+      searchPrevFocus.focus();
+    }
   }
 
   var btnSearch = document.getElementById('btn-search');
@@ -694,6 +739,22 @@ const standaloneJS = `
 
   searchOverlay.addEventListener('click', function(e) {
     if (e.target === searchOverlay) closeSearch();
+  });
+
+  // Focus trap for search modal: handle Tab key to cycle within modal
+  searchOverlay.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    var focusables = getSearchFocusableElements();
+    if (focusables.length === 0) return;
+    var currentIdx = focusables.indexOf(document.activeElement);
+    var nextIdx;
+    if (e.shiftKey) {
+      nextIdx = (currentIdx - 1 + focusables.length) % focusables.length;
+    } else {
+      nextIdx = (currentIdx + 1) % focusables.length;
+    }
+    e.preventDefault();
+    focusables[nextIdx].focus();
   });
 
   document.addEventListener('keydown', function(e) {

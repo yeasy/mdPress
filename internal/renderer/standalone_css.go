@@ -954,6 +954,308 @@ const standaloneCSS = `    /* ==================================================
       border-bottom: 1px solid var(--color-border);
     }
 
+    /* Search result focused state */
+    .search-result.focused {
+      background-color: var(--color-accent-light);
+      border-color: var(--color-accent);
+    }
+
+    /* ============================================================
+       代码块复制按钮
+       ============================================================ */
+    .code-copy-btn {
+      background-color: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      border-radius: 6px;
+      padding: 0.5rem 0.5rem;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s ease, background 0.15s ease, color 0.15s ease;
+      z-index: 2;
+      opacity: 0;
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .code-block:hover .code-copy-btn {
+      opacity: 1;
+      color: var(--color-text);
+    }
+
+    .code-copy-btn:hover {
+      background-color: var(--color-bg-alt);
+      color: var(--color-accent);
+    }
+
+    .code-copy-btn.copied {
+      background-color: var(--color-accent-light);
+      color: var(--color-accent);
+    }
+
+    @keyframes flash-success {
+      0% {
+        background-color: var(--color-accent-light);
+      }
+      50% {
+        background-color: var(--color-accent);
+      }
+      100% {
+        background-color: var(--color-accent-light);
+      }
+    }
+
+    .code-copy-btn.flash-success {
+      animation: flash-success 0.5s ease-in-out;
+    }
+
+    /* ============================================================
+       高亮闪烁效果
+       ============================================================ */
+    @keyframes highlight-flash {
+      0% {
+        background-color: rgba(255, 235, 59, 0.4);
+      }
+      100% {
+        background-color: transparent;
+      }
+    }
+
+    .highlight-flash {
+      animation: highlight-flash 1.5s ease-out;
+    }
+
+    /* ============================================================
+       主题按钮图标旋转动画
+       ============================================================ */
+    @keyframes icon-rotating {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .icon-rotating {
+      animation: icon-rotating 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    /* ============================================================
+       代码块包装器和布局
+       ============================================================ */
+    .code-block-wrapper {
+      position: relative;
+      margin: 1rem 0;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      background-color: var(--color-code-bg);
+    }
+
+    .code-block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--color-bg-alt);
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .code-lang-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-code-lang);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ============================================================
+       Callout 框内容组件
+       ============================================================ */
+    .callout-icon {
+      position: absolute;
+      left: 1rem;
+      top: 1rem;
+      font-size: 1.25rem;
+      width: 1.5rem;
+      height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .callout-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .callout-body p {
+      margin: 0.5rem 0;
+    }
+
+    .callout-body p:first-child {
+      margin-top: 0;
+    }
+
+    .callout-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* ============================================================
+       右侧目录导航链接
+       ============================================================ */
+    #right-toc-nav {
+      padding: 1.5rem 1rem;
+      font-size: 13px;
+      line-height: 1.8;
+      overflow-y: auto;
+      max-height: calc(100vh - 100px);
+    }
+
+    .right-toc-link {
+      display: block;
+      padding: 0.4rem 0.75rem;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease, background-color 0.15s ease;
+      border-radius: 4px;
+      border-left: 2px solid transparent;
+    }
+
+    .right-toc-link:hover {
+      color: var(--color-link);
+      background-color: rgba(9, 105, 218, 0.04);
+    }
+
+    .right-toc-link.active {
+      color: var(--color-accent);
+      border-left-color: var(--color-accent);
+      font-weight: 500;
+      background-color: rgba(9, 105, 218, 0.08);
+    }
+
+    /* Right TOC depth indentation classes */
+    .rtoc-d0 {
+      padding-left: 0.75rem;
+      font-weight: 500;
+    }
+
+    .rtoc-d1 {
+      padding-left: 1.5rem;
+    }
+
+    .rtoc-d2 {
+      padding-left: 2.25rem;
+    }
+
+    .rtoc-d3 {
+      padding-left: 3rem;
+    }
+
+    .rtoc-d4 {
+      padding-left: 3.75rem;
+    }
+
+    .rtoc-d5 {
+      padding-left: 4.5rem;
+    }
+
+    /* ============================================================
+       搜索结果卡片结构
+       ============================================================ */
+    .search-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+    }
+
+    .search-result-context {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+      margin-left: 1rem;
+    }
+
+    /* ============================================================
+       搜索快捷键徽章
+       ============================================================ */
+    .search-shortcut-badge {
+      display: inline-block;
+      background-color: var(--color-bg-alt);
+      color: var(--color-text-muted);
+      padding: 0.25rem 0.5rem;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: 0.5rem;
+      border: 1px solid var(--color-border);
+      letter-spacing: 0.05em;
+    }
+
+    /* ============================================================
+       可展开/折叠章节
+       ============================================================ */
+    .expandable-styled {
+      margin: 1rem 0;
+    }
+
+    .expandable-header {
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      font-weight: 500;
+      color: var(--color-heading);
+      padding: 0.75rem;
+      border-radius: 6px;
+      transition: background-color 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .expandable-header:hover {
+      background-color: var(--color-bg-alt);
+    }
+
+    .expandable-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.2em;
+      height: 1.2em;
+      flex-shrink: 0;
+      transition: transform 0.2s ease;
+      font-size: 0.9em;
+    }
+
+    .expandable-header.open .expandable-chevron {
+      transform: rotate(90deg);
+    }
+
+    /* ============================================================
+       图片灯箱缩放动画
+       ============================================================ */
+    @keyframes lightbox-zoom-in {
+      from {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .img-lightbox.zoom-in {
+      animation: lightbox-zoom-in 0.3s ease-out;
+    }
+
     /* ============================================================
        前后章导航
        ============================================================ */
