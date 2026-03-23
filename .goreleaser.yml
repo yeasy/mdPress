@@ -40,11 +40,6 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
-sbom:
-  - artifacts: binary
-    documents:
-      - "sbom.spdx.json"
-
 changelog:
   sort: asc
   use: git
