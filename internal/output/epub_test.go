@@ -161,9 +161,11 @@ func TestGenerateEmptyChapters(t *testing.T) {
 	// Verify partial file is cleaned up
 	if _, err := os.Stat(outputPath); err == nil {
 		// File should exist (it's valid to have 0 chapters)
-		_, err := zip.OpenReader(outputPath)
+		reader, err := zip.OpenReader(outputPath)
 		if err != nil {
 			t.Errorf("Generated EPUB with 0 chapters is not a valid ZIP")
+		} else {
+			defer reader.Close()
 		}
 	}
 }
