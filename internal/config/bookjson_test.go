@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,7 +38,7 @@ func TestLoadBookJSON_BasicFields(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestLoadBookJSON_AuthorArray(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -128,7 +129,7 @@ func TestLoadBookJSON_Plugins(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -161,7 +162,7 @@ func TestLoadBookJSON_LoadsChaptersFromSummary(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -194,7 +195,7 @@ func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -217,7 +218,7 @@ func TestLoadBookJSON_GlossaryDetected(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -229,7 +230,7 @@ func TestLoadBookJSON_GlossaryDetected(t *testing.T) {
 // TestLoadBookJSON_MissingFile checks that a helpful error is returned when
 // book.json does not exist.
 func TestLoadBookJSON_MissingFile(t *testing.T) {
-	_, err := LoadBookJSON("/nonexistent/path/book.json")
+	_, err := LoadBookJSON(context.Background(), "/nonexistent/path/book.json")
 	if err == nil {
 		t.Error("expected error for missing file, got nil")
 	}
@@ -242,7 +243,7 @@ func TestLoadBookJSON_InvalidJSON(t *testing.T) {
 	if err := os.WriteFile(jsonPath, []byte(`{invalid json`), 0644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
-	_, err := LoadBookJSON(jsonPath)
+	_, err := LoadBookJSON(context.Background(), jsonPath)
 	if err == nil {
 		t.Error("expected parse error for invalid JSON, got nil")
 	}
@@ -258,7 +259,7 @@ func TestLoadBookJSON_DefaultsPreserved(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := LoadBookJSON(jsonPath)
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
 	if err != nil {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
@@ -295,7 +296,7 @@ chapters:
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover error: %v", err)
 	}
@@ -313,7 +314,7 @@ func TestDiscoverUsesBookJSON(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover error: %v", err)
 	}
@@ -331,7 +332,7 @@ func TestDiscoverBookJSONBeforeSummary(t *testing.T) {
 		t.Fatalf("write book.json: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover error: %v", err)
 	}

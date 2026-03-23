@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +37,7 @@ chapters: []
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -99,7 +100,7 @@ Application Programming Interface
 		t.Fatalf("创建文件失败: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -146,7 +147,7 @@ chapters:
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -172,7 +173,7 @@ chapters: []
 		t.Fatalf("写入 book.yaml 失败: %v", err)
 	}
 
-	_, err := Discover(dir)
+	_, err := Discover(context.Background(), dir)
 	// 如果没有章节，Load() 会在 Validate() 时失败
 	if err == nil {
 		t.Error("expected error when no chapters defined")
@@ -188,7 +189,7 @@ func TestAutoDiscoverEmptyYaml(t *testing.T) {
 		t.Fatalf("写入空 book.yaml 失败: %v", err)
 	}
 
-	_, err := Discover(dir)
+	_, err := Discover(context.Background(), dir)
 	// 空 YAML 会导致默认值被使用，但没有章节时应该失败
 	if err == nil {
 		t.Error("expected error for empty config without chapters")
@@ -341,7 +342,7 @@ chapters: []
 				t.Fatalf("setup failed: %v", err)
 			}
 
-			cfg, err := Discover(dir)
+			cfg, err := Discover(context.Background(), dir)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Discover() error = %v, wantErr %v", err, tt.wantErr)
 				return
