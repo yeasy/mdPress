@@ -62,6 +62,17 @@ mdpress-go-tmp-umask
 # Generated analysis and log files
 /check.log
 /TEST_COVERAGE_ANALYSIS.md
+/AUDIT_SUMMARY.txt
+/HTML_UX_AUDIT_REPORT.md
+/IMPROVEMENT_CHECKLIST.md
+/README_AUDIT.md
+/SECURITY_AND_TEST_REVIEW.md
+/TESTING_GUIDE.md
+/CODE_ANALYSIS_INDEX.md
+/CODE_QUALITY_SUMMARY.txt
+/CODE_QUALITY_ANALYSIS.md
+/DETAILED_FINDINGS.md
+/ANALYSIS_COMPLETE.txt
 
 # Additional temporary directories
 /tmp_pdf_probe/
