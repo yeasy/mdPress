@@ -22,6 +22,13 @@ import (
 
 // TestNewServer 测试服务器创建的基本属性
 func TestNewServer(t *testing.T) {
+	watchDir1 := t.TempDir()
+	outputDir1 := t.TempDir()
+	watchDir2 := t.TempDir()
+	outputDir2 := t.TempDir()
+	watchDir3 := t.TempDir()
+	outputDir3 := t.TempDir()
+
 	tests := []struct {
 		name      string
 		host      string
@@ -34,24 +41,24 @@ func TestNewServer(t *testing.T) {
 			name:      "基本创建",
 			host:      "127.0.0.1",
 			port:      8080,
-			watchDir:  "/tmp/watch",
-			outputDir: "/tmp/output",
+			watchDir:  watchDir1,
+			outputDir: outputDir1,
 			logger:    slog.Default(),
 		},
 		{
 			name:      "自定义端口",
 			host:      "0.0.0.0",
 			port:      3000,
-			watchDir:  "/tmp/watch2",
-			outputDir: "/tmp/output2",
+			watchDir:  watchDir2,
+			outputDir: outputDir2,
 			logger:    slog.Default(),
 		},
 		{
 			name:      "nil logger 使用默认",
 			host:      "",
 			port:      9090,
-			watchDir:  "/tmp/w",
-			outputDir: "/tmp/o",
+			watchDir:  watchDir3,
+			outputDir: outputDir3,
 			logger:    nil,
 		},
 	}
@@ -1334,6 +1341,9 @@ func TestBrowserURLEdgeCases(t *testing.T) {
 
 // TestNewServerOptionsDefaults tests that NewServer sets proper option defaults
 func TestNewServerOptionsDefaults(t *testing.T) {
+	tmpWatchDir := t.TempDir()
+	tmpOutputDir := t.TempDir()
+
 	tests := []struct {
 		name      string
 		host      string
@@ -1366,7 +1376,7 @@ func TestNewServerOptionsDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := NewServer(tt.host, tt.port, "/tmp/watch", "/tmp/out", slog.Default())
+			srv := NewServer(tt.host, tt.port, tmpWatchDir, tmpOutputDir, slog.Default())
 
 			if srv.Host != tt.wantHost {
 				t.Errorf("Host = %q, want %q", srv.Host, tt.wantHost)
@@ -1680,7 +1690,7 @@ func TestIsAddrInUseDetection(t *testing.T) {
 
 // TestServerInitialClientState tests server initialization with empty client map
 func TestServerInitialClientState(t *testing.T) {
-	srv := NewServer("127.0.0.1", 8080, "/tmp/watch", "/tmp/output", nil)
+	srv := NewServer("127.0.0.1", 8080, t.TempDir(), t.TempDir(), nil)
 
 	// Verify clients map is properly initialized
 	if srv.clients == nil {

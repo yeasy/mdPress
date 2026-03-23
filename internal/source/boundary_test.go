@@ -265,7 +265,7 @@ func TestDetect_OptionsPassthrough(t *testing.T) {
 	}
 
 	// 本地源
-	src2, err := Detect("/tmp/test", opts)
+	src2, err := Detect(t.TempDir(), opts)
 	if err != nil {
 		t.Fatalf("Detect 失败: %v", err)
 	}

@@ -4,6 +4,7 @@ package tests
 
 import (
 	"archive/zip"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -189,7 +190,7 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 	}
 
 	// 使用 Discover 进行零配置加载
-	cfg, err := config.Discover(tempDir)
+	cfg, err := config.Discover(context.Background(), tempDir)
 	if err != nil {
 		t.Fatalf("零配置发现失败: %v", err)
 	}

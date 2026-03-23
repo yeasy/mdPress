@@ -1,6 +1,7 @@
 package typst
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -930,6 +931,7 @@ func TestGeneratorWithMultipleOptions(t *testing.T) {
 // TestGenerateValidation tests Generate function parameter validation
 func TestGenerateValidation(t *testing.T) {
 	gen := NewGenerator()
+	tmpDir := t.TempDir()
 
 	tests := []struct {
 		name    string
@@ -948,7 +950,7 @@ func TestGenerateValidation(t *testing.T) {
 		{
 			name:    "empty content",
 			content: "",
-			output:  "/tmp/test.pdf",
+			output:  filepath.Join(tmpDir, "test.pdf"),
 			wantErr: true,
 			errMsg:  "empty",
 		},
