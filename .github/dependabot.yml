@@ -6,8 +6,7 @@ updates:
     schedule:
       interval: weekly
     target-branch: main
-    pull-requests:
-      max-number: 5
+    open-pull-requests-limit: 5
 
   # GitHub Actions scanning
   - package-ecosystem: github-actions
@@ -15,5 +14,4 @@ updates:
     schedule:
       interval: weekly
     target-branch: main
-    pull-requests:
-      max-number: 5
+    open-pull-requests-limit: 5
