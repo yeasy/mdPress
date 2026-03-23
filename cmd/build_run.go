@@ -61,7 +61,7 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		langDir := filepath.Join(rootDir, lang.Dir)
 		logger.Info("Building language variant", slog.String("name", lang.Name), slog.String("dir", langDir))
 
-		langCfg, err := config.Discover(langDir)
+		langCfg, err := config.Discover(ctx, langDir)
 		if err != nil {
 			return fmt.Errorf("failed to load language directory %s: %w", langDir, err)
 		}

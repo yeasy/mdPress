@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 func TestDoctorEmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor on empty directory should not error, got: %v", err)
 	}
@@ -41,7 +42,7 @@ chapters:
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor with book.yaml should not error, got: %v", err)
 	}
@@ -68,7 +69,7 @@ func TestDoctorWithSummaryMD(t *testing.T) {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor with SUMMARY.md should not error, got: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestDoctorWithSummaryMD(t *testing.T) {
 func TestDoctorNonExistentDir(t *testing.T) {
 	nonExistentDir := "/this/path/should/not/exist/ever"
 
-	err := executeDoctor(nonExistentDir)
+	err := executeDoctor(context.Background(), nonExistentDir)
 	if err == nil {
 		t.Error("executeDoctor on non-existent directory should return an error")
 	}
@@ -109,7 +110,7 @@ chapters:
 		t.Fatalf("failed to write ch1.md: %v", err)
 	}
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor with valid config should not error, got: %v", err)
 	}
@@ -141,7 +142,7 @@ func TestDoctorWithLangsFile(t *testing.T) {
 		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor with LANGS.md should not error, got: %v", err)
 	}
@@ -169,7 +170,7 @@ chapters:
 	reportPath := filepath.Join(tmpDir, "report.json")
 	doctorReportPath = reportPath
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
 		t.Fatalf("executeDoctor should not error: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestDoctorReportsCacheStatus(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := executeDoctor(tmpDir)
+	err := executeDoctor(context.Background(), tmpDir)
 
 	_ = w.Close()
 	os.Stdout = oldStdout
@@ -561,7 +562,7 @@ func TestDoctorReport_JSONSerialization(t *testing.T) {
 	original := doctorReport{
 		Platform:          "linux/amd64",
 		GoVersion:         "go1.24.2",
-		CacheDir:          "/tmp/cache",
+		CacheDir:          t.TempDir(),
 		CacheDisabled:     false,
 		ChromiumAvailable: true,
 		CJKFontsAvailable: true,
@@ -629,7 +630,7 @@ func TestDoctorPathResolution(t *testing.T) {
 	defer func() { _ = os.Chdir(origCwd) }()
 
 	// Should not error on current directory
-	err := executeDoctor(".")
+	err := executeDoctor(context.Background(), ".")
 	if err != nil {
 		t.Fatalf("executeDoctor with '.' should not error: %v", err)
 	}
@@ -644,7 +645,7 @@ func TestDoctorWithFile(t *testing.T) {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
-	err := executeDoctor(filePath)
+	err := executeDoctor(context.Background(), filePath)
 	if err == nil {
 		t.Error("executeDoctor should error when passed a file instead of directory")
 	}

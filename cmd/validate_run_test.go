@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,7 +46,7 @@ func TestExecuteValidate_ValidProject(t *testing.T) {
 	tmpDir := t.TempDir()
 	createTestProject(t, tmpDir)
 
-	if err := executeValidate(tmpDir); err != nil {
+	if err := executeValidate(context.Background(), tmpDir); err != nil {
 		t.Errorf("valid project should pass validation: %v", err)
 	}
 }
@@ -65,7 +66,7 @@ chapters:
 		t.Fatalf("write book.yaml: %v", err)
 	}
 
-	if err := executeValidate(tmpDir); err == nil {
+	if err := executeValidate(context.Background(), tmpDir); err == nil {
 		t.Error("project with missing chapter file should fail validation")
 	}
 }
@@ -89,7 +90,7 @@ chapters:
 		t.Fatalf("write ch1.md: %v", err)
 	}
 
-	if err := executeValidate(tmpDir); err != nil {
+	if err := executeValidate(context.Background(), tmpDir); err != nil {
 		t.Errorf("book without explicit title should pass (defaults to 'Untitled Book'): %v", err)
 	}
 }
@@ -107,7 +108,7 @@ chapters: []
 		t.Fatalf("write book.yaml: %v", err)
 	}
 
-	if err := executeValidate(tmpDir); err == nil {
+	if err := executeValidate(context.Background(), tmpDir); err == nil {
 		t.Error("book without chapters should fail validation")
 	}
 }
@@ -132,7 +133,7 @@ chapters:
 		t.Fatalf("write ch1.md: %v", err)
 	}
 
-	if err := executeValidate(tmpDir); err == nil {
+	if err := executeValidate(context.Background(), tmpDir); err == nil {
 		t.Error("book with missing cover image should fail validation")
 	}
 }
@@ -144,7 +145,7 @@ func TestExecuteValidate_WithJSONReport(t *testing.T) {
 	reportPath := filepath.Join(tmpDir, "report.json")
 	defer withValidateReportPath(t, reportPath)()
 
-	_ = executeValidate(tmpDir)
+	_ = executeValidate(context.Background(), tmpDir)
 
 	if _, err := os.Stat(reportPath); err != nil {
 		t.Errorf("JSON report should have been written: %v", err)
@@ -158,7 +159,7 @@ func TestExecuteValidate_WithMDReport(t *testing.T) {
 	reportPath := filepath.Join(tmpDir, "report.md")
 	defer withValidateReportPath(t, reportPath)()
 
-	_ = executeValidate(tmpDir)
+	_ = executeValidate(context.Background(), tmpDir)
 
 	if _, err := os.Stat(reportPath); err != nil {
 		t.Errorf("MD report should have been written: %v", err)

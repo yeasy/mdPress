@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,7 +45,7 @@ Examples:
 		if len(args) > 0 {
 			targetDir = args[0]
 		}
-		return executeValidate(targetDir)
+		return executeValidate(cmd.Context(), targetDir)
 	},
 }
 
@@ -59,7 +60,7 @@ type validateResult struct {
 }
 
 // executeValidate runs the full validation flow.
-func executeValidate(targetDir string) error {
+func executeValidate(ctx context.Context, targetDir string) error {
 	utils.Header("mdpress Validation")
 
 	var results []validateResult
@@ -96,7 +97,7 @@ func executeValidate(targetDir string) error {
 			message: "Config syntax is valid",
 		})
 	} else {
-		cfg, err = config.Discover(absTargetDir)
+		cfg, err = config.Discover(ctx, absTargetDir)
 		if err != nil {
 			results = append(results, validateResult{
 				ok:      false,

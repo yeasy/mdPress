@@ -21,7 +21,8 @@ import (
 
 // Discover auto-discovers project configuration in a directory.
 // Priority: book.yaml > book.json (GitBook compat) > SUMMARY.md > Markdown file scanning.
-func Discover(dir string) (*BookConfig, error) {
+// The context is used for potentially long-running operations like git commands.
+func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -40,7 +41,7 @@ func Discover(dir string) (*BookConfig, error) {
 	var bookJSONErr error
 	if _, err := os.Stat(bookJSONPath); err == nil {
 		hasBookJSON = true
-		cfg, bookJSONErr = LoadBookJSON(bookJSONPath)
+		cfg, bookJSONErr = LoadBookJSON(ctx, bookJSONPath)
 		if bookJSONErr != nil {
 			return nil, bookJSONErr
 		}
@@ -63,7 +64,7 @@ func Discover(dir string) (*BookConfig, error) {
 
 			// Extract rich metadata from README.md.
 			readmePath := filepath.Join(absDir, "README.md")
-			meta := ExtractReadmeMetadata(readmePath)
+			meta := ExtractReadmeMetadata(ctx, readmePath)
 			defaultTitle := DefaultConfig().Book.Title
 			if cfg.Book.Title == "" || cfg.Book.Title == defaultTitle {
 				if meta.Title != "" {
@@ -81,7 +82,7 @@ func Discover(dir string) (*BookConfig, error) {
 			if meta.Author != "" {
 				cfg.Book.Author = meta.Author
 			} else if cfg.Book.Author == "" {
-				cfg.Book.Author = gitConfigAuthor(absDir)
+				cfg.Book.Author = gitConfigAuthor(ctx, absDir)
 			}
 
 			// Detect GLOSSARY.md.
@@ -110,11 +111,11 @@ func Discover(dir string) (*BookConfig, error) {
 	}
 
 	// Priority 4: scan .md files directly.
-	return autoDiscover(absDir)
+	return autoDiscover(ctx, absDir)
 }
 
 // autoDiscover scans Markdown files and generates config automatically.
-func autoDiscover(dir string) (*BookConfig, error) {
+func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 	cfg := DefaultConfig()
 	cfg.baseDir = dir
 
@@ -150,7 +151,7 @@ func autoDiscover(dir string) (*BookConfig, error) {
 
 	// Use top-level README.md as the first chapter when present.
 	if readmeFile != "" {
-		title := extractTitleFromFile(filepath.Join(dir, readmeFile))
+		title := utils.ExtractTitleFromFile(filepath.Join(dir, readmeFile))
 		if title == "" {
 			title = "Preface"
 		}
@@ -165,7 +166,7 @@ func autoDiscover(dir string) (*BookConfig, error) {
 
 	// Add the remaining chapters.
 	for _, f := range otherFiles {
-		title := extractTitleFromFile(filepath.Join(dir, f))
+		title := utils.ExtractTitleFromFile(filepath.Join(dir, f))
 		if title == "" {
 			// Fall back to the file name.
 			title = fileNameToTitle(f)
@@ -178,7 +179,7 @@ func autoDiscover(dir string) (*BookConfig, error) {
 
 	// If README.md did not define a title, fall back to the first chapter title.
 	if cfg.Book.Title == "Untitled Book" && len(cfg.Chapters) > 0 {
-		firstTitle := extractTitleFromFile(filepath.Join(dir, cfg.Chapters[0].File))
+		firstTitle := utils.ExtractTitleFromFile(filepath.Join(dir, cfg.Chapters[0].File))
 		if firstTitle != "" {
 			cfg.Book.Title = firstTitle
 		}
@@ -219,24 +220,6 @@ func findMarkdownFiles(dir string) ([]string, error) {
 	return files, err
 }
 
-// extractTitleFromFile returns the first H1 title from a Markdown file.
-func extractTitleFromFile(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close() //nolint:errcheck
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "# ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "#"))
-		}
-	}
-	return ""
-}
-
 // fileNameToTitle converts a file path into a readable title.
 func fileNameToTitle(path string) string {
 	base := filepath.Base(path)
@@ -258,8 +241,9 @@ func fileNameToTitle(path string) string {
 
 // gitConfigAuthor returns the git user.name configured in the given directory,
 // or an empty string when git is unavailable or no name is set.
-func gitConfigAuthor(dir string) string {
-	out, err := exec.CommandContext(context.Background(), "git", "-C", dir, "config", "user.name").Output()
+// The context is used to allow cancellation of the git command.
+func gitConfigAuthor(ctx context.Context, dir string) string {
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "config", "user.name").Output()
 	if err != nil {
 		return ""
 	}
@@ -306,7 +290,8 @@ var (
 // ExtractReadmeMetadata reads a README.md and extracts book metadata.
 // It tries to find a meaningful title (beyond just the H1), version, language, and author.
 // Exported so that cmd/init_cmd.go can also use it.
-func ExtractReadmeMetadata(path string) ReadmeMetadata {
+// The context is used for potentially long-running operations like git commands.
+func ExtractReadmeMetadata(ctx context.Context, path string) ReadmeMetadata {
 	f, err := os.Open(path)
 	if err != nil {
 		return ReadmeMetadata{}
@@ -357,6 +342,13 @@ func ExtractReadmeMetadata(path string) ReadmeMetadata {
 		}
 	}
 
+	// Check for scanner errors; silently ignore them for best-effort metadata extraction.
+	if err := scanner.Err(); err != nil {
+		// Error occurred during scanning, but we continue with the metadata extracted so far.
+		// This is best-effort metadata extraction from README.
+		_ = err
+	}
+
 	content := allText.String()
 
 	// Determine book title: try to find a meaningful title that is NOT just
@@ -373,7 +365,7 @@ func ExtractReadmeMetadata(path string) ReadmeMetadata {
 
 	// Last-resort fallback: try git config user.name in the book directory.
 	if meta.Author == "" {
-		meta.Author = gitConfigAuthor(filepath.Dir(path))
+		meta.Author = gitConfigAuthor(ctx, filepath.Dir(path))
 	}
 
 	return meta
@@ -408,7 +400,7 @@ func inferBookTitle(h1Title, content, dir string) string {
 		"目录": true, "table of contents": true, "summary": true,
 		"在线阅读": true, "read online": true, "contents": true,
 	}
-	if summaryTitle := extractTitleFromFile(summaryPath); summaryTitle != "" && !genericSummaryTitles[strings.ToLower(summaryTitle)] {
+	if summaryTitle := utils.ExtractTitleFromFile(summaryPath); summaryTitle != "" && !genericSummaryTitles[strings.ToLower(summaryTitle)] {
 		return summaryTitle
 	}
 

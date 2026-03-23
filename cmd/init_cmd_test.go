@@ -11,7 +11,14 @@ import (
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// extractTitleFromFile is a test wrapper for utils.ExtractTitleFromFile.
+// This allows tests to call the function without the package prefix.
+func extractTitleFromFile(path string) string {
+	return utils.ExtractTitleFromFile(path)
+}
 
 // TestInferTitleFromPathBasic tests basic title inference from file paths.
 func TestInferTitleFromPathBasic(t *testing.T) {

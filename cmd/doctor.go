@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -33,7 +34,7 @@ var doctorCmd = &cobra.Command{
 		if len(args) > 0 {
 			targetDir = args[0]
 		}
-		return executeDoctor(targetDir)
+		return executeDoctor(cmd.Context(), targetDir)
 	},
 }
 
@@ -60,7 +61,7 @@ type doctorReport struct {
 	UnresolvedMarkdown []unresolvedMarkdownLink `json:"unresolved_markdown_links,omitempty"`
 }
 
-func executeDoctor(targetDir string) error {
+func executeDoctor(ctx context.Context, targetDir string) error {
 	absDir, err := filepath.Abs(targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve directory path: %w", err)
@@ -154,7 +155,7 @@ func executeDoctor(targetDir string) error {
 			reportDoctorMarkdownLinks(cfg, &report)
 		}
 	} else if _, err := os.Stat(summaryPath); err == nil {
-		cfg, discoverErr := config.Discover(absDir)
+		cfg, discoverErr := config.Discover(ctx, absDir)
 		if discoverErr != nil {
 			utils.Error("Failed to auto-discover project from SUMMARY.md: %v", discoverErr)
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))

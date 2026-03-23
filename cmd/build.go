@@ -163,7 +163,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 			}
 		}
 		logger.Info("Zero-config mode: auto-discovering Markdown files", slog.String("dir", targetDir))
-		cfg, err = config.Discover(targetDir)
+		cfg, err = config.Discover(ctx, targetDir)
 		if err != nil {
 			return fmt.Errorf("auto-discovery failed: %w (try running 'mdpress init' to create a config)", err)
 		}

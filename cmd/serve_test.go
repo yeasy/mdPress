@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -159,10 +160,11 @@ func TestServeCommand_SummaryFlagDefaults(t *testing.T) {
 
 // TestServeOptions_Structure tests the ServeOptions struct fields
 func TestServeOptions_Structure(t *testing.T) {
+	tmpDir := t.TempDir()
 	opts := ServeOptions{
 		Port:        9000,
 		Host:        "127.0.0.1",
-		OutputDir:   "/tmp/output",
+		OutputDir:   tmpDir,
 		AutoOpen:    true,
 		PortChanged: false,
 	}
@@ -175,8 +177,8 @@ func TestServeOptions_Structure(t *testing.T) {
 		t.Errorf("Host should be 127.0.0.1, got %q", opts.Host)
 	}
 
-	if opts.OutputDir != "/tmp/output" {
-		t.Errorf("OutputDir should be /tmp/output, got %q", opts.OutputDir)
+	if opts.OutputDir != tmpDir {
+		t.Errorf("OutputDir should be %q, got %q", tmpDir, opts.OutputDir)
 	}
 
 	if opts.AutoOpen != true {
@@ -409,16 +411,17 @@ func TestServeOptions_HostValidation(t *testing.T) {
 
 // TestServeOptions_OutputDirValidation tests output directory handling
 func TestServeOptions_OutputDirValidation(t *testing.T) {
+	tmpDir := t.TempDir()
 	tests := []struct {
 		name      string
 		outputDir string
 		testName  string
 	}{
 		{"_book default", "_book", "default _book directory"},
-		{"custom path", "/tmp/mybook", "custom absolute path"},
+		{"custom path", tmpDir, "custom absolute path"},
 		{"relative path", "_site", "relative path"},
 		{"empty default", "", "empty means use default"},
-		{"complex path", "/very/deep/nested/path/to/_output", "deep nested path"},
+		{"complex path", filepath.Join(tmpDir, "nested/path/to/_output"), "deep nested path"},
 	}
 
 	for _, tt := range tests {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -778,62 +779,75 @@ func TestSanitizeBookFilename(t *testing.T) {
 func TestDeriveOutputFilename(t *testing.T) {
 	tests := []struct {
 		name     string
-		cfg      *config.BookConfig
+		setupCfg func(t *testing.T) *config.BookConfig
 		expected string
 	}{
 		{
 			name: "explicit filename",
-			cfg: func() *config.BookConfig {
+			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
 				c.Output.Filename = "custom.pdf"
 				return c
-			}(),
+			},
 			expected: "custom.pdf",
 		},
 		{
 			name: "default output.pdf falls through to title",
-			cfg: func() *config.BookConfig {
+			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
 				c.Output.Filename = "output.pdf"
 				c.Book.Title = "Go Programming"
 				return c
-			}(),
+			},
 			expected: "Go Programming.pdf",
 		},
 		{
 			name: "title with invalid chars",
-			cfg: func() *config.BookConfig {
+			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
 				c.Book.Title = "Go: The Good Parts?"
 				return c
-			}(),
+			},
 			expected: "Go_ The Good Parts_.pdf",
 		},
 		{
 			name: "empty title uses dir name",
-			cfg: func() *config.BookConfig {
+			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
-				c.SetBaseDir("/tmp/my-project")
+				tmpDir := t.TempDir()
+				// Create a subdirectory with the expected name
+				projectDir := filepath.Join(tmpDir, "my-project")
+				if err := os.MkdirAll(projectDir, 0755); err != nil {
+					t.Fatalf("failed to create project dir: %v", err)
+				}
+				c.SetBaseDir(projectDir)
 				c.Book.Title = ""
 				return c
-			}(),
+			},
 			expected: "my-project.pdf",
 		},
 		{
 			name: "Untitled Book uses dir name",
-			cfg: func() *config.BookConfig {
+			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
-				c.SetBaseDir("/tmp/awesome-book")
+				tmpDir := t.TempDir()
+				// Create a subdirectory with the expected name
+				projectDir := filepath.Join(tmpDir, "awesome-book")
+				if err := os.MkdirAll(projectDir, 0755); err != nil {
+					t.Fatalf("failed to create project dir: %v", err)
+				}
+				c.SetBaseDir(projectDir)
 				c.Book.Title = "Untitled Book"
 				return c
-			}(),
+			},
 			expected: "awesome-book.pdf",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := deriveOutputFilename(tt.cfg)
+			cfg := tt.setupCfg(t)
+			result := deriveOutputFilename(cfg)
 			if result != tt.expected {
 				t.Errorf("deriveOutputFilename() = %q, want %q", result, tt.expected)
 			}
@@ -934,10 +948,10 @@ func TestDeriveLanguageOutputOverride(t *testing.T) {
 		},
 		// Path without extension
 		{
-			name:           "path without extension: /tmp/output + it",
-			outputOverride: "/tmp/output",
+			name:           "path without extension: /var/lib/output + it",
+			outputOverride: "/var/lib/output",
 			langDir:        "it",
-			expected:       "/tmp/output-it",
+			expected:       "/var/lib/output-it",
 			description:    "Absolute path without extension",
 		},
 		// Edge cases
