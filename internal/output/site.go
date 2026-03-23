@@ -540,8 +540,8 @@ body.sidebar-resizing .main { transition: none; }
   overflow-wrap: anywhere; word-break: break-word;
 }
 .content pre {
-  background: #2d2d2d; color: #f8f8f2; padding: 16px 20px;
-  border-radius: 6px; overflow-x: auto; margin: 1em 0; line-height: 1.5;
+  background: #f6f8fa; color: #24292e; padding: 16px 20px;
+  border: 1px solid #e1e4e8; border-radius: 6px; overflow-x: auto; margin: 1em 0; line-height: 1.5;
   font-size: 0.88em; white-space: pre; word-break: normal;
 }
 .content pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; display: block; }

@@ -76,9 +76,13 @@ func TestParseCodeHighlight(t *testing.T) {
 	if !strings.Contains(html, "<pre") {
 		t.Error("代码块应包含 pre 标签")
 	}
-	// monokai 主题应有特定背景色
-	if !strings.Contains(html, "background-color") {
-		t.Error("代码块应有背景色样式")
+	// Chroma inline style on <pre> is stripped by PostProcess;
+	// token-level <span style="color:..."> should still be present.
+	if strings.Contains(html, `<pre style="`) {
+		t.Error("chroma inline style on <pre> should be stripped")
+	}
+	if !strings.Contains(html, `style="color`) {
+		t.Error("token-level inline color styles should be preserved")
 	}
 }
 

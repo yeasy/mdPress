@@ -31,7 +31,21 @@ var alertPattern = regexp.MustCompile(
 func PostProcess(html string) string {
 	html = processAlerts(html)
 	html = processMermaid(html)
+	html = stripChromaPreStyle(html)
 	return html
+}
+
+// chromaPreStylePattern matches the inline style attribute that chroma adds to
+// <pre> elements (e.g. style="background-color:#fff;"). Removing it lets each
+// output format's CSS control code block appearance without specificity fights.
+var chromaPreStylePattern = regexp.MustCompile(`(<pre)\s+style="[^"]*"`)
+
+// stripChromaPreStyle removes inline style attributes from <pre> tags injected
+// by chroma's HTML formatter. Chroma sets background-color (and sometimes color)
+// on <pre> via inline styles, which override the site/standalone/PDF CSS and can
+// cause invisible text when the inline bg conflicts with the CSS text color.
+func stripChromaPreStyle(html string) string {
+	return chromaPreStylePattern.ReplaceAllString(html, "$1")
 }
 
 // processAlerts converts GFM Alert syntax to styled HTML divs.
