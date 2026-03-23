@@ -214,15 +214,21 @@ func TestValidateValidPageSizes(t *testing.T) {
 // TestResolvePath 测试路径解析
 func TestResolvePath(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.baseDir = "/home/user/book"
+	baseDir := t.TempDir()
+	cfg.baseDir = baseDir
+
+	absolutePath, err := filepath.Abs(filepath.Join(baseDir, "absolute", "path.md"))
+	if err != nil {
+		t.Fatalf("failed to build absolute path fixture: %v", err)
+	}
 
 	tests := []struct {
 		input string
 		want  string
 	}{
-		{"ch01.md", "/home/user/book/ch01.md"},
-		{"sub/ch01.md", "/home/user/book/sub/ch01.md"},
-		{"/absolute/path.md", "/absolute/path.md"},
+		{"ch01.md", filepath.Join(baseDir, "ch01.md")},
+		{"sub/ch01.md", filepath.Join(baseDir, "sub", "ch01.md")},
+		{absolutePath, absolutePath},
 	}
 
 	for _, tt := range tests {
@@ -586,6 +592,13 @@ chapters:
 
 // TestResolvePathTableDriven 表驱动的路径解析测试，包含边界情况
 func TestResolvePathTableDriven(t *testing.T) {
+	rootDir := t.TempDir()
+	nestedBaseDir := filepath.Join(rootDir, "a", "b", "c")
+	absolutePath, err := filepath.Abs(filepath.Join(rootDir, "etc", "hosts"))
+	if err != nil {
+		t.Fatalf("failed to build absolute path fixture: %v", err)
+	}
+
 	tests := []struct {
 		name    string
 		baseDir string
@@ -594,39 +607,39 @@ func TestResolvePathTableDriven(t *testing.T) {
 	}{
 		{
 			name:    "relative path",
-			baseDir: "/home/user/book",
+			baseDir: rootDir,
 			input:   "ch01.md",
-			want:    "/home/user/book/ch01.md",
+			want:    filepath.Join(rootDir, "ch01.md"),
 		},
 		{
 			name:    "nested relative path",
-			baseDir: "/home/user/book",
+			baseDir: rootDir,
 			input:   "chapters/ch01.md",
-			want:    "/home/user/book/chapters/ch01.md",
+			want:    filepath.Join(rootDir, "chapters", "ch01.md"),
 		},
 		{
 			name:    "absolute path",
-			baseDir: "/home/user/book",
-			input:   "/etc/hosts",
-			want:    "/etc/hosts",
+			baseDir: rootDir,
+			input:   absolutePath,
+			want:    absolutePath,
 		},
 		{
 			name:    "dot relative path",
-			baseDir: "/home/user/book",
+			baseDir: rootDir,
 			input:   "./ch01.md",
-			want:    "/home/user/book/ch01.md",
+			want:    filepath.Join(rootDir, "ch01.md"),
 		},
 		{
 			name:    "parent directory",
-			baseDir: "/home/user/book",
+			baseDir: rootDir,
 			input:   "../shared/ch01.md",
-			want:    "/home/user/shared/ch01.md",
+			want:    filepath.Join(filepath.Dir(rootDir), "shared", "ch01.md"),
 		},
 		{
 			name:    "deeply nested relative",
-			baseDir: "/a/b/c",
+			baseDir: nestedBaseDir,
 			input:   "d/e/f/g.md",
-			want:    "/a/b/c/d/e/f/g.md",
+			want:    filepath.Join(nestedBaseDir, "d", "e", "f", "g.md"),
 		},
 		{
 			name:    "dot base dir",
@@ -639,9 +652,9 @@ func TestResolvePathTableDriven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := DefaultConfig()
-			cfg.baseDir = filepath.FromSlash(tt.baseDir)
+			cfg.baseDir = tt.baseDir
 			got := cfg.ResolvePath(tt.input)
-			want := filepath.FromSlash(tt.want)
+			want := tt.want
 			if got != want {
 				t.Errorf("ResolvePath(%q) = %q, want %q", tt.input, got, want)
 			}
