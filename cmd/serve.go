@@ -145,7 +145,7 @@ func executeServe(ctx context.Context, inputSource string, opts ServeOptions) er
 		if utils.FileExists(configPath) {
 			cfg, err = config.Load(configPath)
 		} else {
-			cfg, err = config.Discover(workDir)
+			cfg, err = config.Discover(ctx, workDir)
 		}
 		if err != nil {
 			return nil, err

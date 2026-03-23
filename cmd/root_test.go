@@ -9,16 +9,18 @@ import (
 
 // TestCacheDirFlagParsing tests that --cache-dir flag is properly parsed
 func TestCacheDirFlagParsing(t *testing.T) {
+	cacheDir1 := t.TempDir()
+	cacheDir2 := t.TempDir()
 	tests := []struct {
 		name     string
 		args     []string
 		wantErr  bool
-		checkEnv func(t *testing.T)
+		checkEnv func(t *testing.T, expectedCacheDir string)
 	}{
 		{
 			name: "no cache flags",
 			args: []string{},
-			checkEnv: func(t *testing.T) {
+			checkEnv: func(t *testing.T, expectedCacheDir string) {
 				// Cache should be enabled by default
 				if os.Getenv("MDPRESS_DISABLE_CACHE") == "1" {
 					t.Error("cache should be enabled by default")
@@ -27,10 +29,10 @@ func TestCacheDirFlagParsing(t *testing.T) {
 		},
 		{
 			name: "custom cache directory",
-			args: []string{"--cache-dir", "/tmp/custom-cache"},
-			checkEnv: func(t *testing.T) {
+			args: []string{"--cache-dir", cacheDir1},
+			checkEnv: func(t *testing.T, expectedCacheDir string) {
 				// Environment will be set by configureRuntimeCacheEnv
-				if os.Getenv("MDPRESS_CACHE_DIR") != "/tmp/custom-cache" {
+				if os.Getenv("MDPRESS_CACHE_DIR") != expectedCacheDir {
 					t.Errorf("MDPRESS_CACHE_DIR not set correctly, got %q", os.Getenv("MDPRESS_CACHE_DIR"))
 				}
 			},
@@ -38,7 +40,7 @@ func TestCacheDirFlagParsing(t *testing.T) {
 		{
 			name: "no-cache flag",
 			args: []string{"--no-cache"},
-			checkEnv: func(t *testing.T) {
+			checkEnv: func(t *testing.T, expectedCacheDir string) {
 				// Environment will be set by configureRuntimeCacheEnv
 				if os.Getenv("MDPRESS_DISABLE_CACHE") != "1" {
 					t.Error("MDPRESS_DISABLE_CACHE should be set")
@@ -47,20 +49,20 @@ func TestCacheDirFlagParsing(t *testing.T) {
 		},
 		{
 			name: "both cache flags",
-			args: []string{"--cache-dir", "/tmp/custom", "--no-cache"},
-			checkEnv: func(t *testing.T) {
+			args: []string{"--cache-dir", cacheDir2, "--no-cache"},
+			checkEnv: func(t *testing.T, expectedCacheDir string) {
 				// no-cache takes precedence logically
 				if os.Getenv("MDPRESS_DISABLE_CACHE") != "1" {
 					t.Error("MDPRESS_DISABLE_CACHE should be set")
 				}
-				if os.Getenv("MDPRESS_CACHE_DIR") != "/tmp/custom" {
+				if os.Getenv("MDPRESS_CACHE_DIR") != expectedCacheDir {
 					t.Error("MDPRESS_CACHE_DIR should also be set")
 				}
 			},
 		},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset environment before each test
 			os.Unsetenv("MDPRESS_CACHE_DIR")
@@ -88,8 +90,17 @@ func TestCacheDirFlagParsing(t *testing.T) {
 				t.Errorf("expected error=%v, got %v", tt.wantErr, err)
 			}
 
+			// Determine expected cache dir for this test
+			var expectedCacheDir string
+			switch i {
+			case 1:
+				expectedCacheDir = cacheDir1
+			case 3:
+				expectedCacheDir = cacheDir2
+			}
+
 			// Check environment
-			tt.checkEnv(t)
+			tt.checkEnv(t, expectedCacheDir)
 		})
 	}
 }

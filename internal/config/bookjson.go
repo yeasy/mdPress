@@ -3,6 +3,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -56,7 +57,8 @@ func (v *jsonStringOrSlice) UnmarshalJSON(data []byte) error {
 // Metadata fields (title, author, description, language, plugins) are loaded from book.json.
 // Chapter definitions are NOT loaded here; instead, Discover() handles chapters via SUMMARY.md
 // or auto-discovery, which allows proper priority orchestration of configuration sources.
-func LoadBookJSON(path string) (*BookConfig, error) {
+// The context is used for potentially long-running operations like git commands.
+func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	const maxSize = 10 * 1024 * 1024 // 10 MB
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -112,7 +114,7 @@ func LoadBookJSON(path string) (*BookConfig, error) {
 		readmeName = raw.Structure.Readme
 	}
 	readmePath := filepath.Join(dir, readmeName)
-	meta := ExtractReadmeMetadata(readmePath)
+	meta := ExtractReadmeMetadata(ctx, readmePath)
 	if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
 		cfg.Book.Version = meta.Version
 	}

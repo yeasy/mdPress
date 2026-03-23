@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -41,7 +42,7 @@ Examples:
 		if len(args) > 0 {
 			dir = args[0]
 		}
-		return executeInit(dir)
+		return executeInit(cmd.Context(), dir)
 	},
 }
 
@@ -74,7 +75,12 @@ func promptUser(reader *bufio.Reader, question, defaultVal string) string {
 	} else {
 		fmt.Printf("  %s: ", question)
 	}
-	answer, _ := reader.ReadString('\n')
+	answer, err := reader.ReadString('\n')
+	// On error (including EOF), fall back to default. In non-interactive mode,
+	// EOF is expected and harmless.
+	if err != nil {
+		return defaultVal
+	}
 	answer = strings.TrimSpace(answer)
 	if answer == "" {
 		return defaultVal
@@ -93,7 +99,12 @@ func promptChoice(reader *bufio.Reader, question string, options []string, defau
 		fmt.Printf("    %s%d) %s\n", marker, i+1, opt)
 	}
 	fmt.Printf("  Choose %s[%d]%s: ", utils.Dim(""), defaultIdx+1, "")
-	answer, _ := reader.ReadString('\n')
+	answer, err := reader.ReadString('\n')
+	// On error (including EOF), fall back to default. In non-interactive mode,
+	// EOF is expected and harmless.
+	if err != nil {
+		return options[defaultIdx]
+	}
 	answer = strings.TrimSpace(answer)
 	if answer == "" {
 		return options[defaultIdx]
@@ -159,7 +170,7 @@ type discoveredFile struct {
 	Depth   int    // Directory depth for sorting.
 }
 
-func executeInit(dir string) error {
+func executeInit(ctx context.Context, dir string) error {
 	logger := slog.Default()
 
 	// Resolve the target path early to avoid cwd-dependent behavior.
@@ -242,7 +253,7 @@ func executeInit(dir string) error {
 
 	// Try to extract metadata from README.md to provide better defaults.
 	readmePath := filepath.Join(dir, "README.md")
-	readmeMeta := config.ExtractReadmeMetadata(readmePath)
+	readmeMeta := config.ExtractReadmeMetadata(ctx, readmePath)
 	defaultTitle := projectName
 	defaultAuthor := ""
 	defaultLanguage := "en-US"
@@ -367,7 +378,7 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 			return nil
 		}
 
-		title := extractTitleFromFile(path)
+		title := utils.ExtractTitleFromFile(path)
 		depth := strings.Count(relPath, "/")
 
 		files = append(files, discoveredFile{
@@ -392,34 +403,6 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 	})
 
 	return files, nil
-}
-
-// extractTitleFromFile scans the first 50 lines and returns the first H1 heading.
-func extractTitleFromFile(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
-		return ""
-	}
-	defer f.Close() //nolint:errcheck
-
-	scanner := bufio.NewScanner(f)
-	lineCount := 0
-	for scanner.Scan() {
-		lineCount++
-		if lineCount > 50 {
-			break
-		}
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "# ") {
-			title := strings.TrimPrefix(line, "# ")
-			// Trim the raw heading text.
-			title = strings.TrimSpace(title)
-			if title != "" {
-				return title
-			}
-		}
-	}
-	return ""
 }
 
 // detectCoverImage looks for common cover image file names.
