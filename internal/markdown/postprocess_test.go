@@ -232,3 +232,42 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// ===== Strip Chroma Pre Style =====
+
+func TestStripChromaPreStyle(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "removes background-color from pre",
+			input: `<pre style="background-color:#fff;"><code>hello</code></pre>`,
+			want:  `<pre><code>hello</code></pre>`,
+		},
+		{
+			name:  "removes multi-property style from pre",
+			input: `<pre style="color:#24292e;background-color:#fff;"><code>x</code></pre>`,
+			want:  `<pre><code>x</code></pre>`,
+		},
+		{
+			name:  "preserves span inline styles",
+			input: `<pre style="background-color:#fff;"><code><span style="color:#d73a49">func</span></code></pre>`,
+			want:  `<pre><code><span style="color:#d73a49">func</span></code></pre>`,
+		},
+		{
+			name:  "no style attribute unchanged",
+			input: `<pre><code>plain</code></pre>`,
+			want:  `<pre><code>plain</code></pre>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripChromaPreStyle(tt.input)
+			if got != tt.want {
+				t.Errorf("stripChromaPreStyle()\ngot:  %s\nwant: %s", got, tt.want)
+			}
+		})
+	}
+}
