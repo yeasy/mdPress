@@ -44,6 +44,8 @@ jobs:
         run: |
           echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          REPO="${{ github.repository }}"
+          echo "REPO_LC=${REPO,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -66,8 +68,8 @@ jobs:
             VERSION=${{ steps.version.outputs.VERSION }}
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ steps.version.outputs.REPO_LC }}:${{ steps.version.outputs.VERSION }}
+            ghcr.io/${{ steps.version.outputs.REPO_LC }}:latest
 
       - name: Build and push full image
         uses: docker/build-push-action@v6
@@ -80,5 +82,5 @@ jobs:
             VERSION=${{ steps.version.outputs.VERSION }}
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }}-full
-            ghcr.io/${{ github.repository }}:full
+            ghcr.io/${{ steps.version.outputs.REPO_LC }}:${{ steps.version.outputs.VERSION }}-full
+            ghcr.io/${{ steps.version.outputs.REPO_LC }}:full
