@@ -46,7 +46,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       uses: codecov/codecov-action@v5
       with:
-        file: coverage.txt
+        files: coverage.txt
 
   build:
     name: Build
