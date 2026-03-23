@@ -1,11 +1,31 @@
 package config
 
 import (
+	"bufio"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// extractTitleFromFile is a test helper that extracts the first H1 heading from a markdown file.
+// The production code inlined this logic into ExtractReadmeMetadata.
+func extractTitleFromFile(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close() //nolint:errcheck
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "#"))
+		}
+	}
+	return ""
+}
 
 // TestDiscoverWithBookYaml tests Discover prioritizes book.yaml
 func TestDiscoverWithBookYaml(t *testing.T) {
@@ -27,7 +47,7 @@ chapters:
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -68,7 +88,7 @@ func TestDiscoverWithBookJSON(t *testing.T) {
 		t.Fatalf("write chapter.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -102,7 +122,7 @@ func TestDiscoverWithSummaryOnly(t *testing.T) {
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -135,7 +155,7 @@ func TestDiscoverAutoDiscoverMarkdown(t *testing.T) {
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -160,7 +180,7 @@ func TestDiscoverAutoDiscoverMarkdown(t *testing.T) {
 func TestDiscoverEmptyDirectory(t *testing.T) {
 	dir := t.TempDir()
 
-	_, err := Discover(dir)
+	_, err := Discover(context.Background(), dir)
 	if err == nil {
 		t.Error("expected error for empty directory")
 	}
@@ -179,7 +199,7 @@ func TestDiscoverEmptyDirectory(t *testing.T) {
 
 // TestDiscoverNonExistentDirectory tests Discover with non-existent directory
 func TestDiscoverNonExistentDirectory(t *testing.T) {
-	_, err := Discover("/nonexistent/path/to/directory")
+	_, err := Discover(context.Background(), "/nonexistent/path/to/directory")
 	if err == nil {
 		t.Error("expected error for non-existent directory")
 	}
@@ -202,7 +222,7 @@ This is the main overview of the project.
 		t.Fatalf("write chapter1.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -240,7 +260,7 @@ func TestDiscoverReadmeWithoutH1(t *testing.T) {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -269,7 +289,7 @@ func TestDiscoverSkipsSpecialFiles(t *testing.T) {
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -297,7 +317,7 @@ func TestDiscoverDetectsGlossary(t *testing.T) {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -333,7 +353,7 @@ func TestAutoDiscoverWithNestedDirectories(t *testing.T) {
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -362,7 +382,7 @@ func TestAutoDiscoverSkipsHiddenDirectories(t *testing.T) {
 		t.Fatalf("write secret.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -394,7 +414,7 @@ func TestAutoDiscoverSkipsNodeModules(t *testing.T) {
 		t.Fatalf("write module.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -656,7 +676,7 @@ This is a test project.
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
-	meta := ExtractReadmeMetadata(path)
+	meta := ExtractReadmeMetadata(context.Background(), path)
 
 	if meta.Title == "" {
 		t.Error("expected title to be extracted")
@@ -684,7 +704,7 @@ func TestExtractReadmeMetadataChineseAuthor(t *testing.T) {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
-	meta := ExtractReadmeMetadata(path)
+	meta := ExtractReadmeMetadata(context.Background(), path)
 
 	if meta.Author != "张三" {
 		t.Errorf("expected author '张三', got %q", meta.Author)
@@ -706,7 +726,7 @@ Content here.
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
-	meta := ExtractReadmeMetadata(path)
+	meta := ExtractReadmeMetadata(context.Background(), path)
 
 	if meta.Author != "johndoe" {
 		t.Errorf("expected author 'johndoe' from GitHub, got %q", meta.Author)
@@ -741,7 +761,7 @@ func TestExtractReadmeMetadataLanguageDetection(t *testing.T) {
 				t.Fatalf("write README.md failed: %v", err)
 			}
 
-			meta := ExtractReadmeMetadata(path)
+			meta := ExtractReadmeMetadata(context.Background(), path)
 
 			if meta.Language != tt.expectedLanguage {
 				t.Errorf("expected language %q, got %q", tt.expectedLanguage, meta.Language)
@@ -752,7 +772,7 @@ func TestExtractReadmeMetadataLanguageDetection(t *testing.T) {
 
 // TestExtractReadmeMetadataNotFound tests ExtractReadmeMetadata with missing file
 func TestExtractReadmeMetadataNotFound(t *testing.T) {
-	meta := ExtractReadmeMetadata("/nonexistent/README.md")
+	meta := ExtractReadmeMetadata(context.Background(), "/nonexistent/README.md")
 
 	// Should return empty metadata, not error
 	if meta.Title != "" || meta.Author != "" || meta.Version != "" {
@@ -777,7 +797,7 @@ func TestDiscoverLexicalOrdering(t *testing.T) {
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -804,7 +824,7 @@ func TestDiscoverAbsolutePathHandling(t *testing.T) {
 	}
 
 	// Use relative path
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover with relative path failed: %v", err)
 	}
@@ -865,7 +885,7 @@ func TestAutoDiscoverBookTitleFromFirstChapter(t *testing.T) {
 		t.Fatalf("write chapter2.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -908,7 +928,7 @@ Description here.
 		}
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -944,7 +964,7 @@ func TestLoadFromSummaryDetectsGlossary(t *testing.T) {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -977,7 +997,7 @@ func TestLoadFromSummaryDetectsLangs(t *testing.T) {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 
-	cfg, err := Discover(dir)
+	cfg, err := Discover(context.Background(), dir)
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
 	}
@@ -1025,7 +1045,7 @@ func TestExtractReadmeMetadataMultilineVersion(t *testing.T) {
 				t.Fatalf("write README.md failed: %v", err)
 			}
 
-			meta := ExtractReadmeMetadata(path)
+			meta := ExtractReadmeMetadata(context.Background(), path)
 
 			if meta.Version != tt.expectedVersion {
 				t.Errorf("expected version %q, got %q", tt.expectedVersion, meta.Version)
