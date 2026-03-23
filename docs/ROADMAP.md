@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-03-20
+> Updated: 2026-03-22
 > Maintainer: mdPress product team
 
 ---
@@ -20,6 +20,7 @@ v0.4.2 ████████████████████████�
 v0.4.3 ██████████████████████████████████████████ released (2026-03-19)
 v0.5.0 ██████████████████████████████████████████ released (2026-03-20)
 v0.5.1 ██████████████████████████████████████████ released (2026-03-21)
+v0.5.2 ██████████████████████████████████████████ released (2026-03-22)
 v0.6.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2026-Q2)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
@@ -207,6 +208,31 @@ v0.5.0 closes the most critical gap for enterprise users (offline PlantUML rende
 | `internal/source` | 41.2% | 62%+ | +21 pp |
 | `cmd` | 47.7% | 60%+ | +12 pp |
 | **Overall** | **62.3%** | **≥ 68%** | **+6 pp** |
+
+---
+
+## v0.5.2 - Windows Compatibility and CI Fixes
+
+**Release date**: 2026-03-22
+**Theme**: Cross-platform robustness and CI reliability
+
+v0.5.2 improves Windows support with plugin executable resolution via PATHEXT, fixes cross-platform test failures, and hardens the CI supply chain by upgrading all GitHub Actions to their latest major versions.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Windows plugin executable resolution | P1 | Plugin paths without extensions auto-resolve via PATHEXT (`.exe`, `.bat`, `.cmd`) |
+| Search focus style and a11y traps | P2 | Improved keyboard accessibility with visible focus indicators |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Cross-platform test paths | P0 | Replaced hardcoded Unix paths with `t.TempDir()` in config tests, fixing Windows CI |
+| Codecov action parameter | P1 | Corrected `file` to `files` for codecov-action@v5 |
+| Dependabot config syntax | P1 | Fixed invalid `pull-requests.max-number` to `open-pull-requests-limit` |
+| ePub test resource leak | P2 | Added missing `reader.Close()` in epub test |
 
 ---
 
