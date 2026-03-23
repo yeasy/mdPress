@@ -121,6 +121,7 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. No conf
 | HTML | `mdpress build --format html` | A single self-contained `.html` file you can email or upload |
 | Site | `mdpress build --format site` | A multi-page website ready for GitHub Pages or Netlify |
 | ePub | `mdpress build --format epub` | An ebook for Kindle, Apple Books, etc. |
+| Typst | `mdpress build --format typst` | PDF via Typst backend — no Chromium needed |
 | Preview | `mdpress serve` | A local website with live reload |
 
 ### HTML vs Site: What's the difference?
@@ -213,18 +214,18 @@ Set `style.theme` in `book.yaml` to switch themes.
 
 | Capability | mdPress | mdBook | HonKit | Docusaurus |
 | --- | --- | --- | --- | --- |
-| PDF output | **Yes** | No | Plugin | No |
-| HTML single-page | **Yes** | No | Yes | No |
-| Multi-page site | **Yes** | Yes | Yes | Yes |
-| ePub output | **Yes** | No | Plugin | No |
-| Math / KaTeX | **Yes** | Plugin | Plugin | Plugin |
-| PlantUML diagrams | **Yes** | No | Plugin | Plugin |
-| Incremental builds | **Yes** | No | No | Yes |
-| Plugin system | **Yes** | No | Yes | Yes |
-| Live preview | **Yes** | Yes | Yes | Yes |
-| Zero-config mode | **Yes** | No | No | No |
-| GitBook migration | **Yes** | No | Native | No |
-| Single binary | **Yes** | Yes | No (Node.js) | No (Node.js) |
+| PDF output | ✅ | ❌ | 🔌 | ❌ |
+| HTML single-page | ✅ | ❌ | ✅ | ❌ |
+| Multi-page site | ✅ | ✅ | ✅ | ✅ |
+| ePub output | ✅ | ❌ | 🔌 | ❌ |
+| Math / KaTeX | ✅ | 🔌 | 🔌 | 🔌 |
+| PlantUML diagrams | ✅ | ❌ | 🔌 | 🔌 |
+| Incremental builds | ✅ | ❌ | ❌ | ✅ |
+| Plugin system | ✅ | ❌ | ✅ | ✅ |
+| Live preview | ✅ | ✅ | ✅ | ✅ |
+| Zero-config mode | ✅ | ❌ | ❌ | ❌ |
+| GitBook migration | ✅ | ❌ | ✅ | ❌ |
+| Single binary | ✅ | ✅ | ❌ | ❌ |
 
 ## All Commands
 

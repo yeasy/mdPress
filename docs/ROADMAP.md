@@ -211,31 +211,6 @@ v0.5.0 closes the most critical gap for enterprise users (offline PlantUML rende
 
 ---
 
-## v0.5.2 - Windows Compatibility and CI Fixes
-
-**Release date**: 2026-03-22
-**Theme**: Cross-platform robustness and CI reliability
-
-v0.5.2 improves Windows support with plugin executable resolution via PATHEXT, fixes cross-platform test failures, and hardens the CI supply chain by upgrading all GitHub Actions to their latest major versions.
-
-### Delivered Features
-
-| Feature | Priority | Description |
-| --- | --- | --- |
-| Windows plugin executable resolution | P1 | Plugin paths without extensions auto-resolve via PATHEXT (`.exe`, `.bat`, `.cmd`) |
-| Search focus style and a11y traps | P2 | Improved keyboard accessibility with visible focus indicators |
-
-### Fixed Issues
-
-| Fix | Priority | Description |
-| --- | --- | --- |
-| Cross-platform test paths | P0 | Replaced hardcoded Unix paths with `t.TempDir()` in config tests, fixing Windows CI |
-| Codecov action parameter | P1 | Corrected `file` to `files` for codecov-action@v5 |
-| Dependabot config syntax | P1 | Fixed invalid `pull-requests.max-number` to `open-pull-requests-limit` |
-| ePub test resource leak | P2 | Added missing `reader.Close()` in epub test |
-
----
-
 ## v0.5.1 - Sidebar Navigation and Context Fixes
 
 **Release date**: 2026-03-21
@@ -260,6 +235,31 @@ v0.5.1 delivers accordion-style sidebar navigation improvements and fixes critic
 | Missing `migrate` command in README | P1 | Added the `migrate` command to the "All Commands" table in both English and Chinese READMEs |
 | GitLab CI lint version mismatch | P2 | Aligned golangci-lint from v2.1 to v2.11.3 to match GitHub Actions |
 | Misspelling in completion command | P2 | Fixed `behaviour` → `behavior` in comment |
+
+---
+
+## v0.5.2 - Windows Compatibility and CI Fixes
+
+**Release date**: 2026-03-22
+**Theme**: Cross-platform robustness and CI reliability
+
+v0.5.2 improves Windows support with plugin executable resolution via PATHEXT, fixes cross-platform test failures, and hardens the CI supply chain by upgrading all GitHub Actions to their latest major versions.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Windows plugin executable resolution | P1 | Plugin paths without extensions auto-resolve via PATHEXT (`.exe`, `.bat`, `.cmd`) |
+| Search focus style and a11y traps | P2 | Improved keyboard accessibility with visible focus indicators |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Cross-platform test paths | P0 | Replaced hardcoded Unix paths with `t.TempDir()` in config tests, fixing Windows CI |
+| Codecov action parameter | P1 | Corrected `file` to `files` for codecov-action@v5 |
+| Dependabot config syntax | P1 | Fixed invalid `pull-requests.max-number` to `open-pull-requests-limit` |
+| ePub test resource leak | P2 | Added missing `reader.Close()` in epub test |
 
 ---
 

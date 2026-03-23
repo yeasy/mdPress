@@ -210,31 +210,6 @@ v0.5.0 修复了企业用户最关键的痛点（离线 PlantUML 渲染），修
 
 ---
 
-## v0.5.2 — Windows 兼容性与 CI 修复（已发布）
-
-**发布日期**：2026-03-22
-**主题**：跨平台稳定性和 CI 可靠性
-
-v0.5.2 通过 PATHEXT 插件可执行文件解析改进 Windows 支持，修复跨平台测试失败问题，并将所有 GitHub Actions 升级至最新主版本以加固 CI 供应链。
-
-### 已完成功能
-
-| 功能 | 优先级 | 说明 |
-| --- | --- | --- |
-| Windows 插件可执行文件解析 | P1 | 无扩展名的插件路径自动按 PATHEXT 尝试 `.exe`、`.bat`、`.cmd` |
-| 搜索焦点样式和无障碍焦点陷阱 | P2 | 改进键盘无障碍体验，增加可见焦点指示器 |
-
-### 修复项
-
-| 修复 | 优先级 | 说明 |
-| --- | --- | --- |
-| 跨平台测试路径 | P0 | 用 `t.TempDir()` 替换硬编码 Unix 路径，修复 Windows CI 失败 |
-| Codecov action 参数名 | P1 | 将 `file` 修正为 `files` 以兼容 codecov-action@v5 |
-| Dependabot 配置语法 | P1 | 将无效的 `pull-requests.max-number` 修正为 `open-pull-requests-limit` |
-| ePub 测试资源泄漏 | P2 | 补充缺失的 `reader.Close()` |
-
----
-
 ## v0.5.1 — 侧边栏导航与上下文修复（已发布）
 
 **发布日期**：2026-03-21
@@ -259,6 +234,31 @@ v0.5.1 提供了手风琴式侧边栏导航改进，并修复了影响 PlantUML 
 | README 中缺失 `migrate` 命令 | P1 | 将 `migrate` 命令添加到中英文 README 的"All Commands"表格中 |
 | GitLab CI lint 版本不匹配 | P2 | 将 golangci-lint 从 v2.1 升级至 v2.11.3 以匹配 GitHub Actions |
 | 完成命令中的拼写错误 | P2 | 修正注释中 `behaviour` → `behavior` |
+
+---
+
+## v0.5.2 — Windows 兼容性与 CI 修复（已发布）
+
+**发布日期**：2026-03-22
+**主题**：跨平台稳定性和 CI 可靠性
+
+v0.5.2 通过 PATHEXT 插件可执行文件解析改进 Windows 支持，修复跨平台测试失败问题，并将所有 GitHub Actions 升级至最新主版本以加固 CI 供应链。
+
+### 已完成功能
+
+| 功能 | 优先级 | 说明 |
+| --- | --- | --- |
+| Windows 插件可执行文件解析 | P1 | 无扩展名的插件路径自动按 PATHEXT 尝试 `.exe`、`.bat`、`.cmd` |
+| 搜索焦点样式和无障碍焦点陷阱 | P2 | 改进键盘无障碍体验，增加可见焦点指示器 |
+
+### 修复项
+
+| 修复 | 优先级 | 说明 |
+| --- | --- | --- |
+| 跨平台测试路径 | P0 | 用 `t.TempDir()` 替换硬编码 Unix 路径，修复 Windows CI 失败 |
+| Codecov action 参数名 | P1 | 将 `file` 修正为 `files` 以兼容 codecov-action@v5 |
+| Dependabot 配置语法 | P1 | 将无效的 `pull-requests.max-number` 修正为 `open-pull-requests-limit` |
+| ePub 测试资源泄漏 | P2 | 补充缺失的 `reader.Close()` |
 
 ---
 
