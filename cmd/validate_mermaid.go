@@ -80,20 +80,26 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		chromedp.Navigate(fileURL),
 		chromedp.WaitReady("body"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
+			ticker := time.NewTicker(mermaidRenderPollInterval)
+			defer ticker.Stop()
+
 			deadline := time.Now().Add(mermaidRenderPollTimeout)
-			for time.Now().Before(deadline) {
-				if err := chromedp.Run(ctx, chromedp.Evaluate(`window.__mdpressMermaidStatus`, &status)); err != nil {
-					return err
+			for {
+				select {
+				case <-ticker.C:
+					if err := chromedp.Run(ctx, chromedp.Evaluate(`window.__mdpressMermaidStatus`, &status)); err != nil {
+						return err
+					}
+					if status.Done {
+						return nil
+					}
+					if time.Now().After(deadline) {
+						return fmt.Errorf("mermaid rendering timed out")
+					}
+				case <-ctx.Done():
+					return ctx.Err()
 				}
-				if status.Done {
-					break
-				}
-				time.Sleep(mermaidRenderPollInterval)
 			}
-			if !status.Done {
-				return fmt.Errorf("mermaid rendering timed out")
-			}
-			return nil
 		}),
 	)
 	if err != nil {

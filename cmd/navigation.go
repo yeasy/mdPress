@@ -70,6 +70,9 @@ func buildHeadingTree(headings []markdown.HeadingInfo, chapterID string) []navHe
 	}
 
 	result := toNavHeadings(entries)
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 
