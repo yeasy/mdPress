@@ -8,6 +8,30 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.5.2] - 2026-03-22
+
+### Added
+
+- **Search focus style and a11y focus traps**: Improved keyboard accessibility with visible focus indicators and proper focus trap management
+- **Windows plugin executable resolution**: Plugin paths without file extensions now auto-resolve via `PATHEXT` on Windows (`.exe`, `.bat`, `.cmd`, `.com`)
+
+### Changed
+
+- **`context.Context` added to Discover API**: Config discovery functions now accept a context parameter for cancellation and timeout propagation
+- **`ExtractTitleFromFile` moved to utils package**: Refactored to shared `pkg/utils` for reuse across packages
+- **CI matrix simplified to Go 1.25 only**: Removed Go 1.23.x and 1.24.x from the test matrix (1.25 is the minimum supported version)
+- **CI supply chain hardened**: Upgraded `actions/checkout` to v5, `codecov-action` to v5, CodeQL checkout to v5; fixed Dependabot configuration syntax
+
+### Fixed
+
+- **Mermaid validation nil guard**: Fixed potential nil pointer dereference in navigation during mermaid validation
+- **Dependabot configuration syntax**: Corrected invalid `pull-requests.max-number` to `open-pull-requests-limit`
+- **Codecov action parameter name**: Fixed `file` to `files` for `codecov-action@v5` compatibility
+- **Cross-platform test paths**: Replaced hardcoded Unix paths (`/home/user/book`) with `t.TempDir()` and `filepath.Join` in config tests, fixing Windows CI failures
+- **ePub test resource leak**: Added missing `defer reader.Close()` after `zip.OpenReader` in epub test
+
+---
+
 ## [0.5.1] - 2026-03-21
 
 ### Added
@@ -296,7 +320,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/yeasy/mdpress/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/yeasy/mdpress/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yeasy/mdpress/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/yeasy/mdpress/compare/v0.4.2...v0.4.3
