@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -85,17 +86,9 @@ type ExternalPlugin struct {
 // execPath is resolved to an absolute path; relative paths are based on the
 // current working directory at the time of the call.
 func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) (*ExternalPlugin, error) {
-	absPath, err := filepath.Abs(execPath)
+	resolvedPath, err := resolvePluginExecutablePath(execPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot resolve plugin path %q: %w", execPath, err)
-	}
-
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return nil, fmt.Errorf("plugin executable not found at %q: %w", absPath, err)
-	}
-	if info.IsDir() {
-		return nil, fmt.Errorf("plugin path %q is a directory, expected an executable", absPath)
+		return nil, err
 	}
 
 	if pluginCfg == nil {
@@ -104,17 +97,84 @@ func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) 
 
 	// Query the plugin for its metadata and supported hooks.
 	// Falls back to safe defaults if the plugin does not support the flags.
-	version, description := queryPluginMeta(absPath)
+	version, description := queryPluginMeta(resolvedPath)
 
 	return &ExternalPlugin{
 		name:         name,
 		version:      version,
 		description:  description,
-		execPath:     absPath,
+		execPath:     resolvedPath,
 		pluginConfig: pluginCfg,
-		hooks:        queryPluginHooks(absPath),
+		hooks:        queryPluginHooks(resolvedPath),
 		timeout:      defaultPluginTimeout,
 	}, nil
+}
+
+// resolvePluginExecutablePath resolves the configured plugin path to an existing
+// executable. On Windows, it also tries common executable suffixes when the
+// configured path omits one, so paths like "plugins/myplugin" can resolve to
+// "plugins/myplugin.bat" or "plugins/myplugin.exe".
+func resolvePluginExecutablePath(execPath string) (string, error) {
+	absPath, err := filepath.Abs(execPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve plugin path %q: %w", execPath, err)
+	}
+
+	if info, err := os.Stat(absPath); err == nil {
+		if info.IsDir() {
+			return "", fmt.Errorf("plugin path %q is a directory, expected an executable", absPath)
+		}
+		return absPath, nil
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("plugin executable not found at %q: %w", absPath, err)
+	}
+
+	if runtime.GOOS != "windows" || filepath.Ext(absPath) != "" {
+		return "", fmt.Errorf("plugin executable not found at %q: %w", absPath, os.ErrNotExist)
+	}
+
+	if resolved := resolveWindowsExecutableSuffix(absPath); resolved != "" {
+		return resolved, nil
+	}
+
+	return "", fmt.Errorf("plugin executable not found at %q: %w", absPath, os.ErrNotExist)
+}
+
+// resolveWindowsExecutableSuffix tries executable suffixes commonly used on
+// Windows when a plugin path is provided without an extension.
+func resolveWindowsExecutableSuffix(absPath string) string {
+	exts := windowsExecutableExtensions()
+	for _, ext := range exts {
+		candidate := absPath + ext
+		info, err := os.Stat(candidate)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+		return candidate
+	}
+	return ""
+}
+
+func windowsExecutableExtensions() []string {
+	exts := strings.Split(os.Getenv("PATHEXT"), ";")
+	result := make([]string, 0, len(exts))
+	for _, ext := range exts {
+		ext = strings.TrimSpace(ext)
+		if ext == "" {
+			continue
+		}
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		result = append(result, ext)
+	}
+	if len(result) == 0 {
+		return []string{".exe", ".bat", ".cmd", ".com"}
+	}
+	return result
 }
 
 // queryPluginMeta calls the plugin with --mdpress-info and parses the result.
