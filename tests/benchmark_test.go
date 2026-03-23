@@ -3,6 +3,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ func BenchmarkConfigDiscovery(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = config.Discover(tmpDir)
+		_, _ = config.Discover(context.Background(), tmpDir)
 	}
 }
 

@@ -57,7 +57,7 @@ func TestNewLocalSource(t *testing.T) {
 
 // TestLocalSourceType 测试本地源类型
 func TestLocalSourceType(t *testing.T) {
-	src := NewLocalSource("/tmp/test", Options{})
+	src := NewLocalSource(t.TempDir(), Options{})
 	if src.Type() != "local" {
 		t.Errorf("Type() = %q, want %q", src.Type(), "local")
 	}
@@ -65,7 +65,7 @@ func TestLocalSourceType(t *testing.T) {
 
 // TestLocalSourceCleanup 测试本地源清理（应安全返回 nil）
 func TestLocalSourceCleanup(t *testing.T) {
-	src := NewLocalSource("/tmp/test", Options{})
+	src := NewLocalSource(t.TempDir(), Options{})
 	err := src.Cleanup()
 	if err != nil {
 		t.Errorf("Cleanup() should return nil for local source, got %v", err)

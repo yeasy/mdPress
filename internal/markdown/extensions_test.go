@@ -3,6 +3,7 @@
 package markdown
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/yuin/goldmark/ast"
@@ -14,10 +15,17 @@ import (
 // Test helper: createHeadingNode
 // ---------------------------------------------------------------------------
 
-func createHeadingNode(level int, content string) *ast.Heading {
+func createHeadingNode(level int, content string, source []byte) *ast.Heading {
 	heading := ast.NewHeading(level)
 	textNode := ast.NewText()
-	textNode.Segment = text.NewSegment(0, len([]byte(content)))
+	contentBytes := []byte(content)
+	// Find where the content starts in the source
+	start := bytes.Index(source, contentBytes)
+	if start == -1 {
+		// Content not found, use default position
+		start = 0
+	}
+	textNode.Segment = text.NewSegment(start, start+len(contentBytes))
 	heading.AppendChild(heading, textNode)
 	return heading
 }
@@ -38,8 +46,8 @@ func TestNewHeadingIDTransformer_Creation(t *testing.T) {
 
 func TestHeadingIDTransformer_ProcessHeading_SingleHeading(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	heading := createHeadingNode(1, "Test Heading")
 	source := []byte("# Test Heading")
+	heading := createHeadingNode(1, "Test Heading", source)
 
 	ht := transformer.(*headingIDTransformer)
 	ht.processHeading(heading, source)
@@ -75,9 +83,9 @@ func TestHeadingIDTransformer_ProcessHeading_EmptyHeading(t *testing.T) {
 
 func TestHeadingIDTransformer_ProcessHeading_PreexistingID(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	heading := createHeadingNode(1, "Test Heading")
-	heading.SetAttributeString("id", []byte("custom-id"))
 	source := []byte("# Test Heading")
+	heading := createHeadingNode(1, "Test Heading", source)
+	heading.SetAttributeString("id", []byte("custom-id"))
 
 	ht := transformer.(*headingIDTransformer)
 	ht.processHeading(heading, source)
@@ -233,8 +241,8 @@ func TestHeadingIDTransformer_GenerateUniqueID_OnlySpecialChars(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestExtractNodeText_TextNode(t *testing.T) {
-	heading := createHeadingNode(1, "Simple Text")
 	source := []byte("Simple Text")
+	heading := createHeadingNode(1, "Simple Text", source)
 
 	text := extractNodeText(heading, source)
 	if text != "Simple Text" {
@@ -294,11 +302,9 @@ func TestHeadingIDTransformer_Transform_Integration(t *testing.T) {
 	ht := transformer.(*headingIDTransformer)
 
 	// Simulate document with headings
-	heading1 := createHeadingNode(1, "First Heading")
-	heading2 := createHeadingNode(2, "Second Heading")
-
-	// Process them
 	source := []byte("First Heading\nSecond Heading")
+	heading1 := createHeadingNode(1, "First Heading", source)
+	heading2 := createHeadingNode(2, "Second Heading", source)
 	ht.processHeading(heading1, source)
 	ht.processHeading(heading2, source)
 

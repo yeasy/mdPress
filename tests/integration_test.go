@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -571,7 +572,7 @@ output:
 	}
 
 	// 使用 Discover 自动发现配置
-	cfg, err := config.Discover(tempDir)
+	cfg, err := config.Discover(context.Background(), tempDir)
 	if err != nil {
 		t.Fatalf("发现配置失败: %v", err)
 	}
