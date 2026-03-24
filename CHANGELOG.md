@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.5.4] - 2026-03-23
+
 ### Added
 
 - **Lazy loading for images**: `loading="lazy"` attribute automatically added to all `<img>` tags during post-processing for better page performance
@@ -18,6 +22,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Sidebar collapse on desktop**: Desktop sidebar can be collapsed/expanded with state persisted in localStorage
 - **Code block copy button**: Hover over any code block to reveal a "Copy" button with clipboard integration and visual feedback
 - **Search results show chapter path**: Search results now display breadcrumb path (e.g., `Part 1 > Chapter 2`) above the title for better context
+- **CJK heading IDs**: Custom heading ID transformer preserves Unicode letters, generating correct CJK-aware IDs
 
 ### Changed
 
@@ -26,6 +31,15 @@ All notable changes to this project will be documented in this file. The format 
 - **Sidebar toggle behavior**: Click on expanded chapter title now collapses it (toggle behavior)
 - **Resize handler debounced**: Window resize events now debounced with 200ms timeout
 - **External script security**: Added `crossOrigin="anonymous"` and `referrerPolicy="no-referrer"` to dynamically loaded scripts and stylesheets
+
+### Fixed
+
+- **ePub zip writer resource leak**: Added `defer w.Close()` to ensure zip.Writer is always closed on all error paths
+- **UTF-8 truncation in SVG cover**: Replaced byte-based string slicing with rune-based truncation to avoid splitting multi-byte characters
+- **SVG XML attribute escaping**: Added missing `"` and `'` entity escaping in cover SVG generation
+- **Symlink path traversal**: Added `filepath.EvalSymlinks()` to the serve path security check so symlinks pointing outside OutputDir are blocked
+- **Scroll behavior on navigation**: Fixed `prefersReducedMotion` ternary always returning `'auto'` instead of `'smooth'`
+- **Description truncation**: Fixed byte-based truncation that could split multi-byte UTF-8 characters in meta descriptions
 
 ---
 
