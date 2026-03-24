@@ -3,6 +3,7 @@
 package markdown
 
 import (
+	htmlpkg "html"
 	"regexp"
 	"strings"
 
@@ -32,7 +33,22 @@ func PostProcess(html string) string {
 	html = processAlerts(html)
 	html = processMermaid(html)
 	html = stripChromaPreStyle(html)
+	html = addLazyLoading(html)
 	return html
+}
+
+// imgTagPattern matches any <img ...> tag so we can inspect it in a callback.
+var imgTagPattern = regexp.MustCompile(`<img\b[^>]*>`)
+
+// addLazyLoading inserts loading="lazy" on <img> tags that lack it.
+func addLazyLoading(html string) string {
+	return imgTagPattern.ReplaceAllStringFunc(html, func(tag string) string {
+		if strings.Contains(tag, "loading=") {
+			return tag
+		}
+		// Insert loading="lazy" right after "<img"
+		return "<img loading=\"lazy\"" + tag[len("<img"):]
+	})
 }
 
 // chromaPreStylePattern matches the inline style attribute that chroma adds to
@@ -123,11 +139,7 @@ func processMermaid(html string) string {
 		}
 		// 还原 HTML 实体（goldmark 会转义 < > 等）
 		code := parts[1]
-		code = strings.ReplaceAll(code, "&lt;", "<")
-		code = strings.ReplaceAll(code, "&gt;", ">")
-		code = strings.ReplaceAll(code, "&amp;", "&")
-		code = strings.ReplaceAll(code, "&quot;", `"`)
-		code = strings.ReplaceAll(code, "&#39;", "'")
+		code = htmlpkg.UnescapeString(code)
 		code = strings.TrimSpace(code)
 
 		return "<div class=\"mermaid\">\n" + code + "\n</div>"
