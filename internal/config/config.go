@@ -270,10 +270,10 @@ func (c *BookConfig) Validate() error {
 	}
 
 	// Validate output formats.
+	validFormats := map[string]bool{"pdf": true, "html": true, "epub": true, "site": true, "typst": true}
 	for _, f := range c.Output.Formats {
-		validFormats := map[string]bool{"pdf": true, "html": true, "epub": true, "site": true}
 		if !validFormats[f] {
-			return fmt.Errorf("unsupported output format: %q (supported: pdf, html, epub, site)", f)
+			return fmt.Errorf("unsupported output format: %q (supported: pdf, html, epub, site, typst)", f)
 		}
 	}
 
