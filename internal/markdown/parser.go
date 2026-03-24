@@ -78,7 +78,11 @@ func (p *Parser) initGoldmark() {
 	p.md = goldmark.New(
 		goldmark.WithExtensions(exts...),
 		goldmark.WithParserOptions(
-			parser.WithAutoHeadingID(),
+			// NOTE: Do NOT use parser.WithAutoHeadingID() here — Goldmark's
+			// built-in auto-ID generator strips CJK characters, producing
+			// meaningless IDs like "heading" or "41-".  Our custom
+			// headingIDTransformer preserves Unicode letters (\p{L}) and
+			// generates correct CJK-aware IDs such as "41-归纳法与机器学习".
 			parser.WithASTTransformers(
 				util.Prioritized(newHeadingIDTransformer(), 100),
 			),
