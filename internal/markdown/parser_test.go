@@ -732,29 +732,22 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 	}{
 		{
 			name: "标题+代码+表格+链接",
-			md: `# 项目概述
-
-这是 [官网](https://example.com) 的链接。
-
-## API 文档
-
-\`\`\`go
-func Handler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
-}
-\`\`\`
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| /api/users | GET | 获取用户列表 |
-| /api/users | POST | 创建用户 |
-
----
-
-### 返回值
-
-- **code**: 状态码
-- **data**: 响应数据`,
+			md: "# 项目概述\n\n" +
+				"这是 [官网](https://example.com) 的链接。\n\n" +
+				"## API 文档\n\n" +
+				"```go\n" +
+				"func Handler(w http.ResponseWriter, r *http.Request) {\n" +
+				"    w.Header().Set(\"Content-Type\", \"application/json\")\n" +
+				"}\n" +
+				"```\n\n" +
+				"| 端点 | 方法 | 说明 |\n" +
+				"|------|------|------|\n" +
+				"| /api/users | GET | 获取用户列表 |\n" +
+				"| /api/users | POST | 创建用户 |\n\n" +
+				"---\n\n" +
+				"### 返回值\n\n" +
+				"- **code**: 状态码\n" +
+				"- **data**: 响应数据",
 			wantElements: map[string]string{
 				"<h1":      "主标题",
 				"<h2":      "二级标题",
@@ -768,25 +761,19 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		},
 		{
 			name: "嵌套结构：列表+代码+强调",
-			md: `## 步骤说明
-
-1. 安装依赖：
-
-   \`\`\`bash
-   go get github.com/example/package
-   \`\`\`
-
-2. 导入包：
-
-   \`\`\`go
-   import "github.com/example/package"
-   \`\`\`
-
-3. 使用 API：
-
-   - 调用 **Init** 函数初始化
-   - 调用 *Process* 方法处理数据
-   - 检查 __错误__ 返回值`,
+			md: "## 步骤说明\n\n" +
+				"1. 安装依赖：\n\n" +
+				"   ```bash\n" +
+				"   go get github.com/example/package\n" +
+				"   ```\n\n" +
+				"2. 导入包：\n\n" +
+				"   ```go\n" +
+				"   import \"github.com/example/package\"\n" +
+				"   ```\n\n" +
+				"3. 使用 API：\n\n" +
+				"   - 调用 **Init** 函数初始化\n" +
+				"   - 调用 *Process* 方法处理数据\n" +
+				"   - 检查 __错误__ 返回值",
 			wantElements: map[string]string{
 				"<h2":      "二级标题",
 				"<ol>":     "有序列表",
@@ -798,19 +785,19 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		},
 		{
 			name: "引用块+代码+表格",
-			md: `> **注意：** 这是一个重要的提示
->
-> \`\`\`python
-> result = process(data)
-> print(result)
-> \`\`\`
->
-> 更多详情见下表：
->
-> | 参数 | 类型 | 必需 |
-> |-----|------|------|
-> | data | string | 是 |
-> | async | bool | 否 |`,
+			md: "> **注意：** 这是一个重要的提示\n" +
+				">\n" +
+				"> ```python\n" +
+				"> result = process(data)\n" +
+				"> print(result)\n" +
+				"> ```\n" +
+				">\n" +
+				"> 更多详情见下表：\n" +
+				">\n" +
+				"> | 参数 | 类型 | 必需 |\n" +
+				"> |-----|------|------|\n" +
+				"> | data | string | 是 |\n" +
+				"> | async | bool | 否 |",
 			wantElements: map[string]string{
 				"<blockquote>": "引用块",
 				"<pre":         "代码块",
@@ -892,9 +879,9 @@ func TestParserEdgeCases(t *testing.T) {
 		},
 		{
 			name: "多个连续代码块",
-			md: "\`\`\`python\nprint('a')\n\`\`\`\n\n" +
-				"\`\`\`go\nfmt.Println(\"b\")\n\`\`\`\n\n" +
-				"\`\`\`js\nconsole.log('c')\n\`\`\`",
+			md: "```python\nprint('a')\n```\n\n" +
+				"```go\nfmt.Println(\"b\")\n```\n\n" +
+				"```js\nconsole.log('c')\n```",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if strings.Count(html, "<pre") < 3 {
@@ -968,12 +955,12 @@ func TestCJKContentRendering(t *testing.T) {
 		},
 		{
 			name: "CJK 代码注释",
-			md: "\`\`\`python\n" +
+			md: "```python\n" +
 				"# 这是中文注释\n" +
 				"# これは日本語のコメントです\n" +
 				"# 이것은 한국어 주석입니다\n" +
 				"print('hello')\n" +
-				"\`\`\`",
+				"```",
 			want: "这是中文注释",
 		},
 	}
@@ -1010,11 +997,11 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 			name: "引用块内的代码块",
 			md: "> 说明文字\n" +
 				">\n" +
-				"> \`\`\`go\n" +
+				"> ```go\n" +
 				"> func main() {\n" +
 				">     println(\"hello\")\n" +
 				"> }\n" +
-				"> \`\`\`\n" +
+				"> ```\n" +
 				">\n" +
 				"> 更多说明",
 		},
@@ -1025,9 +1012,9 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 				"> 1. 第一项\n" +
 				"> 2. 第二项\n" +
 				">\n" +
-				"> \`\`\`python\n" +
+				"> ```python\n" +
 				"> import sys\n" +
-				"> \`\`\`",
+				"> ```",
 		},
 		{
 			name: "复杂嵌套：列表→引用→代码→表格",
@@ -1035,10 +1022,10 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 				"\n" +
 				"  > 引用块说明\n" +
 				"  >\n" +
-				"  > \`\`\`bash\n" +
+				"  > ```bash\n" +
 				"  > mkdir test\n" +
 				"  > cd test\n" +
-				"  > \`\`\`\n" +
+				"  > ```\n" +
 				"\n" +
 				"  | 命令 | 说明 |\n" +
 				"  |------|-----|\n" +
@@ -1134,7 +1121,7 @@ func buildLongDocument(lines int) string {
 		buf.WriteString(fmt.Sprintf("## 第 %d 章\n\n", i+1))
 		buf.WriteString("这是段落内容。\n\n")
 		if i%5 == 0 {
-			buf.WriteString("\`\`\`go\ncode snippet\n\`\`\`\n\n")
+			buf.WriteString("```go\ncode snippet\n```\n\n")
 		}
 		if i%7 == 0 {
 			buf.WriteString("| 列 A | 列 B |\n|------|------|\n| a | b |\n\n")
