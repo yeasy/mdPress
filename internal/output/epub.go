@@ -103,7 +103,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 			if !fileClosed {
 				f.Close() //nolint:errcheck
 			}
-			os.Remove(outputPath)
+			if removeErr := os.Remove(outputPath); removeErr != nil {
+				slog.Warn("Failed to remove partial EPUB", slog.String("path", outputPath), slog.Any("error", removeErr))
+			}
 		}
 	}()
 
