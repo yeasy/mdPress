@@ -35,16 +35,22 @@ The current implementation has two categories of output:
 Environment information:
 
 - Go runtime platform information
-- Go version
+- Go version (>= 1.25 recommended)
+- Cache directory status
 
 Readiness checks:
 
-- Whether Chrome or Chromium is available
-- Whether `book.yaml` exists in the target directory
-- Whether `SUMMARY.md` exists in the target directory
-- Whether `LANGS.md` exists in the target directory
-- Whether the project can be loaded through `book.yaml` or auto-discovery
-- Whether Markdown chapter links stay inside the current build graph
+- Chrome/Chromium availability (for PDF output)
+- Go version check (>= 1.25)
+- Git availability (for remote source builds)
+- Network connectivity to github.com
+- Disk space in output directory
+- CJK font availability (for Asian text PDF rendering)
+- PlantUML availability (if PlantUML diagrams are detected in the project)
+- Plugin health and availability
+- Presence of `book.yaml`, `SUMMARY.md`, and `LANGS.md`
+- Whether the project can be loaded
+- Whether Markdown chapter links stay inside the build graph
 
 ## Examples
 
@@ -56,7 +62,9 @@ mdpress doctor ./examples/chapter01
 
 ## Notes
 
-- The reported Go version is primarily runtime diagnostic information, not a hard prerequisite for normal end-user usage.
+- `--verbose` provides detailed output including exact disk space measurements, Go version parse details, and verbose error messages for each check.
+- PlantUML availability is only checked if PlantUML diagrams are detected in the project.
+- Plugin checks validate both path existence and executability.
 - If Chrome or Chromium is not detected, `doctor` clearly reports that PDF output will fail.
 - If a directory has no `book.yaml` but does have `SUMMARY.md`, the current implementation attempts to load the project through auto-discovery behavior.
 - `doctor` does not modify any files.

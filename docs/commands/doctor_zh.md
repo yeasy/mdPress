@@ -35,15 +35,21 @@ mdpress doctor [directory] [flags]
 环境信息：
 
 - Go 运行平台信息
-- Go 版本
+- Go 版本（建议 >= 1.25）
+- 缓存目录状态
 
 可用性检查：
 
-- Chrome / Chromium 是否可用
-- 目标目录下是否存在 `book.yaml`
-- 目标目录下是否存在 `SUMMARY.md`
-- 目标目录下是否存在 `LANGS.md`
-- 项目是否可以通过 `book.yaml` 或自动发现方式成功加载
+- Chrome / Chromium 是否可用（用于 PDF 输出）
+- Go 版本检查（>= 1.25）
+- Git 是否可用（用于远程源构建）
+- github.com 网络连通性
+- 输出目录磁盘空间
+- CJK 字体可用性（用于亚洲文本 PDF 渲染）
+- PlantUML 可用性（当项目中检测到 PlantUML 图表时）
+- 插件健康状态和可用性
+- `book.yaml`、`SUMMARY.md` 和 `LANGS.md` 的存在性
+- 项目是否可以成功加载
 - Markdown 章节链接是否落在当前构建图谱内
 
 ## 示例
@@ -56,7 +62,9 @@ mdpress doctor ./examples/chapter01
 
 ## 注意事项
 
-- Go 版本当前主要用于输出运行时诊断信息，不是普通使用场景下的硬性前置条件。
+- `--verbose` 提供详细输出，包括精确的磁盘空间、Go 版本解析详情和每项检查的详细错误信息。
+- PlantUML 可用性仅在项目中检测到 PlantUML 图表时才进行检查。
+- 插件检查验证路径存在性和可执行性。
 - 如果没有检测到 Chrome 或 Chromium，`doctor` 会明确提示 PDF 输出将失败。
 - 如果目录没有 `book.yaml` 但存在 `SUMMARY.md`，当前实现会尝试按自动发现方式加载项目。
 - `doctor` 不会修改任何文件。
