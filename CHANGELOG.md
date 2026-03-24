@@ -8,6 +8,24 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.1] - 2026-03-24
+
+### Changed
+
+- **Site generator refactor**: Split monolithic `site.go` (2,788 lines) into focused modules — `site.go` (core logic), `site_sidebar.go` (navigation), `site_ui.go` (i18n strings), and `site_template.go` (HTML/CSS/JS template)
+
+### Security
+
+- **Path traversal validation**: `validateFilename()` now rejects absolute paths and `..` components in chapter filenames, preventing writes outside the output directory
+- **safeHTML trust boundary**: Added security documentation for template functions that bypass HTML escaping
+
+### Tests
+
+- **Parser integration tests**: 6 new test functions covering complex Markdown, edge cases, CJK content, nested blockquotes, and mixed HTML
+- **Theme validation tests**: 11 new test functions covering structure integrity, color validation, CSS syntax, name uniqueness, and YAML loading
+
+---
+
 ## [0.6.0] - 2026-03-23
 
 ### Added
