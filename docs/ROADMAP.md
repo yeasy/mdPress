@@ -323,6 +323,47 @@ v0.5.4 is a major feature release for the site output format, adding client-side
 
 ---
 
+## v0.6.0 - Self-Upgrade, Doctor Enhancement, and User Manual
+
+**Release date**: 2026-03-23
+**Theme**: production readiness foundation
+
+v0.6.0 bridges the gap between feature-driven development (v0.1–v0.5) and the production-ready v1.0.0 release.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| `mdpress upgrade` command | P0 | Self-upgrade from GitHub releases with platform detection, SHA-256 checksum verification, and `--check` dry-run mode |
+| Enhanced `mdpress doctor` | P0 | Six new environment checks: Go version (≥1.25), Git availability, network connectivity, disk space, CJK font detection, and plugin health; new `--verbose` flag |
+| Bilingual user manual | P0 | Complete Chinese + English user manual (60+ Markdown files) built with mdPress itself |
+| `ParseVersionPart` utility | P2 | Reusable version-string parser for `doctor` and `upgrade` commands |
+
+### Improvements
+
+| Improvement | Priority | Description |
+| --- | --- | --- |
+| Path traversal hardening | P1 | `LocalSource.Prepare()` validates subdirectory paths against traversal attacks |
+| Cross-platform path handling | P1 | `filepath.Join` replaces string concatenation in `HasLangsFile` for Windows compatibility |
+| Documentation updates | P2 | `upgrade` command added to README command table (EN + ZH) and COMMANDS docs |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Lint cleanup | P2 | Removed duplicate test helpers and unused imports across `cmd/*_test.go` |
+| Chinese text truncation test | P2 | Increased input size so the ≥160-rune truncation path is exercised |
+
+### Tests
+
+- 1,500+ new test lines across 12 files
+- Full coverage of `upgrade` command: version comparison, asset selection, download, and binary replacement
+- Expanded `doctor`, `cmd`, `themes`, `quickstart`, `validate` tests
+- Comprehensive utility function tests for `file`, `cjk`, `image` packages
+- Expanded plugin lifecycle and error-path tests
+
+---
+
 ## v1.0.0 - Stable Release
 
 **Target release**: 2027-Q1
@@ -343,11 +384,8 @@ v0.5.4 is a major feature release for the site output format, adding client-side
 
 | Feature | Description |
 | --- | --- |
-| `mdpress doctor` | Check Chrome version, fonts, and other environment readiness details |
-| `mdpress upgrade` | Update the mdPress binary and themes |
 | Official theme registry | Community-contributed theme distribution |
 | Official plugin registry | Community-contributed plugin distribution |
-| Full user manual | A manual built with mdPress itself |
 | Migration tooling | Automated migration from GitBook, HonKit, and mdBook |
 
 ### LTS Policy
