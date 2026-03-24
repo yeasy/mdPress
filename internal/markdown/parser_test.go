@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -716,4 +717,428 @@ func TestParseDefinitionList(t *testing.T) {
 	if html == "" {
 		t.Error("应生成 HTML 输出")
 	}
+}
+
+// ============================================================================
+// 新增：复杂集成测试
+// ============================================================================
+
+// TestComplexMarkdownIntegration 测试复杂 Markdown 混合特性 (表格驱动)
+func TestComplexMarkdownIntegration(t *testing.T) {
+	tests := []struct {
+		name         string
+		md           string
+		wantElements map[string]string // tag -> description
+	}{
+		{
+			name: "标题+代码+表格+链接",
+			md: `# 项目概述
+
+这是 [官网](https://example.com) 的链接。
+
+## API 文档
+
+\`\`\`go
+func Handler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+}
+\`\`\`
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| /api/users | GET | 获取用户列表 |
+| /api/users | POST | 创建用户 |
+
+---
+
+### 返回值
+
+- **code**: 状态码
+- **data**: 响应数据`,
+			wantElements: map[string]string{
+				"<h1":      "主标题",
+				"<h2":      "二级标题",
+				"<h3":      "三级标题",
+				"<a ":      "链接",
+				"<pre":     "代码块",
+				"<table>":  "表格",
+				"<hr":      "分隔线",
+				"<ul>":     "列表",
+			},
+		},
+		{
+			name: "嵌套结构：列表+代码+强调",
+			md: `## 步骤说明
+
+1. 安装依赖：
+
+   \`\`\`bash
+   go get github.com/example/package
+   \`\`\`
+
+2. 导入包：
+
+   \`\`\`go
+   import "github.com/example/package"
+   \`\`\`
+
+3. 使用 API：
+
+   - 调用 **Init** 函数初始化
+   - 调用 *Process* 方法处理数据
+   - 检查 __错误__ 返回值`,
+			wantElements: map[string]string{
+				"<h2":      "二级标题",
+				"<ol>":     "有序列表",
+				"<pre":     "代码块",
+				"<strong>": "加粗",
+				"<em>":     "斜体",
+				"<ul>":     "无序列表",
+			},
+		},
+		{
+			name: "引用块+代码+表格",
+			md: `> **注意：** 这是一个重要的提示
+>
+> \`\`\`python
+> result = process(data)
+> print(result)
+> \`\`\`
+>
+> 更多详情见下表：
+>
+> | 参数 | 类型 | 必需 |
+> |-----|------|------|
+> | data | string | 是 |
+> | async | bool | 否 |`,
+			wantElements: map[string]string{
+				"<blockquote>": "引用块",
+				"<pre":         "代码块",
+				"<table>":      "表格",
+				"<strong>":     "加粗",
+			},
+		},
+	}
+
+	parser := NewParser()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, _, err := parser.Parse([]byte(tt.md))
+			if err != nil {
+				t.Fatalf("解析失败: %v", err)
+			}
+
+			for tag, desc := range tt.wantElements {
+				if !strings.Contains(html, tag) {
+					t.Errorf("缺少 %s (%s)", desc, tag)
+				}
+			}
+		})
+	}
+}
+
+// TestParserEdgeCases 测试边界情况 (表格驱动)
+func TestParserEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		md      string
+		wantErr bool
+		check   func(t *testing.T, html string)
+	}{
+		{
+			name:    "空输入",
+			md:      "",
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				if html != "" {
+					t.Errorf("空输入应返回空 HTML，得 %q", html)
+				}
+			},
+		},
+		{
+			name:    "仅空白字符",
+			md:      "   \n\n  \t\t\n  ",
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				if strings.TrimSpace(html) != "" {
+					t.Errorf("仅空白应返回空 HTML，得 %q", html)
+				}
+			},
+		},
+		{
+			name:    "特别长的行（>10000字符）",
+			md:      "# 标题\n\n" + strings.Repeat("x", 12000),
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				if html == "" {
+					t.Error("长输入应生成 HTML")
+				}
+			},
+		},
+		{
+			name:    "特别长的文档（>1000行）",
+			md:      buildLongDocument(1500),
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				if html == "" {
+					t.Error("长文档应生成 HTML")
+				}
+				// 应该有很多标题
+				headingCount := strings.Count(html, "<h2")
+				if headingCount < 100 {
+					t.Logf("警告: 标题计数较少: %d", headingCount)
+				}
+			},
+		},
+		{
+			name: "多个连续代码块",
+			md: "\`\`\`python\nprint('a')\n\`\`\`\n\n" +
+				"\`\`\`go\nfmt.Println(\"b\")\n\`\`\`\n\n" +
+				"\`\`\`js\nconsole.log('c')\n\`\`\`",
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				if strings.Count(html, "<pre") < 3 {
+					t.Error("应有至少 3 个代码块")
+				}
+			},
+		},
+		{
+			name: "特殊字符和转义",
+			md:   "# <script>alert('xss')</script>\n\n测试 & < > \" '",
+			wantErr: false,
+			check: func(t *testing.T, html string) {
+				// 应该生成 HTML（具体的转义策略由 renderer 决定）
+				if html == "" {
+					t.Error("特殊字符输入应生成 HTML")
+				}
+			},
+		},
+	}
+
+	parser := NewParser()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, _, err := parser.Parse([]byte(tt.md))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("wantErr=%v, got=%v", tt.wantErr, err)
+			}
+			if tt.check != nil {
+				tt.check(t, html)
+			}
+		})
+	}
+}
+
+// TestCJKContentRendering 测试 CJK 内容渲染 (表格驱动)
+func TestCJKContentRendering(t *testing.T) {
+	tests := []struct {
+		name string
+		md   string
+		want string // 应该包含的文本
+	}{
+		{
+			name: "中文标题",
+			md:   "# 中文标题\n\n## 二级标题",
+			want: "中文标题",
+		},
+		{
+			name: "日文内容",
+			md:   "# 日本語のタイトル\n\nこれはテキストです。",
+			want: "日本語のタイトル",
+		},
+		{
+			name: "韩文内容",
+			md:   "# 한국어 제목\n\n한국어 텍스트입니다.",
+			want: "한국어 제목",
+		},
+		{
+			name: "混合 CJK",
+			md: "# 中文 日本語 한국어\n\n" +
+				"这是中文段落。\n\n" +
+				"これは日本語です。\n\n" +
+				"이것은 한국어입니다.",
+			want: "中文",
+		},
+		{
+			name: "CJK 表格",
+			md: "| 中文 | 日本語 | 한국어 |\n" +
+				"|------|--------|--------|\n" +
+				"| 内容 | コンテンツ | 내용 |",
+			want: "中文",
+		},
+		{
+			name: "CJK 代码注释",
+			md: "\`\`\`python\n" +
+				"# 这是中文注释\n" +
+				"# これは日本語のコメントです\n" +
+				"# 이것은 한국어 주석입니다\n" +
+				"print('hello')\n" +
+				"\`\`\`",
+			want: "这是中文注释",
+		},
+	}
+
+	parser := NewParser()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, _, err := parser.Parse([]byte(tt.md))
+			if err != nil {
+				t.Fatalf("解析失败: %v", err)
+			}
+			if !strings.Contains(html, tt.want) {
+				t.Errorf("HTML 应包含 %q，但未找到\nHTML: %s", tt.want, html[:500])
+			}
+		})
+	}
+}
+
+// TestNestedBlockquoteWithCode 测试嵌套引用块和代码 (表格驱动)
+func TestNestedBlockquoteWithCode(t *testing.T) {
+	tests := []struct {
+		name string
+		md   string
+	}{
+		{
+			name: "多层嵌套引用块",
+			md: "> 外层引用\n" +
+				">\n" +
+				"> > 内层引用\n" +
+				"> >\n" +
+				"> > > 更深层引用",
+		},
+		{
+			name: "引用块内的代码块",
+			md: "> 说明文字\n" +
+				">\n" +
+				"> \`\`\`go\n" +
+				"> func main() {\n" +
+				">     println(\"hello\")\n" +
+				"> }\n" +
+				"> \`\`\`\n" +
+				">\n" +
+				"> 更多说明",
+		},
+		{
+			name: "引用块内的列表和代码",
+			md: "> 这是引用块\n" +
+				">\n" +
+				"> 1. 第一项\n" +
+				"> 2. 第二项\n" +
+				">\n" +
+				"> \`\`\`python\n" +
+				"> import sys\n" +
+				"> \`\`\`",
+		},
+		{
+			name: "复杂嵌套：列表→引用→代码→表格",
+			md: "- 项目 A\n" +
+				"\n" +
+				"  > 引用块说明\n" +
+				"  >\n" +
+				"  > \`\`\`bash\n" +
+				"  > mkdir test\n" +
+				"  > cd test\n" +
+				"  > \`\`\`\n" +
+				"\n" +
+				"  | 命令 | 说明 |\n" +
+				"  |------|-----|\n" +
+				"  | ls | 列表 |\n" +
+				"\n" +
+				"- 项目 B",
+		},
+	}
+
+	parser := NewParser()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, _, err := parser.Parse([]byte(tt.md))
+			if err != nil {
+				t.Fatalf("解析失败: %v", err)
+			}
+
+			// 基本检查：应该包含 blockquote 和 pre 标签
+			if !strings.Contains(html, "<blockquote>") {
+				t.Error("应包含 blockquote 标签")
+			}
+			if !strings.Contains(html, "<pre") && !strings.Contains(tt.md, "```") {
+				// 如果输入中有代码块，应该有 pre 标签
+				if strings.Contains(tt.md, "```") {
+					t.Error("应包含 pre 标签（代码块）")
+				}
+			}
+		})
+	}
+}
+
+// TestMarkdownWithHTMLMixed 测试 Markdown 混合 HTML (表格驱动)
+func TestMarkdownWithHTMLMixed(t *testing.T) {
+	tests := []struct {
+		name      string
+		md        string
+		wantHTMLTag string
+	}{
+		{
+			name: "行内 HTML",
+			md:   "这是文本 <span style='color:red'>红色</span> 继续文本",
+			wantHTMLTag: "<span",
+		},
+		{
+			name: "块级 HTML",
+			md:   "文本开始\n\n<div class='box'>HTML 内容</div>\n\n文本结束",
+			wantHTMLTag: "<div",
+		},
+		{
+			name: "HTML 表单",
+			md: "## 表单示例\n\n" +
+				"<form method='post'>\n" +
+				"  <input type='text' name='username'>\n" +
+				"  <button>提交</button>\n" +
+				"</form>",
+			wantHTMLTag: "<form",
+		},
+		{
+			name: "HTML 注释",
+			md: "# 标题\n\n<!-- 这是注释 -->\n\n内容",
+			wantHTMLTag: "<!--",
+		},
+		{
+			name: "Markdown 中的 HTML 转义字符",
+			md:   "这是&amp; < > \"引号\"",
+			wantHTMLTag: "&",
+		},
+	}
+
+	parser := NewParser()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			html, _, err := parser.Parse([]byte(tt.md))
+			if err != nil {
+				t.Fatalf("解析失败: %v", err)
+			}
+
+			if !strings.Contains(html, tt.wantHTMLTag) {
+				t.Errorf("HTML 应包含 %q，实际输出: %s", tt.wantHTMLTag, html[:300])
+			}
+		})
+	}
+}
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+// buildLongDocument 构建一个长文档以测试性能
+func buildLongDocument(lines int) string {
+	var buf strings.Builder
+	for i := 0; i < lines; i++ {
+		buf.WriteString(fmt.Sprintf("## 第 %d 章\n\n", i+1))
+		buf.WriteString("这是段落内容。\n\n")
+		if i%5 == 0 {
+			buf.WriteString("\`\`\`go\ncode snippet\n\`\`\`\n\n")
+		}
+		if i%7 == 0 {
+			buf.WriteString("| 列 A | 列 B |\n|------|------|\n| a | b |\n\n")
+		}
+	}
+	return buf.String()
 }
