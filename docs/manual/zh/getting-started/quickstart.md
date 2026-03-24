@@ -12,7 +12,7 @@ cd my-book
 mdpress serve --open
 ```
 
-这会创建一个可用的项目，包含示例内容和配置。你的浏览器会自动打开 http://localhost:8080。
+这会创建一个可用的项目，包含示例内容和配置。你的浏览器会自动打开 http://localhost:9000。
 
 ## 手动创建项目
 
@@ -100,7 +100,7 @@ my-documentation/
 mdpress serve
 ```
 
-默认情况下，你的网站在 http://localhost:8080 可用。当你修改文件时，浏览器会自动重新加载。
+默认情况下，你的网站在 http://localhost:9000 可用。当你修改文件时，浏览器会自动重新加载。
 
 自动打开浏览器：
 

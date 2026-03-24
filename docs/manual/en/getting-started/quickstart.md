@@ -12,7 +12,7 @@ cd my-book
 mdpress serve --open
 ```
 
-This creates a ready-to-use project with example content and configuration. Your browser opens automatically to http://localhost:8080.
+This creates a ready-to-use project with example content and configuration. Your browser opens automatically to http://localhost:9000.
 
 ## Creating a Project Manually
 
@@ -100,7 +100,7 @@ Start the development server with live reload:
 mdpress serve
 ```
 
-By default, your site is available at http://localhost:8080. The browser automatically reloads when you change files.
+By default, your site is available at http://localhost:9000. The browser automatically reloads when you change files.
 
 To open your browser automatically:
 

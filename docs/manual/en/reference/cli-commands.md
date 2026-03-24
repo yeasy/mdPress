@@ -125,7 +125,7 @@ mdpress serve [source] [flags]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port <port>` | 8080 | HTTP server port |
+| `--port <port>` | 9000 | HTTP server port |
 | `--format <format>` | html | Preview format: `html`, `site` |
 | `--config <path>` | book.yaml | Configuration file path |
 | `--open` | off | Automatically open browser |
@@ -133,7 +133,7 @@ mdpress serve [source] [flags]
 ### Examples
 
 ```bash
-# Start server on default port 8080
+# Start server on default port 9000
 mdpress serve
 
 # Start on custom port
@@ -159,7 +159,7 @@ mdpress serve --config docs/book.yaml --open
 - **Incremental build**: Only rebuilds changed chapters
 - **Fast feedback**: HTML preview is fastest (1-2 seconds)
 
-Access at: http://localhost:8080
+Access at: http://localhost:9000
 
 ## init
 

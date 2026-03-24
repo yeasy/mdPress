@@ -105,7 +105,7 @@ mdpress serve
 ```bash
 # 终端 1：启动服务器
 $ mdpress serve
-[INFO] Serving at http://localhost:8080
+[INFO] Serving at http://localhost:9000
 [INFO] Watching for changes...
 
 # 终端 2：编辑章节

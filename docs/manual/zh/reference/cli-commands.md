@@ -125,7 +125,7 @@ mdpress serve [source] [flags]
 
 | 标志 | 默认值 | 描述 |
 |------|---------|-------------|
-| `--port <port>` | 8080 | HTTP 服务器端口 |
+| `--port <port>` | 9000 | HTTP 服务器端口 |
 | `--format <format>` | html | 预览格式：`html`、`site` |
 | `--config <path>` | book.yaml | 配置文件路径 |
 | `--open` | off | 自动打开浏览器 |
@@ -133,7 +133,7 @@ mdpress serve [source] [flags]
 ### 示例
 
 ```bash
-# 在默认端口 8080 启动服务器
+# 在默认端口 9000 启动服务器
 mdpress serve
 
 # 在自定义端口启动
@@ -159,7 +159,7 @@ mdpress serve --config docs/book.yaml --open
 - **增量构建**：仅重建已更改的章节
 - **快速反馈**：HTML 预览最快（1-2 秒）
 
-在以下地址访问：http://localhost:8080
+在以下地址访问：http://localhost:9000
 
 ## init
 

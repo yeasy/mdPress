@@ -105,7 +105,7 @@ Example workflow:
 ```bash
 # Terminal 1: Start server
 $ mdpress serve
-[INFO] Serving at http://localhost:8080
+[INFO] Serving at http://localhost:9000
 [INFO] Watching for changes...
 
 # Terminal 2: Edit chapter
