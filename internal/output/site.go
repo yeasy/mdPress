@@ -3,14 +3,164 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// htmlTagPattern strips HTML tags for plain-text extraction.
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// uiStrings holds localized UI labels keyed by language prefix.
+// The first matching prefix wins, e.g. "zh-hans" matches "zh".
+var uiStrings = map[string]map[string]string{
+	"zh": {
+		"previous":           "上一章",
+		"next":               "下一章",
+		"search_placeholder": "输入关键词搜索…",
+		"search_button":      "搜索",
+		"no_results":         "未找到相关结果：",
+		"search_unavailable": "搜索不可用",
+		"on_this_page":       "本页目录",
+		"copy":               "复制",
+		"copied":             "已复制！",
+		"hide_sidebar":       "隐藏侧边栏",
+		"light_mode":         "浅色模式",
+		"dark_mode":          "深色模式",
+		"system_default":     "跟随系统",
+		"search_kbd":         "⌘K",
+		"page_of":            "第 %d 页，共 %d 页",
+		"built_with":         "使用 %s 构建",
+	},
+	"ja": {
+		"previous":           "前へ",
+		"next":               "次へ",
+		"search_placeholder": "検索…",
+		"search_button":      "検索",
+		"no_results":         "結果なし：",
+		"search_unavailable": "検索利用不可",
+		"on_this_page":       "このページの目次",
+		"copy":               "コピー",
+		"copied":             "コピー済み！",
+		"hide_sidebar":       "サイドバーを隠す",
+		"light_mode":         "ライトモード",
+		"dark_mode":          "ダークモード",
+		"system_default":     "システムデフォルト",
+		"search_kbd":         "⌘K",
+		"page_of":            "%d / %d ページ",
+		"built_with":         "%s で構築",
+	},
+	// Default (English) is the fallback.
+	"en": {
+		"previous":           "Previous",
+		"next":               "Next",
+		"search_placeholder": "Type to search…",
+		"search_button":      "Search",
+		"no_results":         "No results for",
+		"search_unavailable": "Search unavailable",
+		"on_this_page":       "ON THIS PAGE",
+		"copy":               "Copy",
+		"copied":             "Copied!",
+		"hide_sidebar":       "Hide sidebar",
+		"light_mode":         "Light mode",
+		"dark_mode":          "Dark mode",
+		"system_default":     "System default",
+		"search_kbd":         "⌘K",
+		"page_of":            "Page %d of %d",
+		"built_with":         "Built with %s",
+	},
+}
+
+// uiString returns the localized UI string for the given key and language.
+func uiString(lang, key string) string {
+	lang = strings.ToLower(lang)
+	// Try exact match first, then prefix match, then fallback to English.
+	if m, ok := uiStrings[lang]; ok {
+		if v, ok := m[key]; ok {
+			return v
+		}
+	}
+	// Try prefix match (e.g. "zh-hans" -> "zh").
+	for prefix, m := range uiStrings {
+		if strings.HasPrefix(lang, prefix) {
+			if v, ok := m[key]; ok {
+				return v
+			}
+		}
+	}
+	// Fallback to English.
+	if m, ok := uiStrings["en"]; ok {
+		return m[key]
+	}
+	return key
+}
+
+// populateUIStrings fills the localized UI string fields in pageData.
+func populateUIStrings(d *pageData) {
+	lang := d.Language
+	d.UIprevious = uiString(lang, "previous")
+	d.UInext = uiString(lang, "next")
+	d.UIsearchPlaceholder = uiString(lang, "search_placeholder")
+	d.UIsearchButton = uiString(lang, "search_button")
+	d.UInoResults = uiString(lang, "no_results")
+	d.UIsearchUnavailable = uiString(lang, "search_unavailable")
+	d.UIonThisPage = uiString(lang, "on_this_page")
+	d.UIcopy = uiString(lang, "copy")
+	d.UIcopied = uiString(lang, "copied")
+	d.UIhideSidebar = uiString(lang, "hide_sidebar")
+	d.UIlightMode = uiString(lang, "light_mode")
+	d.UIdarkMode = uiString(lang, "dark_mode")
+	d.UIsystemDefault = uiString(lang, "system_default")
+	d.UIsearchKbd = uiString(lang, "search_kbd")
+}
+
+// extractDescription returns the first ~160 characters of plain text from HTML
+// content, suitable for use as a meta description.
+func extractDescription(htmlContent string) string {
+	text := htmlTagPattern.ReplaceAllString(htmlContent, " ")
+	text = strings.Join(strings.Fields(text), " ")
+	text = strings.TrimSpace(text)
+	runes := []rune(text)
+	if len(runes) > 160 {
+		// Truncate at word boundary.
+		truncated := string(runes[:160])
+		if idx := strings.LastIndex(truncated, " "); idx > 80 {
+			text = truncated[:idx] + "…"
+		} else {
+			text = truncated + "…"
+		}
+	}
+	return text
+}
+
+// contentLeadingHeadingPattern matches an opening heading tag (h1–h6) at the
+// very start of the HTML content (ignoring leading whitespace).
+var contentLeadingHeadingPattern = regexp.MustCompile(`(?i)^\s*<h[1-6]\b[^>]*>(.*?)</h[1-6]>`)
+
+// contentStartsWithTitle reports whether the HTML content already begins with
+// a heading (any level h1–h6) whose text matches pageTitle.  This prevents the
+// template from inserting a duplicate title above the content.
+func contentStartsWithTitle(html, pageTitle string) bool {
+	// Fast path: if there is an <h1> anywhere, we never need a generated title.
+	if strings.Contains(strings.ToLower(html), "<h1") {
+		return true
+	}
+	m := contentLeadingHeadingPattern.FindStringSubmatch(html)
+	if m == nil {
+		return false
+	}
+	// Strip any inner tags (e.g. <a>, <code>) from the matched heading text
+	// and compare with pageTitle after normalising whitespace.
+	headingText := htmlTagPattern.ReplaceAllString(m[1], "")
+	headingText = strings.TrimSpace(strings.Join(strings.Fields(headingText), " "))
+	return headingText == strings.TrimSpace(pageTitle)
+}
 
 // SiteChapter stores rendered chapter data for site output.
 type SiteChapter struct {
@@ -104,6 +254,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			Author:      g.Meta.Author,
 			Language:    g.Meta.Language,
 			PageTitle:   page.Title,
+			Description: extractDescription(page.Content),
+			Breadcrumbs: g.buildBreadcrumbs(g.Chapters, page.Filename),
 			Content:     page.Content,
 			CSS:         g.CSS,
 			SidebarHTML: sidebarHTML,
@@ -114,7 +266,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ActiveFile:  page.Filename,
 			TotalPages:  len(flatPages),
 			CurrentPage: i + 1,
+			ShowTitle:   !contentStartsWithTitle(page.Content, page.Title),
 		}
+		populateUIStrings(&data)
 
 		var buf strings.Builder
 		if err := tmpl.Execute(&buf, data); err != nil {
@@ -146,6 +300,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			Author:      g.Meta.Author,
 			Language:    g.Meta.Language,
 			PageTitle:   firstPage.Title,
+			Description: extractDescription(firstPage.Content),
+			Breadcrumbs: g.buildBreadcrumbs(g.Chapters, firstPage.Filename),
 			Content:     firstPage.Content,
 			CSS:         g.CSS,
 			SidebarHTML: g.buildSidebar(g.Chapters, firstPage.Filename),
@@ -154,7 +310,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ActiveFile:  firstPage.Filename,
 			TotalPages:  len(flatPages),
 			CurrentPage: 1,
+			ShowTitle:   !contentStartsWithTitle(firstPage.Content, firstPage.Title),
 		}
+		populateUIStrings(&idxData)
 		var buf strings.Builder
 		if err := tmpl.Execute(&buf, idxData); err != nil {
 			return fmt.Errorf("failed to render index.html: %w", err)
@@ -167,6 +325,63 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
+	}
+
+	// Generate sitemap.xml for search engine indexing.
+	if len(flatPages) > 0 {
+		var sm strings.Builder
+		sm.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+		sm.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+		sm.WriteString("  <url><loc>index.html</loc><priority>1.0</priority></url>\n")
+		for _, page := range flatPages {
+			fmt.Fprintf(&sm, "  <url><loc>%s</loc></url>\n", template.HTMLEscapeString(page.Filename))
+		}
+		sm.WriteString("</urlset>\n")
+		if err := os.WriteFile(filepath.Join(outputDir, "sitemap.xml"), []byte(sm.String()), 0644); err != nil {
+			return fmt.Errorf("failed to write sitemap.xml: %w", err)
+		}
+	}
+
+	// Generate search-index.json for client-side full-text search.
+	if len(flatPages) > 0 {
+		type searchEntry struct {
+			Title    string `json:"t"`
+			Filename string `json:"f"`
+			Text     string `json:"x"`
+			Path     string `json:"p"`
+		}
+		entries := make([]searchEntry, 0, len(flatPages))
+		for _, page := range flatPages {
+			plainText := htmlTagPattern.ReplaceAllString(page.Content, " ")
+			plainText = strings.Join(strings.Fields(plainText), " ")
+			// Limit text length to prevent excessively large search index entries
+			const maxTextLength = 50000
+			if len([]rune(plainText)) > maxTextLength {
+				runes := []rune(plainText)
+				plainText = string(runes[:maxTextLength])
+			}
+			crumbs := g.buildBreadcrumbs(g.Chapters, page.Filename)
+			var pathParts []string
+			for _, c := range crumbs {
+				if c.Filename != page.Filename {
+					pathParts = append(pathParts, c.Title)
+				}
+			}
+			pathStr := strings.Join(pathParts, " > ")
+			entries = append(entries, searchEntry{
+				Title:    page.Title,
+				Filename: page.Filename,
+				Text:     plainText,
+				Path:     pathStr,
+			})
+		}
+		indexJSON, err := json.Marshal(entries)
+		if err != nil {
+			return fmt.Errorf("failed to marshal search index: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(outputDir, "search-index.json"), indexJSON, 0644); err != nil {
+			return fmt.Errorf("failed to write search-index.json: %w", err)
+		}
 	}
 
 	return nil
@@ -198,6 +413,9 @@ func (g *SiteGenerator) buildSidebar(chapters []SiteChapter, activeFile string) 
 	return b.String()
 }
 
+// renderSidebarItems recursively renders sidebar chapter navigation items as HTML.
+// It processes the chapters list and their children, generating nested navigation
+// elements with appropriate classes and states.
 func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteChapter, activeFile string) {
 	for _, ch := range chapters {
 		filename := ch.Filename
@@ -205,7 +423,8 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 			filename = "#"
 		}
 		groupClass := "nav-group"
-		hasChildren := len(ch.Headings) > 0 || len(ch.Children) > 0
+		hasChildren := (maxSidebarHeadingDepth > 0 && len(ch.Headings) > 0) ||
+			(ch.Depth < maxSidebarChapterDepth && len(ch.Children) > 0)
 		if hasChildren {
 			if g.isChapterBranchActive(ch, activeFile) {
 				groupClass += " expanded"
@@ -225,11 +444,12 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 		} else {
 			b.WriteString(`<span class="nav-toggle nav-toggle-placeholder"></span>`)
 		}
+		escapedFilename := template.HTMLEscapeString(filename)
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-chapter nav-depth-%d" href="%s" data-file="%s" data-group-link="%t">%s</a>`,
 			ch.Depth+1,
-			template.HTMLEscapeString(filename),
-			template.HTMLEscapeString(filename),
+			escapedFilename,
+			escapedFilename,
 			hasChildren,
 			template.HTMLEscapeString(ch.Title))
 		b.WriteString(`</div>`)
@@ -250,6 +470,8 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 	}
 }
 
+// isChapterBranchActive recursively checks whether a chapter or any of its
+// descendants matches the active file.
 func (g *SiteGenerator) isChapterBranchActive(ch SiteChapter, activeFile string) bool {
 	if ch.Filename == activeFile {
 		return true
@@ -262,7 +484,48 @@ func (g *SiteGenerator) isChapterBranchActive(ch SiteChapter, activeFile string)
 	return false
 }
 
+// buildBreadcrumbs returns the ancestor chain from root to the page identified
+// by filename.  For example, for a page nested under "Part 1 > Chapter 2" it
+// returns [{Part 1, part1.html}, {Chapter 2, ch2.html}].
+func (g *SiteGenerator) buildBreadcrumbs(chapters []SiteChapter, filename string) []breadcrumb {
+	const maxDepth = 20
+	var walk func([]SiteChapter, []breadcrumb, int) []breadcrumb
+	walk = func(chs []SiteChapter, path []breadcrumb, depth int) []breadcrumb {
+		if depth > maxDepth {
+			return nil
+		}
+		for _, ch := range chs {
+			cur := make([]breadcrumb, len(path)+1)
+			copy(cur, path)
+			cur[len(path)] = breadcrumb{Title: ch.Title, Filename: ch.Filename}
+			if ch.Filename == filename {
+				return cur
+			}
+			if found := walk(ch.Children, cur, depth+1); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	return walk(chapters, nil, 0)
+}
+
+// maxSidebarChapterDepth limits how deep chapter nesting goes in the sidebar.
+// Chapters at this depth or deeper are rendered as flat links without expand
+// triangles, and their Children are not shown.  A value of 1 means only
+// top-level groups (e.g. "第二章") expand to show their direct children
+// (2.1, 2.2, …); those children appear as plain links without further nesting.
+const maxSidebarChapterDepth = 1
+
+// maxSidebarHeadingDepth limits how many levels of headings appear in the
+// sidebar navigation.  Set to 0 to show only chapter titles — no in-page
+// headings (h2, h3, …) in the sidebar.
+const maxSidebarHeadingDepth = 0
+
 func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, filename string, headings []SiteNavHeading, depth int) {
+	if depth >= maxSidebarHeadingDepth {
+		return
+	}
 	for _, heading := range headings {
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-heading nav-heading-depth-%d" href="%s#%s" data-file="%s" data-target="%s">%s</a>`,
@@ -278,11 +541,22 @@ func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, filename strin
 	}
 }
 
+// breadcrumb represents a navigation breadcrumb segment, containing the title
+// and filename for one level in the breadcrumb trail.
+type breadcrumb struct {
+	Title    string
+	Filename string
+}
+
+// pageData contains all the information needed to render a single page of the site,
+// including site metadata, page content, navigation elements, and styling.
 type pageData struct {
 	SiteTitle   string
 	Author      string
 	Language    string
 	PageTitle   string
+	Description string // First ~160 chars of plain text for meta description.
+	Breadcrumbs []breadcrumb
 	Content     string
 	CSS         string
 	SidebarHTML string
@@ -293,6 +567,23 @@ type pageData struct {
 	ActiveFile  string
 	TotalPages  int
 	CurrentPage int
+	ShowTitle   bool // true when Content lacks an <h1>, so the template should insert one.
+
+	// Localized UI strings.
+	UIprevious          string
+	UInext              string
+	UIsearchPlaceholder string
+	UIsearchButton      string
+	UInoResults         string
+	UIsearchUnavailable string
+	UIonThisPage        string
+	UIcopy              string
+	UIcopied            string
+	UIhideSidebar       string
+	UIlightMode         string
+	UIdarkMode          string
+	UIsystemDefault     string
+	UIsearchKbd         string
 }
 
 var sitePageTemplate = `<!DOCTYPE html>
@@ -301,8 +592,15 @@ var sitePageTemplate = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
+<meta name="description" content="{{.Description}}">
+<meta name="generator" content="mdPress">
+<meta property="og:title" content="{{.PageTitle}} - {{.SiteTitle}}">
+<meta property="og:description" content="{{.Description}}">
+<meta property="og:type" content="article">
+{{if .Author}}<meta name="author" content="{{.Author}}">{{end}}
 <title>{{.PageTitle}} - {{.SiteTitle}}</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">
+<link rel="sitemap" type="application/xml" href="sitemap.xml">
 <style>
 @view-transition {
   navigation: auto;
@@ -342,47 +640,20 @@ body.sidebar-resizing .main { transition: none; }
   padding: 16px 20px; border-bottom: 1px solid #e8e8e8;
   margin-bottom: 10px;
 }
+.sidebar-title-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+}
 .sidebar-header h1 {
   font-size: 1.1rem; color: #333; font-weight: 600; line-height: 1.3;
-  margin-bottom: 12px;
+  margin-bottom: 12px; flex: 1;
 }
+.sidebar-close {
+  background: none; border: none; color: #999; cursor: pointer;
+  font-size: 1rem; padding: 2px 6px; border-radius: 4px; line-height: 1;
+  flex-shrink: 0;
+}
+.sidebar-close:hover { background: #eee; color: #333; }
 .sidebar-header .author { font-size: 0.8rem; color: #999; margin-top: 4px; }
-.sidebar-search {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.sidebar-search-btn {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d8d8d8;
-  border-radius: 4px;
-  background: #fff;
-  color: #999;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.sidebar-search-btn:hover {
-  background: #f5f5f5;
-  border-color: #4285f4;
-}
-.sidebar-search-btn span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.sidebar-search-kbd {
-  font-size: 0.7rem;
-  background: #f0f0f0;
-  padding: 2px 4px;
-  border-radius: 2px;
-  color: #666;
-}
 .sidebar-nav { padding: 0 10px; }
 
 .nav-group { margin: 2px 0; }
@@ -423,6 +694,7 @@ body.sidebar-resizing .main { transition: none; }
 .nav-depth-2 { padding-left: 22px; }
 .nav-depth-3 { padding-left: 36px; }
 .nav-depth-4 { padding-left: 50px; }
+.nav-heading-depth-1 { padding-left: 12px; }
 .nav-heading-depth-2 { padding-left: 26px; }
 .nav-heading-depth-3 { padding-left: 40px; font-size: 0.8rem; }
 .nav-heading-depth-4 { padding-left: 54px; font-size: 0.78rem; }
@@ -444,10 +716,45 @@ body.sidebar-resizing .main { transition: none; }
 
 /* ===== Page Header ===== */
 .page-header {
-  padding: 20px 50px;
+  padding: 12px 50px;
   border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
+  background: rgba(250,250,250,0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.header-search-btn {
+  margin-left: auto;
+  padding: 5px 12px;
+  border: 1px solid #d8d8d8;
+  border-radius: 4px;
+  background: #fff;
+  color: #999;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.header-search-btn:hover {
+  background: #f5f5f5;
+  border-color: #4285f4;
+}
+.header-search-kbd {
+  font-size: 0.65rem;
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 2px;
+  color: #666;
 }
 .page-breadcrumb {
   font-size: 0.85rem;
@@ -463,6 +770,18 @@ body.sidebar-resizing .main { transition: none; }
 }
 .page-breadcrumb a:hover {
   text-decoration: underline;
+}
+.bc-sep {
+  color: #999;
+  font-size: 0.8em;
+}
+.chapter-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 1.2rem 0;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e8e8e8;
+  line-height: 1.3;
 }
 .page-header-actions {
   margin-top: 8px;
@@ -485,14 +804,50 @@ body.sidebar-resizing .main { transition: none; }
   view-transition-name: site-main;
   transition: margin-left 0.3s;
 }
+.main-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+}
 .content {
-  max-width: 860px; margin: 0 auto; padding: 40px 50px 80px; overflow-wrap: anywhere;
+  max-width: min(860px, 100%); padding: 40px 50px 80px; overflow-wrap: anywhere;
   view-transition-name: site-content;
   transition: opacity 0.18s ease, transform 0.22s ease;
+  min-width: 0;
 }
+@media (min-width: 1400px) {
+  .content { max-width: 960px; }
+}
+@media (min-width: 1600px) {
+  .content { max-width: 1080px; }
+}
+@media (min-width: 1900px) {
+  .content { max-width: 1200px; }
+}
+
+/* ===== Right-Side Page TOC ===== */
+.page-toc {
+  position: sticky; top: 64px; align-self: start;
+  max-height: calc(100vh - 80px); overflow-y: auto;
+  padding: 16px 16px 16px 0; font-size: 0.82rem; line-height: 1.5;
+  border-left: 1px solid #e8e8e8;
+}
+.page-toc-header {
+  font-weight: 600; color: #555; margin-bottom: 10px; padding-left: 16px;
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.page-toc-nav a {
+  display: block; padding: 3px 12px 3px 16px; color: #666;
+  text-decoration: none; border-left: 2px solid transparent;
+  margin-left: -1px; transition: color 0.15s, border-color 0.15s;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.page-toc-nav a:hover { color: #333; }
+.page-toc-nav a.toc-active { color: #4285f4; border-left-color: #4285f4; font-weight: 500; }
+.page-toc-nav a.toc-depth-2 { padding-left: 28px; font-size: 0.78rem; }
+.page-toc-nav a.toc-depth-3 { padding-left: 40px; font-size: 0.76rem; }
+.page-toc:empty, .page-toc.toc-hidden { display: none; }
 .content.is-navigating {
-  opacity: 0.72;
-  transform: translate3d(0, 8px, 0);
+  opacity: 0.85;
   pointer-events: none;
 }
 .route-progress {
@@ -521,13 +876,34 @@ body.sidebar-resizing .main { transition: none; }
   opacity: 1;
 }
 .content h1[id], .content h2[id], .content h3[id], .content h4[id], .content h5[id], .content h6[id] {
-  scroll-margin-top: 24px;
+  scroll-margin-top: 64px;
 }
 .content h1 { font-size: 2em; margin: 0 0 0.8em; color: #1a1a2e; border-bottom: 2px solid #4285f4; padding-bottom: 0.3em; }
-.content h2 { font-size: 1.5em; margin: 1.5em 0 0.6em; color: #333; }
+.content h2 { font-size: 1.5em; margin: 1.5em 0 0.6em; color: #333; padding-bottom: 0.3em; border-bottom: 1px solid #eee; }
 .content h3 { font-size: 1.2em; margin: 1.3em 0 0.5em; color: #444; }
 .content h4 { font-size: 1.05em; margin: 1em 0 0.4em; color: #555; }
-.content p { margin: 0.6em 0; text-align: justify; }
+.content h1[id] a.header-anchor,
+.content h2[id] a.header-anchor,
+.content h3[id] a.header-anchor,
+.content h4[id] a.header-anchor {
+  float: left;
+  margin-left: -0.87em;
+  padding-right: 0.23em;
+  font-weight: 500;
+  opacity: 0;
+  color: #4285f4;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.content h1:hover a.header-anchor,
+.content h2:hover a.header-anchor,
+.content h3:hover a.header-anchor,
+.content h4:hover a.header-anchor { opacity: 1; }
+html.dark .content h1[id] a.header-anchor,
+html.dark .content h2[id] a.header-anchor,
+html.dark .content h3[id] a.header-anchor,
+html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
+.content p { margin: 0.6em 0; text-align: left; }
 .content img { max-width: 100%; height: auto; display: block; margin: 1em auto; border-radius: 4px; }
 .content blockquote {
   border-left: 4px solid #4285f4; background: #f4f7ff; margin: 1em 0;
@@ -545,10 +921,29 @@ body.sidebar-resizing .main { transition: none; }
   font-size: 0.88em; white-space: pre; word-break: normal;
 }
 .content pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; display: block; }
-.content table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; }
-.content th, .content td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
-.content th { background: #f5f5f5; font-weight: 600; }
-.content tr:nth-child(even) { background: #fafafa; }
+
+/* ===== Code Block Copy Button ===== */
+.code-wrapper { position: relative; }
+.code-wrapper .copy-btn {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(255,255,255,.8); border: 1px solid #d0d7de; border-radius: 4px;
+  padding: 4px 8px; font-size: 12px; cursor: pointer; color: #555;
+  opacity: 0; transition: opacity .15s;
+  line-height: 1; z-index: 1;
+}
+.code-wrapper:hover .copy-btn { opacity: 1; }
+.copy-btn.copied { background: #2ea44f; color: #fff; border-color: #2ea44f; }
+html.dark .code-wrapper .copy-btn { background: rgba(30,30,46,.8); border-color: #45475a; color: #a6adc8; }
+html.dark .copy-btn.copied { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
+
+.content table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; border-radius: 6px; overflow: hidden; border: 1px solid #e8e8e8; }
+.content th, .content td { border: 1px solid #e8e8e8; padding: 10px 16px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+.content th { background: #f8f9fa; font-weight: 600; font-size: 0.88em; text-transform: none; letter-spacing: 0; color: #555; }
+.content tr:nth-child(even) { background: #fcfcfc; }
+.content th:first-child, .content td:first-child { border-left: none; }
+.content th:last-child, .content td:last-child { border-right: none; }
+.content tr:first-child th { border-top: none; }
+.content tr:last-child td { border-bottom: none; }
 .content a { color: #4285f4; text-decoration: none; }
 .content a:hover { text-decoration: underline; }
 .content ul, .content ol { padding-left: 1.8em; margin: 0.5em 0; }
@@ -618,13 +1013,6 @@ body.sidebar-resizing .main { transition: none; }
   color: #999;
   font-size: 0.82rem;
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.build-meta-text {
-  display: block;
 }
 .build-meta a {
   color: #4285f4;
@@ -647,22 +1035,18 @@ body.sidebar-resizing .main { transition: none; }
 @keyframes mdpress-page-out {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
   to {
     opacity: 0;
-    transform: translate3d(-14px, 0, 0);
   }
 }
 
 @keyframes mdpress-page-in {
   from {
     opacity: 0;
-    transform: translate3d(18px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -703,12 +1087,24 @@ body.page-entering .sidebar {
   animation: mdpress-sidebar-in 220ms ease-out;
 }
 
-/* ===== Mobile Toggle ===== */
+/* ===== Sidebar Toggle ===== */
 .sidebar-toggle {
-  display: none; position: fixed; top: 12px; left: 12px; z-index: 200;
+  display: flex; position: fixed; top: 12px; left: 12px; z-index: 200;
   background: #4285f4; color: #fff; border: none; border-radius: 4px;
   width: 36px; height: 36px; font-size: 1.2rem; cursor: pointer;
   align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible,
+body.sidebar-collapsed .sidebar-toggle {
+  opacity: 1; pointer-events: auto;
+}
+body.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+body.sidebar-collapsed .main {
+  margin-left: 0 !important;
 }
 
 /* ===== Mobile Overlay ===== */
@@ -731,14 +1127,23 @@ body.sidebar-open::before {
   }
 }
 
+@media (max-width: 960px) {
+  .page-toc { display: none; }
+  .main-body { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); box-shadow: 2px 0 12px rgba(0,0,0,.2); }
-  .sidebar-toggle { display: flex; }
+  .sidebar-toggle { opacity: 1; pointer-events: auto; }
   .sidebar-resize-handle { display: none; }
   .main { margin-left: 0 !important; }
-  .content { padding: 60px 20px 80px; }
-  .page-header { padding: 16px 20px; }
+  .main-body { grid-template-columns: 1fr; }
+  .content { padding: 24px 20px 80px; }
+  .page-header { padding: 12px 16px; }
+  .header-search-btn span:first-child { font-size: 0; }
+  .header-search-btn span:first-child::before { content: "🔍"; font-size: 0.85rem; }
+  .header-search-kbd { display: none; }
   .page-nav {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -790,10 +1195,221 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* ===== Skip to Content ===== */
+.skip-link {
+  position: absolute; top: -100%; left: 16px; z-index: 9999;
+  background: #4285f4; color: #fff; padding: 8px 16px; border-radius: 4px;
+  font-size: 0.9rem; text-decoration: none;
+}
+.skip-link:focus { top: 12px; }
+
+/* ===== Search Modal ===== */
+.search-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 10000;
+  justify-content: center;
+  padding-top: 15vh;
+}
+.search-overlay.open { display: flex; }
+.search-modal {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  width: 560px;
+  max-width: 90vw;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0,0,0,.15);
+  overflow: hidden;
+}
+.search-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8e8e8;
+  gap: 10px;
+}
+.search-header .search-icon { color: #999; font-size: 18px; flex-shrink: 0; }
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  background: transparent;
+  color: #333;
+}
+.search-input::placeholder { color: #aaa; }
+.search-esc {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.search-results {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+.search-result {
+  display: block;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+}
+.search-result:hover, .search-result.search-active { background: #f0f4ff; }
+.search-result-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #333;
+  margin-bottom: 2px;
+}
+.search-result-snippet {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.search-result-snippet mark {
+  background: #fff3b0;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.search-result-path {
+  font-size: 0.7rem;
+  color: #999;
+  margin-bottom: 2px;
+}
+.search-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: #999;
+  font-size: 0.9rem;
+}
+.search-footer {
+  padding: 8px 16px;
+  border-top: 1px solid #e8e8e8;
+  font-size: 0.75rem;
+  color: #999;
+  display: flex;
+  gap: 16px;
+}
+.search-footer kbd {
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.7rem;
+  font-family: inherit;
+}
+
+/* ===== Dark Mode ===== */
+/* JS adds .dark to <html> based on user preference or system default */
+html.dark body { background: #1e1e2e; color: #cdd6f4; }
+html.dark .sidebar { background: #181825; border-right-color: #313244; }
+html.dark .sidebar-header { border-bottom-color: #313244; }
+html.dark .sidebar-header h1 { color: #cdd6f4; }
+html.dark .sidebar-header .author { color: #6c7086; }
+html.dark .sidebar-close:hover { background: #313244; color: #cdd6f4; }
+html.dark .nav-chapter { color: #bac2de; }
+html.dark .nav-heading { color: #a6adc8; }
+html.dark .nav-item:hover { background: #313244; color: #cdd6f4; }
+html.dark .nav-item.active { background: rgba(137,180,250,.15); color: #89b4fa; }
+html.dark .nav-toggle::before { border-color: #6c7086; }
+html.dark .main { background: #1e1e2e; }
+html.dark .page-header { border-bottom-color: #313244; background: rgba(24,24,37,0.95); }
+html.dark .header-search-btn { background: #313244; color: #bac2de; border-color: #45475a; }
+html.dark .header-search-btn:hover { background: #45475a; }
+html.dark .page-breadcrumb a { color: #89b4fa; }
+html.dark .bc-sep { color: #6c7086; }
+html.dark .chapter-title { color: #cdd6f4; border-bottom-color: #313244; }
+html.dark .content { color: #cdd6f4; }
+html.dark .content h1 { color: #cdd6f4; border-bottom-color: #89b4fa; }
+html.dark .content h2, html.dark .content h3, html.dark .content h4 { color: #bac2de; }
+html.dark .content h2 { border-bottom-color: #313244; }
+html.dark .content a { color: #89b4fa; }
+html.dark .content a:hover { color: #b4d0fb; }
+html.dark .content pre { background: #262637; color: #cdd6f4; border-color: #363849; }
+html.dark .content code { background: #363849; color: #cdd6f4; }
+html.dark .content pre code { background: transparent; color: inherit; }
+html.dark .content blockquote { border-left-color: #89b4fa; color: #bac2de; background: #262637; }
+html.dark .content table th { background: #262637; color: #cdd6f4; border-color: #363849; }
+html.dark .content table td { border-color: #363849; }
+html.dark .content table tr:nth-child(even) { background: #22223a; }
+html.dark .content img { border-color: #363849; }
+html.dark .content hr { background: #363849; }
+html.dark .page-nav a { background: #262637; border-color: #363849; color: #cdd6f4; }
+html.dark .page-nav a:hover { border-color: #89b4fa; background: #2a2a3e; }
+html.dark .page-meta, html.dark .build-meta { color: #6c7086; }
+html.dark .build-meta a { color: #89b4fa; }
+html.dark .sidebar-toggle { background: #89b4fa; color: #1e1e2e; }
+html.dark .sidebar-resize-handle:hover, html.dark .sidebar-resize-handle.active { background: rgba(137,180,250,.3); }
+html.dark body.sidebar-open::before { background: rgba(0,0,0,.5); }
+html.dark .route-progress-bar { background: #89b4fa; }
+html.dark .page-toc { border-left-color: #313244; }
+html.dark .page-toc-header { color: #a6adc8; }
+html.dark .page-toc-nav a { color: #6c7086; }
+html.dark .page-toc-nav a:hover { color: #cdd6f4; }
+html.dark .page-toc-nav a.toc-active { color: #89b4fa; border-left-color: #89b4fa; }
+html.dark .search-modal { background: #1e1e2e; border-color: #313244; box-shadow: 0 16px 48px rgba(0,0,0,.4); }
+html.dark .search-header { border-bottom-color: #313244; }
+html.dark .search-input { color: #cdd6f4; }
+html.dark .search-input::placeholder { color: #6c7086; }
+html.dark .search-esc { background: #313244; border-color: #45475a; color: #a6adc8; }
+html.dark .search-result:hover, html.dark .search-result.search-active { background: #313244; }
+html.dark .search-result-title { color: #cdd6f4; }
+html.dark .search-result-snippet { color: #a6adc8; }
+html.dark .search-result-path { color: #6c7086; }
+html.dark .search-result-snippet mark { background: #45475a; color: #f9e2af; }
+html.dark .search-empty { color: #6c7086; }
+html.dark .search-footer { border-top-color: #313244; color: #6c7086; }
+html.dark .search-footer kbd { background: #313244; border-color: #45475a; }
+html.dark .theme-toggle { background: #313244; border-color: #45475a; }
+html.dark .theme-toggle button { color: #a6adc8; }
+html.dark .theme-toggle button:hover { background: #45475a; color: #cdd6f4; }
+html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
+/* Theme toggle button */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.theme-toggle button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #666;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.theme-toggle button:hover { background: #e0e0e0; color: #333; }
+.theme-toggle button.active { background: #4285f4; color: #fff; box-shadow: 0 1px 3px rgba(66,133,244,0.3); }
+
 /* ===== Print Styles ===== */
 @media print {
-  .sidebar, .sidebar-toggle, .sidebar-overlay, .route-progress { display: none !important; }
+  .sidebar, .sidebar-toggle, .sidebar-overlay, .route-progress, .page-toc, .search-overlay { display: none !important; }
   .main { margin-left: 0; }
+  .main-body { grid-template-columns: 1fr; }
   .content { padding: 0; margin: 0; max-width: 100%; }
   .page-header, .page-nav, .build-meta { display: none !important; }
   body { background: white; color: black; }
@@ -815,8 +1431,32 @@ body {
   padding: 0 !important;
 }
 </style>
+<script>
+/* Prevent flash of wrong theme */
+(function(){var t=localStorage.getItem('mdpress-theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})();
+</script>
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <div class="search-overlay" id="search-overlay" role="dialog" aria-label="{{.UIsearchButton}}">
+    <div class="search-modal">
+      <div class="search-header">
+        <span class="search-icon">&#128269;</span>
+        <input type="text" class="search-input" id="search-input" placeholder="{{.UIsearchPlaceholder}}" autocomplete="off" spellcheck="false">
+        <span class="search-esc">ESC</span>
+      </div>
+      <div class="search-results" id="search-results">
+        <div class="search-empty">{{.UIsearchPlaceholder}}</div>
+      </div>
+      <div class="search-footer">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
   <div class="route-progress" id="route-progress" aria-hidden="true">
     <div class="route-progress-bar"></div>
   </div>
@@ -831,48 +1471,137 @@ body {
   <nav class="sidebar">
     <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     <div class="sidebar-header">
-      <h1>{{.SiteTitle}}</h1>
-      {{if .Author}}<div class="author">{{.Author}}</div>{{end}}
-      <div class="sidebar-search">
-        <button class="sidebar-search-btn" type="button" aria-label="Search documentation (Ctrl+K)">
-          <span>🔍 Search</span>
-          <span class="sidebar-search-kbd">⌘K</span>
-        </button>
+      <div class="sidebar-title-row">
+        <h1>{{.SiteTitle}}</h1>
+        <button class="sidebar-close" aria-label="{{.UIhideSidebar}}" title="{{.UIhideSidebar}}">✕</button>
       </div>
+      {{if .Author}}<div class="author">{{.Author}}</div>{{end}}
     </div>
     <div class="sidebar-nav">
       {{safeHTML .SidebarHTML}}
     </div>
   </nav>
 
-  <div class="main">
-    <div class="page-header">
+  <main class="main">
+    <header class="page-header">
       <nav class="page-breadcrumb" aria-label="Breadcrumb">
         <a href="index.html">{{.SiteTitle}}</a>
-        <span>›</span>
-        <span>{{.PageTitle}}</span>
+        {{range .Breadcrumbs}}<span class="bc-sep">›</span><a href="{{.Filename}}">{{.Title}}</a>{{end}}
       </nav>
-    </div>
-    <div class="content">
-      {{safeHTML .Content}}
-
-      <nav class="page-nav" aria-label="Page navigation">
-        {{if .PrevLink}}<a class="prev" href="{{.PrevLink}}"><span class="nav-label">Previous</span><span class="nav-title">{{.PrevTitle}}</span></a>{{else}}<span></span>{{end}}
-        {{if .NextLink}}<a class="next" href="{{.NextLink}}"><span class="nav-label">Next</span><span class="nav-title">{{.NextTitle}}</span></a>{{else}}<span></span>{{end}}
-      </nav>
-
-      <div class="page-meta">
-        <span>Page {{.CurrentPage}} of {{.TotalPages}}</span>
+      <button class="header-search-btn" type="button" aria-label="{{.UIsearchButton}} (Ctrl+K)">
+        <span>🔍 {{.UIsearchButton}}</span>
+        <span class="header-search-kbd">⌘K</span>
+      </button>
+      <div class="theme-toggle" aria-label="Theme switcher">
+        <button type="button" data-theme="light" title="{{.UIlightMode}}" aria-label="{{.UIlightMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
+        <button type="button" data-theme="system" title="{{.UIsystemDefault}}" aria-label="{{.UIsystemDefault}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></button>
+        <button type="button" data-theme="dark" title="{{.UIdarkMode}}" aria-label="{{.UIdarkMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
       </div>
+    </header>
+    <div class="main-body">
+      <div class="content" id="main-content">
+        {{if .ShowTitle}}<h1>{{.PageTitle}}</h1>{{end}}
+        {{safeHTML .Content}}
 
-      <div class="build-meta">
-        <span class="build-meta-text">Built with</span>
-        <a href="https://github.com/yeasy/mdpress" target="_blank" rel="noopener noreferrer">mdPress</a>
+        <nav class="page-nav" aria-label="Page navigation">
+          {{if .PrevLink}}<a class="prev" href="{{.PrevLink}}"><span class="nav-label">{{.UIprevious}}</span><span class="nav-title">{{.PrevTitle}}</span></a>{{else}}<span></span>{{end}}
+          {{if .NextLink}}<a class="next" href="{{.NextLink}}"><span class="nav-label">{{.UInext}}</span><span class="nav-title">{{.NextTitle}}</span></a>{{else}}<span></span>{{end}}
+        </nav>
+
+        <div class="page-meta">
+          <span>Page {{.CurrentPage}} of {{.TotalPages}}</span>
+        </div>
+
+        <div class="build-meta">
+          <span class="build-meta-text">Built with </span><a href="https://github.com/yeasy/mdpress" target="_blank" rel="noopener noreferrer">mdPress</a>
+        </div>
       </div>
+      <aside class="page-toc" id="page-toc" role="navigation" aria-label="{{.UIonThisPage}}">
+        <div class="page-toc-header">{{.UIonThisPage}}</div>
+        <nav class="page-toc-nav" id="page-toc-nav"></nav>
+      </aside>
     </div>
-  </div>
+  </main>
 
   <script>
+  /* ===== Localized UI Strings ===== */
+  var __ui = {
+    searchPlaceholder: "{{.UIsearchPlaceholder}}",
+    noResults: "{{.UInoResults}}",
+    searchUnavailable: "{{.UIsearchUnavailable}}",
+    copy: "{{.UIcopy}}",
+    copied: "{{.UIcopied}}"
+  };
+  /* ===== Theme Management ===== */
+  (function() {
+    var stored = localStorage.getItem('mdpress-theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+    function applyTheme(mode) {
+      if (mode === 'dark' || (mode !== 'light' && prefersDark.matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
+    function setTheme(mode) {
+      if (mode === 'system') {
+        localStorage.removeItem('mdpress-theme');
+      } else {
+        localStorage.setItem('mdpress-theme', mode);
+      }
+      applyTheme(mode);
+      updateToggleButtons(mode);
+    }
+
+    function updateToggleButtons(mode) {
+      var buttons = document.querySelectorAll('.theme-toggle button');
+      for (var i = 0; i < buttons.length; i++) {
+        var btn = buttons[i];
+        if (btn.getAttribute('data-theme') === mode) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
+        } else {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-pressed', 'false');
+        }
+      }
+    }
+
+    // Listen for system preference changes when in system mode
+    prefersDark.addEventListener('change', function() {
+      var current = localStorage.getItem('mdpress-theme');
+      if (!current) applyTheme('system');
+    });
+
+    // Set up toggle buttons after DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      updateToggleButtons(stored || 'system');
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.theme-toggle button');
+        if (btn) setTheme(btn.getAttribute('data-theme'));
+      });
+    });
+
+    // Add permalink anchors to headings
+    function addHeaderAnchors(root) {
+      (root || document).querySelectorAll('.content h1[id], .content h2[id], .content h3[id], .content h4[id]').forEach(function(h) {
+        if (h.querySelector('.header-anchor')) return;
+        var a = document.createElement('a');
+        a.className = 'header-anchor';
+        a.href = '#' + h.id;
+        a.textContent = '#';
+        a.setAttribute('aria-hidden', 'true');
+        h.prepend(a);
+      });
+    }
+    addHeaderAnchors();
+
+    window.__addHeaderAnchors = addHeaderAnchors;
+    window.__setTheme = setTheme;
+  })();
+
   var sidebar = document.querySelector('.sidebar');
   var body = document.body;
   var mainContent = document.querySelector('.content');
@@ -1130,7 +1859,11 @@ body {
         prefetchPage(chapterLink.href);
       }, { passive: true });
       chapterLink.addEventListener('click', function(e) {
-        expandGroupChain(group);
+        if (group.classList.contains('expanded')) {
+          toggleGroup(group);
+        } else {
+          expandGroupChain(group);
+        }
         rememberInternalNavigation(chapterLink.href);
         if (chapterLink.getAttribute('data-file') === currentFile) {
           e.preventDefault();
@@ -1140,49 +1873,78 @@ body {
     }
   });
 
-  function findActiveHeading() {
-    var candidate = null;
-    var threshold = 140;
+  // --- Heading tracking via IntersectionObserver ---
+  var headingObserver = null;
+  var visibleHeadings = Object.create(null); // id -> true/false
 
-    for (var i = 0; i < headings.length; i++) {
-      var top = headings[i].getBoundingClientRect().top;
-      if (top <= threshold) {
-        candidate = headings[i].id;
-      } else {
-        break;
-      }
-    }
-
-    return candidate;
-  }
-
-  function updateActiveNavigation() {
-    var activeHeading = findActiveHeading();
-
+  function activateNavForHeading(headingId) {
     document.querySelectorAll('.nav-item.active').forEach(function(link) {
       link.classList.remove('active');
     });
 
-    var headingMatched = false;
-    if (activeHeading) {
+    var matched = false;
+    if (headingId) {
       for (var j = 0; j < navHeadingLinks.length; j++) {
-        if (navHeadingLinks[j].getAttribute('data-target') === activeHeading) {
+        if (navHeadingLinks[j].getAttribute('data-target') === headingId) {
           navHeadingLinks[j].classList.add('active');
           var activeGroup = navHeadingLinks[j].closest('.nav-group');
           expandGroupChain(activeGroup);
           keepActiveLinkVisible(navHeadingLinks[j]);
-          headingMatched = true;
+          matched = true;
           break;
         }
       }
     }
 
-    if (!headingMatched && navChapterLinks.length > 0) {
+    if (!matched && navChapterLinks.length > 0) {
       navChapterLinks[0].classList.add('active');
       var activeChapterGroup = navChapterLinks[0].closest('.nav-group');
       expandGroupChain(activeChapterGroup);
       keepActiveLinkVisible(navChapterLinks[0]);
     }
+  }
+
+  function pickActiveHeading() {
+    // Among headings in or above the viewport, pick the last one that is visible
+    // (i.e. the deepest one the user has scrolled past).
+    for (var i = headings.length - 1; i >= 0; i--) {
+      if (visibleHeadings[headings[i].id]) {
+        return headings[i].id;
+      }
+    }
+    // Fallback: find topmost heading above viewport
+    for (var k = headings.length - 1; k >= 0; k--) {
+      if (headings[k].getBoundingClientRect().top <= 140) {
+        return headings[k].id;
+      }
+    }
+    return null;
+  }
+
+  function setupHeadingObserver() {
+    if (headingObserver) { headingObserver.disconnect(); }
+    visibleHeadings = Object.create(null);
+
+    if (typeof IntersectionObserver === 'undefined') {
+      // Fallback for older browsers: use scroll event.
+      window.addEventListener('scroll', function() {
+        activateNavForHeading(pickActiveHeading());
+      }, { passive: true });
+      return;
+    }
+
+    headingObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        visibleHeadings[entry.target.id] = entry.isIntersecting;
+      });
+      activateNavForHeading(pickActiveHeading());
+    }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+
+    headings.forEach(function(h) { headingObserver.observe(h); });
+  }
+
+  function updateActiveNavigation() {
+    activateNavForHeading(pickActiveHeading());
   }
 
   function syncSidebarForCurrentFile() {
@@ -1193,6 +1955,77 @@ body {
     });
   }
 
+  // --- Right-side page TOC ---
+  var pageToc = document.getElementById('page-toc');
+  var pageTocNav = document.getElementById('page-toc-nav');
+  var tocObserver = null;
+  var tocVisibleMap = Object.create(null);
+
+  // Single click handler via delegation (never re-attached).
+  if (pageTocNav) {
+    pageTocNav.addEventListener('click', function(e) {
+      var link = e.target.closest('a[data-toc-target]');
+      if (!link) return;
+      e.preventDefault();
+      var target = document.getElementById(link.getAttribute('data-toc-target'));
+      if (target) {
+        target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+        window.history.pushState(null, '', '#' + link.getAttribute('data-toc-target'));
+      }
+    });
+  }
+
+  function buildPageTOC() {
+    if (!pageTocNav || !pageToc) return;
+    var tocHeadings = Array.from(document.querySelectorAll('.content h2[id], .content h3[id], .content h4[id]'));
+    if (tocHeadings.length === 0) {
+      pageToc.classList.add('toc-hidden');
+      pageTocNav.innerHTML = '';
+      return;
+    }
+    pageToc.classList.remove('toc-hidden');
+    var html = '';
+    for (var i = 0; i < tocHeadings.length; i++) {
+      var h = tocHeadings[i];
+      var tag = h.tagName.toLowerCase();
+      var depthClass = tag === 'h3' ? ' toc-depth-2' : tag === 'h4' ? ' toc-depth-3' : '';
+      html += '<a href="#' + h.id + '" data-toc-target="' + h.id + '" class="toc-link' + depthClass + '">' + (h.textContent || '') + '</a>';
+    }
+    pageTocNav.innerHTML = html;
+    setupTocObserver(tocHeadings);
+  }
+
+  function setupTocObserver(tocHeadings) {
+    if (tocObserver) tocObserver.disconnect();
+    tocVisibleMap = Object.create(null);
+
+    if (typeof IntersectionObserver === 'undefined' || !pageTocNav) return;
+
+    tocObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        tocVisibleMap[entry.target.id] = entry.isIntersecting;
+      });
+      // Pick the topmost visible heading
+      var activeId = null;
+      for (var i = 0; i < tocHeadings.length; i++) {
+        if (tocVisibleMap[tocHeadings[i].id]) { activeId = tocHeadings[i].id; break; }
+      }
+      if (!activeId) {
+        // Fallback: find topmost heading above viewport
+        for (var k = tocHeadings.length - 1; k >= 0; k--) {
+          if (tocHeadings[k].getBoundingClientRect().top <= 140) { activeId = tocHeadings[k].id; break; }
+        }
+      }
+      var links = pageTocNav.querySelectorAll('.toc-link');
+      for (var j = 0; j < links.length; j++) {
+        links[j].classList.toggle('toc-active', links[j].getAttribute('data-toc-target') === activeId);
+      }
+    }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+
+    tocHeadings.forEach(function(h) { tocObserver.observe(h); });
+  }
+
+  var resizeTimer = null;
   function scheduleNavigationUpdate() {
     if (navUpdateFrame !== null) return;
     navUpdateFrame = window.requestAnimationFrame(function() {
@@ -1201,8 +2034,10 @@ body {
     });
   }
 
-  window.addEventListener('scroll', scheduleNavigationUpdate, { passive: true });
-  window.addEventListener('resize', scheduleNavigationUpdate);
+  window.addEventListener('resize', function() {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(scheduleNavigationUpdate, 200);
+  });
   window.addEventListener('hashchange', function() {
     scheduleNavigationUpdate();
   });
@@ -1225,6 +2060,8 @@ body {
 
     var s = document.createElement('script');
     s.src = src;
+    s.crossOrigin = 'anonymous';
+    s.referrerPolicy = 'no-referrer';
     s.setAttribute(attrName, 'true');
     s.addEventListener('load', function() {
       s.dataset.mdpressLoaded = 'true';
@@ -1282,6 +2119,8 @@ body {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = '` + utils.KaTeXCSSURL + `';
+      link.crossOrigin = 'anonymous';
+      link.referrerPolicy = 'no-referrer';
       link.dataset.mdpressKatexCss = 'true';
       document.head.appendChild(link);
     }
@@ -1311,9 +2150,12 @@ body {
     var doc = new DOMParser().parseFromString(html, 'text/html');
     var content = doc.querySelector('.content');
     if (!content) return null;
+    var breadcrumbNav = doc.querySelector('.page-breadcrumb');
+    var breadcrumbHTML = breadcrumbNav ? breadcrumbNav.innerHTML : '';
     return {
       title: doc.title || document.title,
       contentHTML: content.innerHTML,
+      breadcrumbHTML: breadcrumbHTML,
       url: fallbackURL
     };
   }
@@ -1350,6 +2192,9 @@ body {
     currentFile = getFileFromPathname(targetURL.pathname);
     refreshPageContext();
     syncSidebarForCurrentFile();
+    setupHeadingObserver();
+    // buildPageTOC + addCopyButtons are called inside applySwap() so they
+    // run before the new frame is painted (inside startViewTransition).
     updateActiveNavigation();
     ensureMermaid();
     ensureKaTeX();
@@ -1370,10 +2215,10 @@ body {
       var savedScroll = getSavedScrollPosition(targetURL.pathname);
       window.scrollTo({
         top: savedScroll || 0,
-        behavior: prefersReducedMotion ? 'auto' : 'auto'
+        behavior: prefersReducedMotion ? 'auto' : 'smooth'
       });
     } else if (options.scrollToTop !== false) {
-      window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }
 
@@ -1381,6 +2226,16 @@ body {
     function applySwap() {
       mainContent.innerHTML = payload.contentHTML;
       document.title = payload.title;
+      var breadcrumbNav = document.querySelector('.page-breadcrumb');
+      if (breadcrumbNav && payload.breadcrumbHTML) {
+        breadcrumbNav.innerHTML = payload.breadcrumbHTML;
+      }
+      // Mutate DOM while the old snapshot is still displayed (inside the
+      // view-transition callback) so wrapping <pre> and building the TOC
+      // never cause a visible layout shift.
+      if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
+      if (window.__addHeaderAnchors) window.__addHeaderAnchors(mainContent);
+      buildPageTOC();
     }
 
     if (document.startViewTransition && !prefersReducedMotion) {
@@ -1442,6 +2297,9 @@ body {
   refreshPageContext();
   window.history.replaceState({ path: window.location.pathname }, '', window.location.pathname + window.location.search + window.location.hash);
   syncSidebarForCurrentFile();
+  setupHeadingObserver();
+  buildPageTOC();
+  if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
   updateActiveNavigation();
   ensureMermaid();
   ensureKaTeX();
@@ -1549,29 +2407,43 @@ body {
     } else if (e.key === 'ArrowRight' && nextLink && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       nextLink.click();
-    } else if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+    } else if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
       e.preventDefault();
-      var searchBtn = document.querySelector('.sidebar-search-btn');
-      if (searchBtn) searchBtn.focus();
+      openSearch();
     }
   });
 
   // Sidebar toggle management
+  var sidebarClose = document.querySelector('.sidebar-close');
+  var sidebarCollapsedKey = 'mdpress-sidebar-collapsed';
+
+  // Restore collapsed state from localStorage.
+  try {
+    if (window.localStorage.getItem(sidebarCollapsedKey) === '1') {
+      body.classList.add('sidebar-collapsed');
+    }
+  } catch (e) {}
+
+  function isMobile() { return window.innerWidth <= 768; }
+
   function toggleSidebar(forceState) {
-    if (sidebar) {
+    if (!sidebar) return;
+    if (isMobile()) {
       if (typeof forceState === 'boolean') {
         sidebar.classList.toggle('open', forceState);
         body.classList.toggle('sidebar-open', forceState);
-        if (sidebarToggle) {
-          sidebarToggle.setAttribute('aria-expanded', forceState ? 'true' : 'false');
-        }
       } else {
         var isOpen = sidebar.classList.toggle('open');
         body.classList.toggle('sidebar-open', isOpen);
-        if (sidebarToggle) {
-          sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        }
       }
+    } else {
+      var shouldCollapse = typeof forceState === 'boolean' ? forceState : !body.classList.contains('sidebar-collapsed');
+      body.classList.toggle('sidebar-collapsed', shouldCollapse);
+      try { window.localStorage.setItem(sidebarCollapsedKey, shouldCollapse ? '1' : '0'); } catch (e) {}
+    }
+    if (sidebarToggle) {
+      var expanded = isMobile() ? sidebar.classList.contains('open') : !body.classList.contains('sidebar-collapsed');
+      sidebarToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
   }
 
@@ -1582,16 +2454,27 @@ body {
     });
   }
 
+  if (sidebarClose) {
+    sidebarClose.addEventListener('click', function(e) {
+      e.preventDefault();
+      toggleSidebar(true);
+    });
+  }
+
   // Close sidebar on escape key
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && sidebar && sidebar.classList.contains('open')) {
-      toggleSidebar(false);
+    if (e.key === 'Escape' && sidebar) {
+      if (isMobile() && sidebar.classList.contains('open')) {
+        toggleSidebar(false);
+      } else if (!isMobile() && !body.classList.contains('sidebar-collapsed')) {
+        toggleSidebar(true);
+      }
     }
   });
 
-  // Handle sidebar close on overlay click
+  // Handle sidebar close on overlay click (mobile only)
   document.addEventListener('click', function(e) {
-    if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !sidebarToggle.contains(e.target)) {
+    if (isMobile() && sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && sidebarToggle && !sidebarToggle.contains(e.target)) {
       toggleSidebar(false);
     }
   });
@@ -1644,6 +2527,208 @@ body {
       document.documentElement.style.setProperty('--sidebar-width', '280px');
       localStorage.removeItem(sidebarWidthKey);
     });
+  })();
+
+  /* ===== Full-Text Search ===== */
+  (function() {
+    var overlay = document.getElementById('search-overlay');
+    var input = document.getElementById('search-input');
+    var resultsBox = document.getElementById('search-results');
+    var searchIndex = null;
+    var activeIdx = -1;
+    var debounceTimer = null;
+
+    // Header search button opens modal
+    var searchBtn = document.querySelector('.header-search-btn');
+    if (searchBtn) searchBtn.addEventListener('click', function() { openSearch(); });
+
+    function loadIndex() {
+      if (searchIndex) return Promise.resolve(searchIndex);
+      return fetch('search-index.json').then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function(data) {
+        searchIndex = data;
+        return data;
+      }).catch(function() {
+        searchIndex = [];
+        return searchIndex;
+      });
+    }
+
+    window.openSearch = function() {
+      overlay.classList.add('open');
+      input.value = '';
+      resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchPlaceholder + '</div>';
+      activeIdx = -1;
+      // Pre-load index
+      loadIndex().catch(function() {});
+      requestAnimationFrame(function() { input.focus(); });
+    };
+
+    function closeSearch() {
+      overlay.classList.remove('open');
+      activeIdx = -1;
+    }
+
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeSearch();
+    });
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { closeSearch(); return; }
+      var items = resultsBox.querySelectorAll('.search-result');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIdx = Math.min(activeIdx + 1, items.length - 1);
+        updateActive(items);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIdx = Math.max(activeIdx - 1, 0);
+        updateActive(items);
+      } else if (e.key === 'Enter' && activeIdx >= 0 && items[activeIdx]) {
+        e.preventDefault();
+        items[activeIdx].click();
+      }
+    });
+
+    function updateActive(items) {
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.toggle('search-active', i === activeIdx);
+      }
+      if (items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    }
+
+    input.addEventListener('input', function() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(doSearch, 80);
+    });
+
+    function escapeHTML(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function buildSnippet(text, query, maxLen) {
+      var lower = text.toLowerCase();
+      var qLower = query.toLowerCase();
+      var idx = lower.indexOf(qLower);
+      if (idx < 0) return '';
+      var start = Math.max(0, idx - 40);
+      var end = Math.min(text.length, idx + query.length + 80);
+      var snippet = (start > 0 ? '\u2026' : '') + text.slice(start, end) + (end < text.length ? '\u2026' : '');
+      // Highlight matches
+      var re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      return escapeHTML(snippet).replace(re, '<mark>$1</mark>');
+    }
+
+    function doSearch() {
+      var query = input.value.trim();
+      if (!query) {
+        resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchPlaceholder + '</div>';
+        activeIdx = -1;
+        return;
+      }
+      loadIndex().then(function(index) {
+        var qLower = query.toLowerCase();
+        var matches = [];
+        for (var i = 0; i < index.length; i++) {
+          var entry = index[i];
+          var titleMatch = entry.t.toLowerCase().indexOf(qLower) >= 0;
+          var textMatch = entry.x.toLowerCase().indexOf(qLower) >= 0;
+          if (titleMatch || textMatch) {
+            matches.push({
+              title: entry.t,
+              filename: entry.f,
+              path: entry.p || '',
+              snippet: buildSnippet(entry.x, query),
+              titleMatch: titleMatch
+            });
+          }
+          if (matches.length >= 20) break;
+        }
+        // Sort title matches first
+        matches.sort(function(a, b) { return (b.titleMatch ? 1 : 0) - (a.titleMatch ? 1 : 0); });
+
+        if (matches.length === 0) {
+          resultsBox.innerHTML = '<div class="search-empty">' + __ui.noResults + ' \u201c' + escapeHTML(query) + '\u201d</div>';
+          activeIdx = -1;
+          return;
+        }
+
+        var html = '';
+        for (var j = 0; j < matches.length; j++) {
+          var m = matches[j];
+          html += '<a class="search-result" href="' + escapeHTML(m.filename) + '">';
+          if (m.path) html += '<div class="search-result-path">' + escapeHTML(m.path) + '</div>';
+          html += '<div class="search-result-title">' + escapeHTML(m.title) + '</div>';
+          if (m.snippet) html += '<div class="search-result-snippet">' + m.snippet + '</div>';
+          html += '</a>';
+        }
+        resultsBox.innerHTML = html;
+        activeIdx = 0;
+        updateActive(resultsBox.querySelectorAll('.search-result'));
+      }).catch(function() {
+        resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchUnavailable + '</div>';
+      });
+    }
+
+    // Click result → navigate via SPA
+    resultsBox.addEventListener('click', function(e) {
+      var link = e.target.closest('.search-result');
+      if (!link) return;
+      e.preventDefault();
+      closeSearch();
+      var href = link.getAttribute('href');
+      // Use SPA navigation if available
+      if (typeof navigateClientSide === 'function') {
+        var url = new URL(href, window.location.href);
+        navigateClientSide({ url: url });
+      } else {
+        window.location.href = href;
+      }
+    });
+
+    // Global ESC closes search
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && overlay.classList.contains('open')) {
+        closeSearch();
+      }
+    });
+  })();
+
+  /* ===== Code Block Copy Buttons ===== */
+  (function() {
+    function addCopyButtons(root) {
+      var pres = (root || document).querySelectorAll('pre');
+      for (var i = 0; i < pres.length; i++) {
+        var pre = pres[i];
+        if (pre.parentNode.classList.contains('code-wrapper')) continue;
+        var wrapper = document.createElement('div');
+        wrapper.className = 'code-wrapper';
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+        var btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = __ui.copy;
+        btn.type = 'button';
+        btn.setAttribute('aria-label', __ui.copy);
+        wrapper.appendChild(btn);
+      }
+    }
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      var pre = btn.parentNode.querySelector('pre');
+      if (!pre) return;
+      var text = pre.textContent || pre.innerText;
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = __ui.copied;
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
+      });
+    });
+    addCopyButtons();
+    window.__addCopyButtons = addCopyButtons;
   })();
   </script>
 </body>
