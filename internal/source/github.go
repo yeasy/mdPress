@@ -74,7 +74,7 @@ func (s *GitHubSource) Prepare() (string, error) {
 	args := []string{"clone", "--depth", "1"}
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
-		branchRegex := regexp.MustCompile(`^[a-zA-Z0-9._/-]+$`)
+		branchRegex := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/-]*$`)
 		if !branchRegex.MatchString(s.opts.Branch) {
 			return "", fmt.Errorf("invalid branch name: %q", s.opts.Branch)
 		}
