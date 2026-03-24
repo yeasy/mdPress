@@ -729,32 +729,50 @@ body.sidebar-resizing .main { transition: none; }
   top: 0;
   z-index: 50;
 }
-.header-search-btn {
-  margin-left: auto;
-  padding: 5px 12px;
-  border: 1px solid #d8d8d8;
-  border-radius: 4px;
-  background: #fff;
-  color: #999;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.15s;
+.sidebar-search {
+  padding: 8px 14px 4px;
+}
+.sidebar-search-box {
   display: flex;
   align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  flex-shrink: 0;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  background: #fff;
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.header-search-btn:hover {
-  background: #f5f5f5;
+.sidebar-search-box:focus-within {
   border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66,133,244,.15);
 }
-.header-search-kbd {
-  font-size: 0.65rem;
+.sidebar-search-icon {
+  font-size: 14px;
+  color: #999;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.sidebar-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.82rem;
+  color: #333;
+  min-width: 0;
+}
+.sidebar-search-input::placeholder { color: #aaa; }
+.sidebar-search-kbd {
+  font-size: 0.6rem;
   background: #f0f0f0;
-  padding: 1px 4px;
-  border-radius: 2px;
-  color: #666;
+  border: 1px solid #e0e0e0;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #999;
+  flex-shrink: 0;
+  font-family: inherit;
+  line-height: 1.4;
 }
 .page-breadcrumb {
   font-size: 0.85rem;
@@ -1141,9 +1159,7 @@ body.sidebar-open::before {
   .main-body { grid-template-columns: 1fr; }
   .content { padding: 24px 20px 80px; }
   .page-header { padding: 12px 16px; }
-  .header-search-btn span:first-child { font-size: 0; }
-  .header-search-btn span:first-child::before { content: "🔍"; font-size: 0.85rem; }
-  .header-search-kbd { display: none; }
+  .sidebar-search-kbd { display: none; }
   .page-nav {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -1329,8 +1345,12 @@ html.dark .nav-item.active { background: rgba(137,180,250,.15); color: #89b4fa; 
 html.dark .nav-toggle::before { border-color: #6c7086; }
 html.dark .main { background: #1e1e2e; }
 html.dark .page-header { border-bottom-color: #313244; background: rgba(24,24,37,0.95); }
-html.dark .header-search-btn { background: #313244; color: #bac2de; border-color: #45475a; }
-html.dark .header-search-btn:hover { background: #45475a; }
+html.dark .sidebar-search-box { background: #313244; border-color: #45475a; }
+html.dark .sidebar-search-box:focus-within { border-color: #89b4fa; box-shadow: 0 0 0 2px rgba(137,180,250,.15); }
+html.dark .sidebar-search-input { color: #cdd6f4; }
+html.dark .sidebar-search-input::placeholder { color: #6c7086; }
+html.dark .sidebar-search-icon { color: #6c7086; }
+html.dark .sidebar-search-kbd { background: #45475a; border-color: #585b70; color: #6c7086; }
 html.dark .page-breadcrumb a { color: #89b4fa; }
 html.dark .bc-sep { color: #6c7086; }
 html.dark .chapter-title { color: #cdd6f4; border-bottom-color: #313244; }
@@ -1439,7 +1459,7 @@ body {
 <body>
   <a href="#main-content" class="skip-link">Skip to content</a>
 
-  <div class="search-overlay" id="search-overlay" role="dialog" aria-label="{{.UIsearchButton}}">
+  <div class="search-overlay" id="search-overlay" role="dialog" aria-label="{{.UIsearchButton}}" aria-modal="true">
     <div class="search-modal">
       <div class="search-header">
         <span class="search-icon">&#128269;</span>
@@ -1477,6 +1497,13 @@ body {
       </div>
       {{if .Author}}<div class="author">{{.Author}}</div>{{end}}
     </div>
+    <div class="sidebar-search">
+      <div class="sidebar-search-box" id="sidebar-search-box">
+        <span class="sidebar-search-icon">&#128269;</span>
+        <input type="text" class="sidebar-search-input" id="sidebar-search-input" placeholder="{{.UIsearchPlaceholder}}" autocomplete="off" spellcheck="false" aria-label="{{.UIsearchButton}}" aria-haspopup="dialog" aria-controls="search-overlay">
+        <kbd class="sidebar-search-kbd">{{.UIsearchKbd}}</kbd>
+      </div>
+    </div>
     <div class="sidebar-nav">
       {{safeHTML .SidebarHTML}}
     </div>
@@ -1488,10 +1515,6 @@ body {
         <a href="index.html">{{.SiteTitle}}</a>
         {{range .Breadcrumbs}}<span class="bc-sep">›</span><a href="{{.Filename}}">{{.Title}}</a>{{end}}
       </nav>
-      <button class="header-search-btn" type="button" aria-label="{{.UIsearchButton}} (Ctrl+K)">
-        <span>🔍 {{.UIsearchButton}}</span>
-        <span class="header-search-kbd">⌘K</span>
-      </button>
       <div class="theme-toggle" aria-label="Theme switcher">
         <button type="button" data-theme="light" title="{{.UIlightMode}}" aria-label="{{.UIlightMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
         <button type="button" data-theme="system" title="{{.UIsystemDefault}}" aria-label="{{.UIsystemDefault}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></button>
@@ -2409,7 +2432,12 @@ body {
       nextLink.click();
     } else if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
       e.preventDefault();
-      openSearch();
+      var si = document.getElementById('sidebar-search-input');
+      if (si && window.innerWidth > 768) {
+        si.focus();
+      } else {
+        openSearch('');
+      }
     }
   });
 
@@ -2532,15 +2560,12 @@ body {
   /* ===== Full-Text Search ===== */
   (function() {
     var overlay = document.getElementById('search-overlay');
-    var input = document.getElementById('search-input');
+    var modalInput = document.getElementById('search-input');
+    var sidebarInput = document.getElementById('sidebar-search-input');
     var resultsBox = document.getElementById('search-results');
     var searchIndex = null;
     var activeIdx = -1;
     var debounceTimer = null;
-
-    // Header search button opens modal
-    var searchBtn = document.querySelector('.header-search-btn');
-    if (searchBtn) searchBtn.addEventListener('click', function() { openSearch(); });
 
     function loadIndex() {
       if (searchIndex) return Promise.resolve(searchIndex);
@@ -2550,32 +2575,60 @@ body {
       }).then(function(data) {
         searchIndex = data;
         return data;
-      }).catch(function() {
+      }).catch(function(err) {
+        console.warn('[mdpress] Failed to load search index:', err);
         searchIndex = [];
         return searchIndex;
       });
     }
 
-    window.openSearch = function() {
+    // Pre-load index when sidebar input gets focus
+    if (sidebarInput) {
+      sidebarInput.addEventListener('focus', function() { loadIndex().catch(function() {}); });
+      // When user types in sidebar input, open modal and transfer the query
+      sidebarInput.addEventListener('input', function() {
+        var q = sidebarInput.value;
+        if (q.length > 0 && !overlay.classList.contains('open')) {
+          overlay.classList.add('open');
+          modalInput.value = q;
+          requestAnimationFrame(function() { modalInput.focus(); });
+          doSearch();
+        }
+      });
+      // Enter in sidebar input opens modal with focus
+      sidebarInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          openSearch(sidebarInput.value);
+        }
+      });
+    }
+
+    window.openSearch = function(initialQuery) {
       overlay.classList.add('open');
-      input.value = '';
-      resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchPlaceholder + '</div>';
+      modalInput.value = initialQuery || '';
       activeIdx = -1;
-      // Pre-load index
       loadIndex().catch(function() {});
-      requestAnimationFrame(function() { input.focus(); });
+      if (initialQuery) {
+        doSearch();
+      } else {
+        resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchPlaceholder + '</div>';
+      }
+      requestAnimationFrame(function() { modalInput.focus(); });
     };
 
     function closeSearch() {
       overlay.classList.remove('open');
       activeIdx = -1;
+      // Clear sidebar input when modal closes
+      if (sidebarInput) sidebarInput.value = '';
     }
 
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) closeSearch();
     });
 
-    input.addEventListener('keydown', function(e) {
+    modalInput.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') { closeSearch(); return; }
       var items = resultsBox.querySelectorAll('.search-result');
       if (e.key === 'ArrowDown') {
@@ -2599,7 +2652,7 @@ body {
       if (items[activeIdx]) items[activeIdx].scrollIntoView({ block: 'nearest' });
     }
 
-    input.addEventListener('input', function() {
+    modalInput.addEventListener('input', function() {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(doSearch, 80);
     });
@@ -2622,7 +2675,7 @@ body {
     }
 
     function doSearch() {
-      var query = input.value.trim();
+      var query = modalInput.value.trim();
       if (!query) {
         resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchPlaceholder + '</div>';
         activeIdx = -1;
