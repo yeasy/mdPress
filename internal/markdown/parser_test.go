@@ -749,14 +749,14 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 				"- **code**: 状态码\n" +
 				"- **data**: 响应数据",
 			wantElements: map[string]string{
-				"<h1":      "主标题",
-				"<h2":      "二级标题",
-				"<h3":      "三级标题",
-				"<a ":      "链接",
-				"<pre":     "代码块",
-				"<table>":  "表格",
-				"<hr":      "分隔线",
-				"<ul>":     "列表",
+				"<h1":     "主标题",
+				"<h2":     "二级标题",
+				"<h3":     "三级标题",
+				"<a href": "链接",
+				"<pre":    "代码块",
+				"<table>": "表格",
+				"<hr":     "分隔线",
+				"<ul>":    "列表",
 			},
 		},
 		{
@@ -890,8 +890,8 @@ func TestParserEdgeCases(t *testing.T) {
 			},
 		},
 		{
-			name: "特殊字符和转义",
-			md:   "# <script>alert('xss')</script>\n\n测试 & < > \" '",
+			name:    "特殊字符和转义",
+			md:      "# <script>alert('xss')</script>\n\n测试 & < > \" '",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				// 应该生成 HTML（具体的转义策略由 renderer 决定）
@@ -1060,18 +1060,18 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 // TestMarkdownWithHTMLMixed 测试 Markdown 混合 HTML (表格驱动)
 func TestMarkdownWithHTMLMixed(t *testing.T) {
 	tests := []struct {
-		name      string
-		md        string
+		name        string
+		md          string
 		wantHTMLTag string
 	}{
 		{
-			name: "行内 HTML",
-			md:   "这是文本 <span style='color:red'>红色</span> 继续文本",
+			name:        "行内 HTML",
+			md:          "这是文本 <span style='color:red'>红色</span> 继续文本",
 			wantHTMLTag: "<span",
 		},
 		{
-			name: "块级 HTML",
-			md:   "文本开始\n\n<div class='box'>HTML 内容</div>\n\n文本结束",
+			name:        "块级 HTML",
+			md:          "文本开始\n\n<div class='box'>HTML 内容</div>\n\n文本结束",
 			wantHTMLTag: "<div",
 		},
 		{
@@ -1084,13 +1084,13 @@ func TestMarkdownWithHTMLMixed(t *testing.T) {
 			wantHTMLTag: "<form",
 		},
 		{
-			name: "HTML 注释",
-			md: "# 标题\n\n<!-- 这是注释 -->\n\n内容",
+			name:        "HTML 注释",
+			md:          "# 标题\n\n<!-- 这是注释 -->\n\n内容",
 			wantHTMLTag: "<!--",
 		},
 		{
-			name: "Markdown 中的 HTML 转义字符",
-			md:   "这是&amp; < > \"引号\"",
+			name:        "Markdown 中的 HTML 转义字符",
+			md:          "这是&amp; < > \"引号\"",
 			wantHTMLTag: "&",
 		},
 	}
@@ -1118,7 +1118,7 @@ func TestMarkdownWithHTMLMixed(t *testing.T) {
 func buildLongDocument(lines int) string {
 	var buf strings.Builder
 	for i := 0; i < lines; i++ {
-		buf.WriteString(fmt.Sprintf("## 第 %d 章\n\n", i+1))
+		fmt.Fprintf(&buf, "## 第 %d 章\n\n", i+1)
 		buf.WriteString("这是段落内容。\n\n")
 		if i%5 == 0 {
 			buf.WriteString("```go\ncode snippet\n```\n\n")
