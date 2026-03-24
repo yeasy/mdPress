@@ -233,6 +233,85 @@ func min(a, b int) int {
 	return b
 }
 
+// ===== Add Lazy Loading =====
+
+func TestAddLazyLoading(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "single img tag without loading attribute",
+			input: `<img src="image.jpg" alt="test">`,
+			want:  `<img loading="lazy" src="image.jpg" alt="test">`,
+		},
+		{
+			name:  "single img tag with existing loading=lazy",
+			input: `<img src="image.jpg" alt="test" loading="lazy">`,
+			want:  `<img src="image.jpg" alt="test" loading="lazy">`,
+		},
+		{
+			name:  "single img tag with loading=eager",
+			input: `<img src="image.jpg" alt="test" loading="eager">`,
+			want:  `<img src="image.jpg" alt="test" loading="eager">`,
+		},
+		{
+			name:  "multiple img tags mixed",
+			input: `<img src="image1.jpg" alt="first"><img src="image2.jpg" loading="lazy"><img src="image3.jpg" alt="third">`,
+			want:  `<img loading="lazy" src="image1.jpg" alt="first"><img src="image2.jpg" loading="lazy"><img loading="lazy" src="image3.jpg" alt="third">`,
+		},
+		{
+			name:  "no img tags",
+			input: `<p>This is plain HTML with no images</p>`,
+			want:  `<p>This is plain HTML with no images</p>`,
+		},
+		{
+			name:  "self-closing img tag",
+			input: `<img src="image.jpg"/>`,
+			want:  `<img loading="lazy" src="image.jpg"/>`,
+		},
+		{
+			name:  "img tag with many attributes",
+			input: `<img src="image.jpg" alt="description" class="responsive-img" id="main-image" width="800" height="600" data-custom="value">`,
+			want:  `<img loading="lazy" src="image.jpg" alt="description" class="responsive-img" id="main-image" width="800" height="600" data-custom="value">`,
+		},
+		{
+			name:  "img inside paragraph",
+			input: `<p>Check this image: <img src="photo.jpg"></p>`,
+			want:  `<p>Check this image: <img loading="lazy" src="photo.jpg"></p>`,
+		},
+		{
+			name:  "img with loading=lazy in the middle",
+			input: `<img src="image.jpg" loading="lazy" alt="test">`,
+			want:  `<img src="image.jpg" loading="lazy" alt="test">`,
+		},
+		{
+			name:  "img tag at start of HTML",
+			input: `<img src="first.jpg"><div>Content</div>`,
+			want:  `<img loading="lazy" src="first.jpg"><div>Content</div>`,
+		},
+		{
+			name:  "multiple img tags in sequence",
+			input: `<img src="a.jpg"><img src="b.jpg"><img src="c.jpg">`,
+			want:  `<img loading="lazy" src="a.jpg"><img loading="lazy" src="b.jpg"><img loading="lazy" src="c.jpg">`,
+		},
+		{
+			name:  "img with only src attribute",
+			input: `<img src="minimal.jpg">`,
+			want:  `<img loading="lazy" src="minimal.jpg">`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := addLazyLoading(tt.input)
+			if got != tt.want {
+				t.Errorf("addLazyLoading()\ngot:  %s\nwant: %s", got, tt.want)
+			}
+		})
+	}
+}
+
 // ===== Strip Chroma Pre Style =====
 
 func TestStripChromaPreStyle(t *testing.T) {
