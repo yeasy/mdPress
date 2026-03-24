@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // LocalSource reads content directly from the local filesystem.
@@ -41,7 +42,12 @@ func (s *LocalSource) Prepare() (string, error) {
 	// Apply an optional subdirectory.
 	targetDir := absPath
 	if s.opts.SubDir != "" {
-		targetDir = filepath.Join(absPath, s.opts.SubDir)
+		// Prevent path traversal through the subdirectory.
+		cleanSubDir := filepath.Clean(s.opts.SubDir)
+		if filepath.IsAbs(cleanSubDir) || strings.HasPrefix(cleanSubDir, "..") {
+			return "", fmt.Errorf("unsafe subdirectory path: %q", s.opts.SubDir)
+		}
+		targetDir = filepath.Join(absPath, cleanSubDir)
 		info, err = os.Stat(targetDir)
 		if err != nil {
 			return "", fmt.Errorf("subdirectory does not exist: %w", err)

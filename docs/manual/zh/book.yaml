@@ -1,0 +1,14 @@
+book:
+  title: "mdPress 用户手册"
+  author: "mdPress 贡献者"
+  version: "0.6.0"
+  language: "zh-hans"
+  description: "mdPress 完全指南 — 现代化的 Markdown 图书出版工具。"
+
+style:
+  theme: "technical"
+  code_theme: "github"
+
+output:
+  toc: true
+  toc_max_depth: 3

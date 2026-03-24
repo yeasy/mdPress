@@ -1,0 +1,436 @@
+// upgrade.go implements the upgrade subcommand.
+// It checks for newer versions of mdpress from GitHub releases and optionally installs them.
+package cmd
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/yeasy/mdpress/pkg/utils"
+)
+
+var upgradeCheckOnly bool
+
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade",
+	Short: "Check for and install a newer version of mdpress",
+	Long: `Check for newer versions of mdpress from GitHub releases and optionally install them.
+
+By default, checks for a newer version and installs if found:
+  mdpress upgrade
+
+To only check without installing:
+  mdpress upgrade --check
+
+The upgrade command:
+  - Fetches the latest release from the GitHub API
+  - Compares with the current version
+  - Downloads the appropriate binary for your OS/arch
+  - Replaces the current mdpress binary
+  - Shows progress during the download`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return executeUpgrade(cmd.Context(), upgradeCheckOnly)
+	},
+}
+
+func init() {
+	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "Only check for updates, do not install")
+}
+
+// GitHubRelease represents a GitHub release from the API.
+type GitHubRelease struct {
+	TagName string `json:"tag_name"`
+	Assets  []struct {
+		Name string `json:"name"`
+		URL  string `json:"browser_download_url"`
+	} `json:"assets"`
+}
+
+func executeUpgrade(ctx context.Context, checkOnly bool) error {
+	utils.Header("mdpress Upgrade Check")
+	fmt.Println()
+
+	slog.Info("checking for newer version", slog.String("current_version", Version))
+	utils.Success("Current version: %s", Version)
+
+	// Fetch the latest release from GitHub.
+	latestRelease, err := fetchLatestRelease(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to check for updates: %w", err)
+	}
+
+	latestVersion := strings.TrimPrefix(latestRelease.TagName, "v")
+
+	utils.Success("Latest version: %s", latestVersion)
+
+	// Compare versions.
+	isNewer := isVersionNewer(latestVersion, Version)
+	if !isNewer {
+		fmt.Println()
+		utils.Success("You are already running the latest version")
+		return nil
+	}
+
+	fmt.Println()
+	utils.Warning("Newer version available: %s -> %s", Version, latestVersion)
+
+	if checkOnly {
+		fmt.Println()
+		fmt.Println("Run 'mdpress upgrade' to install the latest version")
+		return nil
+	}
+
+	// Download and install the new version.
+	fmt.Println()
+	if err := installNewVersion(ctx, latestRelease, latestVersion); err != nil {
+		slog.Error("upgrade failed", slog.String("error", err.Error()))
+		return fmt.Errorf("failed to install upgrade: %w", err)
+	}
+
+	return nil
+}
+
+// fetchLatestRelease fetches the latest release from GitHub.
+func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
+	url := "https://api.github.com/repos/yeasy/mdpress/releases/latest"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch latest release: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("GitHub API returned %d and failed to read error body: %w", resp.StatusCode, err)
+		}
+		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, fmt.Errorf("failed to parse release JSON: %w", err)
+	}
+
+	if release.TagName == "" {
+		return nil, fmt.Errorf("invalid release: missing tag_name")
+	}
+
+	if len(release.Assets) == 0 {
+		return nil, fmt.Errorf("release has no assets")
+	}
+
+	return &release, nil
+}
+
+// isVersionNewer compares two semantic versions.
+// Returns true if newVersion > currentVersion.
+func isVersionNewer(newVersion, currentVersion string) bool {
+	newParts := parseVersion(newVersion)
+	currentParts := parseVersion(currentVersion)
+
+	// Pad with zeros to have equal length.
+	for len(newParts) < len(currentParts) {
+		newParts = append(newParts, 0)
+	}
+	for len(currentParts) < len(newParts) {
+		currentParts = append(currentParts, 0)
+	}
+
+	for i := 0; i < len(newParts); i++ {
+		if newParts[i] > currentParts[i] {
+			return true
+		}
+		if newParts[i] < currentParts[i] {
+			return false
+		}
+	}
+
+	return false
+}
+
+// parseVersion extracts numeric parts from a semantic version string.
+// For example: "1.2.3" -> [1, 2, 3]
+func parseVersion(version string) []int {
+	// Remove 'v' prefix if present.
+	version = strings.TrimPrefix(version, "v")
+
+	// Split on '.' and parse each part.
+	parts := []int{}
+	for _, part := range strings.Split(version, ".") {
+		// Extract leading digits using strings.Builder.
+		var sb strings.Builder
+		for _, ch := range part {
+			if ch >= '0' && ch <= '9' {
+				sb.WriteRune(ch)
+			} else {
+				break
+			}
+		}
+		numStr := sb.String()
+		if numStr != "" {
+			var num int
+			_, err := fmt.Sscanf(numStr, "%d", &num)
+			if err != nil {
+				// Skip this part if it fails to parse (shouldn't happen with digit-only string)
+				continue
+			}
+			parts = append(parts, num)
+		}
+	}
+
+	return parts
+}
+
+// installNewVersion downloads and installs the new binary.
+// Uses atomic file replacement to prevent corruption if the process crashes mid-write.
+func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion string) error {
+	// Find the appropriate asset for this OS/arch.
+	assetURL, assetName := findAssetForPlatform(release)
+	if assetURL == "" {
+		return fmt.Errorf("no binary found for %s/%s in release assets", runtime.GOOS, runtime.GOARCH)
+	}
+
+	slog.Info("found asset", slog.String("asset", assetName))
+	utils.Success("Downloading %s", assetName)
+
+	// Download the binary.
+	binaryData, err := downloadBinary(ctx, assetURL)
+	if err != nil {
+		return fmt.Errorf("failed to download binary: %w", err)
+	}
+
+	utils.Success("Downloaded %d bytes", len(binaryData))
+
+	// Verify checksum if available.
+	if err := verifyChecksum(ctx, release, assetName, binaryData); err != nil {
+		slog.Warn("checksum verification", slog.String("warning", err.Error()))
+	}
+
+	// Find the current mdpress executable.
+	currentPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("cannot determine current executable path: %w", err)
+	}
+
+	// Use atomic rename: write to temp file, then rename to target.
+	// This prevents corruption if the process crashes mid-write.
+	tempPath := currentPath + ".tmp"
+
+	// Write the new binary to a temporary file.
+	if err := writeBinaryFile(tempPath, binaryData); err != nil {
+		// Clean up temp file if write failed.
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("failed to write temporary binary: %w", err)
+	}
+
+	slog.Info("wrote temporary binary", slog.String("path", tempPath))
+
+	// Create a backup of the current binary.
+	backupPath := currentPath + ".backup"
+	if err := os.Rename(currentPath, backupPath); err != nil {
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
+	slog.Info("created backup", slog.String("path", backupPath))
+
+	// Atomically replace the old binary with the new one.
+	if err := os.Rename(tempPath, currentPath); err != nil {
+		// Try to restore from backup on error.
+		if restoreErr := os.Rename(backupPath, currentPath); restoreErr != nil {
+			return fmt.Errorf("failed to install binary, and restore failed: %v; backup at %s", err, backupPath)
+		}
+		return fmt.Errorf("failed to install binary (backup restored): %w", err)
+	}
+
+	utils.Success("Installed to %s", currentPath)
+
+	// Try to clean up the backup (non-fatal if it fails).
+	if err := os.Remove(backupPath); err != nil {
+		slog.Debug("failed to remove backup", slog.String("path", backupPath), slog.String("error", err.Error()))
+	}
+
+	fmt.Println()
+	utils.Success("Upgrade complete! Version: %s", newVersion)
+	fmt.Println()
+	fmt.Println("Verify the upgrade with: mdpress --version")
+
+	return nil
+}
+
+// platformOS and platformArch can be overridden in tests to simulate different platforms.
+var platformOS = runtime.GOOS
+var platformArch = runtime.GOARCH
+
+// findAssetForPlatform finds the appropriate release asset for the current OS/arch.
+// Returns empty strings if no suitable asset is found.
+func findAssetForPlatform(release *GitHubRelease) (url string, name string) {
+	goos := platformOS
+	goarch := platformArch
+
+	// Normalize architecture names.
+	switch goarch {
+	case "amd64":
+		goarch = "x86_64"
+	case "arm64":
+		goarch = "aarch64"
+	}
+
+	// Look for exact matches in asset names.
+	for _, asset := range release.Assets {
+		assetName := strings.ToLower(asset.Name)
+
+		// Skip signature files and source archives.
+		if strings.Contains(assetName, ".sha256") || strings.Contains(assetName, ".sig") {
+			continue
+		}
+		if strings.Contains(assetName, "source") || strings.Contains(assetName, "tar.gz") || strings.Contains(assetName, ".zip") {
+			continue
+		}
+
+		// Check for OS and arch match.
+		if strings.Contains(assetName, goos) && strings.Contains(assetName, goarch) {
+			return asset.URL, asset.Name
+		}
+	}
+
+	// Fallback: try more flexible matching.
+	for _, asset := range release.Assets {
+		assetName := strings.ToLower(asset.Name)
+
+		if strings.Contains(assetName, ".sha256") || strings.Contains(assetName, ".sig") {
+			continue
+		}
+		if strings.Contains(assetName, "source") || strings.Contains(assetName, "tar.gz") || strings.Contains(assetName, ".zip") {
+			continue
+		}
+
+		// Just match OS.
+		if strings.Contains(assetName, goos) {
+			return asset.URL, asset.Name
+		}
+	}
+
+	return "", ""
+}
+
+// downloadBinary downloads binary data from a URL.
+func downloadBinary(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
+// verifyChecksum verifies the downloaded binary against a checksum file in the release assets.
+// It looks for a file named "checksums.txt" or similar in the release.
+// Returns nil if verification passes, or a warning error if checksum file not found.
+func verifyChecksum(ctx context.Context, release *GitHubRelease, assetName string, binaryData []byte) error {
+	// Look for a checksum file in the release assets.
+	var checksumURL string
+	var checksumFileName string
+	for _, asset := range release.Assets {
+		assetNameLower := strings.ToLower(asset.Name)
+		if strings.Contains(assetNameLower, "checksum") && (strings.HasSuffix(assetNameLower, ".txt") || strings.HasSuffix(assetNameLower, ".sha256")) {
+			checksumURL = asset.URL
+			checksumFileName = asset.Name
+			break
+		}
+	}
+
+	if checksumURL == "" {
+		return fmt.Errorf("no checksum file found in release, skipping verification")
+	}
+
+	slog.Info("found checksum file", slog.String("file", checksumFileName))
+
+	// Download the checksum file.
+	checksumData, err := downloadBinary(ctx, checksumURL)
+	if err != nil {
+		return fmt.Errorf("failed to download checksum file: %w", err)
+	}
+
+	// Parse the checksum file and look for a matching entry.
+	checksumContent := string(checksumData)
+	for _, line := range strings.Split(checksumContent, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Parse checksum line (format: "hash  filename" or "hash filename").
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+
+		expectedHash := parts[0]
+		checksumAssetName := parts[1]
+
+		// Check if this line matches our asset.
+		if strings.Contains(checksumAssetName, assetName) || strings.Contains(assetName, checksumAssetName) {
+			// Compute SHA256 of the downloaded binary.
+			actualHash := sha256.Sum256(binaryData)
+			actualHashStr := hex.EncodeToString(actualHash[:])
+
+			if strings.EqualFold(actualHashStr, expectedHash) {
+				slog.Info("checksum verified", slog.String("hash", actualHashStr))
+				utils.Success("Checksum verified")
+				return nil
+			}
+
+			return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHashStr)
+		}
+	}
+
+	return fmt.Errorf("no matching checksum entry found for %s", assetName)
+}
+
+// writeBinaryFile writes binary data to a file with executable permissions.
+func writeBinaryFile(path string, data []byte) error {
+	// Ensure parent directory exists.
+	if err := utils.EnsureDir(filepath.Dir(path)); err != nil {
+		return fmt.Errorf("cannot create directory: %w", err)
+	}
+
+	// Write with executable permissions.
+	if err := os.WriteFile(path, data, 0755); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}

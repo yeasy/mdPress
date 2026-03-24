@@ -417,6 +417,7 @@ func TestGetAvailableThemes_Colors(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestExecuteThemesList_NoError(t *testing.T) {
+	defer suppressOutput(t)()
 	// Should not return an error.
 	if err := executeThemesList(); err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -428,6 +429,7 @@ func TestExecuteThemesList_NoError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestExecuteThemesShow(t *testing.T) {
+	defer suppressOutput(t)()
 	// Known theme should succeed.
 	if err := executeThemesShow("technical"); err != nil {
 		t.Errorf("executeThemesShow(technical) unexpected error: %v", err)

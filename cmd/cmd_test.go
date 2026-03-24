@@ -4,11 +4,37 @@ package cmd
 
 import (
 	"bytes"
+	"io"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
 )
+
+// suppressOutput temporarily redirects stdout and stderr to /dev/null.
+// Returns a restore function that must be deferred.
+func suppressOutput(t *testing.T) func() {
+	t.Helper()
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatalf("failed to open %s: %v", os.DevNull, err)
+	}
+	os.Stdout = devNull
+	os.Stderr = devNull
+	// Also suppress slog default logger
+	origHandler := slog.Default().Handler()
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+		slog.SetDefault(slog.New(origHandler))
+		devNull.Close()
+	}
+}
 
 // TestRootCommand_Help 测试根命令 --help 输出
 func TestRootCommand_Help(t *testing.T) {
@@ -432,6 +458,7 @@ func TestGetAvailableThemes(t *testing.T) {
 
 // TestExecuteThemesShow_ValidTheme 测试显示有效主题
 func TestExecuteThemesShow_ValidTheme(t *testing.T) {
+	defer suppressOutput(t)()
 	err := executeThemesShow("technical")
 	if err != nil {
 		t.Errorf("显示 technical 主题不应报错: %v", err)
@@ -440,6 +467,7 @@ func TestExecuteThemesShow_ValidTheme(t *testing.T) {
 
 // TestExecuteThemesShow_InvalidTheme 测试显示无效主题
 func TestExecuteThemesShow_InvalidTheme(t *testing.T) {
+	defer suppressOutput(t)()
 	err := executeThemesShow("nonexistent_theme")
 	if err == nil {
 		t.Error("显示不存在的主题应报错")
@@ -451,6 +479,7 @@ func TestExecuteThemesShow_InvalidTheme(t *testing.T) {
 
 // TestExecuteThemesList 测试列出主题
 func TestExecuteThemesList(t *testing.T) {
+	defer suppressOutput(t)()
 	err := executeThemesList()
 	if err != nil {
 		t.Errorf("列出主题不应报错: %v", err)

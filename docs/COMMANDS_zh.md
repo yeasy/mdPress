@@ -17,6 +17,7 @@ flowchart TD
     root --> migrate["migrate [directory]<br/>GitBook 转 mdPress"]
     root --> validate["validate [directory]<br/>校验配置"]
     root --> doctor["doctor [directory]<br/>环境检查"]
+    root --> upgrade["upgrade<br/>更新 mdpress"]
     root --> themes["themes<br/>主题管理"]
     root --> completion["completion &lt;shell&gt;<br/>补全脚本"]
 
@@ -42,6 +43,7 @@ flowchart TD
 | `mdpress migrate [directory]` | 将 GitBook/HonKit 项目转换为 mdPress 格式 | [migrate](commands/migrate_zh.md) |
 | `mdpress validate [directory]` | 校验配置、章节文件和引用资源 | [validate](commands/validate_zh.md) |
 | `mdpress doctor [directory]` | 检查运行环境和项目可构建性 | [doctor](commands/doctor_zh.md) |
+| `mdpress upgrade [flags]` | 检查并安装 mdpress 的新版本 | [upgrade](commands/upgrade_zh.md) |
 | `mdpress themes list` | 列出内置主题 | [themes](commands/themes_zh.md) |
 | `mdpress themes show <theme-name>` | 查看主题详情和配置提示 | [themes](commands/themes_zh.md) |
 | `mdpress themes preview` | 生成内置主题的 HTML 预览页 | [themes](commands/themes_zh.md) |

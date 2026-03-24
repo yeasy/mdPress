@@ -17,6 +17,7 @@ flowchart TD
     root --> migrate["migrate [directory]<br/>GitBook → mdPress"]
     root --> validate["validate [directory]<br/>Check config"]
     root --> doctor["doctor [directory]<br/>Check environment"]
+    root --> upgrade["upgrade<br/>Update mdpress"]
     root --> themes["themes<br/>Theme management"]
     root --> completion["completion &lt;shell&gt;<br/>Shell completion"]
 
@@ -42,6 +43,7 @@ flowchart TD
 | `mdpress migrate [directory]` | Convert a GitBook/HonKit project to mdPress format | [migrate](commands/migrate.md) |
 | `mdpress validate [directory]` | Validate config, chapter files, and referenced assets | [validate](commands/validate.md) |
 | `mdpress doctor [directory]` | Check environment readiness and project buildability | [doctor](commands/doctor.md) |
+| `mdpress upgrade [flags]` | Check for and install a newer version of mdpress | [upgrade](commands/upgrade.md) |
 | `mdpress themes list` | List built-in themes | [themes](commands/themes.md) |
 | `mdpress themes show <theme-name>` | Show theme details and config hints | [themes](commands/themes.md) |
 | `mdpress themes preview` | Generate an HTML preview of built-in themes | [themes](commands/themes.md) |

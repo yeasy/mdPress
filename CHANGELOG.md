@@ -8,6 +8,37 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.0] - 2026-03-23
+
+### Added
+
+- **`mdpress upgrade` command**: Self-upgrade from GitHub releases with platform detection, SHA-256 checksum verification, and `--check` dry-run mode (`cmd/upgrade.go`, 436 lines + 788-line test suite)
+- **Enhanced `mdpress doctor`**: Six new environment checks — Go version (≥1.25), Git availability, network connectivity to github.com, disk space, CJK font detection, and plugin health; new `--verbose` flag for detailed output
+- **Bilingual user manual**: Complete Chinese + English user manual (60+ Markdown files) built with mdPress itself, covering getting started, user guide, themes, plugins, best practices, troubleshooting, and CLI reference
+- **`ParseVersionPart` utility**: Reusable version-string parser in `pkg/utils/file.go` for `doctor` and `upgrade` commands
+
+### Changed
+
+- **Path traversal hardening**: `LocalSource.Prepare()` now validates subdirectory paths against traversal attacks (rejects absolute paths and `..` components)
+- **Cross-platform `HasLangsFile`**: Replaced string concatenation with `filepath.Join` in `internal/i18n/langs.go` for correct path handling on Windows
+- **Documentation**: Added `upgrade` command to README command table (EN + ZH) and COMMANDS docs
+
+### Fixed
+
+- **Lint cleanup**: Removed 4 duplicate `suppressOutput` test helpers and unused imports across `cmd/*_test.go`; simplified `else { if }` to `else if` in `internal/plugin/external_test.go`
+- **Chinese text truncation test**: Increased input from 131 to 191 runes so the ≥160-rune truncation path is actually exercised
+
+### Tests
+
+- **1,500+ new test lines** across 12 files:
+  - `cmd/upgrade_test.go` (788 lines): full coverage of version comparison, asset selection, download, and in-place binary replacement
+  - `cmd/doctor_test.go`: expanded tests for new Go/Git/network/disk/plugin checks
+  - `cmd/cmd_test.go`, `cmd/themes_test.go`, `cmd/quickstart_test.go`, `cmd/validate_run_test.go`: additional edge-case coverage
+  - `pkg/utils/file_test.go` (+183 lines), `pkg/utils/cjk_test.go` (+66 lines), `pkg/utils/image_test.go` (+215 lines): comprehensive utility function tests
+  - `internal/plugin/external_test.go` (+496 lines): expanded plugin lifecycle and error-path tests
+
+---
+
 ## [0.5.4] - 2026-03-23
 
 ### Added
@@ -369,7 +400,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/yeasy/mdpress/compare/v0.5.4...v0.6.0
+[0.5.4]: https://github.com/yeasy/mdpress/compare/v0.5.3...v0.5.4
+[0.5.3]: https://github.com/yeasy/mdpress/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/yeasy/mdpress/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/yeasy/mdpress/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/yeasy/mdpress/compare/v0.4.3...v0.5.0

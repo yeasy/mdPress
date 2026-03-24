@@ -279,3 +279,69 @@ func TestContainsCJKLargeStrings(t *testing.T) {
 		})
 	}
 }
+
+// TestCheckCJKFontsFallback tests the fallback font status check
+func TestCheckCJKFontsFallback(t *testing.T) {
+	status := CheckCJKFonts()
+
+	// Verify the return value is a CJKFontStatus struct
+	if status.Available && len(status.Fonts) == 0 {
+		// It's okay if Available is true but Fonts is empty (platform-specific behavior)
+		t.Logf("CheckCJKFonts() returned Available=true with no fonts listed")
+	}
+
+	if !status.Available && len(status.Fonts) > 0 {
+		t.Errorf("CheckCJKFonts() inconsistent: Available=false but Fonts has %d items", len(status.Fonts))
+	}
+
+	// Verify Fonts slice is not nil (could be empty)
+	if status.Fonts == nil {
+		t.Error("CheckCJKFonts().Fonts should not be nil")
+	}
+
+	// Max 5 fonts should be returned
+	if len(status.Fonts) > 5 {
+		t.Errorf("CheckCJKFonts() returned too many fonts: %d (max 5)", len(status.Fonts))
+	}
+
+	t.Logf("CheckCJKFonts() returned: Available=%v, Fonts=%v", status.Available, status.Fonts)
+}
+
+// TestCJKFontStatusStructure tests CJKFontStatus is properly constructed
+func TestCJKFontStatusStructure(t *testing.T) {
+	// Create a CJKFontStatus instance
+	status := CJKFontStatus{
+		Available: true,
+		Fonts:     []string{"Font1", "Font2"},
+	}
+
+	// Verify structure fields
+	if !status.Available {
+		t.Error("CJKFontStatus.Available should be true")
+	}
+
+	if len(status.Fonts) != 2 {
+		t.Errorf("CJKFontStatus.Fonts should have 2 items, got %d", len(status.Fonts))
+	}
+
+	if status.Fonts[0] != "Font1" {
+		t.Errorf("CJKFontStatus.Fonts[0] = %q, want Font1", status.Fonts[0])
+	}
+}
+
+// TestCheckCJKFontsConsistency tests that CheckCJKFonts returns valid struct
+func TestCheckCJKFontsConsistency(t *testing.T) {
+	// Call twice and verify consistency in structure (not necessarily values)
+	status1 := CheckCJKFonts()
+	status2 := CheckCJKFonts()
+
+	// Both should return CJKFontStatus with valid structure
+	if status1.Fonts == nil || status2.Fonts == nil {
+		t.Error("CheckCJKFonts().Fonts should never be nil")
+	}
+
+	// Both calls should return compatible structure types
+	if (status1.Available && !status2.Available) || (!status1.Available && status2.Available) {
+		t.Logf("Note: CJK availability changed between calls (may be normal if fonts installed/removed)")
+	}
+}
