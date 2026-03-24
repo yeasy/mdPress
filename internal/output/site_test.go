@@ -1,6 +1,7 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -368,31 +369,21 @@ func TestSiteGeneratorHeadingsInSidebar(t *testing.T) {
 	}
 	html := string(data)
 
-	// Verify heading links are in the sidebar
-	if !strings.Contains(html, `href="ch1.html#sec-1"`) {
-		t.Error("sidebar should contain link to Section 1 (sec-1)")
+	// With maxSidebarHeadingDepth = 0, NO in-page headings should appear
+	// in the sidebar — only chapter titles are shown.
+	if strings.Contains(html, `href="ch1.html#sec-1"`) {
+		t.Error("sidebar should NOT contain heading links when maxSidebarHeadingDepth is 0")
 	}
+	if strings.Contains(html, `href="ch1.html#subsec-1"`) {
+		t.Error("sidebar should NOT contain sub-heading links when maxSidebarHeadingDepth is 0")
+	}
+
+	// Chapter-level content (Section 1, Section 2) still appears in page body
 	if !strings.Contains(html, "Section 1") {
-		t.Error("sidebar should display 'Section 1' text")
-	}
-
-	if !strings.Contains(html, `href="ch1.html#subsec-1"`) {
-		t.Error("sidebar should contain link to Subsection 1 (subsec-1)")
-	}
-	if !strings.Contains(html, "Subsection 1") {
-		t.Error("sidebar should display 'Subsection 1' text")
-	}
-
-	if !strings.Contains(html, `href="ch1.html#sec-2"`) {
-		t.Error("sidebar should contain link to Section 2 (sec-2)")
+		t.Error("page content should contain 'Section 1' text")
 	}
 	if !strings.Contains(html, "Section 2") {
-		t.Error("sidebar should display 'Section 2' text")
-	}
-
-	// Verify nested headings use nav-heading-depth classes
-	if !strings.Contains(html, "nav-heading") {
-		t.Error("sidebar should contain nav-heading elements")
+		t.Error("page content should contain 'Section 2' text")
 	}
 }
 
@@ -746,5 +737,455 @@ func TestFlattenChaptersDeeplyNested(t *testing.T) {
 		if result[i].Title != expectedTitle {
 			t.Errorf("item %d: expected title %q, got %q", i, expectedTitle, result[i].Title)
 		}
+	}
+}
+
+// TestExtractDescription tests the extractDescription function with various inputs.
+func TestExtractDescription(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Short text (<160 chars)",
+			input:    "This is a short description.",
+			expected: "This is a short description.",
+		},
+		{
+			name:     "Exactly 160 chars",
+			input:    strings.Repeat("a", 160),
+			expected: strings.Repeat("a", 160),
+		},
+		{
+			name:     "Text >160 chars with word boundaries",
+			input:    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip.",
+			expected: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis…",
+		},
+		{
+			name:     "HTML tags stripped",
+			input:    "<p>This is <strong>HTML</strong> content with <em>tags</em>.</p>",
+			expected: "This is HTML content with tags .",
+		},
+		{
+			name:     "Multiple whitespace collapsed",
+			input:    "This   has    multiple\n\nwhitespace\t\tand\r\nnewlines.",
+			expected: "This has multiple whitespace and newlines.",
+		},
+		{
+			name:     "Single very long word >160 chars",
+			input:    strings.Repeat("a", 200),
+			expected: strings.Repeat("a", 160) + "…",
+		},
+		{
+			name:     "HTML tags with text exceeding 160",
+			input:    "<h1>Title</h1><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.</p>",
+			expected: "Title Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractDescription(tt.input)
+			if result != tt.expected {
+				t.Errorf("extractDescription(%q)\n  got:      %q\n  expected: %q",
+					tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestBuildBreadcrumbs tests the buildBreadcrumbs method with various chapter structures.
+func TestBuildBreadcrumbs(t *testing.T) {
+	tests := []struct {
+		name              string
+		chapters          []SiteChapter
+		targetFilename    string
+		expectedTitles    []string
+		expectedFilenames []string
+	}{
+		{
+			name: "Root-level page",
+			chapters: []SiteChapter{
+				{
+					Title:    "Chapter 1",
+					ID:       "ch1",
+					Filename: "ch1.html",
+				},
+			},
+			targetFilename:    "ch1.html",
+			expectedTitles:    []string{"Chapter 1"},
+			expectedFilenames: []string{"ch1.html"},
+		},
+		{
+			name: "Nested page - full breadcrumb chain",
+			chapters: []SiteChapter{
+				{
+					Title:    "Part 1",
+					ID:       "part1",
+					Filename: "part1.html",
+					Children: []SiteChapter{
+						{
+							Title:    "Chapter 1.1",
+							ID:       "ch1.1",
+							Filename: "ch1.1.html",
+							Children: []SiteChapter{
+								{
+									Title:    "Section 1.1.1",
+									ID:       "sec1.1.1",
+									Filename: "sec1.1.1.html",
+								},
+							},
+						},
+					},
+				},
+			},
+			targetFilename:    "sec1.1.1.html",
+			expectedTitles:    []string{"Part 1", "Chapter 1.1", "Section 1.1.1"},
+			expectedFilenames: []string{"part1.html", "ch1.1.html", "sec1.1.1.html"},
+		},
+		{
+			name: "Page not found",
+			chapters: []SiteChapter{
+				{
+					Title:    "Chapter 1",
+					ID:       "ch1",
+					Filename: "ch1.html",
+				},
+			},
+			targetFilename:    "nonexistent.html",
+			expectedTitles:    nil,
+			expectedFilenames: nil,
+		},
+		{
+			name:              "Empty chapter list",
+			chapters:          []SiteChapter{},
+			targetFilename:    "any.html",
+			expectedTitles:    nil,
+			expectedFilenames: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := NewSiteGenerator(SiteMeta{
+				Title:    "Test Book",
+				Author:   "Author",
+				Language: "en-US",
+			})
+			gen.Chapters = tt.chapters
+
+			result := gen.buildBreadcrumbs(tt.chapters, tt.targetFilename)
+
+			if tt.expectedTitles == nil {
+				if result != nil {
+					t.Errorf("buildBreadcrumbs expected nil, got %v", result)
+				}
+				return
+			}
+
+			if result == nil {
+				t.Errorf("buildBreadcrumbs expected non-nil result, got nil")
+				return
+			}
+
+			if len(result) != len(tt.expectedTitles) {
+				t.Errorf("breadcrumb length mismatch: got %d, expected %d", len(result), len(tt.expectedTitles))
+				return
+			}
+
+			for i, expected := range tt.expectedTitles {
+				if result[i].Title != expected {
+					t.Errorf("breadcrumb[%d].Title: got %q, expected %q", i, result[i].Title, expected)
+				}
+				if result[i].Filename != tt.expectedFilenames[i] {
+					t.Errorf("breadcrumb[%d].Filename: got %q, expected %q", i, result[i].Filename, tt.expectedFilenames[i])
+				}
+			}
+		})
+	}
+}
+
+// TestSiteGeneratorSitemapAndSearchIndex verifies that Generate() creates sitemap.xml and search-index.json with correct structure.
+func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Test Author",
+		Language: "en-US",
+	})
+
+	// Add multiple chapters for search index
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 1",
+		ID:       "ch1",
+		Filename: "ch1.html",
+		Content:  "<h1>Chapter 1</h1><p>This is the content of chapter one.</p>",
+	})
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 2",
+		ID:       "ch2",
+		Filename: "ch2.html",
+		Content:  "<h1>Chapter 2</h1><p>This is the content of chapter two.</p>",
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Test sitemap.xml
+	sitemapPath := filepath.Join(dir, "sitemap.xml")
+	sitemapData, err := os.ReadFile(sitemapPath)
+	if err != nil {
+		t.Fatalf("sitemap.xml not created: %v", err)
+	}
+
+	sitemapContent := string(sitemapData)
+
+	// Verify XML structure
+	if !strings.Contains(sitemapContent, `<?xml version="1.0" encoding="UTF-8"?>`) {
+		t.Error("sitemap.xml should contain XML declaration")
+	}
+	if !strings.Contains(sitemapContent, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`) {
+		t.Error("sitemap.xml should contain urlset element with correct namespace")
+	}
+	if !strings.Contains(sitemapContent, `<loc>index.html</loc>`) {
+		t.Error("sitemap.xml should contain index.html URL")
+	}
+	if !strings.Contains(sitemapContent, `<loc>ch1.html</loc>`) {
+		t.Error("sitemap.xml should contain ch1.html URL")
+	}
+	if !strings.Contains(sitemapContent, `<loc>ch2.html</loc>`) {
+		t.Error("sitemap.xml should contain ch2.html URL")
+	}
+	if !strings.Contains(sitemapContent, `</urlset>`) {
+		t.Error("sitemap.xml should close with </urlset>")
+	}
+
+	// Test search-index.json
+	searchIndexPath := filepath.Join(dir, "search-index.json")
+	searchIndexData, err := os.ReadFile(searchIndexPath)
+	if err != nil {
+		t.Fatalf("search-index.json not created: %v", err)
+	}
+
+	// Verify it is valid JSON
+	var searchEntries []interface{}
+	if err := json.Unmarshal(searchIndexData, &searchEntries); err != nil {
+		t.Fatalf("search-index.json is not valid JSON: %v", err)
+	}
+
+	if len(searchEntries) != 2 {
+		t.Errorf("search-index.json should have 2 entries, got %d", len(searchEntries))
+	}
+
+	// Verify each entry has expected fields (t, f, x)
+	for i, entry := range searchEntries {
+		entryMap, ok := entry.(map[string]interface{})
+		if !ok {
+			t.Errorf("entry %d is not a JSON object", i)
+			continue
+		}
+
+		if _, hasTitle := entryMap["t"]; !hasTitle {
+			t.Errorf("entry %d missing field 't' (title)", i)
+		}
+		if _, hasFilename := entryMap["f"]; !hasFilename {
+			t.Errorf("entry %d missing field 'f' (filename)", i)
+		}
+		if _, hasText := entryMap["x"]; !hasText {
+			t.Errorf("entry %d missing field 'x' (text)", i)
+		}
+	}
+
+	// Verify content
+	searchIndexContent := string(searchIndexData)
+	if !strings.Contains(searchIndexContent, "Chapter 1") {
+		t.Error("search-index.json should contain Chapter 1 title")
+	}
+	if !strings.Contains(searchIndexContent, "Chapter 2") {
+		t.Error("search-index.json should contain Chapter 2 title")
+	}
+	if !strings.Contains(searchIndexContent, "ch1.html") {
+		t.Error("search-index.json should contain ch1.html filename")
+	}
+	if !strings.Contains(searchIndexContent, "ch2.html") {
+		t.Error("search-index.json should contain ch2.html filename")
+	}
+}
+
+// TestContentStartsWithTitle verifies the duplicate-title detection logic.
+func TestContentStartsWithTitle(t *testing.T) {
+	tests := []struct {
+		name      string
+		html      string
+		pageTitle string
+		expected  bool
+	}{
+		{
+			name:      "h1 present anywhere — always true regardless of title match",
+			html:      "<h1>Different</h1><p>body</p>",
+			pageTitle: "My Page",
+			expected:  true,
+		},
+		{
+			name:      "leading h2 matches page title",
+			html:      "<h2>2.4 守护进程与可用性验收</h2><p>body</p>",
+			pageTitle: "2.4 守护进程与可用性验收",
+			expected:  true,
+		},
+		{
+			name:      "leading h2 does NOT match page title",
+			html:      "<h2>Something Else</h2><p>body</p>",
+			pageTitle: "My Page",
+			expected:  false,
+		},
+		{
+			name:      "leading h3 matches page title",
+			html:      "<h3>Chapter 5</h3><p>text</p>",
+			pageTitle: "Chapter 5",
+			expected:  true,
+		},
+		{
+			name:      "heading with inner tags matches page title",
+			html:      "<h2><a href=\"#\">Section 1</a></h2><p>text</p>",
+			pageTitle: "Section 1",
+			expected:  true,
+		},
+		{
+			name:      "leading whitespace before heading",
+			html:      "  \n <h2>My Title</h2><p>text</p>",
+			pageTitle: "My Title",
+			expected:  true,
+		},
+		{
+			name:      "no heading at all",
+			html:      "<p>Just a paragraph</p>",
+			pageTitle: "My Page",
+			expected:  false,
+		},
+		{
+			name:      "empty content",
+			html:      "",
+			pageTitle: "Title",
+			expected:  false,
+		},
+		{
+			name:      "h2 NOT at start — should not match",
+			html:      "<p>Intro</p><h2>My Page</h2>",
+			pageTitle: "My Page",
+			expected:  false,
+		},
+		{
+			name:      "heading with attributes matches",
+			html:      "<h2 id=\"sec\" class=\"chapter\">Overview</h2>",
+			pageTitle: "Overview",
+			expected:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := contentStartsWithTitle(tt.html, tt.pageTitle)
+			if result != tt.expected {
+				t.Errorf("contentStartsWithTitle(%q, %q) = %v, want %v",
+					tt.html, tt.pageTitle, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestExtractDescriptionEdgeCases verifies the extractDescription function handles various edge cases.
+func TestExtractDescriptionEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		expected string
+	}{
+		{
+			name:     "HTML with HTML entities",
+			html:     "Text with &amp; and &lt; entities",
+			expected: "Text with &amp; and &lt; entities",
+		},
+		{
+			name:     "Empty string",
+			html:     "",
+			expected: "",
+		},
+		{
+			name:     "String with only whitespace",
+			html:     "   \n\t  \n  ",
+			expected: "",
+		},
+		{
+			name:     "Simple HTML with tags",
+			html:     "<p>Hello <b>world</b></p>",
+			expected: "Hello world",
+		},
+		{
+			name:     "HTML with multiple consecutive spaces",
+			html:     "<p>Text    with     spaces</p>",
+			expected: "Text with spaces",
+		},
+		{
+			name:     "Text under 160 characters",
+			html:     "<p>Short text</p>",
+			expected: "Short text",
+		},
+		{
+			name:     "Text exactly at boundary (160 chars)",
+			html:     "<p>" + strings.Repeat("word ", 32) + "</p>",
+			expected: strings.TrimSpace(strings.Repeat("word ", 32)),
+		},
+		{
+			name: "Long text needing truncation",
+			html: "<p>" + strings.Repeat("word ", 50) + "</p>",
+			// Will be truncated to around 160 chars with ellipsis
+			expected: "", // Will be checked by length and ellipsis below
+		},
+		{
+			name:     "Very long Chinese text with truncation",
+			html:     "<p>这是一个很长的中文文本。" + strings.Repeat("这是测试文本。", 30) + "</p>",
+			expected: "", // Will be checked by length and ellipsis below
+		},
+		{
+			name:     "HTML with mixed entities and tags",
+			html:     "<div>Test &amp; more &lt;stuff&gt;</div>",
+			expected: "Test &amp; more &lt;stuff&gt;",
+		},
+		{
+			name:     "Multiple tags and entities combined",
+			html:     "<p>Some <span>text</span> with &nbsp; and <b>bold</b> &amp; more</p>",
+			expected: "Some text with &nbsp; and bold &amp; more",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractDescription(tt.html)
+
+			// For long text tests, verify truncation and ellipsis instead of exact match.
+			// extractDescription truncates by rune count (~160 characters) to avoid
+			// splitting multi-byte UTF-8 characters.
+			if tt.name == "Long text needing truncation" || tt.name == "Very long Chinese text with truncation" {
+				if len(result) > 500 {
+					t.Errorf("extractDescription should truncate long text: got length %d", len(result))
+				}
+				if !strings.HasSuffix(result, "…") {
+					t.Errorf("extractDescription should end with ellipsis for truncated text")
+				}
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("extractDescription(%q) = %q, want %q", tt.html, result, tt.expected)
+			}
+		})
 	}
 }

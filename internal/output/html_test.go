@@ -63,12 +63,22 @@ func TestSiteGeneratorNestedSidebar(t *testing.T) {
 		Author:   "Author",
 		Language: "en-US",
 	})
+	// Use Children (sub-chapters) to trigger nav-group with expand/collapse.
+	// With maxSidebarHeadingDepth = 0, only Children create collapsible groups.
 	gen.AddChapter(SiteChapter{
-		Title:    "Chapter 1",
-		ID:       "ch1",
-		Filename: "ch1.html",
-		Content:  "<h1>Chapter 1</h1><h2 id=\"sec-1\">Section 1</h2>",
-		Headings: []SiteNavHeading{{Title: "Section 1", ID: "sec-1"}},
+		Title:    "Part 1",
+		ID:       "part1",
+		Filename: "part1.html",
+		Content:  "<h1>Part 1</h1><p>Overview</p>",
+		Children: []SiteChapter{
+			{
+				Title:    "Chapter 1",
+				ID:       "ch1",
+				Filename: "ch1.html",
+				Content:  "<h1>Chapter 1</h1><h2 id=\"sec-1\">Section 1</h2>",
+				Depth:    1,
+			},
+		},
 	})
 
 	if err := gen.Generate(dir); err != nil {
@@ -85,8 +95,8 @@ func TestSiteGeneratorNestedSidebar(t *testing.T) {
 	if !strings.Contains(html, "nav-group") {
 		t.Error("sidebar should contain collapsible nav group")
 	}
-	if !strings.Contains(html, "href=\"ch1.html#sec-1\"") {
-		t.Error("sidebar should contain heading anchor link")
+	if !strings.Contains(html, "href=\"ch1.html\"") {
+		t.Error("sidebar should contain child chapter link")
 	}
 }
 
@@ -97,39 +107,47 @@ func TestSiteGeneratorInteractiveSidebar(t *testing.T) {
 		Language: "en-US",
 	})
 
+	// Use Children (sub-chapters) to create collapsible groups.
+	// With maxSidebarHeadingDepth = 0, Headings alone don't trigger groups.
 	chapters := []SiteChapter{
 		{
-			Title:    "Chapter 1",
-			ID:       "ch1",
-			Filename: "ch1.html",
-			Headings: []SiteNavHeading{{Title: "Section 1", ID: "sec-1"}},
+			Title:    "Part 1",
+			ID:       "part1",
+			Filename: "part1.html",
+			Children: []SiteChapter{
+				{Title: "Ch 1.1", ID: "ch1-1", Filename: "ch1-1.html", Depth: 1},
+			},
 		},
 		{
-			Title:    "Chapter 2",
-			ID:       "ch2",
-			Filename: "ch2.html",
-			Headings: []SiteNavHeading{{Title: "Section 2", ID: "sec-2"}},
+			Title:    "Part 2",
+			ID:       "part2",
+			Filename: "part2.html",
+			Children: []SiteChapter{
+				{Title: "Ch 2.1", ID: "ch2-1", Filename: "ch2-1.html", Depth: 1},
+			},
 		},
 	}
 
-	sidebar := gen.buildSidebar(chapters, "ch2.html")
-	if !strings.Contains(sidebar, `class="nav-group collapsed" data-group-file="ch1.html"`) {
+	sidebar := gen.buildSidebar(chapters, "ch2-1.html")
+	if !strings.Contains(sidebar, `class="nav-group collapsed" data-group-file="part1.html"`) {
 		t.Error("inactive chapter groups should be collapsed by default")
 	}
-	if !strings.Contains(sidebar, `class="nav-group expanded" data-group-file="ch2.html"`) {
+	if !strings.Contains(sidebar, `class="nav-group expanded" data-group-file="part2.html"`) {
 		t.Error("active chapter groups should be expanded in initial markup")
 	}
 
 	dir := t.TempDir()
 	gen.Chapters = chapters
-	gen.Chapters[0].Content = "<h1>Chapter 1</h1><h2 id=\"sec-1\">Section 1</h2>"
-	gen.Chapters[1].Content = "<h1>Chapter 2</h1><h2 id=\"sec-2\">Section 2</h2>"
+	gen.Chapters[0].Content = "<h1>Part 1</h1><p>Overview</p>"
+	gen.Chapters[0].Children[0].Content = "<h1>Chapter 1.1</h1><p>Content</p>"
+	gen.Chapters[1].Content = "<h1>Part 2</h1><p>Overview</p>"
+	gen.Chapters[1].Children[0].Content = "<h1>Chapter 2.1</h1><p>Content</p>"
 
 	if err := gen.Generate(dir); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pagePath := filepath.Join(dir, "ch2.html")
+	pagePath := filepath.Join(dir, "ch2-1.html")
 	data, err := os.ReadFile(pagePath)
 	if err != nil {
 		t.Fatalf("read page failed: %v", err)
