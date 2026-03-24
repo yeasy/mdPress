@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -133,7 +134,11 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 	var readmeFile string
 	var otherFiles []string
 	for _, f := range mdFiles {
-		relPath, _ := filepath.Rel(dir, f)
+		relPath, err := filepath.Rel(dir, f)
+		if err != nil {
+			slog.Warn("failed to compute relative path", slog.String("dir", dir), slog.String("file", f), slog.Any("error", err))
+			relPath = f // fallback to absolute path
+		}
 		baseName := strings.ToLower(filepath.Base(f))
 		if baseName == "readme.md" && filepath.Dir(relPath) == "." {
 			readmeFile = relPath
@@ -199,6 +204,7 @@ func findMarkdownFiles(dir string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			slog.Warn("error during directory walk", slog.String("path", path), slog.Any("error", err))
 			return nil // Skip inaccessible files.
 		}
 
@@ -296,7 +302,11 @@ func ExtractReadmeMetadata(ctx context.Context, path string) ReadmeMetadata {
 	if err != nil {
 		return ReadmeMetadata{}
 	}
-	defer f.Close() //nolint:errcheck
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("failed to close README file", slog.String("path", path), slog.Any("error", err))
+		}
+	}()
 
 	var meta ReadmeMetadata
 	var h1Title string
@@ -342,11 +352,11 @@ func ExtractReadmeMetadata(ctx context.Context, path string) ReadmeMetadata {
 		}
 	}
 
-	// Check for scanner errors; silently ignore them for best-effort metadata extraction.
+	// Check for scanner errors; log them for best-effort metadata extraction.
 	if err := scanner.Err(); err != nil {
 		// Error occurred during scanning, but we continue with the metadata extracted so far.
 		// This is best-effort metadata extraction from README.
-		_ = err
+		slog.Warn("error reading README file during metadata extraction", slog.String("path", path), slog.Any("error", err))
 	}
 
 	content := allText.String()
