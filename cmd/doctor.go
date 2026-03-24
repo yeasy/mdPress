@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yeasy/mdpress/internal/config"
@@ -17,6 +20,7 @@ import (
 )
 
 var doctorReportPath string
+var doctorVerbose bool
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor [directory]",
@@ -25,6 +29,12 @@ var doctorCmd = &cobra.Command{
   - Runtime platform information
   - Go runtime version (informational)
   - Chrome/Chromium availability for PDF output
+  - Go version (>=1.25 recommended)
+  - Git availability for remote source builds
+  - Network connectivity to github.com
+  - Disk space in output directory
+  - CJK font availability for Asian text rendering
+  - Plugin health and availability
   - Presence of book.yaml / SUMMARY.md / LANGS.md
   - Whether the project can be loaded
   - Whether Markdown chapter links stay inside the build graph`,
@@ -40,6 +50,7 @@ var doctorCmd = &cobra.Command{
 
 func init() {
 	doctorCmd.Flags().StringVar(&doctorReportPath, "report", "", "Write doctor report to .json or .md")
+	doctorCmd.Flags().BoolVar(&doctorVerbose, "verbose", false, "Show detailed output for each check")
 }
 
 type doctorReport struct {
@@ -51,6 +62,13 @@ type doctorReport struct {
 	CJKFontsAvailable  bool                     `json:"cjk_fonts_available"`
 	PlantUMLAvailable  bool                     `json:"plantuml_available"`
 	PlantUMLNeeded     bool                     `json:"plantuml_needed"`
+	GoVersionCheck     string                   `json:"go_version_check,omitempty"`
+	GitAvailable       bool                     `json:"git_available"`
+	NetworkAvailable   bool                     `json:"network_available"`
+	DiskSpaceGB        float64                  `json:"disk_space_gb,omitempty"`
+	DiskSpaceOK        bool                     `json:"disk_space_ok"`
+	PluginsValid       bool                     `json:"plugins_valid"`
+	PluginCount        int                      `json:"plugin_count,omitempty"`
 	BookYAMLFound      bool                     `json:"book_yaml_found"`
 	SummaryFound       bool                     `json:"summary_found"`
 	LangsFound         bool                     `json:"langs_found"`
@@ -100,6 +118,18 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		utils.Success("Chromium/Chrome is available")
 	}
 
+	// Check Go version
+	checkGoVersion(&report)
+
+	// Check Git availability
+	checkGitAvailable(&report)
+
+	// Check Network connectivity
+	checkNetworkConnectivity(&report)
+
+	// Check disk space in output directory
+	checkDiskSpace(absDir, &report)
+
 	// Check CJK font availability for PDF rendering of Chinese/Japanese/Korean content.
 	cjkStatus := utils.CheckCJKFonts()
 	report.CJKFontsAvailable = cjkStatus.Available
@@ -113,6 +143,9 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 
 	// Check PlantUML availability for diagram rendering.
 	checkPlantUML(absDir, &report)
+
+	// Check plugins availability
+	checkPlugins(absDir, &report)
 
 	fmt.Println()
 	utils.Header("Project Check")
@@ -209,6 +242,228 @@ func reportDoctorMarkdownLinks(cfg *config.BookConfig, report *doctorReport) {
 	if len(unresolved) > limit {
 		fmt.Printf("    - ... and %d more\n", len(unresolved)-limit)
 	}
+}
+
+func checkGoVersion(report *doctorReport) {
+	version := runtime.Version()
+	report.GoVersionCheck = version
+
+	// Extract version number (e.g., "go1.25.0" -> "1.25.0")
+	versionStr := strings.TrimPrefix(version, "go")
+	parts := strings.Split(versionStr, ".")
+	if len(parts) < 2 {
+		utils.Warning("Could not parse Go version")
+		return
+	}
+
+	// Check if major.minor >= 1.25
+	major, minorErr := utils.ParseVersionPart(parts[0])
+	if minorErr != nil {
+		if doctorVerbose {
+			utils.Warning("Could not parse Go major version: %v", minorErr)
+		}
+		return
+	}
+
+	minor, patchErr := utils.ParseVersionPart(parts[1])
+	if patchErr != nil {
+		if doctorVerbose {
+			utils.Warning("Could not parse Go minor version: %v", patchErr)
+		}
+		return
+	}
+
+	if major > 1 || (major == 1 && minor >= 25) {
+		utils.Success("Go version %s (>= 1.25)", versionStr)
+	} else {
+		utils.Warning("Go version %s (< 1.25) — some features may not work as expected", versionStr)
+		report.Warnings = append(report.Warnings, fmt.Sprintf("Go version %s is below recommended 1.25", versionStr))
+	}
+}
+
+func checkGitAvailable(report *doctorReport) {
+	_, err := exec.LookPath("git")
+	if err != nil {
+		utils.Warning("Git not found (required for remote source builds)")
+		report.Warnings = append(report.Warnings, "Git is not available (required for remote source builds)")
+	} else {
+		report.GitAvailable = true
+		utils.Success("Git is available")
+	}
+}
+
+func checkNetworkConnectivity(report *doctorReport) {
+	// Try an HTTP HEAD request to github.com (cross-platform connectivity check)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "HEAD", "https://github.com", nil)
+	if err != nil {
+		utils.Warning("Network connectivity check failed")
+		if doctorVerbose {
+			fmt.Printf("    Error: %v\n", err)
+		}
+		report.Warnings = append(report.Warnings, "Cannot reach github.com (network connectivity issue)")
+		return
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		utils.Warning("Network connectivity check failed (cannot reach github.com)")
+		if doctorVerbose {
+			fmt.Printf("    Error: %v\n", err)
+		}
+		report.Warnings = append(report.Warnings, "Cannot reach github.com (network connectivity issue)")
+		return
+	}
+	defer resp.Body.Close()
+
+	report.NetworkAvailable = true
+	utils.Success("Network connectivity to github.com available")
+}
+
+func checkDiskSpace(targetDir string, report *doctorReport) {
+	// Try to get the output directory from book.yaml if it exists
+	bookPath := filepath.Join(targetDir, "book.yaml")
+	outputDir := filepath.Join(targetDir, "output")
+
+	// If book.yaml exists, try to load it to get the output directory
+	if _, err := os.Stat(bookPath); err == nil {
+		cfg, err := config.Load(bookPath)
+		if err == nil && cfg.Output.Filename != "" {
+			outPath := filepath.Dir(cfg.Output.Filename)
+			if !filepath.IsAbs(outPath) {
+				outPath = filepath.Join(targetDir, outPath)
+			}
+			outputDir, _ = filepath.Abs(outPath)
+		}
+	}
+
+	// Make sure output directory exists
+	if err := os.MkdirAll(outputDir, 0755); err != nil && doctorVerbose {
+		utils.Warning("Could not access output directory: %v", err)
+		return
+	}
+
+	// Get disk space using the df command (works on macOS, Linux, and most Unix systems).
+	// On Windows this will fail gracefully and we skip the check.
+	out, err := exec.CommandContext(context.Background(), "df", "-k", outputDir).Output()
+	if err != nil {
+		if doctorVerbose {
+			utils.Warning("Could not determine disk space: %v", err)
+		}
+		return
+	}
+	// Parse df output: second line, 4th column (available KB).
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return
+	}
+	fields := strings.Fields(lines[1])
+	if len(fields) < 4 {
+		return
+	}
+	var availKB int64
+	if _, err := fmt.Sscanf(fields[3], "%d", &availKB); err != nil {
+		return
+	}
+	availableGB := float64(availKB) / (1024 * 1024)
+	report.DiskSpaceGB = availableGB
+
+	// Threshold: 100 MB = 0.1 GB
+	const minDiskSpaceGB = 0.1
+	if availableGB < minDiskSpaceGB {
+		utils.Error("Disk space critically low (%.2f GB available, < 100 MB required)", availableGB)
+		report.Warnings = append(report.Warnings, fmt.Sprintf("Disk space critically low: only %.2f GB available", availableGB))
+		return
+	}
+
+	report.DiskSpaceOK = true
+	if doctorVerbose {
+		utils.Success("Disk space available: %.2f GB", availableGB)
+	} else {
+		utils.Success("Disk space available")
+	}
+}
+
+func checkPlugins(targetDir string, report *doctorReport) {
+	// Try to load book.yaml to check plugins
+	bookPath := filepath.Join(targetDir, "book.yaml")
+	if _, err := os.Stat(bookPath); err != nil {
+		// No book.yaml, no plugins to check
+		report.PluginsValid = true
+		return
+	}
+
+	cfg, err := config.Load(bookPath)
+	if err != nil {
+		if doctorVerbose {
+			utils.Warning("Could not load book.yaml to check plugins: %v", err)
+		}
+		return
+	}
+
+	if len(cfg.Plugins) == 0 {
+		// No plugins configured
+		report.PluginsValid = true
+		return
+	}
+
+	report.PluginCount = len(cfg.Plugins)
+	allValid := true
+
+	for _, plugin := range cfg.Plugins {
+		if plugin.Path == "" {
+			allValid = false
+			if doctorVerbose {
+				utils.Error("Plugin %q has empty path", plugin.Name)
+			} else {
+				utils.Warning("Plugin %q has empty path", plugin.Name)
+			}
+			continue
+		}
+
+		pluginPath := plugin.Path
+		if !filepath.IsAbs(pluginPath) {
+			pluginPath = filepath.Join(targetDir, pluginPath)
+		}
+
+		// Check if the executable exists
+		if _, err := os.Stat(pluginPath); err != nil {
+			allValid = false
+			if doctorVerbose {
+				utils.Error("Plugin %q not found at %s", plugin.Name, pluginPath)
+			} else {
+				utils.Warning("Plugin %q not found", plugin.Name)
+			}
+			continue
+		}
+
+		// Check if it's executable
+		info, _ := os.Stat(pluginPath)
+		if !isExecutable(info.Mode()) {
+			allValid = false
+			if doctorVerbose {
+				utils.Warning("Plugin %q is not executable", plugin.Name)
+			}
+		}
+	}
+
+	if allValid {
+		report.PluginsValid = true
+		utils.Success("All %d plugin(s) are valid", len(cfg.Plugins))
+	} else {
+		report.PluginsValid = false
+		report.Warnings = append(report.Warnings, fmt.Sprintf("%d plugin(s) have issues", len(cfg.Plugins)))
+	}
+}
+
+func isExecutable(mode os.FileMode) bool {
+	return (mode & 0111) != 0
 }
 
 func checkPlantUML(targetDir string, report *doctorReport) {
@@ -345,14 +600,27 @@ func renderDoctorMarkdown(report doctorReport) string {
 	b.WriteString("# mdpress Doctor Report\n\n")
 	fmt.Fprintf(&b, "- Platform: %s\n", report.Platform)
 	fmt.Fprintf(&b, "- Go version: %s\n", report.GoVersion)
+	if report.GoVersionCheck != "" {
+		fmt.Fprintf(&b, "- Go version check: %s\n", report.GoVersionCheck)
+	}
 	fmt.Fprintf(&b, "- Cache disabled: %t\n", report.CacheDisabled)
 	if report.CacheDir != "" {
 		fmt.Fprintf(&b, "- Cache dir: %s\n", report.CacheDir)
 	}
 	fmt.Fprintf(&b, "- Chromium available: %t\n", report.ChromiumAvailable)
 	fmt.Fprintf(&b, "- CJK fonts available: %t\n", report.CJKFontsAvailable)
+	fmt.Fprintf(&b, "- Git available: %t\n", report.GitAvailable)
+	fmt.Fprintf(&b, "- Network connectivity: %t\n", report.NetworkAvailable)
+	if report.DiskSpaceGB > 0 {
+		fmt.Fprintf(&b, "- Disk space available: %.2f GB\n", report.DiskSpaceGB)
+	}
+	fmt.Fprintf(&b, "- Disk space OK: %t\n", report.DiskSpaceOK)
 	fmt.Fprintf(&b, "- PlantUML needed: %t\n", report.PlantUMLNeeded)
 	fmt.Fprintf(&b, "- PlantUML available: %t\n", report.PlantUMLAvailable)
+	fmt.Fprintf(&b, "- Plugins valid: %t\n", report.PluginsValid)
+	if report.PluginCount > 0 {
+		fmt.Fprintf(&b, "- Plugin count: %d\n", report.PluginCount)
+	}
 	fmt.Fprintf(&b, "- book.yaml found: %t\n", report.BookYAMLFound)
 	fmt.Fprintf(&b, "- SUMMARY.md found: %t\n", report.SummaryFound)
 	fmt.Fprintf(&b, "- LANGS.md found: %t\n", report.LangsFound)

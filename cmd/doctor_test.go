@@ -13,6 +13,7 @@ import (
 )
 
 func TestDoctorEmptyDirectory(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	err := executeDoctor(context.Background(), tmpDir)
@@ -22,6 +23,7 @@ func TestDoctorEmptyDirectory(t *testing.T) {
 }
 
 func TestDoctorWithBookYAML(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	bookYAML := `book:
@@ -49,6 +51,7 @@ chapters:
 }
 
 func TestDoctorWithSummaryMD(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	summaryContent := `# Summary
@@ -85,6 +88,7 @@ func TestDoctorNonExistentDir(t *testing.T) {
 }
 
 func TestDoctorWithValidBookConfig(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	bookYAML := `book:
@@ -129,6 +133,7 @@ chapters:
 }
 
 func TestDoctorWithLangsFile(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	// Create LANGS.md
@@ -149,6 +154,7 @@ func TestDoctorWithLangsFile(t *testing.T) {
 }
 
 func TestDoctorReportPath(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	bookYAML := `book:
@@ -615,6 +621,7 @@ func TestDoctorReport_JSONSerialization(t *testing.T) {
 
 // TestDoctorPathResolution tests that executeDoctor handles absolute and relative paths
 func TestDoctorPathResolution(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 
 	// Create a simple project
@@ -651,5 +658,191 @@ func TestDoctorWithFile(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not a directory") {
 		t.Errorf("expected 'not a directory' error, got: %v", err)
+	}
+}
+
+// TestCheckGoVersion tests Go version checking
+func TestCheckGoVersion(t *testing.T) {
+	report := &doctorReport{}
+
+	// This test calls checkGoVersion which uses runtime.Version()
+	// We can't directly control the version, but we can verify the function doesn't error
+	checkGoVersion(report)
+
+	// Verify that GoVersionCheck field was populated
+	if report.GoVersionCheck == "" {
+		t.Error("GoVersionCheck should be populated")
+	}
+}
+
+// TestCheckGitAvailable tests Git availability check
+func TestCheckGitAvailable(t *testing.T) {
+	report := &doctorReport{}
+	checkGitAvailable(report)
+
+	// Git may or may not be available, but the function should not error
+	// and should populate the GitAvailable field
+	if report.GitAvailable {
+		// Git is available, that's good
+		t.Logf("Git is available")
+	}
+}
+
+// TestCheckDiskSpace tests disk space checking
+func TestCheckDiskSpace(t *testing.T) {
+	tmpDir := t.TempDir()
+	report := &doctorReport{}
+
+	checkDiskSpace(tmpDir, report)
+
+	// Verify report fields were populated
+	if !report.DiskSpaceOK && report.DiskSpaceGB >= 0.1 {
+		t.Error("DiskSpaceOK should be true when space >= 100MB")
+	}
+
+	// DiskSpaceGB should be non-negative
+	if report.DiskSpaceGB < 0 {
+		t.Error("DiskSpaceGB should be non-negative")
+	}
+}
+
+// TestCheckPluginsNone tests plugin checking when no plugins configured
+func TestCheckPluginsNone(t *testing.T) {
+	tmpDir := t.TempDir()
+	report := &doctorReport{}
+
+	// No book.yaml, so no plugins to check
+	checkPlugins(tmpDir, report)
+
+	if !report.PluginsValid {
+		t.Error("PluginsValid should be true when no plugins configured")
+	}
+	if report.PluginCount != 0 {
+		t.Errorf("PluginCount should be 0, got %d", report.PluginCount)
+	}
+}
+
+// TestCheckPluginsWithConfig tests plugin checking with book.yaml
+func TestCheckPluginsWithConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a book.yaml with a plugin
+	bookYAML := `book:
+  title: "Test"
+chapters:
+  - title: "Ch1"
+    file: "ch1.md"
+plugins:
+  - name: test-plugin
+    path: ./plugins/test
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+		t.Fatalf("failed to create book.yaml: %v", err)
+	}
+
+	// Create chapter file
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("failed to create chapter file: %v", err)
+	}
+
+	report := &doctorReport{}
+	checkPlugins(tmpDir, report)
+
+	// Plugin path doesn't exist, so should not be valid
+	if report.PluginsValid {
+		t.Error("PluginsValid should be false when plugin not found")
+	}
+	if report.PluginCount != 1 {
+		t.Errorf("PluginCount should be 1, got %d", report.PluginCount)
+	}
+}
+
+// TestCheckPluginsWithValidPlugin tests plugin checking with valid plugin
+func TestCheckPluginsWithValidPlugin(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create plugin directory
+	pluginDir := filepath.Join(tmpDir, "plugins")
+	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+		t.Fatalf("failed to create plugins directory: %v", err)
+	}
+
+	// Create an executable file
+	pluginPath := filepath.Join(pluginDir, "test")
+	if err := os.WriteFile(pluginPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+		t.Fatalf("failed to create plugin: %v", err)
+	}
+
+	// Create a book.yaml with the plugin
+	bookYAML := `book:
+  title: "Test"
+chapters:
+  - title: "Ch1"
+    file: "ch1.md"
+plugins:
+  - name: test-plugin
+    path: ./plugins/test
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+		t.Fatalf("failed to create book.yaml: %v", err)
+	}
+
+	// Create chapter file
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+		t.Fatalf("failed to create chapter file: %v", err)
+	}
+
+	report := &doctorReport{}
+	checkPlugins(tmpDir, report)
+
+	if !report.PluginsValid {
+		t.Error("PluginsValid should be true when plugin is executable")
+	}
+	if report.PluginCount != 1 {
+		t.Errorf("PluginCount should be 1, got %d", report.PluginCount)
+	}
+}
+
+// TestIsExecutable tests the isExecutable helper
+func TestIsExecutable(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     os.FileMode
+		expected bool
+	}{
+		{
+			name:     "executable_file",
+			mode:     0755,
+			expected: true,
+		},
+		{
+			name:     "non_executable_file",
+			mode:     0644,
+			expected: false,
+		},
+		{
+			name:     "owner_executable",
+			mode:     0700,
+			expected: true,
+		},
+		{
+			name:     "group_executable",
+			mode:     0070,
+			expected: true,
+		},
+		{
+			name:     "other_executable",
+			mode:     0007,
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isExecutable(tt.mode)
+			if result != tt.expected {
+				t.Errorf("isExecutable(%o) = %v, expected %v", tt.mode, result, tt.expected)
+			}
+		})
 	}
 }

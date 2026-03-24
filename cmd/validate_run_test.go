@@ -42,6 +42,7 @@ func withValidateReportPath(t *testing.T, path string) func() {
 }
 
 func TestExecuteValidate_ValidProject(t *testing.T) {
+	defer suppressOutput(t)()
 	defer withValidateReportPath(t, "")()
 	tmpDir := t.TempDir()
 	createTestProject(t, tmpDir)
@@ -52,6 +53,7 @@ func TestExecuteValidate_ValidProject(t *testing.T) {
 }
 
 func TestExecuteValidate_MissingChapterFile(t *testing.T) {
+	defer suppressOutput(t)()
 	defer withValidateReportPath(t, "")()
 	tmpDir := t.TempDir()
 
@@ -72,6 +74,7 @@ chapters:
 }
 
 func TestExecuteValidate_MissingTitle(t *testing.T) {
+	defer suppressOutput(t)()
 	defer withValidateReportPath(t, "")()
 	tmpDir := t.TempDir()
 
@@ -96,6 +99,7 @@ chapters:
 }
 
 func TestExecuteValidate_NoChapters(t *testing.T) {
+	defer suppressOutput(t)()
 	defer withValidateReportPath(t, "")()
 	tmpDir := t.TempDir()
 
@@ -114,6 +118,7 @@ chapters: []
 }
 
 func TestExecuteValidate_WithCoverImageMissing(t *testing.T) {
+	defer suppressOutput(t)()
 	defer withValidateReportPath(t, "")()
 	tmpDir := t.TempDir()
 
@@ -139,6 +144,7 @@ chapters:
 }
 
 func TestExecuteValidate_WithJSONReport(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	createTestProject(t, tmpDir)
 
@@ -153,6 +159,7 @@ func TestExecuteValidate_WithJSONReport(t *testing.T) {
 }
 
 func TestExecuteValidate_WithMDReport(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	createTestProject(t, tmpDir)
 

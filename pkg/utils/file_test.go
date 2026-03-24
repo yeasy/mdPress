@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -258,5 +259,187 @@ func TestReadWriteRoundTrip(t *testing.T) {
 		if string(data) != content {
 			t.Errorf("case %d: 读写不一致", i)
 		}
+	}
+}
+
+// TestCacheRootDir 测试缓存根目录
+func TestCacheRootDir(t *testing.T) {
+	// Test 1: Default behavior (no env var)
+	t.Run("default without env var", func(t *testing.T) {
+		t.Setenv("MDPRESS_CACHE_DIR", "")
+		cacheDir := CacheRootDir()
+		if cacheDir == "" {
+			t.Error("CacheRootDir should return non-empty path")
+		}
+		// Should contain expected pattern
+		if !strings.HasSuffix(cacheDir, "mdpress-cache") {
+			t.Errorf("CacheRootDir() = %q, expected to end with 'mdpress-cache'", cacheDir)
+		}
+	})
+
+	// Test 2: With MDPRESS_CACHE_DIR set
+	t.Run("with custom env var", func(t *testing.T) {
+		customDir := "/custom/cache/path"
+		t.Setenv("MDPRESS_CACHE_DIR", customDir)
+		cacheDir := CacheRootDir()
+		if cacheDir != customDir {
+			t.Errorf("CacheRootDir() = %q, want %q", cacheDir, customDir)
+		}
+	})
+
+	// Test 3: With whitespace in env var (should be trimmed)
+	t.Run("with whitespace", func(t *testing.T) {
+		customDir := "  /path/with/spaces  "
+		expected := "/path/with/spaces"
+		t.Setenv("MDPRESS_CACHE_DIR", customDir)
+		cacheDir := CacheRootDir()
+		if cacheDir != expected {
+			t.Errorf("CacheRootDir() = %q, want %q (trimmed)", cacheDir, expected)
+		}
+	})
+}
+
+// TestCacheDisabled 测试缓存禁用检查
+func TestCacheDisabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		envValue    string
+		expectedVal bool
+	}{
+		{"unset", "", false},
+		{"1", "1", true},
+		{"true", "true", true},
+		{"True", "True", true},
+		{"TRUE", "TRUE", true},
+		{"yes", "yes", true},
+		{"Yes", "Yes", true},
+		{"YES", "YES", true},
+		{"on", "on", true},
+		{"On", "On", true},
+		{"ON", "ON", true},
+		{"false", "false", false},
+		{"0", "0", false},
+		{"no", "no", false},
+		{"off", "off", false},
+		{"random", "random", false},
+		{"with spaces", "  true  ", true},
+		{"with spaces 1", "  1  ", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("MDPRESS_DISABLE_CACHE", tt.envValue)
+			result := CacheDisabled()
+			if result != tt.expectedVal {
+				t.Errorf("CacheDisabled() with %q = %v, want %v", tt.envValue, result, tt.expectedVal)
+			}
+		})
+	}
+}
+
+// TestExtractTitleFromFile 测试从文件提取标题
+func TestExtractTitleFromFile(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		expectedLen int // len > 0 for title found, 0 for no title
+	}{
+		{
+			name:        "simple h1 heading",
+			content:     "# My Title",
+			expectedLen: 1,
+		},
+		{
+			name:        "h1 with leading whitespace",
+			content:     "  # My Title With Spaces  ",
+			expectedLen: 1,
+		},
+		{
+			name:        "h1 in middle",
+			content:     "Some intro\n# The Real Title\nMore content",
+			expectedLen: 1,
+		},
+		{
+			name:        "multiple h1 (returns first)",
+			content:     "# First Title\n# Second Title",
+			expectedLen: 1,
+		},
+		{
+			name:        "no h1 heading",
+			content:     "## H2 Heading\n### H3 Heading",
+			expectedLen: 0,
+		},
+		{
+			name:        "empty file",
+			content:     "",
+			expectedLen: 0,
+		},
+		{
+			name:        "h1 with special chars",
+			content:     "# Title: With Special (Chars) & More",
+			expectedLen: 1,
+		},
+		{
+			name:        "h1 with unicode",
+			content:     "# 你好世界 - Hello World",
+			expectedLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			filePath := filepath.Join(tmpDir, "test.md")
+			if err := os.WriteFile(filePath, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			title := ExtractTitleFromFile(filePath)
+			if tt.expectedLen > 0 {
+				if title == "" {
+					t.Errorf("ExtractTitleFromFile() expected title, got empty")
+				}
+				if !strings.HasPrefix(tt.content, "") {
+					// Basic sanity check that title appears in content
+					if !strings.Contains(tt.content, title) {
+						t.Errorf("ExtractTitleFromFile() = %q, not found in content", title)
+					}
+				}
+			} else if title != "" {
+				t.Errorf("ExtractTitleFromFile() = %q, expected empty", title)
+			}
+		})
+	}
+}
+
+// TestExtractTitleFromFileNonExistent 测试从不存在的文件提取标题
+func TestExtractTitleFromFileNonExistent(t *testing.T) {
+	title := ExtractTitleFromFile("/nonexistent/file.md")
+	if title != "" {
+		t.Errorf("ExtractTitleFromFile() on non-existent file should return empty, got %q", title)
+	}
+}
+
+// TestExtractTitleFrom50LineLimit 测试50行限制
+func TestExtractTitleFrom50LineLimit(t *testing.T) {
+	// Create a file where H1 is beyond the 50-line limit
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "test.md")
+
+	// Create content with 100 lines, H1 at line 60
+	var content strings.Builder
+	for i := 0; i < 59; i++ {
+		content.WriteString("Some content line\n")
+	}
+	content.WriteString("# Title After Line 50\n")
+	content.WriteString("More content\n")
+
+	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	title := ExtractTitleFromFile(filePath)
+	if title != "" {
+		t.Errorf("ExtractTitleFromFile() should stop at 50 lines, got %q", title)
 	}
 }

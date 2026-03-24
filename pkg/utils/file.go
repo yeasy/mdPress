@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -195,4 +196,21 @@ func ExtractTitleFromFile(path string) string {
 		_ = err
 	}
 	return ""
+}
+
+// ParseVersionPart parses a version number component (e.g., "25" from "1.25.0").
+func ParseVersionPart(s string) (int, error) {
+	// Strip any non-numeric suffix (e.g., "25rc1" -> parse as "25")
+	numericPart := ""
+	for _, ch := range s {
+		if ch >= '0' && ch <= '9' {
+			numericPart += string(ch)
+		} else {
+			break
+		}
+	}
+	if numericPart == "" {
+		return 0, fmt.Errorf("no numeric part found in %q", s)
+	}
+	return strconv.Atoi(numericPart)
 }

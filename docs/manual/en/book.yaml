@@ -1,0 +1,14 @@
+book:
+  title: "mdPress User Manual"
+  author: "mdPress Contributors"
+  version: "0.6.0"
+  language: "en"
+  description: "The complete guide to mdPress — a modern Markdown-to-book publishing toolkit."
+
+style:
+  theme: "technical"
+  code_theme: "github"
+
+output:
+  toc: true
+  toc_max_depth: 3

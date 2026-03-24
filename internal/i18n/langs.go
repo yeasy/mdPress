@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -70,6 +71,6 @@ func ParseLangsFile(path string) ([]LangDef, error) {
 
 // HasLangsFile reports whether LANGS.md exists in a directory.
 func HasLangsFile(dir string) bool {
-	_, err := os.Stat(dir + "/LANGS.md")
+	_, err := os.Stat(filepath.Join(dir, "LANGS.md"))
 	return err == nil
 }

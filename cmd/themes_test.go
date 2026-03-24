@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -251,6 +253,7 @@ func TestThemeColors_Structure(t *testing.T) {
 
 // TestExecuteThemesList_Success tests the executeThemesList function succeeds
 func TestExecuteThemesList_Success(t *testing.T) {
+	defer suppressOutput(t)()
 	err := executeThemesList()
 	if err != nil {
 		t.Errorf("executeThemesList should not return error, got %v", err)
@@ -285,6 +288,7 @@ func TestExecuteThemesShow_AllValidThemes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			err := executeThemesShow(tt.themeName)
 			if (err != nil) != tt.shouldErr {
 				t.Errorf("executeThemesShow(%q) should error=%v, got err=%v", tt.themeName, tt.shouldErr, err)
@@ -319,6 +323,7 @@ func TestExecuteThemesShow_InvalidThemes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			err := executeThemesShow(tt.themeName)
 			if (err != nil) != tt.shouldErr {
 				t.Errorf("executeThemesShow(%q) should error=%v, got err=%v", tt.themeName, tt.shouldErr, err)
@@ -336,6 +341,7 @@ func TestExecuteThemesShow_InvalidThemes(t *testing.T) {
 
 // TestExecuteThemesShow_MatchesThemeData tests that show outputs match theme data
 func TestExecuteThemesShow_MatchesThemeData(t *testing.T) {
+	defer suppressOutput(t)()
 	themes := getAvailableThemes()
 	if len(themes) == 0 {
 		t.Skip("no themes available to test")
@@ -413,6 +419,7 @@ func TestExecuteThemesPreview(t *testing.T) {
 
 // TestThemesCmd_WithoutSubcommand tests themes command without subcommand shows help
 func TestThemesCmd_WithoutSubcommand(t *testing.T) {
+	defer suppressOutput(t)()
 	themesCmd.SetArgs([]string{})
 	var out bytes.Buffer
 	themesCmd.SetOut(&out)
@@ -431,6 +438,7 @@ func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 // TestThemesShowCmd_MissingArgument tests show command without argument.
 // Uses rootCmd.SetArgs to route through the real Cobra command tree.
 func TestThemesShowCmd_MissingArgument(t *testing.T) {
+	defer suppressOutput(t)()
 	rootCmd.SetArgs([]string{"themes", "show"})
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
@@ -446,6 +454,7 @@ func TestThemesShowCmd_MissingArgument(t *testing.T) {
 // TestThemesShowCmd_TooManyArguments tests show command with too many arguments.
 // Uses rootCmd.SetArgs to route through the real Cobra command tree.
 func TestThemesShowCmd_TooManyArguments(t *testing.T) {
+	defer suppressOutput(t)()
 	rootCmd.SetArgs([]string{"themes", "show", "technical", "extra"})
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
@@ -467,6 +476,19 @@ func BenchmarkGetAvailableThemes(b *testing.B) {
 
 // BenchmarkExecuteThemesList benchmarks the executeThemesList function
 func BenchmarkExecuteThemesList(b *testing.B) {
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	origHandler := slog.Default().Handler()
+	devNull, _ := os.Open(os.DevNull)
+	os.Stdout = devNull
+	os.Stderr = devNull
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+		slog.SetDefault(slog.New(origHandler))
+		devNull.Close()
+	}()
 	for i := 0; i < b.N; i++ {
 		_ = executeThemesList()
 	}
@@ -474,6 +496,19 @@ func BenchmarkExecuteThemesList(b *testing.B) {
 
 // BenchmarkExecuteThemesShow benchmarks the executeThemesShow function
 func BenchmarkExecuteThemesShow(b *testing.B) {
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	origHandler := slog.Default().Handler()
+	devNull, _ := os.Open(os.DevNull)
+	os.Stdout = devNull
+	os.Stderr = devNull
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+		slog.SetDefault(slog.New(origHandler))
+		devNull.Close()
+	}()
 	for i := 0; i < b.N; i++ {
 		_ = executeThemesShow("technical")
 	}

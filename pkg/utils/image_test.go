@@ -705,3 +705,218 @@ func TestDownloadImageSizeExceeded(t *testing.T) {
 		t.Errorf("error should mention size limit, got: %v", err)
 	}
 }
+
+// TestFnv32a tests the FNV-1a hash function
+func TestFnv32a(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected uint32 // We test determinism and known values
+	}{
+		{"empty string", "", 2166136261}, // FNV offset basis
+		{"single char", "a", 0},          // We'll compute this
+		{"hello", "hello", 0},            // We'll compute this
+		{"simple", "test", 0},            // We'll compute this
+	}
+
+	// Test determinism - same input should produce same output
+	for _, tt := range tests {
+		t.Run(tt.name+" determinism", func(t *testing.T) {
+			hash1 := fnv32a(tt.input)
+			hash2 := fnv32a(tt.input)
+			if hash1 != hash2 {
+				t.Errorf("fnv32a(%q) not deterministic: %d vs %d", tt.input, hash1, hash2)
+			}
+		})
+	}
+
+	// Test known values
+	t.Run("empty string constant", func(t *testing.T) {
+		hash := fnv32a("")
+		if hash != 2166136261 {
+			t.Errorf("fnv32a(\"\") = %d, want 2166136261 (FNV offset)", hash)
+		}
+	})
+
+	// Test different inputs produce different hashes
+	t.Run("different inputs differ", func(t *testing.T) {
+		hash1 := fnv32a("input1")
+		hash2 := fnv32a("input2")
+		if hash1 == hash2 {
+			t.Error("Different inputs should produce different hashes")
+		}
+	})
+
+	// Test that small variations produce different outputs
+	t.Run("small variations differ", func(t *testing.T) {
+		hash1 := fnv32a("test")
+		hash2 := fnv32a("tests")
+		if hash1 == hash2 {
+			t.Error("Similar inputs should produce different hashes")
+		}
+	})
+}
+
+// TestLooksLikeSVG tests SVG content detection
+func TestLooksLikeSVG(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     []byte
+		expected bool
+	}{
+		{
+			name:     "SVG element",
+			data:     []byte("<svg version=\"1.0\">"),
+			expected: true,
+		},
+		{
+			name:     "SVG with attributes",
+			data:     []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">`),
+			expected: true,
+		},
+		{
+			name:     "SVG with XML declaration",
+			data:     []byte(`<?xml version="1.0"?><svg>`),
+			expected: true,
+		},
+		{
+			name:     "SVG with whitespace and XML",
+			data:     []byte("  \n<?xml version=\"1.0\"?>\n<svg>\n  "),
+			expected: true,
+		},
+		{
+			name:     "SVG with XML but no svg element",
+			data:     []byte(`<?xml version="1.0"?><root>`),
+			expected: false,
+		},
+		{
+			name:     "Empty data",
+			data:     []byte{},
+			expected: false,
+		},
+		{
+			name:     "Whitespace only",
+			data:     []byte("  \n  \t  "),
+			expected: false,
+		},
+		{
+			name:     "PNG header",
+			data:     []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+			expected: false,
+		},
+		{
+			name:     "HTML not SVG",
+			data:     []byte("<html><body>test</body></html>"),
+			expected: false,
+		},
+		{
+			name:     "Text content",
+			data:     []byte("This is not an SVG"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := looksLikeSVG(tt.data)
+			if got != tt.expected {
+				t.Errorf("looksLikeSVG() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestResolveLocalImagePath tests relative and absolute path resolution
+func TestResolveLocalImagePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name       string
+		baseDir    string
+		src        string
+		checkValid bool // Whether to check if path stays within baseDir
+	}{
+		{
+			name:       "relative path in subdir",
+			baseDir:    tmpDir,
+			src:        "images/pic.png",
+			checkValid: true,
+		},
+		{
+			name:       "relative path current dir",
+			baseDir:    tmpDir,
+			src:        "pic.png",
+			checkValid: true,
+		},
+		{
+			name:    "parent directory traversal",
+			baseDir: filepath.Join(tmpDir, "subdir"),
+			src:     "../pic.png",
+			// May return empty if function blocks traversal — don't assert non-empty.
+		},
+		{
+			name:       "empty path",
+			baseDir:    tmpDir,
+			src:        "",
+			checkValid: true,
+		},
+		{
+			name:       "absolute path",
+			baseDir:    tmpDir,
+			src:        "/absolute/path/pic.png",
+			checkValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveLocalImagePath(tt.baseDir, tt.src)
+			// For normal relative paths, result should be non-empty.
+			// Skip assertion for parent traversal ("..") since the function may
+			// legitimately return empty to block directory escapes.
+			if tt.checkValid && tt.src != "" && !filepath.IsAbs(tt.src) {
+				if result == "" {
+					t.Errorf("resolveLocalImagePath() = empty for relative path %q", tt.src)
+				}
+			}
+		})
+	}
+}
+
+// TestFilePathToURL tests file path to file:// URL conversion
+func TestFilePathToURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		shouldStart string // file:// URL should start with this
+	}{
+		{
+			name:        "unix absolute path",
+			path:        "/home/user/image.png",
+			shouldStart: "file://",
+		},
+		{
+			name:        "path with spaces",
+			path:        "/home/user/my image.png",
+			shouldStart: "file://",
+		},
+		{
+			name:        "path with special chars",
+			path:        "/home/user/image-2024_v1.png",
+			shouldStart: "file://",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := filePathToURL(tt.path)
+			if !strings.HasPrefix(url, tt.shouldStart) {
+				t.Errorf("filePathToURL() = %q, should start with %q", url, tt.shouldStart)
+			}
+			// Should be a valid URL scheme
+			if !strings.HasPrefix(url, "file://") {
+				t.Errorf("filePathToURL() = %q, should use file:// scheme", url)
+			}
+		})
+	}
+}

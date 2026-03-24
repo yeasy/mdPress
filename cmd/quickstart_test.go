@@ -10,6 +10,7 @@ import (
 )
 
 func TestQuickstartCreatesProject(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "test-project")
 
@@ -80,6 +81,7 @@ func TestQuickstartDoesNotOverwrite(t *testing.T) {
 }
 
 func TestQuickstartProjectLoadable(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "loadable-project")
 
@@ -110,6 +112,7 @@ func TestQuickstartProjectLoadable(t *testing.T) {
 }
 
 func TestQuickstartGeneratesAllChapters(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "full-project")
 
@@ -133,6 +136,7 @@ func TestQuickstartGeneratesAllChapters(t *testing.T) {
 }
 
 func TestQuickstartCreatesImageDirectory(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "images-project")
 
@@ -161,6 +165,7 @@ func TestQuickstartCreatesImageDirectory(t *testing.T) {
 }
 
 func TestQuickstartWithCustomProjectName(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectName := "my-awesome-book"
 	projectDir := filepath.Join(tmpDir, projectName)
@@ -185,6 +190,7 @@ func TestQuickstartWithCustomProjectName(t *testing.T) {
 }
 
 func TestQuickstartConfigHasRequiredFields(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "required-fields-project")
 
@@ -221,6 +227,7 @@ func TestQuickstartConfigHasRequiredFields(t *testing.T) {
 }
 
 func TestQuickstartCanValidateGeneratedConfig(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "validate-project")
 
@@ -243,6 +250,7 @@ func TestQuickstartCanValidateGeneratedConfig(t *testing.T) {
 }
 
 func TestQuickstartReadDirErrorHandling(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "readable-project")
 
@@ -401,6 +409,7 @@ func TestDirectoryValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			tmpDir := t.TempDir()
 			projectDir := filepath.Join(tmpDir, "test-project")
 
@@ -490,6 +499,7 @@ func TestTemplateGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			tmpDir := t.TempDir()
 			projectDir := filepath.Join(tmpDir, tt.projectName)
 
@@ -690,6 +700,7 @@ func TestGeneratedChapterContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			tmpDir := t.TempDir()
 			projectDir := filepath.Join(tmpDir, "chapter-test")
 
@@ -715,6 +726,7 @@ func TestGeneratedChapterContent(t *testing.T) {
 
 // Test images directory structure
 func TestImagesDirectoryStructure(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "images-structure-test")
 
@@ -752,6 +764,7 @@ func TestImagesDirectoryStructure(t *testing.T) {
 
 // Test all chapters are listed in book.yaml
 func TestChaptersInBookYAML(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "chapters-yaml-test")
 
@@ -786,6 +799,7 @@ func TestChaptersInBookYAML(t *testing.T) {
 
 // Test default directory name
 func TestDefaultDirectoryName(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	defaultDir := filepath.Join(tmpDir, "my-book")
 
@@ -803,6 +817,7 @@ func TestDefaultDirectoryName(t *testing.T) {
 
 // Test nested directory creation
 func TestNestedDirectoryCreation(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	// Create a path with multiple non-existent parent directories
 	projectDir := filepath.Join(tmpDir, "parent", "child", "project")
