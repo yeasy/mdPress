@@ -25,7 +25,7 @@ mdPress runs on:
 The quickest way to install mdPress is with `go install`:
 
 ```bash
-go install github.com/mdpress/mdpress@latest
+go install github.com/yeasy/mdpress@latest
 ```
 
 This downloads the latest release and installs the binary to your `$GOPATH/bin` directory (usually `~/go/bin`).
@@ -41,7 +41,7 @@ mdpress --version
 If you prefer to build from source or want to use development features:
 
 ```bash
-git clone https://github.com/mdpress/mdpress.git
+git clone https://github.com/yeasy/mdpress.git
 cd mdpress
 go build -o mdpress ./cmd/mdpress
 ```

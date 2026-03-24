@@ -695,4 +695,4 @@ mdpress validate
 For bugs or detailed support, visit:
 - Repository: https://github.com/yeasy/mdpress
 - Issues: https://github.com/yeasy/mdpress/issues
-- Documentation: https://mdpress.io
+- Documentation: https://github.com/yeasy/mdpress

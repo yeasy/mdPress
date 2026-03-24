@@ -25,7 +25,7 @@ mdPress 支持以下平台：
 最快的安装方式是使用 `go install`：
 
 ```bash
-go install github.com/mdpress/mdpress@latest
+go install github.com/yeasy/mdpress@latest
 ```
 
 这将下载最新版本并将二进制文件安装到你的 `$GOPATH/bin` 目录（通常是 `~/go/bin`）。
@@ -41,7 +41,7 @@ mdpress --version
 如果你偏好从源代码构建或想使用开发版功能：
 
 ```bash
-git clone https://github.com/mdpress/mdpress.git
+git clone https://github.com/yeasy/mdpress.git
 cd mdpress
 go build -o mdpress ./cmd/mdpress
 ```
