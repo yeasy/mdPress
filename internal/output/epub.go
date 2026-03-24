@@ -108,6 +108,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	}()
 
 	w := zip.NewWriter(f)
+	defer w.Close()
 
 	// 1. mimetype must be the first file and must not be compressed.
 	mimeWriter, err := w.CreateHeader(&zip.FileHeader{
@@ -178,8 +179,11 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		}
 	}
 
-	// Explicit close: zip.Writer.Close() writes the central directory —
-	// if this fails the .epub is corrupt.  os.File.Close() flushes to disk.
+	// The defer statement handles closing the zip.Writer. However, we still need
+	// to check that it closed successfully, as the close operation writes the central
+	// directory — if this fails the .epub is corrupt. We do this by explicitly calling
+	// Close one more time and checking the error (redundant Close calls on zip.Writer
+	// return nil after the first successful Close).
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to finalize epub archive: %w", err)
 	}
