@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+// stubMetaQueries replaces the plugin meta/hooks query functions with fast
+// no-op stubs for the duration of the test, eliminating subprocess overhead.
+func stubMetaQueries(t *testing.T) {
+	t.Helper()
+	origMeta, origHooks := pluginMetaQueryFn, pluginHooksQueryFn
+	pluginMetaQueryFn = func(string) (string, string) { return "0.1.0", "" }
+	pluginHooksQueryFn = func(string) []Phase { return allPhases() }
+	t.Cleanup(func() {
+		pluginMetaQueryFn = origMeta
+		pluginHooksQueryFn = origHooks
+	})
+}
+
 // writeScript creates a temporary executable script that writes the given
 // body to stdout when run.  On Unix it creates a shell script; on Windows
 // it creates a .bat file with translated commands.
@@ -71,6 +84,7 @@ func TestNewExternalPlugin_Directory(t *testing.T) {
 }
 
 func TestNewExternalPlugin_NilConfig(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "plug", "echo '{}'")
 	ep, err := NewExternalPlugin("test", p, nil)
@@ -83,6 +97,7 @@ func TestNewExternalPlugin_NilConfig(t *testing.T) {
 }
 
 func TestNewExternalPlugin_BasicProperties(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "plug", "echo '{}'")
 	ep, err := NewExternalPlugin("my-plug", p, map[string]interface{}{"key": "val"})
@@ -104,6 +119,7 @@ func TestNewExternalPlugin_BasicProperties(t *testing.T) {
 // --- Execute tests ---
 
 func TestExternalPlugin_Execute_EmptyOutput(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	// Plugin that produces no output → keep original content.
 	p := writeScript(t, dir, "noop", "true")
@@ -128,6 +144,7 @@ func TestExternalPlugin_Execute_EmptyOutput(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_ContentReplacement(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	resp, _ := json.Marshal(ExternalPluginResponse{Content: "modified"})
 	p := writeScript(t, dir, "replacer", "echo '"+string(resp)+"'")
@@ -152,6 +169,7 @@ func TestExternalPlugin_Execute_ContentReplacement(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_StopPropagation(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	resp, _ := json.Marshal(ExternalPluginResponse{Stop: true})
 	p := writeScript(t, dir, "stopper", "echo '"+string(resp)+"'")
@@ -175,6 +193,7 @@ func TestExternalPlugin_Execute_StopPropagation(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_ErrorResponse(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	resp, _ := json.Marshal(ExternalPluginResponse{Error: "something broke"})
 	p := writeScript(t, dir, "errplugin", "echo '"+string(resp)+"'")
@@ -202,6 +221,7 @@ func TestExternalPlugin_Execute_ErrorResponse(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_MalformedJSON(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "badjson", "echo 'NOT JSON'")
 	ep, err := NewExternalPlugin("badjson", p, nil)
@@ -221,6 +241,7 @@ func TestExternalPlugin_Execute_MalformedJSON(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_ProcessFailure(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "failing", "exit 1")
 	ep, err := NewExternalPlugin("failing", p, nil)
@@ -240,6 +261,7 @@ func TestExternalPlugin_Execute_ProcessFailure(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_Stderr(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "stderrplugin", "echo 'debug info' >&2; exit 1")
 	ep, err := NewExternalPlugin("stderrplugin", p, nil)
@@ -263,14 +285,13 @@ func TestExternalPlugin_Execute_Stderr(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_Timeout(t *testing.T) {
+	stubMetaQueries(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script syntax required; skipping on Windows")
 	}
 	dir := t.TempDir()
-	// Script responds quickly to --mdpress-info/--mdpress-hooks (so NewExternalPlugin
-	// does not block on the 5s query timeout) but sleeps on normal execution.
-	script := `case "$1" in --mdpress-*) echo '{}';; *) sleep 30;; esac`
-	p := writeScript(t, dir, "slow", script)
+	// Script sleeps on normal execution to trigger the timeout.
+	p := writeScript(t, dir, "slow", "sleep 30")
 	ep, err := NewExternalPlugin("slow", p, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -290,6 +311,7 @@ func TestExternalPlugin_Execute_Timeout(t *testing.T) {
 }
 
 func TestExternalPlugin_Execute_NilMetadata(t *testing.T) {
+	stubMetaQueries(t)
 	dir := t.TempDir()
 	resp, _ := json.Marshal(ExternalPluginResponse{Error: "oops"})
 	p := writeScript(t, dir, "nilmeta", "echo '"+string(resp)+"'")
