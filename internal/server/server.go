@@ -436,8 +436,9 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		filePath := filepath.Join(s.OutputDir, filepath.Clean(path))
 
 		// Protect against path traversal by keeping access within OutputDir.
-		// Use Clean to normalize paths and case-insensitive comparison to prevent bypasses
-		// on case-insensitive filesystems (e.g., Windows, macOS).
+		// Use Clean to normalize paths, EvalSymlinks to resolve symlinks, and
+		// case-insensitive comparison to prevent bypasses on case-insensitive
+		// filesystems (e.g., Windows, macOS).
 		absFilePath, err := filepath.Abs(filePath)
 		if err != nil {
 			next.ServeHTTP(w, r)
@@ -447,6 +448,13 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return
+		}
+		// Resolve symlinks so that a symlink pointing outside OutputDir is caught.
+		if resolved, err := filepath.EvalSymlinks(absFilePath); err == nil {
+			absFilePath = resolved
+		}
+		if resolved, err := filepath.EvalSymlinks(absOutputDir); err == nil {
+			absOutputDir = resolved
 		}
 		// Normalize paths and perform case-insensitive comparison on case-insensitive systems
 		cleanFilePath := filepath.Clean(absFilePath)
