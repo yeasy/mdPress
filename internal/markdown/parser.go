@@ -126,7 +126,7 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	// Render AST to HTML.
 	var buf bytes.Buffer
 	if err := p.md.Renderer().Render(&buf, processedSource, document); err != nil {
-		return "", nil, nil, fmt.Errorf("渲染 Markdown 失败: %w", err)
+		return "", nil, nil, fmt.Errorf("failed to render Markdown: %w", err)
 	}
 
 	// Post-process: GFM Alerts, Mermaid code blocks, etc.
