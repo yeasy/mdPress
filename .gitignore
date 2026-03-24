@@ -76,3 +76,12 @@ mdpress-go-tmp-umask
 
 # Additional temporary directories
 /tmp_pdf_probe/
+
+# Agent workspace (not part of the project)
+.agent/
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
