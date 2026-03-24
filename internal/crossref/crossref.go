@@ -180,7 +180,7 @@ func (r *Resolver) Resolve(id string) (*Reference, error) {
 		return ref, nil
 	}
 
-	return nil, fmt.Errorf("找不到引用: %s", id)
+	return nil, fmt.Errorf("reference not found: %s", id)
 }
 
 // ProcessHTML 处理 HTML 内容，替换 {{ref:id}} 占位符为实际的引用
