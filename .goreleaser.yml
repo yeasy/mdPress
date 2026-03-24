@@ -63,7 +63,7 @@ homebrew_casks:
     homepage: "https://github.com/yeasy/mdpress"
     description: "Markdown publishing CLI for book-style and documentation-style projects"
     url:
-      verified: "github.com/yeasy/mdPress/"
+      verified: "github.com/yeasy/mdpress/"
 
 release:
   github:
