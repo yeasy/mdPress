@@ -210,7 +210,7 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 	}
 
 	// Run: typst compile <input.typ> <output.pdf>
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), g.timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "typst", "compile", absTypPath, absOutputPath)
 
