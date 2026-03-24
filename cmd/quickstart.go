@@ -490,13 +490,16 @@ Name the cover image ` + "`cover.png`" + `, ` + "`cover.jpg`" + `, or ` + "`cove
 func generatePlaceholderCoverSVG(title string) string {
 	// Keep the title short enough to fit the cover.
 	displayTitle := title
-	if len(displayTitle) > 20 {
-		displayTitle = displayTitle[:20] + "..."
+	runes := []rune(displayTitle)
+	if len(runes) > 20 {
+		displayTitle = string(runes[:20]) + "..."
 	}
 	// Escape XML special characters.
 	displayTitle = strings.ReplaceAll(displayTitle, "&", "&amp;")
 	displayTitle = strings.ReplaceAll(displayTitle, "<", "&lt;")
 	displayTitle = strings.ReplaceAll(displayTitle, ">", "&gt;")
+	displayTitle = strings.ReplaceAll(displayTitle, "\"", "&quot;")
+	displayTitle = strings.ReplaceAll(displayTitle, "'", "&apos;")
 
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
