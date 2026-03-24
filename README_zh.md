@@ -266,6 +266,7 @@ $ mdpress themes list
 
 | 文档 | 说明 |
 | --- | --- |
+| [用户手册](docs/manual/zh/) | mdPress 完整使用指南 |
 | [命令手册](docs/COMMANDS_zh.md) | 每个参数和选项的详细说明 |
 | [GitBook 迁移](docs/MIGRATION_FROM_GITBOOK_zh.md) | 逐步迁移指南 |
 | [架构设计](docs/ARCHITECTURE_zh.md) | mdPress 内部如何工作 |

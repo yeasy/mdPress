@@ -266,6 +266,7 @@ Run `mdpress doctor` to check if everything is ready.
 
 | Document | Description |
 | --- | --- |
+| [User Manual](docs/manual/en/) | Complete guide to using mdPress |
 | [Command manuals](docs/COMMANDS.md) | Every flag and option explained |
 | [GitBook migration](docs/MIGRATION_FROM_GITBOOK.md) | Step-by-step migration guide |
 | [Architecture](docs/ARCHITECTURE.md) | How mdPress works internally |
