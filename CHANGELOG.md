@@ -6,6 +6,27 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Added
+
+- **Lazy loading for images**: `loading="lazy"` attribute automatically added to all `<img>` tags during post-processing for better page performance
+- **SEO meta tags**: Auto-generated `<meta name="description">` and Open Graph tags (`og:title`, `og:description`, `og:type`) for each site page
+- **Sitemap generation**: `sitemap.xml` automatically created during site builds for search engine indexing
+- **Full-text search**: Client-side search with `search-index.json` generation, search modal (Cmd/Ctrl+K or `/`), keyboard navigation, and result highlighting
+- **Dark mode toggle**: Three-way theme switcher (light/dark/system) with localStorage persistence and system preference detection
+- **Breadcrumb navigation**: Breadcrumb trail showing page hierarchy on each site page
+- **Right-side page TOC**: "On this page" table of contents sidebar with scroll-spy highlighting via IntersectionObserver
+- **Sidebar collapse on desktop**: Desktop sidebar can be collapsed/expanded with state persisted in localStorage
+- **Code block copy button**: Hover over any code block to reveal a "Copy" button with clipboard integration and visual feedback
+- **Search results show chapter path**: Search results now display breadcrumb path (e.g., `Part 1 > Chapter 2`) above the title for better context
+
+### Changed
+
+- **Heading tracking via IntersectionObserver**: Replaced scroll-based heading detection with IntersectionObserver for better performance and accuracy
+- **Sidebar heading depth**: Set `maxSidebarHeadingDepth` to 0, showing only chapter titles in sidebar navigation (no in-page headings)
+- **Sidebar toggle behavior**: Click on expanded chapter title now collapses it (toggle behavior)
+- **Resize handler debounced**: Window resize events now debounced with 200ms timeout
+- **External script security**: Added `crossOrigin="anonymous"` and `referrerPolicy="no-referrer"` to dynamically loaded scripts and stylesheets
+
 ---
 
 ## [0.5.3] - 2026-03-23

@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.5.2
-> Updated: 2026-03-20
+> Version: v0.5.3
+> Updated: 2026-03-23
 
 ## 1. System Overview
 
