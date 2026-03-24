@@ -9,6 +9,19 @@ import (
 	"github.com/yeasy/mdpress/internal/config"
 )
 
+// stubLoaderMetaQueries replaces the plugin meta/hooks query functions with fast
+// no-op stubs for the duration of the test, eliminating subprocess overhead.
+func stubLoaderMetaQueries(t *testing.T) {
+	t.Helper()
+	origMeta, origHooks := pluginMetaQueryFn, pluginHooksQueryFn
+	pluginMetaQueryFn = func(string) (string, string) { return "0.1.0", "" }
+	pluginHooksQueryFn = func(string) []Phase { return allPhases() }
+	t.Cleanup(func() {
+		pluginMetaQueryFn = origMeta
+		pluginHooksQueryFn = origHooks
+	})
+}
+
 // --- Helper: createTestPlugin writes a simple test plugin script that echoes valid responses ---
 
 func createTestPlugin(t *testing.T, dir, name string) string {
@@ -50,6 +63,7 @@ func TestLoadPlugins_EmptyPluginList(t *testing.T) {
 
 // TestLoadPlugins_SinglePlugin tests LoadPlugins with one valid plugin.
 func TestLoadPlugins_SinglePlugin(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	pluginPath := createTestPlugin(t, dir, "test-plugin")
 
@@ -81,6 +95,7 @@ func TestLoadPlugins_SinglePlugin(t *testing.T) {
 
 // TestLoadPlugins_MultiplePlugins tests LoadPlugins with multiple valid plugins.
 func TestLoadPlugins_MultiplePlugins(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	plugin1Path := createTestPlugin(t, dir, "plugin1")
 	plugin2Path := createTestPlugin(t, dir, "plugin2")
@@ -114,6 +129,7 @@ func TestLoadPlugins_MultiplePlugins(t *testing.T) {
 
 // TestLoadPlugins_MissingName tests LoadPlugins rejects plugin config with missing name.
 func TestLoadPlugins_MissingName(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	pluginPath := createTestPlugin(t, dir, "plugin")
 
@@ -183,6 +199,7 @@ func TestLoadPlugins_NonExistentPlugin(t *testing.T) {
 
 // TestLoadPlugins_PartialFailure tests LoadPlugins stops at first plugin load error.
 func TestLoadPlugins_PartialFailure(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	plugin1Path := createTestPlugin(t, dir, "plugin1")
 
@@ -205,6 +222,7 @@ func TestLoadPlugins_PartialFailure(t *testing.T) {
 // Note: External plugins have no-op Init methods, so Init failures cannot occur.
 // This test verifies that LoadPlugins succeeds when a proper plugin fixture exists.
 func TestLoadPlugins_InitFailure(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	// Create a valid test plugin (graceful degradation during metadata query)
 	pluginPath := createTestPlugin(t, dir, "valid-plugin")
@@ -233,6 +251,7 @@ func TestLoadPlugins_InitFailure(t *testing.T) {
 
 // TestLoadPlugins_ResolvePath tests LoadPlugins resolves relative paths.
 func TestLoadPlugins_ResolvePath(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	// Create a temporary directory to serve as the base config directory
 	baseDir := t.TempDir()
 	pluginDir := filepath.Join(baseDir, "plugins")
@@ -266,6 +285,7 @@ func TestLoadPlugins_ResolvePath(t *testing.T) {
 
 // TestLoadPlugins_PluginConfigPassed tests LoadPlugins passes plugin config to NewExternalPlugin.
 func TestLoadPlugins_PluginConfigPassed(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	pluginPath := createTestPlugin(t, dir, "configurable")
 
@@ -336,6 +356,7 @@ func TestMustLoadPlugins_EmptyPluginList(t *testing.T) {
 
 // TestMustLoadPlugins_ValidPlugin tests MustLoadPlugins with a valid plugin.
 func TestMustLoadPlugins_ValidPlugin(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	pluginPath := createTestPlugin(t, dir, "valid")
 
@@ -475,6 +496,7 @@ func TestLoadPlugins_ConfigNil(t *testing.T) {
 
 // TestLoadPlugins_PluginOrderPreserved tests plugins are registered in declaration order.
 func TestLoadPlugins_PluginOrderPreserved(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	dir := t.TempDir()
 	pluginPaths := make([]string, 5)
 	for i := 0; i < 5; i++ {
@@ -517,6 +539,7 @@ func contains(haystack, needle string) bool {
 
 // TestLoadPlugins_MulitpleErrors tests LoadPlugins handles multiple error scenarios.
 func TestLoadPlugins_MultipleErrorScenarios(t *testing.T) {
+	stubLoaderMetaQueries(t)
 	testCases := []struct {
 		name      string
 		config    *config.BookConfig

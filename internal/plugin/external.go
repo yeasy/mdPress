@@ -31,6 +31,12 @@ const (
 	pluginHooksQueryTimeout = 5 * time.Second
 )
 
+// pluginMetaQueryFn and pluginHooksQueryFn are the functions used to query
+// plugin metadata and supported hooks.  They are variables so tests can
+// replace them with fast stubs to avoid subprocess overhead.
+var pluginMetaQueryFn = queryPluginMeta
+var pluginHooksQueryFn = queryPluginHooks
+
 // ExternalPluginRequest is the JSON body sent to the external plugin process.
 // It is serialized and written to the plugin's stdin on every hook invocation.
 type ExternalPluginRequest struct {
@@ -97,7 +103,7 @@ func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) 
 
 	// Query the plugin for its metadata and supported hooks.
 	// Falls back to safe defaults if the plugin does not support the flags.
-	version, description := queryPluginMeta(resolvedPath)
+	version, description := pluginMetaQueryFn(resolvedPath)
 
 	return &ExternalPlugin{
 		name:         name,
@@ -105,7 +111,7 @@ func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) 
 		description:  description,
 		execPath:     resolvedPath,
 		pluginConfig: pluginCfg,
-		hooks:        queryPluginHooks(resolvedPath),
+		hooks:        pluginHooksQueryFn(resolvedPath),
 		timeout:      defaultPluginTimeout,
 	}, nil
 }
