@@ -695,4 +695,4 @@ mdpress validate
 获取错误或详细支持，请访问：
 - 仓库：https://github.com/yeasy/mdpress
 - 问题：https://github.com/yeasy/mdpress/issues
-- 文档：https://mdpress.io
+- 文档：https://github.com/yeasy/mdpress

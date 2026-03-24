@@ -506,7 +506,7 @@ mdpress build --verbose --format pdf
 **问：** 我在哪里可以获得使用 mdPress 的帮助？
 
 **答：**
-1. **文档**：https://mdpress.io
+1. **文档**：https://github.com/yeasy/mdpress
 2. **GitHub Issues**：https://github.com/yeasy/mdpress/issues
 3. **GitHub Discussions**：https://github.com/yeasy/mdpress/discussions
 4. **运行 doctor**：`mdpress doctor`（诊断许多问题）

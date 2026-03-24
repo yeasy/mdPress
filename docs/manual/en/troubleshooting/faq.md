@@ -506,7 +506,7 @@ Include:
 **Q:** Where can I get help using mdPress?
 
 **A:**
-1. **Documentation**: https://mdpress.io
+1. **Documentation**: https://github.com/yeasy/mdpress
 2. **GitHub Issues**: https://github.com/yeasy/mdpress/issues
 3. **GitHub Discussions**: https://github.com/yeasy/mdpress/discussions
 4. **Run doctor**: `mdpress doctor` (diagnoses many issues)
