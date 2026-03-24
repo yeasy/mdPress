@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-03-22
+> Updated: 2026-03-23
 > Maintainer: mdPress product team
 
 ---
@@ -22,6 +22,7 @@ v0.5.0 ████████████████████████�
 v0.5.1 ██████████████████████████████████████████ released (2026-03-21)
 v0.5.2 ██████████████████████████████████████████ released (2026-03-22)
 v0.5.3 ██████████████████████████████████████████ released (2026-03-23)
+v0.5.4 ██████████████████████████████████████████ released (2026-03-23)
 v0.6.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2026-Q2)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
@@ -284,6 +285,41 @@ v0.5.3 fixes critical code block rendering issues in site output and updates pro
 | --- | --- |
 | Documentation updates | Updated ARCHITECTURE docs version, fixed ROADMAP version ordering, added Typst format to README table |
 | Removed stale NEXT-STEPS.md | Deleted outdated planning document that referenced v0.4.3 as latest |
+
+---
+
+## v0.5.4 - Site Enhancement and Bug Fixes
+
+**Release date**: 2026-03-23
+**Theme**: Rich site features and security hardening
+
+v0.5.4 is a major feature release for the site output format, adding client-side full-text search, dark mode, breadcrumb navigation, page TOC, code copy buttons, and SEO optimization. It also fixes several bugs including ePub resource leaks, UTF-8 truncation issues, and a symlink-based path traversal vulnerability in the dev server.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Full-text search | P0 | Client-side search with Cmd/Ctrl+K shortcut, keyboard navigation, and result highlighting |
+| Dark mode toggle | P0 | Three-way theme switcher (light/dark/system) with localStorage persistence |
+| SEO meta tags | P1 | Auto-generated description and Open Graph tags per page |
+| Sitemap generation | P1 | `sitemap.xml` for search engine indexing |
+| Breadcrumb navigation | P1 | Page hierarchy trail on each site page |
+| Page TOC sidebar | P1 | "On this page" sidebar with scroll-spy via IntersectionObserver |
+| Code block copy button | P1 | Hover-to-reveal copy button with clipboard integration |
+| Sidebar collapse | P2 | Desktop sidebar collapsible with persistent state |
+| Lazy loading images | P2 | `loading="lazy"` on all `<img>` tags automatically |
+| CJK heading IDs | P1 | Custom heading ID transformer that preserves Unicode letters |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| ePub zip writer resource leak | P1 | Added `defer w.Close()` for all error paths |
+| UTF-8 truncation in SVG cover | P1 | Rune-based truncation replaces byte-based slicing |
+| SVG XML attribute escaping | P2 | Added `"` and `'` entity escaping |
+| Symlink path traversal | P1 | `filepath.EvalSymlinks()` added to serve path check |
+| Scroll behavior regression | P2 | Fixed ternary always returning `'auto'` instead of `'smooth'` |
+| Description meta truncation | P2 | Rune-based truncation for multi-byte character safety |
 
 ---
 
