@@ -10,7 +10,7 @@ Launch the live preview server with a single command:
 mdpress serve
 ```
 
-This starts a local web server and automatically opens your documentation in the default browser. The default URL is `http://localhost:5173`.
+This starts a local web server and automatically opens your documentation in the default browser. The default URL is `http://localhost:9000`.
 
 ## Server Command Options
 
@@ -18,7 +18,7 @@ The `serve` command accepts several flags to customize the preview environment.
 
 ### Specifying the Port
 
-Change the port if 5173 is already in use:
+Change the port if 9000 is already in use:
 
 ```bash
 mdpress serve --port 3000
@@ -34,7 +34,7 @@ Allow access from other machines on your network:
 mdpress serve --host 0.0.0.0
 ```
 
-Now you can access the server from another computer using your machine's IP address, like `http://192.168.1.100:5173`.
+Now you can access the server from another computer using your machine's IP address, like `http://192.168.1.100:9000`.
 
 ### Auto-Opening the Browser
 
@@ -161,7 +161,7 @@ The WebSocket connection is resilient:
 Use the live preview on one monitor while editing on another:
 
 ```bash
-mdpress serve --port 5173 --host 0.0.0.0
+mdpress serve --port 9000 --host 0.0.0.0
 ```
 
 View the documentation on a second monitor or device while editing in your text editor.
@@ -171,13 +171,13 @@ View the documentation on a second monitor or device while editing in your text 
 Access the preview from multiple devices on your network:
 
 ```bash
-mdpress serve --host 0.0.0.0 --port 5173
+mdpress serve --host 0.0.0.0 --port 9000
 ```
 
-Then navigate to `http://<your-machine-ip>:5173` from:
-- Phone: `http://192.168.1.100:5173`
-- Tablet: `http://192.168.1.100:5173`
-- Other computer: `http://192.168.1.100:5173`
+Then navigate to `http://<your-machine-ip>:9000` from:
+- Phone: `http://192.168.1.100:9000`
+- Tablet: `http://192.168.1.100:9000`
+- Other computer: `http://192.168.1.100:9000`
 
 All devices see the same live updates in real-time.
 
@@ -216,7 +216,7 @@ Then manually trigger rebuilds (though this feature may vary by configuration).
 
 ### Port Already in Use
 
-If port 5173 is in use, specify a different port:
+If port 9000 is in use, specify a different port:
 
 ```bash
 mdpress serve --port 8080
@@ -225,8 +225,8 @@ mdpress serve --port 8080
 Or find the process using the port:
 
 ```bash
-lsof -i :5173        # macOS/Linux
-netstat -ano | grep 5173  # Windows
+lsof -i :9000        # macOS/Linux
+netstat -ano | grep 9000  # Windows
 ```
 
 ### Changes Not Reflected
@@ -280,14 +280,14 @@ Run separate servers on different ports:
 ```bash
 # Terminal 1
 cd project-a
-mdpress serve --port 5173
+mdpress serve --port 9000
 
 # Terminal 2
 cd project-b
-mdpress serve --port 5174
+mdpress serve --port 9001
 ```
 
-Access both at `http://localhost:5173` and `http://localhost:5174`.
+Access both at `http://localhost:9000` and `http://localhost:9001`.
 
 ### Integration with IDEs
 

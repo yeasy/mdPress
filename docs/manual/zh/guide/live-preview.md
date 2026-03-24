@@ -10,7 +10,7 @@
 mdpress serve
 ```
 
-这会启动一个本地网络服务器并自动在默认浏览器中打开你的文档。默认 URL 是 `http://localhost:5173`。
+这会启动一个本地网络服务器并自动在默认浏览器中打开你的文档。默认 URL 是 `http://localhost:9000`。
 
 ## 服务器命令选项
 
@@ -18,7 +18,7 @@ mdpress serve
 
 ### 指定端口
 
-如果 5173 已在使用，更改端口：
+如果 9000 已在使用，更改端口：
 
 ```bash
 mdpress serve --port 3000
@@ -34,7 +34,7 @@ mdpress serve --port 3000
 mdpress serve --host 0.0.0.0
 ```
 
-现在你可以使用你的机器 IP 地址从另一台计算机访问服务器，如 `http://192.168.1.100:5173`。
+现在你可以使用你的机器 IP 地址从另一台计算机访问服务器，如 `http://192.168.1.100:9000`。
 
 ### 自动打开浏览器
 
@@ -161,7 +161,7 @@ WebSocket 连接具有弹性：
 在一个显示器上使用实时预览，同时在另一个显示器上编辑：
 
 ```bash
-mdpress serve --port 5173 --host 0.0.0.0
+mdpress serve --port 9000 --host 0.0.0.0
 ```
 
 在第二个显示器或设备上查看文档，同时在文本编辑器中编辑。
@@ -171,13 +171,13 @@ mdpress serve --port 5173 --host 0.0.0.0
 从网络上的多个设备访问预览：
 
 ```bash
-mdpress serve --host 0.0.0.0 --port 5173
+mdpress serve --host 0.0.0.0 --port 9000
 ```
 
-然后从以下位置导航到 `http://<your-machine-ip>:5173`：
-- 手机：`http://192.168.1.100:5173`
-- 平板电脑：`http://192.168.1.100:5173`
-- 其他计算机：`http://192.168.1.100:5173`
+然后从以下位置导航到 `http://<your-machine-ip>:9000`：
+- 手机：`http://192.168.1.100:9000`
+- 平板电脑：`http://192.168.1.100:9000`
+- 其他计算机：`http://192.168.1.100:9000`
 
 所有设备实时看到相同的实时更新。
 
@@ -216,7 +216,7 @@ mdpress serve --no-watch
 
 ### 端口已在使用
 
-如果端口 5173 已在使用，指定不同的端口：
+如果端口 9000 已在使用，指定不同的端口：
 
 ```bash
 mdpress serve --port 8080
@@ -225,8 +225,8 @@ mdpress serve --port 8080
 或查找使用该端口的进程：
 
 ```bash
-lsof -i :5173        # macOS/Linux
-netstat -ano | grep 5173  # Windows
+lsof -i :9000        # macOS/Linux
+netstat -ano | grep 9000  # Windows
 ```
 
 ### 更改未反映
@@ -280,14 +280,14 @@ WebSocket 问题可以阻止实时重新加载：
 ```bash
 # 终端 1
 cd project-a
-mdpress serve --port 5173
+mdpress serve --port 9000
 
 # 终端 2
 cd project-b
-mdpress serve --port 5174
+mdpress serve --port 9001
 ```
 
-在 `http://localhost:5173` 和 `http://localhost:5174` 访问两者。
+在 `http://localhost:9000` 和 `http://localhost:9001` 访问两者。
 
 ### 与 IDE 集成
 
