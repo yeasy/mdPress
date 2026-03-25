@@ -43,7 +43,7 @@ mdpress --version
 ```bash
 git clone https://github.com/yeasy/mdpress.git
 cd mdpress
-go build -o mdpress ./cmd/mdpress
+go build -o mdpress .
 ```
 
 将二进制文件复制到 PATH 中的某个位置，或直接使用它：

@@ -214,6 +214,12 @@ func (c *MarkdownToTypstConverter) replaceLinks(text string) string {
 		}
 		closeBracket++ // Adjust for the +1 offset
 
+		// Bounds check: ensure i+closeBracket is within bounds
+		if i+closeBracket >= len(text) {
+			result.WriteString(text[i:])
+			break
+		}
+
 		linkText := text[i+1 : i+closeBracket]
 
 		// Check if followed by (url)
@@ -277,6 +283,12 @@ func (c *MarkdownToTypstConverter) convertItalic(text string) string {
 			closeIdx := strings.Index(text[i+1:], "_")
 			if closeIdx != -1 {
 				closeIdx++ // Adjust for the +1 offset
+				// Bounds check: ensure i+closeIdx is within bounds
+				if i+closeIdx >= len(text) {
+					result.WriteByte(text[i])
+					i++
+					continue
+				}
 				// Make sure it's not part of __
 				if (i > 0 && text[i-1] == '_') || (i+closeIdx+1 < len(text) && text[i+closeIdx+1] == '_') {
 					result.WriteByte(text[i])

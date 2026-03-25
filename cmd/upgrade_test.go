@@ -684,7 +684,7 @@ func TestInstallNewVersionFlow(t *testing.T) {
 			t.Fatalf("failed to stat binary: %v", err)
 		}
 		mode := info.Mode()
-		if mode&0100 == 0 {
+		if runtime.GOOS != "windows" && mode&0100 == 0 {
 			t.Errorf("binary is not executable by owner")
 		}
 	})

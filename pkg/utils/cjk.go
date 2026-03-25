@@ -43,6 +43,16 @@ type CJKFontStatus struct {
 	Fonts     []string // Names of detected CJK fonts (up to 5).
 }
 
+func newCJKFontStatus(available bool, fonts []string) CJKFontStatus {
+	if fonts == nil {
+		fonts = []string{}
+	}
+	return CJKFontStatus{
+		Available: available,
+		Fonts:     fonts,
+	}
+}
+
 // CheckCJKFonts checks whether CJK fonts are installed on the system.
 // It uses platform-specific methods: fc-list on Linux, system_profiler on macOS.
 func CheckCJKFonts() CJKFontStatus {
@@ -54,7 +64,7 @@ func CheckCJKFonts() CJKFontStatus {
 	default:
 		// On Windows and other platforms, assume fonts are available
 		// since most Windows installations include CJK fonts.
-		return CJKFontStatus{Available: true, Fonts: []string{"(system default)"}}
+		return newCJKFontStatus(true, []string{"(system default)"})
 	}
 }
 
@@ -87,7 +97,7 @@ func checkCJKFontsLinux() CJKFontStatus {
 	}
 	return CJKFontStatus{
 		Available: len(fonts) > 0,
-		Fonts:     fonts,
+		Fonts:     append([]string{}, fonts...),
 	}
 }
 
@@ -99,13 +109,13 @@ func checkCJKFontsMacOS() CJKFontStatus {
 	if err != nil {
 		// fc-list not installed on macOS is common; assume fonts are available
 		// since macOS bundles PingFang SC etc.
-		return CJKFontStatus{Available: true, Fonts: []string{"PingFang SC (system)"}}
+		return newCJKFontStatus(true, []string{"PingFang SC (system)"})
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(lines) > 0 && lines[0] != "" {
-		return CJKFontStatus{Available: true, Fonts: []string{"(system CJK fonts detected)"}}
+		return newCJKFontStatus(true, []string{"(system CJK fonts detected)"})
 	}
-	return CJKFontStatus{Available: false}
+	return newCJKFontStatus(false, nil)
 }
 
 func checkCJKFontsFallback() CJKFontStatus {
@@ -121,10 +131,10 @@ func checkCJKFontsFallback() CJKFontStatus {
 	}
 	for _, p := range commonPaths {
 		if FileExists(p) {
-			return CJKFontStatus{Available: true, Fonts: []string{p}}
+			return newCJKFontStatus(true, []string{p})
 		}
 	}
-	return CJKFontStatus{Available: false}
+	return newCJKFontStatus(false, nil)
 }
 
 // CJKFontInstallHint returns platform-specific instructions for installing CJK fonts.

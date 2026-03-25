@@ -558,7 +558,7 @@ if request.get("hook") == "after_build":
   "context": {
     "phase": "serve",
     "server_host": "localhost",
-    "server_port": 8000,
+    "server_port": 9000,
     "watch_paths": ["chapters/", "docs/"]
   }
 }

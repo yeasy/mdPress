@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -767,9 +768,16 @@ func TestCheckPluginsWithValidPlugin(t *testing.T) {
 		t.Fatalf("failed to create plugins directory: %v", err)
 	}
 
+	pluginName := "test"
+	pluginContent := []byte("#!/bin/sh\necho test")
+	if runtime.GOOS == "windows" {
+		pluginName = "test.bat"
+		pluginContent = []byte("@echo off\r\necho test\r\n")
+	}
+
 	// Create an executable file
-	pluginPath := filepath.Join(pluginDir, "test")
-	if err := os.WriteFile(pluginPath, []byte("#!/bin/sh\necho test"), 0755); err != nil {
+	pluginPath := filepath.Join(pluginDir, pluginName)
+	if err := os.WriteFile(pluginPath, pluginContent, 0755); err != nil {
 		t.Fatalf("failed to create plugin: %v", err)
 	}
 
@@ -781,7 +789,7 @@ chapters:
     file: "ch1.md"
 plugins:
   - name: test-plugin
-    path: ./plugins/test
+    path: ./plugins/` + pluginName + `
 `
 	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
 		t.Fatalf("failed to create book.yaml: %v", err)
