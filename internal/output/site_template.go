@@ -145,51 +145,6 @@ body.sidebar-resizing .main { transition: none; }
   top: 0;
   z-index: 50;
 }
-.sidebar-search {
-  padding: 8px 14px 4px;
-}
-.sidebar-search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid #d8d8d8;
-  border-radius: 6px;
-  background: #fff;
-  cursor: text;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.sidebar-search-box:focus-within {
-  border-color: #4285f4;
-  box-shadow: 0 0 0 2px rgba(66,133,244,.15);
-}
-.sidebar-search-icon {
-  font-size: 14px;
-  color: #999;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.sidebar-search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 0.82rem;
-  color: #333;
-  min-width: 0;
-}
-.sidebar-search-input::placeholder { color: #aaa; }
-.sidebar-search-kbd {
-  font-size: 0.6rem;
-  background: #f0f0f0;
-  border: 1px solid #e0e0e0;
-  border-radius: 3px;
-  padding: 1px 5px;
-  color: #999;
-  flex-shrink: 0;
-  font-family: inherit;
-  line-height: 1.4;
-}
 .page-breadcrumb {
   font-size: 0.85rem;
   color: #666;
@@ -575,7 +530,6 @@ body.sidebar-open::before {
   .main-body { grid-template-columns: 1fr; }
   .content { padding: 24px 20px 80px; }
   .page-header { padding: 12px 16px; }
-  .sidebar-search-kbd { display: none; }
   .header-search-btn span { display: none; }
   .header-search-btn kbd { display: none; }
   .page-nav {
@@ -763,12 +717,6 @@ html.dark .nav-item.active { background: rgba(137,180,250,.15); color: #89b4fa; 
 html.dark .nav-toggle::before { border-color: #6c7086; }
 html.dark .main { background: #1e1e2e; }
 html.dark .page-header { border-bottom-color: #313244; background: rgba(24,24,37,0.95); }
-html.dark .sidebar-search-box { background: #313244; border-color: #45475a; }
-html.dark .sidebar-search-box:focus-within { border-color: #89b4fa; box-shadow: 0 0 0 2px rgba(137,180,250,.15); }
-html.dark .sidebar-search-input { color: #cdd6f4; }
-html.dark .sidebar-search-input::placeholder { color: #6c7086; }
-html.dark .sidebar-search-icon { color: #6c7086; }
-html.dark .sidebar-search-kbd { background: #45475a; border-color: #585b70; color: #6c7086; }
 html.dark .page-breadcrumb a { color: #89b4fa; }
 html.dark .bc-sep { color: #6c7086; }
 html.dark .chapter-title { color: #cdd6f4; border-bottom-color: #313244; }
@@ -958,13 +906,6 @@ body {
         <button class="sidebar-close" aria-label="{{.UIhideSidebar}}" title="{{.UIhideSidebar}}">✕</button>
       </div>
       {{if .Author}}<div class="author">{{.Author}}</div>{{end}}
-    </div>
-    <div class="sidebar-search">
-      <div class="sidebar-search-box" id="sidebar-search-box">
-        <span class="sidebar-search-icon">&#128269;</span>
-        <input type="text" class="sidebar-search-input" id="sidebar-search-input" placeholder="{{.UIsearchPlaceholder}}" autocomplete="off" spellcheck="false" aria-label="{{.UIsearchButton}}" aria-haspopup="dialog" aria-controls="search-overlay">
-        <kbd class="sidebar-search-kbd">{{.UIsearchKbd}}</kbd>
-      </div>
     </div>
     <div class="sidebar-nav">
       {{safeHTML .SidebarHTML}}
@@ -1901,12 +1842,7 @@ body {
       nextLink.click();
     } else if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
       e.preventDefault();
-      var si = document.getElementById('sidebar-search-input');
-      if (si && window.innerWidth > 768) {
-        si.focus();
-      } else {
-        openSearch('');
-      }
+      openSearch('');
     }
   });
 
@@ -2030,7 +1966,6 @@ body {
   (function() {
     var overlay = document.getElementById('search-overlay');
     var modalInput = document.getElementById('search-input');
-    var sidebarInput = document.getElementById('sidebar-search-input');
     var resultsBox = document.getElementById('search-results');
     var searchIndex = null;
     var activeIdx = -1;
@@ -2048,28 +1983,6 @@ body {
         console.warn('[mdpress] Failed to load search index:', err);
         searchIndex = [];
         return searchIndex;
-      });
-    }
-
-    // Pre-load index when sidebar input gets focus
-    if (sidebarInput) {
-      sidebarInput.addEventListener('focus', function() { loadIndex().catch(function() {}); });
-      // When user types in sidebar input, open modal and transfer the query
-      sidebarInput.addEventListener('input', function() {
-        var q = sidebarInput.value;
-        if (q.length > 0 && !overlay.classList.contains('open')) {
-          overlay.classList.add('open');
-          modalInput.value = q;
-          requestAnimationFrame(function() { modalInput.focus(); });
-          doSearch();
-        }
-      });
-      // Enter in sidebar input opens modal with focus
-      sidebarInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          openSearch(sidebarInput.value);
-        }
       });
     }
 
@@ -2097,8 +2010,6 @@ body {
     function closeSearch() {
       overlay.classList.remove('open');
       activeIdx = -1;
-      // Clear sidebar input when modal closes
-      if (sidebarInput) sidebarInput.value = '';
     }
 
     overlay.addEventListener('click', function(e) {
