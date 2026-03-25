@@ -61,10 +61,10 @@ mdpress serve --output ./public
 结合多个标志满足你的特定设置：
 
 ```bash
-mdpress serve --port 8080 --host 0.0.0.0 --no-open --output ./build
+mdpress serve --port 9000 --host 0.0.0.0 --no-open --output ./build
 ```
 
-这在端口 8080 上启动一个服务器，可从任何网络接口访问，不打开浏览器，从 `./build` 目录提供预构建的文件。
+这在端口 9000 上启动一个服务器，可从任何网络接口访问，不打开浏览器，从 `./build` 目录提供预构建的文件。
 
 ## 文件监视和自动重建
 
@@ -219,7 +219,7 @@ mdpress serve --no-watch
 如果端口 9000 已在使用，指定不同的端口：
 
 ```bash
-mdpress serve --port 8080
+mdpress serve --port 3000
 ```
 
 或查找使用该端口的进程：
@@ -298,7 +298,7 @@ mdpress serve --port 9001
 某些配置可以通过环境变量设置：
 
 ```bash
-export MDPRESS_PORT=8080
+export MDPRESS_PORT=9000
 export MDPRESS_HOST=0.0.0.0
 mdpress serve
 ```

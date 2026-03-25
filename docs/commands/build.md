@@ -22,7 +22,7 @@ mdpress build [source] [flags]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--format <list>` | config value or `pdf` | Output formats, comma-separated, for example `pdf,html,epub`. |
+| `--format <list>` | config value or `pdf` | Output formats, comma-separated (e.g., `pdf,html,epub`) or `all` for all formats. |
 | `--branch <name>` | repository default branch | GitHub branch name. Only applies to remote repository inputs. |
 | `--subdir <path>` | repository root | Subdirectory inside the repository. Only applies to remote repository inputs. |
 | `--output <path>` | `output.filename` | Output file path, output directory, or filename prefix. |
@@ -98,6 +98,7 @@ The current implementation treats that as a base path:
 mdpress build
 mdpress build --format html
 mdpress build --format pdf,html,epub
+mdpress build --format all --output ./dist
 mdpress build --format site --output ./dist/book
 mdpress build /path/to/book --format html
 mdpress build https://github.com/yeasy/agentic_ai_guide

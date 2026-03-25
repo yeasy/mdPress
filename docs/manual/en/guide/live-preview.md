@@ -61,10 +61,10 @@ This is useful if you've already built your documentation and want to preview th
 Combine multiple flags for your specific setup:
 
 ```bash
-mdpress serve --port 8080 --host 0.0.0.0 --no-open --output ./build
+mdpress serve --port 9000 --host 0.0.0.0 --no-open --output ./build
 ```
 
-This starts a server on port 8080 accessible from any network interface, without opening a browser, serving pre-built files from the `./build` directory.
+This starts a server on port 9000 accessible from any network interface, without opening a browser, serving pre-built files from the `./build` directory.
 
 ## File Watching and Auto-Rebuild
 
@@ -219,7 +219,7 @@ Then manually trigger rebuilds (though this feature may vary by configuration).
 If port 9000 is in use, specify a different port:
 
 ```bash
-mdpress serve --port 8080
+mdpress serve --port 3000
 ```
 
 Or find the process using the port:
@@ -298,7 +298,7 @@ Most modern IDEs can run terminal commands. Set up your IDE to run `mdpress serv
 Some configurations can be set via environment variables:
 
 ```bash
-export MDPRESS_PORT=8080
+export MDPRESS_PORT=9000
 export MDPRESS_HOST=0.0.0.0
 mdpress serve
 ```

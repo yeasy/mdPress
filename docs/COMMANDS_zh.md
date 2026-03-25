@@ -30,6 +30,7 @@ flowchart TD
     build --> site["--format site"]
     build --> epub["--format epub"]
     build --> typst["--format typst"]
+    build --> all["--format all"]
 ```
 
 ## 命令矩阵
@@ -94,6 +95,7 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 - `build` 如果没有显式传 `--format`，会先读取 `output.formats`。
 - 如果配置里也没有 `output.formats`，默认构建 `pdf`。
+- 特殊值 `--format all` 会构建所有支持的格式（site、PDF、HTML 和 ePub）。
 - 默认输出文件名根据书籍标题自动生成（文件系统不安全字符会被替换）。如果标题为空或为 "Untitled Book"，则使用项目目录名。你可以通过 `output.filename` 手动覆盖。
 - `serve` 默认把预览产物写到项目目录下的 `_book/`。
 
