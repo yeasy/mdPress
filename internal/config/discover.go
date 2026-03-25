@@ -26,7 +26,7 @@ import (
 func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
 	// Priority 1: load book.yaml.
@@ -53,7 +53,7 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 	if _, err := os.Stat(summaryPath); err == nil {
 		chapters, err := ParseSummary(summaryPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse SUMMARY.md: %w", err)
 		}
 		// If we have chapters from SUMMARY.md, use them
 		if len(chapters) > 0 {
@@ -123,7 +123,7 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 	// Scan all Markdown files.
 	mdFiles, err := findMarkdownFiles(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find markdown files: %w", err)
 	}
 
 	if len(mdFiles) == 0 {

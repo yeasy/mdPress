@@ -46,7 +46,7 @@ func (v *jsonStringOrSlice) UnmarshalJSON(data []byte) error {
 	// Fall back to a string array.
 	var ss []string
 	if err := json.Unmarshal(data, &ss); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal string array: %w", err)
 	}
 	*v = ss
 	return nil

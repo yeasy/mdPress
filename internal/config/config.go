@@ -251,7 +251,7 @@ func (c *BookConfig) Validate() error {
 	}
 
 	if err := c.validateChapters(c.Chapters, ""); err != nil {
-		return err
+		return fmt.Errorf("chapter validation failed: %w", err)
 	}
 
 	validSizes := map[string]bool{
@@ -300,7 +300,7 @@ func (c *BookConfig) validateChapters(chapters []ChapterDef, prefix string) erro
 		// Recursively validate nested sections.
 		if len(ch.Sections) > 0 {
 			if err := c.validateChapters(ch.Sections, label+"."); err != nil {
-				return err
+				return fmt.Errorf("nested section validation failed: %w", err)
 			}
 		}
 	}
