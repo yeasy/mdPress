@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 
 	"golang.org/x/sync/errgroup"
@@ -354,19 +353,19 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 		}
 	}
 
-	// Build non-PDF formats in parallel
+	// Build non-PDF formats in parallel, respecting context cancellation.
 	if len(otherFormats) > 0 {
-		eg, _ := errgroup.WithContext(ctx)
-		var mu sync.Mutex
+		eg, egCtx := errgroup.WithContext(ctx)
 
 		for _, format := range otherFormats {
 			format := format // capture for closure
 			eg.Go(func() error {
+				if err := egCtx.Err(); err != nil {
+					return err
+				}
 				builder := registry.Get(strings.ToLower(format))
 				if builder == nil {
-					mu.Lock()
 					logger.Warn("Unsupported output format, skipping", slog.String("format", format))
-					mu.Unlock()
 					return nil
 				}
 				return builder.Build(buildCtx, baseName)
@@ -380,6 +379,9 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 
 	// Build PDF formats sequentially (they're resource-intensive)
 	for _, format := range pdfFormats {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		builder := registry.Get(strings.ToLower(format))
 		if builder == nil {
 			logger.Warn("Unsupported output format, skipping", slog.String("format", format))
