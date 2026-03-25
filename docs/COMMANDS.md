@@ -20,6 +20,7 @@ flowchart TD
     root --> upgrade["upgrade<br/>Update mdpress"]
     root --> themes["themes<br/>Theme management"]
     root --> completion["completion &lt;shell&gt;<br/>Shell completion"]
+    root --> version["version<br/>Print version"]
 
     themes --> list["list"]
     themes --> show["show &lt;name&gt;"]
@@ -49,6 +50,7 @@ flowchart TD
 | `mdpress themes show <theme-name>` | Show theme details and config hints | [themes](commands/themes.md) |
 | `mdpress themes preview` | Generate an HTML preview of built-in themes | [themes](commands/themes.md) |
 | `mdpress completion <shell>` | Generate shell completion scripts | [completion](commands/completion.md) |
+| `mdpress version` | Print the version and build information | — |
 
 ## Global Flags
 
