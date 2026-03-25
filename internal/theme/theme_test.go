@@ -238,18 +238,18 @@ func TestLoadFromFile(t *testing.T) {
 	themePath := filepath.Join(tmpDir, "custom.yaml")
 	content := `
 name: custom-theme
-pageSize: A4
-fontFamily: "Source Han Sans"
-fontSize: 14
-codeTheme: dracula
-lineHeight: 1.8
+page_size: A4
+font_family: "Source Han Sans"
+font_size: 14
+code_theme: dracula
+line_height: 1.8
 colors:
   text: "#2d2d2d"
   background: "#ffffff"
   heading: "#c0392b"
   link: "#2980b9"
-  codeBg: "#f5f5f5"
-  codeText: "#333"
+  code_bg: "#f5f5f5"
+  code_text: "#333"
   accent: "#e74c3c"
   border: "#ddd"
 margins:
@@ -319,10 +319,10 @@ func TestLoadFromFileAutoName(t *testing.T) {
 	// 必须包含 name 字段，因为验证在自动命名之前执行
 	content := `
 name: my-theme
-pageSize: A4
-fontFamily: sans-serif
-fontSize: 12
-lineHeight: 1.5
+page_size: A4
+font_family: sans-serif
+font_size: 12
+line_height: 1.5
 colors:
   text: "#333"
   background: "#fff"
@@ -911,17 +911,17 @@ func TestGetThemeDescription_KnownThemes(t *testing.T) {
 		{
 			name:           "technical theme",
 			themeName:      "technical",
-			expectedSubstr: "干净、专业",
+			expectedSubstr: "professional",
 		},
 		{
 			name:           "elegant theme",
 			themeName:      "elegant",
-			expectedSubstr: "优雅",
+			expectedSubstr: "Elegant",
 		},
 		{
 			name:           "minimal theme",
 			themeName:      "minimal",
-			expectedSubstr: "极简",
+			expectedSubstr: "Minimal",
 		},
 	}
 
@@ -947,7 +947,7 @@ func TestGetThemeDescription_UnknownTheme(t *testing.T) {
 		"not-a-theme",
 	}
 
-	expectedDefault := "未知的主题"
+	expectedDefault := "Unknown theme"
 
 	for _, themeName := range unknownThemes {
 		t.Run(themeName, func(t *testing.T) {
@@ -962,7 +962,7 @@ func TestGetThemeDescription_UnknownTheme(t *testing.T) {
 // TestGetThemeDescription_EmptyString 测试空字符串输入
 func TestGetThemeDescription_EmptyString(t *testing.T) {
 	desc := GetThemeDescription("")
-	expectedDefault := "未知的主题"
+	expectedDefault := "Unknown theme"
 	if desc != expectedDefault {
 		t.Errorf("GetThemeDescription(%q) = %q, want %q", "", desc, expectedDefault)
 	}
@@ -1005,7 +1005,7 @@ func TestGetThemeDescription_CaseSensitive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			desc := GetThemeDescription(tt.themeName)
-			expectedDefault := "未知的主题"
+			expectedDefault := "Unknown theme"
 
 			if tt.isKnown {
 				if desc == expectedDefault {
@@ -1022,7 +1022,7 @@ func TestGetThemeDescription_CaseSensitive(t *testing.T) {
 
 // TestGetThemeDescription_AllKnownThemes 测试所有已知主题
 func TestGetThemeDescription_AllKnownThemes(t *testing.T) {
-	expectedDefault := "未知的主题"
+	expectedDefault := "Unknown theme"
 
 	for themeName := range ThemeVariants {
 		desc := GetThemeDescription(themeName)

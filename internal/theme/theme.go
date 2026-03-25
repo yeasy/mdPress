@@ -11,77 +11,51 @@ import (
 
 const defaultCJKMonoFontFamily = "ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace"
 
-// Theme 定义了文档的主题样式
+// Theme defines the document theme styling.
 type Theme struct {
-	// 主题名称
-	Name string `yaml:"name"`
-	// 页面大小 (A4, Letter等)
-	PageSize string `yaml:"pageSize"`
-	// 字体族
-	FontFamily string `yaml:"fontFamily"`
-	// 字体大小 (pt)
-	FontSize int `yaml:"fontSize"`
-	// 代码主题
-	CodeTheme string `yaml:"codeTheme"`
-	// 行高
-	LineHeight float64 `yaml:"lineHeight"`
-
-	// 颜色设置
-	Colors ColorScheme `yaml:"colors"`
-
-	// 边距设置
-	Margins MarginSettings `yaml:"margins"`
-
-	// 页眉模板
-	HeaderTemplate string `yaml:"headerTemplate"`
-	// 页脚模板
-	FooterTemplate string `yaml:"footerTemplate"`
+	Name           string         `yaml:"name"`
+	PageSize       string         `yaml:"page_size"` // e.g. A4, Letter
+	FontFamily     string         `yaml:"font_family"`
+	FontSize       int            `yaml:"font_size"` // in pt
+	CodeTheme      string         `yaml:"code_theme"`
+	LineHeight     float64        `yaml:"line_height"`
+	Colors         ColorScheme    `yaml:"colors"`
+	Margins        MarginSettings `yaml:"margins"`
+	HeaderTemplate string         `yaml:"header_template"`
+	FooterTemplate string         `yaml:"footer_template"`
 }
 
-// ColorScheme 定义颜色方案
+// ColorScheme defines the color palette for a theme.
 type ColorScheme struct {
-	// 文本颜色
-	Text string `yaml:"text"`
-	// 背景颜色
+	Text       string `yaml:"text"`
 	Background string `yaml:"background"`
-	// 标题颜色
-	Heading string `yaml:"heading"`
-	// 链接颜色
-	Link string `yaml:"link"`
-	// 代码块背景颜色
-	CodeBg string `yaml:"codeBg"`
-	// 代码文本颜色
-	CodeText string `yaml:"codeText"`
-	// 强调颜色
-	Accent string `yaml:"accent"`
-	// 边框颜色
-	Border string `yaml:"border"`
+	Heading    string `yaml:"heading"`
+	Link       string `yaml:"link"`
+	CodeBg     string `yaml:"code_bg"`
+	CodeText   string `yaml:"code_text"`
+	Accent     string `yaml:"accent"`
+	Border     string `yaml:"border"`
 }
 
-// MarginSettings 定义边距设置 (单位: mm)
+// MarginSettings defines page margins in millimeters.
 type MarginSettings struct {
-	// 上边距
-	Top float64 `yaml:"top"`
-	// 下边距
+	Top    float64 `yaml:"top"`
 	Bottom float64 `yaml:"bottom"`
-	// 左边距
-	Left float64 `yaml:"left"`
-	// 右边距
-	Right float64 `yaml:"right"`
+	Left   float64 `yaml:"left"`
+	Right  float64 `yaml:"right"`
 }
 
-// ThemeManager 管理主题的加载和获取
+// ThemeManager manages theme loading and retrieval.
 type ThemeManager struct {
 	themes map[string]*Theme
 }
 
-// NewThemeManager 创建一个新的主题管理器，包含内置主题
+// NewThemeManager creates a new theme manager pre-loaded with built-in themes.
 func NewThemeManager() *ThemeManager {
 	tm := &ThemeManager{
 		themes: make(map[string]*Theme),
 	}
 
-	// 加载内置主题
 	tm.themes["technical"] = builtinTechnical()
 	tm.themes["elegant"] = builtinElegant()
 	tm.themes["minimal"] = builtinMinimal()
@@ -89,7 +63,7 @@ func NewThemeManager() *ThemeManager {
 	return tm
 }
 
-// Get 根据名称获取主题
+// Get returns the theme with the given name.
 func (tm *ThemeManager) Get(name string) (*Theme, error) {
 	if name == "" {
 		return tm.themes["technical"], nil
@@ -97,37 +71,37 @@ func (tm *ThemeManager) Get(name string) (*Theme, error) {
 
 	theme, exists := tm.themes[name]
 	if !exists {
-		return nil, fmt.Errorf("主题 '%s' 不存在", name)
+		return nil, fmt.Errorf("theme '%s' not found", name)
 	}
 
 	return theme, nil
 }
 
-// LoadFromFile 从YAML文件加载主题
+// LoadFromFile loads a theme from a YAML file.
 func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
-	// 检查文件是否存在
+	// Check file exists
 	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("主题文件不存在: %w", err)
+		return nil, fmt.Errorf("theme file not found: %w", err)
 	}
 
 	// 读取文件内容
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("读取主题文件失败: %w", err)
+		return nil, fmt.Errorf("failed to read theme file: %w", err)
 	}
 
 	// 解析YAML
 	theme := &Theme{}
 	if err := yaml.Unmarshal(data, theme); err != nil {
-		return nil, fmt.Errorf("解析主题文件失败: %w", err)
+		return nil, fmt.Errorf("failed to parse theme file: %w", err)
 	}
 
 	// 验证主题
 	if err := theme.Validate(); err != nil {
-		return nil, fmt.Errorf("主题验证失败: %w", err)
+		return nil, fmt.Errorf("theme validation failed: %w", err)
 	}
 
-	// 将主题添加到管理器
+	// Register theme in the manager
 	if theme.Name == "" {
 		theme.Name = strings.TrimSuffix(filepath.Base(path), ".yaml")
 	}
@@ -136,7 +110,7 @@ func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
 	return theme, nil
 }
 
-// List 返回所有可用的主题名称列表
+// List returns the names of all available themes.
 func (tm *ThemeManager) List() []string {
 	names := make([]string, 0, len(tm.themes))
 	for name := range tm.themes {
@@ -145,30 +119,30 @@ func (tm *ThemeManager) List() []string {
 	return names
 }
 
-// Validate 验证主题的有效性
+// Validate checks theme fields for correctness.
 func (t *Theme) Validate() error {
 	if t.Name == "" {
-		return fmt.Errorf("主题名称不能为空")
+		return fmt.Errorf("theme name must not be empty")
 	}
 
 	if t.PageSize == "" {
-		return fmt.Errorf("页面大小不能为空")
+		return fmt.Errorf("page size must not be empty")
 	}
 
 	if t.FontSize <= 0 {
-		return fmt.Errorf("字体大小必须大于0")
+		return fmt.Errorf("font size must be greater than 0")
 	}
 
 	if t.LineHeight <= 0 {
-		return fmt.Errorf("行高必须大于0")
+		return fmt.Errorf("line height must be greater than 0")
 	}
 
 	if t.Colors.Text == "" {
-		return fmt.Errorf("文本颜色不能为空")
+		return fmt.Errorf("text color must not be empty")
 	}
 
 	if t.Colors.Background == "" {
-		return fmt.Errorf("背景颜色不能为空")
+		return fmt.Errorf("background color must not be empty")
 	}
 
 	return nil
