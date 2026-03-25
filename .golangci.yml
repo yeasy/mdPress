@@ -40,6 +40,8 @@ linters:
       excludes:
         - G104  # errors unhandled — covered by errcheck + nolint
         - G112  # Slowloris — internal dev server only
+        - G118  # context.Background in goroutine — used for shutdown contexts
+        - G122  # filepath.Walk TOCTOU — trusted local project files
         - G203  # template.HTML — mdpress generates HTML by design
         - G204  # subprocess — CLI tool calls external binaries
         - G301  # directory permissions 0755 — standard for user dirs
@@ -47,11 +49,9 @@ linters:
         - G306  # WriteFile 0644 — standard for user-facing files
         - G702  # command injection — trusted CLI args
         - G703  # path traversal — trusted local paths
-        - G706  # log injection — slog values are sanitized before logging
         - G704  # SSRF — downloading user-specified resources
         - G705  # XSS — HTML generation tool
-        - G118  # context.Background in goroutine — used for shutdown contexts
-        - G122  # filepath.Walk TOCTOU — trusted local project files
+        - G706  # log injection — slog values are sanitized before logging
     misspell:
       locale: US
   exclusions:

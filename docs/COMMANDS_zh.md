@@ -20,6 +20,7 @@ flowchart TD
     root --> upgrade["upgrade<br/>更新 mdpress"]
     root --> themes["themes<br/>主题管理"]
     root --> completion["completion &lt;shell&gt;<br/>补全脚本"]
+    root --> version["version<br/>版本信息"]
 
     themes --> list["list"]
     themes --> show["show &lt;name&gt;"]
@@ -49,6 +50,7 @@ flowchart TD
 | `mdpress themes show <theme-name>` | 查看主题详情和配置提示 | [themes](commands/themes_zh.md) |
 | `mdpress themes preview` | 生成内置主题的 HTML 预览页 | [themes](commands/themes_zh.md) |
 | `mdpress completion <shell>` | 生成自动补全脚本 | [completion](commands/completion_zh.md) |
+| `mdpress version` | 打印版本号和构建信息 | — |
 
 ## 全局参数
 
