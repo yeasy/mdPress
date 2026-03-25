@@ -96,7 +96,6 @@ body.sidebar-resizing .main { transition: none; }
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .nav-group.collapsed .nav-toggle::before { transform: rotate(-90deg); }
-.nav-toggle-placeholder::before { content: ""; }
 .nav-item {
   display: block; color: #555; text-decoration: none;
   font-size: 0.9rem; border-radius: 4px; margin: 1px 0; transition: all 0.15s;
@@ -105,6 +104,7 @@ body.sidebar-resizing .main { transition: none; }
 .nav-item:hover { background: #e8e8e8; color: #111; }
 .nav-item.active { background: #4285f4; color: #fff; font-weight: 500; }
 .nav-chapter { flex: 1; padding: 6px 10px 6px 8px; font-weight: 600; }
+.nav-row:not(:has(.nav-toggle)) .nav-chapter { padding-left: 14px; font-weight: 400; }
 .nav-heading { padding: 5px 12px; font-size: 0.84rem; margin-left: 26px; }
 .nav-depth-1 { padding-left: 8px; }
 .nav-depth-2 { padding-left: 22px; }
@@ -576,6 +576,8 @@ body.sidebar-open::before {
   .content { padding: 24px 20px 80px; }
   .page-header { padding: 12px 16px; }
   .sidebar-search-kbd { display: none; }
+  .header-search-btn span { display: none; }
+  .header-search-btn kbd { display: none; }
   .page-nav {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -811,11 +813,56 @@ html.dark .search-result-snippet mark { background: #45475a; color: #f9e2af; }
 html.dark .search-empty { color: #6c7086; }
 html.dark .search-footer { border-top-color: #313244; color: #6c7086; }
 html.dark .search-footer kbd { background: #313244; border-color: #45475a; }
+html.dark .header-search-btn { background: #313244; border-color: #45475a; color: #6c7086; }
+html.dark .header-search-btn:hover { border-color: #585b70; background: #3b3d52; color: #a6adc8; }
+html.dark .header-search-btn kbd { background: #45475a; border-color: #585b70; color: #6c7086; }
 html.dark .theme-toggle { background: #313244; border-color: #45475a; }
 html.dark .theme-toggle button { color: #a6adc8; }
 html.dark .theme-toggle button:hover { background: #45475a; color: #cdd6f4; }
 html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
 /* Theme toggle button */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.header-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  background: #f5f5f5;
+  color: #888;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.header-search-btn:hover {
+  border-color: #bbb;
+  background: #eee;
+  color: #555;
+}
+.header-search-btn svg {
+  width: 14px; height: 14px; flex-shrink: 0;
+  stroke: currentColor; fill: none;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.header-search-btn kbd {
+  font-size: 0.65rem;
+  background: #e8e8e8;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: #999;
+  font-family: inherit;
+  line-height: 1.4;
+}
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -824,7 +871,6 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
   border: 1px solid #ddd;
   border-radius: 6px;
   padding: 2px;
-  margin-left: auto;
   flex-shrink: 0;
 }
 .theme-toggle button {
@@ -931,10 +977,17 @@ body {
         <a href="index.html">{{.SiteTitle}}</a>
         {{range .Breadcrumbs}}<span class="bc-sep">›</span><a href="{{.Filename}}">{{.Title}}</a>{{end}}
       </nav>
-      <div class="theme-toggle" aria-label="Theme switcher">
-        <button type="button" data-theme="light" title="{{.UIlightMode}}" aria-label="{{.UIlightMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
-        <button type="button" data-theme="system" title="{{.UIsystemDefault}}" aria-label="{{.UIsystemDefault}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></button>
-        <button type="button" data-theme="dark" title="{{.UIdarkMode}}" aria-label="{{.UIdarkMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
+      <div class="header-right">
+        <button class="header-search-btn" id="header-search-btn" type="button" aria-label="{{.UIsearchButton}}">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>{{.UIsearchPlaceholder}}</span>
+          <kbd>{{.UIsearchKbd}}</kbd>
+        </button>
+        <div class="theme-toggle" aria-label="Theme switcher">
+          <button type="button" data-theme="light" title="{{.UIlightMode}}" aria-label="{{.UIlightMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg></button>
+          <button type="button" data-theme="system" title="{{.UIsystemDefault}}" aria-label="{{.UIsystemDefault}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></button>
+          <button type="button" data-theme="dark" title="{{.UIdarkMode}}" aria-label="{{.UIdarkMode}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
+        </div>
       </div>
     </header>
     <div class="main-body">
@@ -2017,6 +2070,14 @@ body {
           e.preventDefault();
           openSearch(sidebarInput.value);
         }
+      });
+    }
+
+    // Header search button opens modal
+    var headerSearchBtn = document.getElementById('header-search-btn');
+    if (headerSearchBtn) {
+      headerSearchBtn.addEventListener('click', function() {
+        openSearch('');
       });
     }
 
