@@ -53,7 +53,7 @@ func storeParsedChapterCache(chapterPath, expandedContent, codeTheme string, cac
 	cachePath := parsedChapterCachePath(chapterPath, expandedContent, codeTheme)
 	cacheDir := filepath.Dir(cachePath)
 	if err := utils.EnsureDir(cacheDir); err != nil {
-		return err
+		return fmt.Errorf("failed to ensure cache directory exists: %w", err)
 	}
 	data, err := json.Marshal(cached)
 	if err != nil {

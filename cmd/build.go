@@ -216,7 +216,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 
 	outputOverride, err := resolveRequestedBuildOutput(buildOutput)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to resolve build output: %w", err)
 	}
 
 	if cfg.LangsFile != "" {
