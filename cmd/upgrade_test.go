@@ -1,6 +1,10 @@
 package cmd
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -118,15 +122,21 @@ func TestFindAssetForPlatform(t *testing.T) {
 			expectedName: "mdpress-linux-amd64",
 		},
 		{
-			name:         "multiple archives to skip",
-			assetNames:   []string{"source.tar.gz", "mdpress-linux-x86_64", "checksums.txt"},
+			name:         "release archive accepted",
+			assetNames:   []string{"source.tar.gz", "mdpress_1.0.0_linux_amd64.tar.gz", "checksums.txt"},
 			shouldFind:   true,
-			expectedName: "mdpress-linux-x86_64",
+			expectedName: "mdpress_1.0.0_linux_amd64.tar.gz",
 		},
 		{
 			name:       "signature files skipped",
 			assetNames: []string{"mdpress-linux-x86_64.sha256", "mdpress-linux-x86_64.sig"},
 			shouldFind: false,
+		},
+		{
+			name:         "prefer raw binary over archive",
+			assetNames:   []string{"mdpress_1.0.0_linux_amd64.tar.gz", "mdpress-linux-amd64"},
+			shouldFind:   true,
+			expectedName: "mdpress-linux-amd64",
 		},
 		{
 			name:       "empty assets",
@@ -785,4 +795,110 @@ func TestDownloadBinaryMock(t *testing.T) {
 			t.Errorf("expected non-200 status code, got %d", resp.StatusCode)
 		}
 	})
+}
+
+func TestExtractBinaryData(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	t.Cleanup(func() {
+		platformOS, platformArch = origOS, origArch
+	})
+
+	t.Run("tar.gz archive", func(t *testing.T) {
+		platformOS, platformArch = "linux", "amd64"
+		archiveData := mustCreateTarGzArchive(t, map[string][]byte{
+			"mdpress":      []byte("linux binary"),
+			"README.txt":   []byte("ignored"),
+			"nested/extra": []byte("ignored"),
+		})
+
+		binaryData, err := extractBinaryData("mdpress_1.0.0_linux_amd64.tar.gz", archiveData)
+		if err != nil {
+			t.Fatalf("extractBinaryData() failed: %v", err)
+		}
+		if string(binaryData) != "linux binary" {
+			t.Fatalf("extractBinaryData() = %q, want linux binary", string(binaryData))
+		}
+	})
+
+	t.Run("zip archive", func(t *testing.T) {
+		platformOS, platformArch = "windows", "amd64"
+		archiveData := mustCreateZipArchive(t, map[string][]byte{
+			"mdpress.exe": []byte("windows binary"),
+			"notes.txt":   []byte("ignored"),
+		})
+
+		binaryData, err := extractBinaryData("mdpress_1.0.0_windows_amd64.zip", archiveData)
+		if err != nil {
+			t.Fatalf("extractBinaryData() failed: %v", err)
+		}
+		if string(binaryData) != "windows binary" {
+			t.Fatalf("extractBinaryData() = %q, want windows binary", string(binaryData))
+		}
+	})
+
+	t.Run("missing binary in archive", func(t *testing.T) {
+		platformOS, platformArch = "linux", "amd64"
+		archiveData := mustCreateTarGzArchive(t, map[string][]byte{
+			"README.txt": []byte("missing"),
+		})
+
+		_, err := extractBinaryData("mdpress_1.0.0_linux_amd64.tar.gz", archiveData)
+		if err == nil {
+			t.Fatal("extractBinaryData() expected error for archive without binary")
+		}
+	})
+}
+
+func mustCreateTarGzArchive(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	gzw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gzw)
+
+	for name, content := range files {
+		header := &tar.Header{
+			Name: name,
+			Mode: 0755,
+			Size: int64(len(content)),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			t.Fatalf("WriteHeader(%q) failed: %v", name, err)
+		}
+		if _, err := tw.Write(content); err != nil {
+			t.Fatalf("Write(%q) failed: %v", name, err)
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar writer close failed: %v", err)
+	}
+	if err := gzw.Close(); err != nil {
+		t.Fatalf("gzip writer close failed: %v", err)
+	}
+
+	return buf.Bytes()
+}
+
+func mustCreateZipArchive(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		writer, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("Create(%q) failed: %v", name, err)
+		}
+		if _, err := writer.Write(content); err != nil {
+			t.Fatalf("Write(%q) failed: %v", name, err)
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip writer close failed: %v", err)
+	}
+
+	return buf.Bytes()
 }
