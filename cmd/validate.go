@@ -318,7 +318,7 @@ func flattenChapterDefs(chapters []config.ChapterDef) []config.ChapterDef {
 func extractImagePaths(filePath string) ([]string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open image path file: %w", err)
 	}
 	defer f.Close() //nolint:errcheck
 
@@ -378,7 +378,7 @@ func findUnresolvedMarkdownLinks(cfg *config.BookConfig) ([]unresolvedMarkdownLi
 		filePath := cfg.ResolvePath(ch.File)
 		links, err := extractMarkdownLinks(filePath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to extract markdown links from %s: %w", ch.File, err)
 		}
 		currentDir := filepath.Dir(linkrewrite.NormalizePath(ch.File))
 		for _, link := range links {
@@ -399,7 +399,7 @@ func findUnresolvedMarkdownLinks(cfg *config.BookConfig) ([]unresolvedMarkdownLi
 func extractMarkdownLinks(filePath string) ([]string, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open markdown link file: %w", err)
 	}
 	defer f.Close() //nolint:errcheck
 
@@ -468,16 +468,16 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) ([]string, error)
 		filePath := cfg.ResolvePath(flat.Def.File)
 		content, err := utils.ReadFile(filePath)
 		if err != nil {
-			return issues, err
+			return issues, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, err)
 		}
 
 		_, headings, diagnostics, err := parser.ParseWithDiagnostics(content)
 		if err != nil {
-			return issues, err
+			return issues, fmt.Errorf("failed to parse chapter %s with diagnostics: %w", flat.Def.File, err)
 		}
 		htmlContent, _, err := parser.Parse(content)
 		if err != nil {
-			return issues, err
+			return issues, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, err)
 		}
 
 		if diag := validateChapterTitleSequence(flat.Def.Title, headings); diag != nil {

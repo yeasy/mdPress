@@ -217,7 +217,7 @@ func executeInit(ctx context.Context, dir string) error {
 		}
 
 		if err := createStarterTemplate(dir); err != nil {
-			return err
+			return fmt.Errorf("failed to create starter template: %w", err)
 		}
 		yaml := generateInteractiveBookYAML(answers)
 		if err := utils.WriteFile(cfgPath, []byte(yaml)); err != nil {
@@ -391,7 +391,7 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to scan markdown files in %s: %w", root, err)
 	}
 
 	// Sort by depth first, then path name.

@@ -148,7 +148,7 @@ func executeServe(ctx context.Context, inputSource string, opts ServeOptions) er
 			cfg, err = config.Discover(ctx, workDir)
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to load or discover book config: %w", err)
 		}
 
 		// Handle explicit --summary flag.
@@ -186,12 +186,12 @@ func executeServe(ctx context.Context, inputSource string, opts ServeOptions) er
 	if opts.PortChanged {
 		ln, err = srv.Listen()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to listen: %w", err)
 		}
 	} else {
 		ln, err = srv.ListenFrom(defaultServePort)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to listen on default port: %w", err)
 		}
 	}
 	listenerOwned := true
@@ -263,7 +263,7 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 	// Initialize the orchestrator.
 	orchestrator, err := NewBuildOrchestrator(cfg, logger)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create build orchestrator: %w", err)
 	}
 
 	// Use the chapter pipeline for consistent processing.
@@ -271,7 +271,7 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 	// For serve, we ignore the issues but benefit from consistent processing.
 	result, err := orchestrator.ProcessChapters(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to process chapters: %w", err)
 	}
 
 	chaptersHTML := result.Chapters
@@ -282,7 +282,7 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 	sitePages := sitePageFilenames(len(chaptersHTML))
 	siteChapters := rewriteChapterLinksForSite(chaptersHTML, chapterFiles, sitePages)
 	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, sitePages); err != nil {
-		return err
+		return fmt.Errorf("failed to generate site output: %w", err)
 	}
 
 	// Also generate a standalone HTML file for convenient reading.
