@@ -3,7 +3,7 @@
 name: elegant
 page_size: A4
 font_family: "Songti SC, STSong, Noto Serif CJK SC, Source Han Serif SC, Georgia, Garamond, Times New Roman, serif"
-font_size: "13pt"
+font_size: 13
 code_theme: github
 line_height: 1.8
 
@@ -17,7 +17,7 @@ colors:
   accent: "#795548"
   border: "#d7ccc8"
 
-margin:
+margins:
   top: 30
   bottom: 30
   left: 25

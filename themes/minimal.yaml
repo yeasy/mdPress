@@ -3,7 +3,7 @@
 name: minimal
 page_size: A4
 font_family: "system-ui, -apple-system, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, sans-serif"
-font_size: "11pt"
+font_size: 11
 code_theme: pygments
 line_height: 1.5
 
@@ -17,7 +17,7 @@ colors:
   accent: "#666666"
   border: "#eeeeee"
 
-margin:
+margins:
   top: 20
   bottom: 20
   left: 18
