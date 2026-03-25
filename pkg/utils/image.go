@@ -134,7 +134,11 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		}
 		// Retry once for transient network errors.
 		time.Sleep(imageDownloadRetryDelay)
-		req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+		// Create a fresh context for the retry instead of reusing the original one,
+		// which may have consumed its timeout or been canceled during the first attempt.
+		retryCtx, retryCancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
+		defer retryCancel()
+		req, err := http.NewRequestWithContext(retryCtx, "GET", urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
 		}
