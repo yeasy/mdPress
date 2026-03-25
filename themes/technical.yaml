@@ -3,7 +3,7 @@
 name: technical
 page_size: A4
 font_family: "-apple-system, BlinkMacSystemFont, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, Segoe UI, Helvetica Neue, Arial, sans-serif"
-font_size: "12pt"
+font_size: 12
 code_theme: monokai
 line_height: 1.6
 
@@ -17,7 +17,7 @@ colors:
   accent: "#1976d2"
   border: "#e0e0e0"
 
-margin:
+margins:
   top: 25
   bottom: 25
   left: 20
