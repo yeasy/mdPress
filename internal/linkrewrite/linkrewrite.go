@@ -48,7 +48,7 @@ func RewriteLinks(htmlContent string, currentFile string, targets map[string]Tar
 			href = parts[2]
 		}
 
-		rewritten, ok, unresolvedMarkdown := rewriteHref(href, currentDir, targets, mode)
+		rewritten, ok, unresolvedMarkdown := rewriteHref(href, NormalizePath(currentFile), currentDir, targets, mode)
 		if !ok {
 			if unresolvedMarkdown {
 				return `href=` + quote + href + quote + ` data-mdpress-link="unresolved-markdown" title="Markdown link target is outside the current build graph"`
@@ -71,7 +71,7 @@ func NormalizePath(path string) string {
 
 // rewriteHref processes a single href value.
 // Returns (rewritten, ok, unresolvedMarkdown).
-func rewriteHref(href string, currentDir string, targets map[string]Target, mode Mode) (string, bool, bool) {
+func rewriteHref(href string, currentFile string, currentDir string, targets map[string]Target, mode Mode) (string, bool, bool) {
 	if href == "" || strings.HasPrefix(href, "#") || strings.HasPrefix(href, "/") {
 		return "", false, false
 	}
@@ -111,10 +111,11 @@ func rewriteHref(href string, currentDir string, targets map[string]Target, mode
 		if target.PageFilename == "" {
 			return "", false, true
 		}
+		baseTarget := relativeSiteTarget(currentFile, target.PageFilename)
 		if fragment != "" {
-			return target.PageFilename + "#" + fragment, true, false
+			return baseTarget + "#" + fragment, true, false
 		}
-		return target.PageFilename, true, false
+		return baseTarget, true, false
 	default:
 		if fragment != "" {
 			return "#" + fragment, true, false
@@ -124,4 +125,14 @@ func rewriteHref(href string, currentDir string, targets map[string]Target, mode
 		}
 		return "#" + target.ChapterID, true, false
 	}
+}
+
+func relativeSiteTarget(currentFile, targetFile string) string {
+	currentDir := filepath.Dir(filepath.Clean(currentFile))
+	targetPath := filepath.Clean(targetFile)
+	rel, err := filepath.Rel(currentDir, targetPath)
+	if err != nil {
+		return filepath.ToSlash(targetPath)
+	}
+	return filepath.ToSlash(rel)
 }

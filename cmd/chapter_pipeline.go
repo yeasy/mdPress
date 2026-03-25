@@ -48,12 +48,13 @@ type parsedChapterData struct {
 
 // ChapterPipelineResult encapsulates the output of chapter processing.
 type ChapterPipelineResult struct {
-	Chapters       []renderer.ChapterHTML
-	ChapterFiles   []string
-	Issues         []projectIssue
-	AllHeadings    []toc.HeadingInfo
-	Resolver       *crossref.Resolver
-	HeadingRecords []chapterHeadingRecord
+	Chapters        []renderer.ChapterHTML
+	ChapterFiles    []string
+	ChapterMarkdown []string
+	Issues          []projectIssue
+	AllHeadings     []toc.HeadingInfo
+	Resolver        *crossref.Resolver
+	HeadingRecords  []chapterHeadingRecord
 }
 
 // ChapterPipeline orchestrates the complete chapter processing workflow.
@@ -333,6 +334,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 	var allHeadings []toc.HeadingInfo
 	chaptersHTML := make([]renderer.ChapterHTML, 0, len(p.Config.Chapters))
 	chapterFiles := make([]string, 0, len(p.Config.Chapters))
+	chapterMarkdown := make([]string, 0, len(p.Config.Chapters))
 	issues := make([]projectIssue, 0)
 	chapterHeadingRecords := make([]chapterHeadingRecord, 0, len(p.Config.Chapters))
 
@@ -444,6 +446,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 			Headings: toRendererNavHeadings(headingTree),
 		})
 		chapterFiles = append(chapterFiles, linkrewrite.NormalizePath(chDef.File))
+		chapterMarkdown = append(chapterMarkdown, parsed.expandedContent)
 	}
 
 	// Validate that at least some chapters were processed.
@@ -474,12 +477,13 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 	}
 
 	return &ChapterPipelineResult{
-		Chapters:       chaptersHTML,
-		ChapterFiles:   chapterFiles,
-		Issues:         issues,
-		AllHeadings:    allHeadings,
-		Resolver:       resolver,
-		HeadingRecords: chapterHeadingRecords,
+		Chapters:        chaptersHTML,
+		ChapterFiles:    chapterFiles,
+		ChapterMarkdown: chapterMarkdown,
+		Issues:          issues,
+		AllHeadings:     allHeadings,
+		Resolver:        resolver,
+		HeadingRecords:  chapterHeadingRecords,
 	}, nil
 }
 

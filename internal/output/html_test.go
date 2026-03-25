@@ -169,23 +169,20 @@ func TestSiteGeneratorInteractiveSidebar(t *testing.T) {
 	if !strings.Contains(html, "margin: 0 !important;") {
 		t.Error("generated site page should reset body margin for site layout")
 	}
-	if !strings.Contains(html, "@view-transition") {
-		t.Error("generated site page should enable same-origin view transitions")
-	}
 	if !strings.Contains(html, "link.rel = 'prefetch'") {
 		t.Error("generated site page should prefetch adjacent chapter pages")
-	}
-	if !strings.Contains(html, "body.page-entering .content") {
-		t.Error("generated site page should include page-entering fallback animation")
 	}
 	if !strings.Contains(html, "navigateClientSide(target") {
 		t.Error("generated site page should include client-side chapter navigation")
 	}
-	if !strings.Contains(html, "document.startViewTransition") {
-		t.Error("generated site page should use view transitions for in-page navigation when available")
-	}
 	if !strings.Contains(html, "fetchPagePayload(target.url") {
 		t.Error("generated site page should fetch target pages for SPA-like navigation")
+	}
+	if !strings.Contains(html, "scrollToTopImmediate()") {
+		t.Error("generated site page should reset scroll immediately before cross-page navigation")
+	}
+	if !strings.Contains(html, "headingTextForTOC(h)") {
+		t.Error("generated site page should strip header anchor text from the page TOC")
 	}
 	if !strings.Contains(html, "route-progress") {
 		t.Error("generated site page should include a route progress indicator")

@@ -32,6 +32,7 @@ type BuildContext struct {
 	PDFSinglePageParts *renderer.RenderParts
 	ChaptersHTML       []renderer.ChapterHTML
 	ChapterFiles       []string
+	ChapterMarkdown    []string
 	CustomCSS          string
 	Logger             *slog.Logger
 }
@@ -184,7 +185,7 @@ func (b *SiteBuilder) Build(ctx *BuildContext, baseName string) error {
 
 	pageNames := sitePageFilenames(ctx.ChapterFiles)
 	siteChapters := rewriteChapterLinksForSite(ctx.ChaptersHTML, ctx.ChapterFiles, pageNames)
-	if err := generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, outputDir, siteChapters, pageNames); err != nil {
+	if err := generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, outputDir, siteChapters, pageNames, ctx.ChapterMarkdown); err != nil {
 		return fmt.Errorf("failed to generate HTML site: %w", err)
 	}
 	ctx.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))

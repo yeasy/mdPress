@@ -110,8 +110,8 @@ func TestRewriteLinks_SingleMode(t *testing.T) {
 
 func TestRewriteLinks_SiteMode(t *testing.T) {
 	targets := map[string]Target{
-		"chapter01/README.md": {ChapterID: "ch01", PageFilename: "ch_000.html"},
-		"chapter02/README.md": {ChapterID: "ch02", PageFilename: "ch_001.html"},
+		"chapter01/README.md": {ChapterID: "ch01", PageFilename: "chapter01/index.html"},
+		"chapter02/README.md": {ChapterID: "ch02", PageFilename: "chapter02/index.html"},
 	}
 
 	tests := []struct {
@@ -124,13 +124,19 @@ func TestRewriteLinks_SiteMode(t *testing.T) {
 			name:        "rewrite to page filename",
 			html:        `<a href="chapter01/README.md">Chapter 1</a>`,
 			currentFile: "README.md",
-			want:        `<a href="ch_000.html">Chapter 1</a>`,
+			want:        `<a href="chapter01/index.html">Chapter 1</a>`,
 		},
 		{
 			name:        "rewrite with fragment to page filename",
 			html:        `<a href="chapter02/README.md#intro">Intro</a>`,
 			currentFile: "README.md",
-			want:        `<a href="ch_001.html#intro">Intro</a>`,
+			want:        `<a href="chapter02/index.html#intro">Intro</a>`,
+		},
+		{
+			name:        "rewrite relative path between chapter directories",
+			html:        `<a href="../chapter02/README.md">Chapter 2</a>`,
+			currentFile: "chapter01/README.md",
+			want:        `<a href="../chapter02/index.html">Chapter 2</a>`,
 		},
 	}
 
@@ -326,7 +332,7 @@ func TestRewriteLinks_EmptyTargets(t *testing.T) {
 
 func TestRewriteLinks_ModeVariations(t *testing.T) {
 	targets := map[string]Target{
-		"chapter.md": {ChapterID: "ch1", PageFilename: "page.html"},
+		"chapter.md": {ChapterID: "ch1", PageFilename: "page/index.html"},
 	}
 
 	tests := []struct {
@@ -348,7 +354,7 @@ func TestRewriteLinks_ModeVariations(t *testing.T) {
 			mode:        ModeSite,
 			html:        `<a href="chapter.md">Link</a>`,
 			currentFile: "README.md",
-			want:        `<a href="page.html">Link</a>`,
+			want:        `<a href="page/index.html">Link</a>`,
 		},
 	}
 

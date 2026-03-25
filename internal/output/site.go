@@ -19,6 +19,7 @@ type SiteChapter struct {
 	ID       string
 	Filename string // Output HTML filename, for example "ch01.html".
 	Content  string // Rendered HTML content.
+	Markdown string // Source markdown after variable expansion.
 	Depth    int
 	Headings []SiteNavHeading
 	Children []SiteChapter
@@ -33,10 +34,13 @@ type SiteNavHeading struct {
 
 // SiteMeta stores site-wide metadata.
 type SiteMeta struct {
-	Title    string
-	Author   string
-	Language string
-	Theme    string // CSS theme name.
+	Title            string
+	Subtitle         string
+	Description      string
+	Author           string
+	Language         string
+	Theme            string // CSS theme name.
+	ThemeDescription string
 }
 
 // SiteGenerator generates the static site.
@@ -146,25 +150,30 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		}
 
 		sidebarHTML := g.buildSidebar(g.Chapters, page.Filename)
-
 		data := pageData{
-			SiteTitle:   g.Meta.Title,
-			Author:      g.Meta.Author,
-			Language:    g.Meta.Language,
-			PageTitle:   page.Title,
-			Description: extractDescription(page.Content),
-			Breadcrumbs: g.buildBreadcrumbs(g.Chapters, page.Filename),
-			Content:     page.Content,
-			CSS:         g.CSS,
-			SidebarHTML: sidebarHTML,
-			PrevLink:    prevLink,
-			PrevTitle:   prevTitle,
-			NextLink:    nextLink,
-			NextTitle:   nextTitle,
-			ActiveFile:  page.Filename,
-			TotalPages:  len(flatPages),
-			CurrentPage: i + 1,
-			ShowTitle:   !contentStartsWithTitle(page.Content, page.Title),
+			SiteTitle:        g.Meta.Title,
+			SiteSubtitle:     g.Meta.Subtitle,
+			SiteDescription:  g.Meta.Description,
+			Author:           g.Meta.Author,
+			Language:         g.Meta.Language,
+			ThemeName:        g.Meta.Theme,
+			ThemeDescription: g.Meta.ThemeDescription,
+			PageTitle:        page.Title,
+			Description:      extractDescription(page.Content),
+			Breadcrumbs:      relativeBreadcrumbs(page.Filename, g.buildBreadcrumbs(g.Chapters, page.Filename)),
+			Content:          page.Content,
+			CSS:              g.CSS,
+			SidebarHTML:      sidebarHTML,
+			HomeLink:         relativeSiteHref(page.Filename, "index.html"),
+			SitemapLink:      relativeSiteHref(page.Filename, "sitemap.xml"),
+			PrevLink:         relativeSiteHref(page.Filename, prevLink),
+			PrevTitle:        prevTitle,
+			NextLink:         relativeSiteHref(page.Filename, nextLink),
+			NextTitle:        nextTitle,
+			ActiveFile:       page.Filename,
+			TotalPages:       len(flatPages),
+			CurrentPage:      i + 1,
+			ShowTitle:        !contentStartsWithTitle(page.Content, page.Title),
 		}
 		populateUIStrings(&data)
 
@@ -174,9 +183,13 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		}
 
 		outPath := filepath.Join(outputDir, page.Filename)
+		if err := utils.EnsureDir(filepath.Dir(outPath)); err != nil {
+			return fmt.Errorf("failed to create page directory for %s: %w", page.Filename, err)
+		}
 		if err := os.WriteFile(outPath, []byte(buf.String()), 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", page.Filename, err)
 		}
+
 	}
 
 	// Generate index.html as a full first-chapter page so the SPA loads instantly
@@ -194,21 +207,27 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			nextTitle = flatPages[1].Title
 		}
 		idxData := pageData{
-			SiteTitle:   g.Meta.Title,
-			Author:      g.Meta.Author,
-			Language:    g.Meta.Language,
-			PageTitle:   firstPage.Title,
-			Description: extractDescription(firstPage.Content),
-			Breadcrumbs: g.buildBreadcrumbs(g.Chapters, firstPage.Filename),
-			Content:     firstPage.Content,
-			CSS:         g.CSS,
-			SidebarHTML: g.buildSidebar(g.Chapters, firstPage.Filename),
-			NextLink:    nextLink,
-			NextTitle:   nextTitle,
-			ActiveFile:  firstPage.Filename,
-			TotalPages:  len(flatPages),
-			CurrentPage: 1,
-			ShowTitle:   !contentStartsWithTitle(firstPage.Content, firstPage.Title),
+			SiteTitle:        g.Meta.Title,
+			SiteSubtitle:     g.Meta.Subtitle,
+			SiteDescription:  g.Meta.Description,
+			Author:           g.Meta.Author,
+			Language:         g.Meta.Language,
+			ThemeName:        g.Meta.Theme,
+			ThemeDescription: g.Meta.ThemeDescription,
+			PageTitle:        firstPage.Title,
+			Description:      firstNonEmpty(g.Meta.Description, extractDescription(firstPage.Content)),
+			Breadcrumbs:      nil,
+			Content:          firstPage.Content,
+			CSS:              g.CSS,
+			SidebarHTML:      g.buildSidebar(g.Chapters, "index.html"),
+			HomeLink:         "index.html",
+			SitemapLink:      "sitemap.xml",
+			NextLink:         relativeSiteHref("index.html", nextLink),
+			NextTitle:        nextTitle,
+			ActiveFile:       "index.html",
+			TotalPages:       len(flatPages),
+			CurrentPage:      1,
+			ShowTitle:        !contentStartsWithTitle(firstPage.Content, firstPage.Title),
 		}
 		populateUIStrings(&idxData)
 		var buf strings.Builder
@@ -224,9 +243,11 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
 	}
-
 	// Generate sitemap.xml for search engine indexing.
 	if len(flatPages) > 0 {
+		if err := utils.EnsureDir(outputDir); err != nil {
+			return fmt.Errorf("failed to ensure site output directory: %w", err)
+		}
 		var sm strings.Builder
 		sm.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 		sm.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
@@ -242,11 +263,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 
 	// Generate search-index.json for client-side full-text search.
 	if len(flatPages) > 0 {
-		type searchEntry struct {
-			Title    string `json:"t"`
-			Filename string `json:"f"`
-			Text     string `json:"x"`
-			Path     string `json:"p"`
+		if err := utils.EnsureDir(outputDir); err != nil {
+			return fmt.Errorf("failed to ensure site output directory: %w", err)
 		}
 		entries := make([]searchEntry, 0, len(flatPages))
 		for _, page := range flatPages {
@@ -272,6 +290,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 				Text:     plainText,
 				Path:     pathStr,
 			})
+			entries = append(entries, searchEntriesForHeadings(page, plainText)...)
 		}
 		indexJSON, err := json.Marshal(entries)
 		if err != nil {
@@ -281,7 +300,6 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			return fmt.Errorf("failed to write search-index.json: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -294,6 +312,7 @@ func (g *SiteGenerator) flattenChapters(chapters []SiteChapter) []SiteChapter {
 			ID:       ch.ID,
 			Filename: ch.Filename,
 			Content:  ch.Content,
+			Markdown: ch.Markdown,
 			Depth:    ch.Depth,
 			Headings: ch.Headings,
 		})
@@ -314,23 +333,29 @@ type breadcrumb struct {
 // pageData contains all the information needed to render a single page of the site,
 // including site metadata, page content, navigation elements, and styling.
 type pageData struct {
-	SiteTitle   string
-	Author      string
-	Language    string
-	PageTitle   string
-	Description string // First ~160 chars of plain text for meta description.
-	Breadcrumbs []breadcrumb
-	Content     string
-	CSS         string
-	SidebarHTML string
-	PrevLink    string
-	PrevTitle   string
-	NextLink    string
-	NextTitle   string
-	ActiveFile  string
-	TotalPages  int
-	CurrentPage int
-	ShowTitle   bool // true when Content lacks an <h1>, so the template should insert one.
+	SiteTitle        string
+	SiteSubtitle     string
+	SiteDescription  string
+	Author           string
+	Language         string
+	ThemeName        string
+	ThemeDescription string
+	PageTitle        string
+	Description      string // First ~160 chars of plain text for meta description.
+	Breadcrumbs      []breadcrumb
+	Content          string
+	CSS              string
+	SidebarHTML      string
+	HomeLink         string
+	SitemapLink      string
+	PrevLink         string
+	PrevTitle        string
+	NextLink         string
+	NextTitle        string
+	ActiveFile       string
+	TotalPages       int
+	CurrentPage      int
+	ShowTitle        bool // true when Content lacks an <h1>, so the template should insert one.
 
 	// Localized UI strings.
 	UIprevious          string
@@ -339,6 +364,17 @@ type pageData struct {
 	UIsearchButton      string
 	UInoResults         string
 	UIsearchUnavailable string
+	UIsearchResultsOne  string
+	UIsearchResults     string
+	UIrecentPages       string
+	UIrecentEmpty       string
+	UIsearchNavigate    string
+	UIsearchOpen        string
+	UIsearchClose       string
+	UIsearchMatchTitle  string
+	UIsearchMatchPath   string
+	UIsearchMatchText   string
+	UIsearchMatched     string
 	UIonThisPage        string
 	UIcopy              string
 	UIcopied            string
@@ -347,4 +383,71 @@ type pageData struct {
 	UIdarkMode          string
 	UIsystemDefault     string
 	UIsearchKbd         string
+	UIpageOf            string
+	UIbuiltWith         string
+}
+
+type searchEntry struct {
+	Title    string `json:"t"`
+	Filename string `json:"f"`
+	Text     string `json:"x"`
+	Path     string `json:"p"`
+}
+
+func searchEntriesForHeadings(page SiteChapter, plainText string) []searchEntry {
+	entries := make([]searchEntry, 0)
+	var walk func([]SiteNavHeading)
+	walk = func(items []SiteNavHeading) {
+		for _, item := range items {
+			if item.ID != "" {
+				entries = append(entries, searchEntry{
+					Title:    item.Title,
+					Filename: page.Filename + "#" + item.ID,
+					Text:     item.Title + " " + plainText,
+					Path:     page.Title,
+				})
+			}
+			walk(item.Children)
+		}
+	}
+	walk(page.Headings)
+	return entries
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func relativeSiteHref(currentFile, target string) string {
+	if target == "" {
+		return ""
+	}
+	if currentFile == "" {
+		return filepath.ToSlash(target)
+	}
+	currentDir := filepath.Dir(filepath.Clean(currentFile))
+	rel, err := filepath.Rel(currentDir, filepath.Clean(target))
+	if err != nil {
+		return filepath.ToSlash(target)
+	}
+	return filepath.ToSlash(rel)
+}
+
+func relativeBreadcrumbs(currentFile string, crumbs []breadcrumb) []breadcrumb {
+	if len(crumbs) == 0 {
+		return nil
+	}
+	out := make([]breadcrumb, len(crumbs))
+	for i, crumb := range crumbs {
+		out[i] = breadcrumb{
+			Title:    crumb.Title,
+			Filename: relativeSiteHref(currentFile, crumb.Filename),
+		}
+	}
+	return out
 }

@@ -608,12 +608,12 @@ func TestSitePageFilenames(t *testing.T) {
 		{
 			name:     "README becomes dir name",
 			files:    []string{"chapter01/README.md", "chapter01/section1.md"},
-			expected: []string{"chapter01.html", "chapter01-section1.html"},
+			expected: []string{"chapter01/index.html", "chapter01/section1.html"},
 		},
 		{
 			name:     "nested paths",
 			files:    []string{"preface.md", "01_ai_intro/README.md", "01_ai_intro/1.1_what_is_ai.md"},
-			expected: []string{"preface.html", "01_ai_intro.html", "01_ai_intro-1.1_what_is_ai.html"},
+			expected: []string{"preface.html", "01_ai_intro/index.html", "01_ai_intro/1.1_what_is_ai.html"},
 		},
 		{
 			name:     "empty source falls back to ch_NNN",
@@ -623,7 +623,12 @@ func TestSitePageFilenames(t *testing.T) {
 		{
 			name:     "collision falls back to ch_NNN",
 			files:    []string{"a/README.md", "a/README.md"},
-			expected: []string{"a.html", "ch_001.html"},
+			expected: []string{"a/index.html", "ch_001.html"},
+		},
+		{
+			name:     "root readme becomes site index",
+			files:    []string{"README.md", "chapter01/README.md"},
+			expected: []string{"index.html", "chapter01/index.html"},
 		},
 	}
 
@@ -650,12 +655,12 @@ func TestMdFileToHTMLName(t *testing.T) {
 	}{
 		{"", ""},
 		{"intro.md", "intro.html"},
-		{"README.md", "README.html"},
-		{"chapter01/README.md", "chapter01.html"},
-		{"chapter01/section1.md", "chapter01-section1.html"},
-		{"01_ai_intro/1.1_what_is_ai.md", "01_ai_intro-1.1_what_is_ai.html"},
+		{"README.md", "index.html"},
+		{"chapter01/README.md", "chapter01/index.html"},
+		{"chapter01/section1.md", "chapter01/section1.html"},
+		{"01_ai_intro/1.1_what_is_ai.md", "01_ai_intro/1.1_what_is_ai.html"},
 		{"preface.md", "preface.html"},
-		{"a/b/c.md", "a-b-c.html"},
+		{"a/b/c.md", "a/b/c.html"},
 	}
 
 	for _, tt := range tests {

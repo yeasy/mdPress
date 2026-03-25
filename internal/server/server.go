@@ -25,6 +25,7 @@ import (
 
 // WebSocket message type constants and timing
 const (
+	msgTypeBuildStart   = "build-start"
 	msgTypeReload       = "reload"
 	msgTypeCSSUpdate    = "css-update"
 	msgTypeBuildErr     = "build-error"
@@ -252,6 +253,16 @@ func (s *Server) notifyClients() {
 	}
 }
 
+// notifyBuildStart sends a rebuild-started message to all connected WebSocket clients.
+func (s *Server) notifyBuildStart() {
+	msg := buildWSMessage(msgTypeBuildStart)
+	for _, client := range s.snapshotClients() {
+		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
+			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
+		}
+	}
+}
+
 // notifyCSSUpdate sends a CSS-only update message to all connected WebSocket clients.
 func (s *Server) notifyCSSUpdate() {
 	msg := buildWSMessage(msgTypeCSSUpdate)
@@ -320,6 +331,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // injectLiveReload injects live-reload JavaScript into HTML responses.
 func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 	// Browser-side script: connect over WebSocket and reload on change.
+	serveInfoJSON, _ := json.Marshal(map[string]string{
+		"address":   s.browserURL(),
+		"watchDir":  s.WatchDir,
+		"outputDir": s.OutputDir,
+	})
 	reloadScript := `
 <!-- mdpress live reload (WebSocket) -->
 <script>
@@ -330,34 +346,143 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
   var reconnectInterval = 2000;
   var maxReconnectInterval = 30000;
   var currentInterval = reconnectInterval;
+  var serveInfo = ` + string(serveInfoJSON) + `;
+  var serveStatusKey = 'mdpress-serve-flash';
+  var serveUI = null;
+  var serveState = { ws: 'connecting', last: 'Waiting for changes', error: '' };
 
-  // Error overlay management
-  var overlay = null;
-  function showErrorOverlay(msg) {
-    removeErrorOverlay();
-    overlay = document.createElement('div');
-    overlay.id = 'mdpress-error-overlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);color:#ff6b6b;z-index:99999;padding:32px;font-family:monospace;font-size:14px;overflow:auto;white-space:pre-wrap;';
-    var header = document.createElement('div');
-    header.style.cssText = 'font-size:20px;font-weight:bold;margin-bottom:16px;color:#ff6b6b;';
-    header.textContent = 'Build Error';
-    var close = document.createElement('button');
-    close.textContent = 'Dismiss';
-    close.style.cssText = 'position:fixed;top:16px;right:16px;background:#ff6b6b;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:14px;';
-    close.onclick = removeErrorOverlay;
-    var content = document.createElement('pre');
-    content.style.cssText = 'color:#ffa0a0;margin:0;line-height:1.6;';
-    content.textContent = msg;
-    overlay.appendChild(header);
-    overlay.appendChild(close);
-    overlay.appendChild(content);
-    document.body.appendChild(overlay);
+  function ensureServeUI() {
+    if (serveUI) return serveUI;
+    var style = document.createElement('style');
+    style.textContent =
+      '#mdpress-serve-status{position:fixed;top:0;left:0;right:0;z-index:99997;display:none;padding:10px 16px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.16)}' +
+      '#mdpress-serve-status[data-kind="building"]{background:#1d4ed8}' +
+      '#mdpress-serve-status[data-kind="success"]{background:#15803d}' +
+      '#mdpress-serve-status[data-kind="error"]{background:#b91c1c}' +
+      '#mdpress-serve-status[data-kind="warning"]{background:#92400e}' +
+      '#mdpress-serve-status .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}' +
+      '#mdpress-serve-status .text{font-weight:600}' +
+      '#mdpress-serve-status .meta{opacity:.85;font-size:12px}' +
+      '#mdpress-serve-status .actions{margin-left:auto;display:flex;gap:8px}' +
+      '#mdpress-serve-status button{border:0;background:rgba(255,255,255,.18);color:inherit;padding:4px 10px;border-radius:999px;cursor:pointer;font:inherit}' +
+      '#mdpress-serve-status pre{display:none;width:100%;margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
+      '#mdpress-serve-status.show-details pre{display:block}' +
+      '#mdpress-serve-panel-toggle{position:fixed;right:18px;bottom:18px;z-index:99996;border:1px solid rgba(0,0,0,.06);border-radius:999px;background:rgba(255,255,255,.82);color:#6b7280;padding:7px 10px;cursor:pointer;font:600 10px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.10);opacity:.32;transition:opacity .15s ease, transform .15s ease, background .15s ease}' +
+      '#mdpress-serve-panel-toggle:hover,#mdpress-serve-panel-toggle:focus-visible{opacity:.92;transform:translateY(-1px);background:rgba(255,255,255,.96);outline:none}' +
+      '#mdpress-serve-panel{position:fixed;right:18px;bottom:56px;z-index:99996;width:min(320px,calc(100vw - 24px));background:rgba(255,255,255,.96);color:#374151;border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:12px 13px;box-shadow:0 18px 40px rgba(0,0,0,.18);backdrop-filter:blur(14px);display:none;font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}' +
+      '#mdpress-serve-panel.open{display:block}' +
+      '#mdpress-serve-panel h2{margin:0 0 8px;font-size:12px;color:#111827}' +
+      '#mdpress-serve-panel .line{margin:6px 0}' +
+      '#mdpress-serve-panel .label{display:block;color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:.05em}' +
+      '#mdpress-serve-panel .value{display:block;color:#111827;word-break:break-word}' +
+      '#mdpress-serve-panel details{margin-top:8px}' +
+      '#mdpress-serve-panel summary{cursor:pointer;color:#4b5563;font-weight:600}' +
+      '#mdpress-serve-panel .hint{margin-top:8px;color:#6b7280;font-size:11px}';
+    document.head.appendChild(style);
+
+    var status = document.createElement('div');
+    status.id = 'mdpress-serve-status';
+    status.innerHTML = '<div class="row"><span class="text"></span><span class="meta"></span><div class="actions"><button type="button" class="details">Details</button><button type="button" class="dismiss">Dismiss</button></div></div><pre></pre>';
+    document.body.appendChild(status);
+
+    var toggle = document.createElement('button');
+    toggle.id = 'mdpress-serve-panel-toggle';
+    toggle.type = 'button';
+    toggle.textContent = 'Dev';
+    document.body.appendChild(toggle);
+
+    var panel = document.createElement('section');
+    panel.id = 'mdpress-serve-panel';
+    panel.innerHTML = '<h2>Live Preview</h2>' +
+      '<div class="line"><span class="label">Status</span><span class="value" data-field="status"></span></div>' +
+      '<div class="line"><span class="label">Page</span><span class="value" data-field="page"></span></div>' +
+      '<div class="line"><span class="label">WebSocket</span><span class="value" data-field="ws"></span></div>' +
+      '<details><summary>Paths</summary>' +
+      '<div class="line"><span class="label">Address</span><span class="value" data-field="address"></span></div>' +
+      '<div class="line"><span class="label">Watching</span><span class="value" data-field="watch"></span></div>' +
+      '<div class="line"><span class="label">Output</span><span class="value" data-field="output"></span></div>' +
+      '</details>' +
+      '<div class="hint">Serve-only tools and rebuild state live here. Static site output is unchanged.</div>';
+    document.body.appendChild(panel);
+
+    toggle.addEventListener('click', function() {
+      panel.classList.toggle('open');
+    });
+    status.querySelector('.dismiss').addEventListener('click', function() {
+      status.style.display = 'none';
+      status.classList.remove('show-details');
+    });
+    status.querySelector('.details').addEventListener('click', function() {
+      status.classList.toggle('show-details');
+    });
+
+    serveUI = {
+      status: status,
+      text: status.querySelector('.text'),
+      meta: status.querySelector('.meta'),
+      detail: status.querySelector('pre'),
+      detailsBtn: status.querySelector('.details'),
+      panel: panel,
+      statusField: panel.querySelector('[data-field="status"]'),
+      addressField: panel.querySelector('[data-field="address"]'),
+      watchField: panel.querySelector('[data-field="watch"]'),
+      outputField: panel.querySelector('[data-field="output"]'),
+      pageField: panel.querySelector('[data-field="page"]'),
+      wsField: panel.querySelector('[data-field="ws"]')
+    };
+    refreshServePanel();
+    restoreServeFlash();
+    return serveUI;
   }
-  function removeErrorOverlay() {
-    if (overlay && overlay.parentNode) {
-      overlay.parentNode.removeChild(overlay);
-      overlay = null;
+
+  function refreshServePanel() {
+    var ui = ensureServeUI();
+    ui.statusField.textContent = serveState.last || 'Waiting for changes';
+    ui.addressField.textContent = serveInfo.address;
+    ui.watchField.textContent = serveInfo.watchDir;
+    ui.outputField.textContent = serveInfo.outputDir;
+    ui.pageField.textContent = window.location.pathname + window.location.hash;
+    ui.wsField.textContent = serveState.ws;
+  }
+  window.__mdpressRefreshServePanel = refreshServePanel;
+
+  function setServeStatus(kind, text, detail, sticky) {
+    var ui = ensureServeUI();
+    serveState.last = text;
+    if (detail) serveState.error = detail;
+    ui.status.dataset.kind = kind;
+    ui.text.textContent = text;
+    ui.meta.textContent = new Date().toLocaleTimeString();
+    ui.detail.textContent = detail || '';
+    ui.detailsBtn.style.display = detail ? '' : 'none';
+    ui.status.classList.toggle('show-details', !!detail && kind === 'error');
+    ui.status.style.display = 'block';
+    refreshServePanel();
+    if (!sticky) {
+      window.setTimeout(function() {
+        if (ui.status.dataset.kind === kind) {
+          ui.status.style.display = 'none';
+          ui.status.classList.remove('show-details');
+        }
+      }, 2200);
     }
+  }
+
+  function rememberServeFlash(kind, text) {
+    try {
+      sessionStorage.setItem(serveStatusKey, JSON.stringify({ kind: kind, text: text, ts: Date.now() }));
+    } catch (e) {}
+  }
+
+  function restoreServeFlash() {
+    try {
+      var raw = sessionStorage.getItem(serveStatusKey);
+      if (!raw) return;
+      sessionStorage.removeItem(serveStatusKey);
+      var payload = JSON.parse(raw);
+      if (!payload || (Date.now() - payload.ts) > 5000) return;
+      setServeStatus(payload.kind || 'success', payload.text || 'Updated', '', false);
+    } catch (e) {}
   }
 
   function connect() {
@@ -365,24 +490,28 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
     ws.onopen = function() {
       console.log('[mdpress] WebSocket connected');
+      serveState.ws = 'connected';
       currentInterval = reconnectInterval;
+      refreshServePanel();
     };
 
     ws.onmessage = function(e) {
       var data = e.data;
       // Support both legacy string and JSON messages.
       if (data === 'reload') {
-        removeErrorOverlay();
+        rememberServeFlash('success', 'Rebuild complete');
         location.reload();
         return;
       }
       try {
         var msg = JSON.parse(data);
-        if (msg.type === 'reload') {
-          removeErrorOverlay();
+        if (msg.type === '` + msgTypeBuildStart + `') {
+          setServeStatus('building', 'Rebuilding…', '', true);
+        } else if (msg.type === 'reload') {
+          rememberServeFlash('success', 'Rebuild complete');
           location.reload();
         } else if (msg.type === 'css-update') {
-          removeErrorOverlay();
+          setServeStatus('success', 'Styles updated', '', false);
           // Reload all stylesheets without page flash.
           var links = document.querySelectorAll('link[rel="stylesheet"]');
           links.forEach(function(link) {
@@ -395,7 +524,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
           console.log('[mdpress] CSS updated without page reload');
         } else if (msg.type === 'build-error') {
           console.error('[mdpress] Build error:', msg.error);
-          showErrorOverlay(msg.error);
+          setServeStatus('error', 'Build failed', msg.error, true);
         }
       } catch(err) {
         // Unknown message format, ignore.
@@ -403,6 +532,8 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
     };
 
     ws.onclose = function() {
+      serveState.ws = 'reconnecting';
+      refreshServePanel();
       console.log('[mdpress] WebSocket disconnected, retrying in ' + (currentInterval/1000) + 's...');
       setTimeout(function() {
         currentInterval = Math.min(currentInterval * 1.5, maxReconnectInterval);
@@ -415,6 +546,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
     };
   }
 
+  ensureServeUI();
   connect();
 })();
 </script>
@@ -609,6 +741,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			capturedExt := lastTriggeredExt
 			debounceTimer = time.AfterFunc(debounceInterval, func() {
 				s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
+				s.notifyBuildStart()
 				if s.BuildFunc != nil {
 					if err := s.BuildFunc(); err != nil {
 						s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
@@ -672,9 +805,11 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 				}
 				debounceTimer = time.AfterFunc(debounceInterval, func() {
 					s.logger.Info("File change detected, rebuilding...")
+					s.notifyBuildStart()
 					if s.BuildFunc != nil {
 						if err := s.BuildFunc(); err != nil {
 							s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
+							s.notifyBuildError(err.Error())
 							return
 						}
 					}
