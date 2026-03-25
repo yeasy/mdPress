@@ -10,19 +10,53 @@
 
 [中文说明](README_zh.md)
 
-**Turn your Markdown into a real book** — PDF, HTML, ePub, or a live-preview website — with one command.
+**Publish Markdown as a polished docs site, printable PDF, portable HTML, and ePub**.
 
 ```
-$ mdpress build --format pdf,html,site,epub
+$ mdpress build --format site,pdf,html,epub
   ✓ Loaded book.yaml (12 chapters)
   ✓ Parsed Markdown (technical theme)
+  ✓ Generated Markdown mirrors  → _output/my-book_site/*.md
   ✓ Generated PDF        → _output/my-book.pdf
   ✓ Generated HTML       → _output/my-book.html
   ✓ Generated site       → _output/my-book_site/
   ✓ Generated ePub       → _output/my-book.epub
 ```
 
-No templates to write. No config files required. Just point `mdpress` at a folder of `.md` files and mdPress figures out the rest.
+Use `book.yaml` for full control, `SUMMARY.md` for GitBook-style projects, or zero-config discovery for a focused docs folder. For large repositories, point mdPress at the specific docs/book directory instead of the repo root.
+
+## Why Teams Use mdPress
+
+- **One source, multiple outputs**: build a docs site, a shareable HTML file, a PDF, and an ePub from the same Markdown project.
+- **Fast writing loop**: `mdpress serve` gives you live preview, search, sidebar navigation, and dark mode while you edit.
+- **Works with existing Markdown**: use `book.yaml`, `SUMMARY.md`, or a clean folder of Markdown files.
+- **Fits publishing workflows**: migrate from GitBook/HonKit, export for review, or deploy the generated static site anywhere.
+
+## Best Fit
+
+- Technical documentation that needs a deployable static site and a printable PDF
+- Internal handbooks and playbooks maintained in Git
+- Guides and books that should also ship as HTML or ePub
+
+## Showcase
+
+### Technical Docs
+
+- Theme: `technical`
+- Best output: `site` + `pdf`
+- Good for product docs, API guides, operations runbooks
+
+### Team Handbook
+
+- Theme: `minimal`
+- Best output: `site` + `html`
+- Good for onboarding, internal standards, process docs
+
+### Book Or Essay
+
+- Theme: `elegant`
+- Best output: `pdf` + `epub`
+- Good for long-form writing, essays, and narrative documentation
 
 ### What the output looks like
 
@@ -33,6 +67,14 @@ No templates to write. No config files required. Just point `mdpress` at a folde
 `mdpress build --format site` produces a polished multi-page site, ready for hosting:
 
 ![mdPress site — command reference page with tables and navigation](docs/assets/screenshots/site-chapter.png)
+
+Generated sites include:
+
+- full-text search with `Cmd/Ctrl+K`
+- sidebar navigation and per-page table of contents
+- dark mode
+- Markdown mirrors for each generated page
+- `llms.txt` and `llms-full.txt` for LLM-friendly ingestion
 
 ## Installation
 
@@ -111,7 +153,7 @@ mdpress build https://github.com/user/repo
 mdpress migrate ~/my-gitbook-project/
 ```
 
-mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. No configuration needed for most projects.
+mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. Zero-config discovery works best when a directory clearly maps to a single docs set or book.
 
 ## What You Get
 
@@ -121,7 +163,7 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. No conf
 | HTML | `mdpress build --format html` | A single self-contained `.html` file you can email or upload |
 | Site | `mdpress build --format site` | A multi-page website ready for GitHub Pages or Netlify |
 | ePub | `mdpress build --format epub` | An ebook for Kindle, Apple Books, etc. |
-| Typst | `mdpress build --format typst` | PDF via Typst backend — no Chromium needed |
+| Typst | `mdpress build --format typst` | Experimental PDF backend via the Typst CLI when you want a Chromium-free alternative |
 | Preview | `mdpress serve` | A local website with live reload |
 
 ### HTML vs Site: What's the difference?
@@ -141,7 +183,7 @@ flowchart TD
     A["Your project folder"] --> B{"What's inside?"}
     B -->|"Has book.yaml"| C["Use the explicit config\n(full control)"]
     B -->|"Has SUMMARY.md"| D["Use GitBook-style TOC\n(great for migration)"]
-    B -->|"Just .md files"| E["Auto-discover chapters\n(zero config)"]
+    B -->|"Just .md files"| E["Auto-discover chapters\n(best for a focused docs folder)"]
     C --> F["Build any format"]
     D --> F
     E --> F
@@ -210,23 +252,6 @@ $ mdpress themes list
 
 Set `style.theme` in `book.yaml` to switch themes.
 
-## Why mdPress Over Other Tools?
-
-| Capability | mdPress | mdBook | HonKit | Docusaurus |
-| --- | --- | --- | --- | --- |
-| PDF output | ✅ | ❌ | 🔌 | ❌ |
-| HTML single-page | ✅ | ❌ | ✅ | ❌ |
-| Multi-page site | ✅ | ✅ | ✅ | ✅ |
-| ePub output | ✅ | ❌ | 🔌 | ❌ |
-| Math / KaTeX | ✅ | 🔌 | 🔌 | 🔌 |
-| PlantUML diagrams | ✅ | ❌ | 🔌 | 🔌 |
-| Incremental builds | ✅ | ❌ | ❌ | ✅ |
-| Plugin system | ✅ | ❌ | ✅ | ✅ |
-| Live preview | ✅ | ✅ | ✅ | ✅ |
-| Zero-config mode | ✅ | ❌ | ❌ | ❌ |
-| GitBook migration | ✅ | ❌ | ✅ | ❌ |
-| Single binary | ✅ | ✅ | ❌ | ❌ |
-
 ## All Commands
 
 | Command | What it does |
@@ -246,7 +271,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 
 - **Go 1.25+** for installation
 - **Chrome or Chromium** — only needed for PDF output with the default backend. HTML, site, and ePub work without it.
-- **Typst CLI** (optional) — enables the `--format typst` backend as a zero-dependency alternative to Chromium.
+- **Typst CLI** (optional) — enables the `--format typst` backend as a Chromium-free alternative when Typst is installed.
 
 ### Chrome/Chromium Installation
 
