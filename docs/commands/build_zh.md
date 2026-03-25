@@ -22,7 +22,7 @@ mdpress build [source] [flags]
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--format <list>` | 配置值或 `pdf` | 输出格式，逗号分隔，例如 `pdf,html,epub`。 |
+| `--format <list>` | 配置值或 `pdf` | 输出格式，逗号分隔（如 `pdf,html,epub`）或 `all` 表示所有格式。 |
 | `--branch <name>` | 仓库默认分支 | GitHub 仓库分支名，仅对远程仓库输入生效。 |
 | `--subdir <path>` | 仓库根目录 | 指定仓库内的子目录，仅对远程仓库输入生效。 |
 | `--output <path>` | `output.filename` | 输出文件路径、输出目录或文件名前缀。 |
@@ -98,6 +98,7 @@ mdpress build --format pdf --output ./release/manual.pdf
 mdpress build
 mdpress build --format html
 mdpress build --format pdf,html,epub
+mdpress build --format all --output ./dist
 mdpress build --format site --output ./dist/book
 mdpress build /path/to/book --format html
 mdpress build https://github.com/yeasy/agentic_ai_guide

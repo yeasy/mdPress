@@ -14,6 +14,14 @@ mdpress serve --open
 
 This creates a ready-to-use project with example content and configuration. Your browser opens automatically to http://localhost:9000.
 
+Before your first build, verify your environment is ready:
+
+```bash
+mdpress doctor
+```
+
+This checks that all necessary dependencies are installed (Chrome/Chromium for PDF output, etc.) and reports any potential issues.
+
 ## Creating a Project Manually
 
 If you prefer to start from scratch or understand the basics, here's the minimal setup:
@@ -166,7 +174,7 @@ mdpress serve [OPTIONS]
 
 Available options:
 - `--open` - Open browser automatically
-- `--port <PORT>` - Use custom port (default: 8080)
+- `--port <PORT>` - Use custom port (default: 9000)
 - `--watch` - Watch for file changes and rebuild (default: enabled)
 - `--no-cache` - Disable caching during development
 
