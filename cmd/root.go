@@ -13,7 +13,7 @@ import (
 
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.6.0"
+	Version = "0.6.1"
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// rootCmd is the root command for the mdpress application.
@@ -87,6 +87,7 @@ Common commands:
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(upgradeCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // Execute runs the root command.
