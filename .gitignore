@@ -40,7 +40,7 @@ mdpress-go-tmp-umask
 .mdpress_temp/
 
 # Build and preview output
-/_book/
+_book/
 /_output/
 /output/
 *_site/
