@@ -282,6 +282,16 @@ func (c *BookConfig) Validate() error {
 		return fmt.Errorf("toc_max_depth must be between 1 and 6 (got %d)", c.Output.TOCMaxDepth)
 	}
 
+	// Validate WatermarkOpacity range (0.0-1.0, or 0 for not set).
+	if c.Output.WatermarkOpacity != 0 && (c.Output.WatermarkOpacity < 0.0 || c.Output.WatermarkOpacity > 1.0) {
+		return fmt.Errorf("watermark_opacity must be between 0.0 and 1.0 (got %f)", c.Output.WatermarkOpacity)
+	}
+
+	// Validate PDFTimeout range (5-3600 seconds, or 0 for default).
+	if c.Output.PDFTimeout != 0 && (c.Output.PDFTimeout < 5 || c.Output.PDFTimeout > 3600) {
+		return fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout)
+	}
+
 	return nil
 }
 

@@ -35,7 +35,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
           cache: 'go'
 
       - name: Install mdPress
@@ -98,7 +98,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
           cache: 'go'
 
       - name: Install mdPress
@@ -146,7 +146,7 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
           cache: 'go'
 
       - run: go install github.com/yeasy/mdpress@latest
@@ -262,8 +262,8 @@ build-protected:
 **Linux (Ubuntu/Debian):**
 ```bash
 # Install Go
-wget https://go.dev/dl/go1.21.0.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.21.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install mdPress
@@ -281,7 +281,7 @@ go install github.com/yeasy/mdpress@latest
 
 **Docker:**
 ```dockerfile
-FROM golang:1.21-alpine
+FROM golang:1.25-alpine
 
 # Install Chrome for PDF rendering
 RUN apk add --no-cache chromium
@@ -354,7 +354,7 @@ brew install font-noto-sans-cjk
 ```yaml
 - uses: actions/setup-go@v4
   with:
-    go-version: '1.21'
+    go-version: '1.25'
     cache: 'go'  # Automatically caches Go modules
 
 - name: Download modules
@@ -651,7 +651,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress validate
 
@@ -663,7 +663,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress build --format html
       - uses: actions/upload-artifact@v3
@@ -682,7 +682,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       - run: go install github.com/yeasy/mdpress@latest
       - uses: actions/cache@v3
         with:
@@ -702,7 +702,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress build --format site
       - uses: actions/upload-pages-artifact@v2

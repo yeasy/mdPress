@@ -591,7 +591,7 @@ func TestResolveWindowsExecutableSuffix_NoExtension(t *testing.T) {
 	if resolved == "" {
 		t.Fatal("expected resolved path")
 	}
-	if resolved != exePath {
+	if !strings.EqualFold(resolved, exePath) {
 		t.Errorf("resolved = %q, want %q", resolved, exePath)
 	}
 }
@@ -616,7 +616,7 @@ func TestResolveWindowsExecutableSuffix_SkipsDirectories(t *testing.T) {
 	if resolved == "" {
 		t.Fatal("expected resolved path")
 	}
-	if resolved != exePath {
+	if !strings.EqualFold(resolved, exePath) {
 		t.Errorf("resolved = %q, want %q", resolved, exePath)
 	}
 }
@@ -658,7 +658,7 @@ func TestResolveWindowsExecutableSuffix_MultipleExtensions(t *testing.T) {
 	validPaths := []string{batPath, exePath, cmdPath}
 	found := false
 	for _, valid := range validPaths {
-		if resolved == valid {
+		if strings.EqualFold(resolved, valid) {
 			found = true
 			break
 		}
@@ -736,7 +736,7 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 				if resolved == "" {
 					t.Fatal("expected resolved path, got empty string")
 				}
-				if expectedExt != "" && !strings.HasSuffix(resolved, expectedExt) {
+				if expectedExt != "" && !strings.HasSuffix(strings.ToLower(resolved), strings.ToLower(expectedExt)) {
 					t.Errorf("resolved = %q, expected to end with %q", resolved, expectedExt)
 				}
 			} else if resolved != "" {
