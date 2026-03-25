@@ -41,8 +41,6 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 				expanded = "true"
 			}
 			fmt.Fprintf(b, `<button class="nav-toggle" type="button" aria-label="Toggle section" aria-expanded="%s"></button>`, expanded)
-		} else {
-			b.WriteString(`<span class="nav-toggle nav-toggle-placeholder"></span>`)
 		}
 		escapedFilename := template.HTMLEscapeString(filename)
 		fmt.Fprintf(b,
