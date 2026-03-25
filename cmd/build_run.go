@@ -1006,12 +1006,88 @@ func guessLanguageCode(langDir string) string {
 	}
 }
 
-func sitePageFilenames(count int) []string {
-	files := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		files = append(files, fmt.Sprintf("ch_%03d.html", i))
+// sitePageFilenames derives HTML page filenames from the original markdown
+// source paths.  For example, "chapter01/README.md" becomes "chapter01.html"
+// and "intro.md" becomes "intro.html".  When the source path is empty or
+// produces a collision, a sequential fallback (ch_NNN.html) is used instead.
+func sitePageFilenames(chapterFiles []string) []string {
+	files := make([]string, len(chapterFiles))
+	seen := make(map[string]bool)
+
+	// Reserve "index.html" — it's used by the site generator for the first page.
+	seen["index.html"] = true
+
+	for i, src := range chapterFiles {
+		name := mdFileToHTMLName(src)
+		if name == "" || seen[name] {
+			// Fallback to sequential naming on collision or empty source.
+			name = fmt.Sprintf("ch_%03d.html", i)
+			for seen[name] {
+				name = fmt.Sprintf("ch_%03d_%d.html", i, i)
+			}
+		}
+		seen[name] = true
+		files[i] = name
 	}
 	return files
+}
+
+// mdFileToHTMLName converts a markdown source path into a flat HTML filename.
+// Examples:
+//
+//	"intro.md"                → "intro.html"
+//	"chapter01/README.md"     → "chapter01.html"
+//	"chapter01/section1.md"   → "chapter01-section1.html"
+//	"01_ai_intro/1.1_foo.md"  → "01_ai_intro-1.1_foo.html"
+func mdFileToHTMLName(src string) string {
+	if src == "" {
+		return ""
+	}
+	// Normalize path separators.
+	src = filepath.ToSlash(src)
+
+	// Strip the .md extension.
+	base := strings.TrimSuffix(src, filepath.Ext(src))
+
+	// Split into directory and file components.
+	parts := strings.Split(base, "/")
+
+	// Remove empty parts.
+	var cleaned []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			cleaned = append(cleaned, p)
+		}
+	}
+	if len(cleaned) == 0 {
+		return ""
+	}
+
+	// If the last component is "README" or "readme", use the parent directory name.
+	// For root-level README.md (no parent), keep "readme" as the filename.
+	last := cleaned[len(cleaned)-1]
+	if strings.EqualFold(last, "readme") && len(cleaned) > 1 {
+		cleaned = cleaned[:len(cleaned)-1]
+	}
+
+	// Join with hyphens to create a flat filename.
+	name := strings.Join(cleaned, "-")
+
+	// Sanitize: keep only safe URL characters.
+	var sb strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.' {
+			sb.WriteRune(r)
+		}
+	}
+	name = sb.String()
+	if name == "" {
+		return ""
+	}
+
+	return name + ".html"
 }
 
 func rewriteChapterLinksForSite(chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string) []renderer.ChapterHTML {
