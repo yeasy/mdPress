@@ -10,15 +10,17 @@ GO      := go
 GOTEST  := $(GO) test
 GOBUILD := $(GO) build
 
-# Keep tool caches inside the workspace for build/check commands so they work
-# in restricted environments without changing the install target's semantics.
-CACHE_DIR ?= $(CURDIR)/.cache
-CHECK_GOPATH ?= $(CACHE_DIR)/go
-CHECK_GOCACHE ?= $(CACHE_DIR)/go-build
-CHECK_GOMODCACHE ?= $(CACHE_DIR)/gomod
-CHECK_GOLANGCI_LINT_CACHE ?= $(CACHE_DIR)/golangci-lint
-GO_RUN_ENV = GOPATH=$(CHECK_GOPATH) GOCACHE=$(CHECK_GOCACHE) GOMODCACHE=$(CHECK_GOMODCACHE)
-LINT_RUN_ENV = $(GO_RUN_ENV) GOLANGCI_LINT_CACHE=$(CHECK_GOLANGCI_LINT_CACHE)
+# By default, use the system Go cache locations (~/go, ~/Library/Caches, etc.).
+# Override CACHE_DIR to keep caches inside the workspace for CI or sandboxed
+# environments where the home directory is not writable.
+#   make check CACHE_DIR=$(CURDIR)/.cache
+ifdef CACHE_DIR
+GO_RUN_ENV  = GOPATH=$(CACHE_DIR)/go GOCACHE=$(CACHE_DIR)/go-build GOMODCACHE=$(CACHE_DIR)/gomod
+LINT_RUN_ENV = $(GO_RUN_ENV) GOLANGCI_LINT_CACHE=$(CACHE_DIR)/golangci-lint
+else
+GO_RUN_ENV  =
+LINT_RUN_ENV =
+endif
 
 # Docker
 DOCKER_REPO ?= yeasy/mdpress
