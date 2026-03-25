@@ -3,6 +3,10 @@
 package cmd
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -214,16 +219,21 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 	utils.Success("Downloading %s", assetName)
 
 	// Download the binary.
-	binaryData, err := downloadBinary(ctx, assetURL)
+	assetData, err := downloadBinary(ctx, assetURL)
 	if err != nil {
 		return fmt.Errorf("failed to download binary: %w", err)
 	}
 
-	utils.Success("Downloaded %d bytes", len(binaryData))
+	utils.Success("Downloaded %d bytes", len(assetData))
 
 	// Verify checksum if available.
-	if err := verifyChecksum(ctx, release, assetName, binaryData); err != nil {
+	if err := verifyChecksum(ctx, release, assetName, assetData); err != nil {
 		slog.Warn("checksum verification", slog.String("warning", err.Error()))
+	}
+
+	binaryData, err := extractBinaryData(assetName, assetData)
+	if err != nil {
+		return fmt.Errorf("failed to unpack %s: %w", assetName, err)
 	}
 
 	// Find the current mdpress executable.
@@ -285,53 +295,65 @@ var platformArch = runtime.GOARCH
 // findAssetForPlatform finds the appropriate release asset for the current OS/arch.
 // Returns empty strings if no suitable asset is found.
 func findAssetForPlatform(release *GitHubRelease) (url string, name string) {
-	goos := platformOS
-	goarch := platformArch
+	goos := strings.ToLower(platformOS)
+	archAliases := platformArchAliases(platformArch)
 
-	// Normalize architecture names.
-	switch goarch {
-	case "amd64":
-		goarch = "x86_64"
-	case "arm64":
-		goarch = "aarch64"
-	}
-
-	// Look for exact matches in asset names.
-	for _, asset := range release.Assets {
-		assetName := strings.ToLower(asset.Name)
-
-		// Skip signature files and source archives.
-		if strings.Contains(assetName, ".sha256") || strings.Contains(assetName, ".sig") {
-			continue
-		}
-		if strings.Contains(assetName, "source") || strings.Contains(assetName, "tar.gz") || strings.Contains(assetName, ".zip") {
-			continue
-		}
-
-		// Check for OS and arch match.
-		if strings.Contains(assetName, goos) && strings.Contains(assetName, goarch) {
-			return asset.URL, asset.Name
+	for _, archivesOnly := range []bool{false, true} {
+		for _, asset := range release.Assets {
+			assetName := strings.ToLower(asset.Name)
+			if shouldSkipReleaseAsset(assetName) || isArchiveAsset(assetName) != archivesOnly {
+				continue
+			}
+			if strings.Contains(assetName, goos) && containsAny(assetName, archAliases) {
+				return asset.URL, asset.Name
+			}
 		}
 	}
 
-	// Fallback: try more flexible matching.
-	for _, asset := range release.Assets {
-		assetName := strings.ToLower(asset.Name)
-
-		if strings.Contains(assetName, ".sha256") || strings.Contains(assetName, ".sig") {
-			continue
-		}
-		if strings.Contains(assetName, "source") || strings.Contains(assetName, "tar.gz") || strings.Contains(assetName, ".zip") {
-			continue
-		}
-
-		// Just match OS.
-		if strings.Contains(assetName, goos) {
-			return asset.URL, asset.Name
+	for _, archivesOnly := range []bool{false, true} {
+		for _, asset := range release.Assets {
+			assetName := strings.ToLower(asset.Name)
+			if shouldSkipReleaseAsset(assetName) || isArchiveAsset(assetName) != archivesOnly {
+				continue
+			}
+			if strings.Contains(assetName, goos) {
+				return asset.URL, asset.Name
+			}
 		}
 	}
 
 	return "", ""
+}
+
+func platformArchAliases(goarch string) []string {
+	switch strings.ToLower(goarch) {
+	case "amd64":
+		return []string{"amd64", "x86_64"}
+	case "arm64":
+		return []string{"arm64", "aarch64"}
+	default:
+		return []string{strings.ToLower(goarch)}
+	}
+}
+
+func shouldSkipReleaseAsset(assetName string) bool {
+	return strings.Contains(assetName, ".sha256") ||
+		strings.Contains(assetName, ".sig") ||
+		strings.Contains(assetName, "checksum") ||
+		strings.Contains(assetName, "source")
+}
+
+func isArchiveAsset(assetName string) bool {
+	return strings.HasSuffix(assetName, ".tar.gz") || strings.HasSuffix(assetName, ".zip")
+}
+
+func containsAny(assetName string, candidates []string) bool {
+	for _, candidate := range candidates {
+		if strings.Contains(assetName, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 // downloadBinary downloads binary data from a URL.
@@ -354,6 +376,90 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+func extractBinaryData(assetName string, data []byte) ([]byte, error) {
+	assetName = strings.ToLower(assetName)
+	switch {
+	case strings.HasSuffix(assetName, ".tar.gz"):
+		return extractBinaryFromTarGz(data)
+	case strings.HasSuffix(assetName, ".zip"):
+		return extractBinaryFromZip(data)
+	default:
+		return data, nil
+	}
+}
+
+func expectedBinaryNames() []string {
+	if strings.EqualFold(platformOS, "windows") {
+		return []string{"mdpress.exe", "mdpress"}
+	}
+	return []string{"mdpress"}
+}
+
+func extractBinaryFromTarGz(data []byte) ([]byte, error) {
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("invalid gzip archive: %w", err)
+	}
+	defer gzr.Close() //nolint:errcheck
+
+	tr := tar.NewReader(gzr)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("invalid tar archive: %w", err)
+		}
+		if header.FileInfo().IsDir() {
+			continue
+		}
+		if isExpectedBinaryEntry(header.Name) {
+			return io.ReadAll(tr)
+		}
+	}
+
+	return nil, fmt.Errorf("archive does not contain %s", strings.Join(expectedBinaryNames(), " or "))
+}
+
+func extractBinaryFromZip(data []byte) ([]byte, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("invalid zip archive: %w", err)
+	}
+
+	for _, file := range zr.File {
+		if file.FileInfo().IsDir() || !isExpectedBinaryEntry(file.Name) {
+			continue
+		}
+		reader, err := file.Open()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open zip entry: %w", err)
+		}
+		content, readErr := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read zip entry: %w", readErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("failed to close zip entry: %w", closeErr)
+		}
+		return content, nil
+	}
+
+	return nil, fmt.Errorf("archive does not contain %s", strings.Join(expectedBinaryNames(), " or "))
+}
+
+func isExpectedBinaryEntry(name string) bool {
+	base := strings.ToLower(path.Base(name))
+	for _, candidate := range expectedBinaryNames() {
+		if base == strings.ToLower(candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 // verifyChecksum verifies the downloaded binary against a checksum file in the release assets.

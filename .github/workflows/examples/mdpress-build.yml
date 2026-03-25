@@ -59,14 +59,18 @@ jobs:
 
       - name: Install mdpress
         run: |
-          # Download the latest mdpress binary for Linux from GitHub Releases.
+          # Download the Linux amd64 release archive from GitHub Releases.
+          VERSION="${{ env.MDPRESS_VERSION }}"
+          VERSION_NO_V="${VERSION#v}"
           if [ "${{ env.MDPRESS_VERSION }}" = "latest" ]; then
             RELEASE_URL=$(curl -fsSL https://api.github.com/repos/yeasy/mdpress/releases/latest \
-              | grep "browser_download_url.*linux.*amd64" | cut -d '"' -f 4)
+              | grep "browser_download_url.*mdpress_.*_linux_amd64.tar.gz" | cut -d '"' -f 4 | head -n1)
           else
-            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${{ env.MDPRESS_VERSION }}/mdpress_linux_amd64"
+            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${VERSION}/mdpress_${VERSION_NO_V}_linux_amd64.tar.gz"
           fi
-          curl -fsSL "$RELEASE_URL" -o /usr/local/bin/mdpress
+          curl -fsSL "$RELEASE_URL" -o /tmp/mdpress.tar.gz
+          tar -xzf /tmp/mdpress.tar.gz -C /tmp mdpress
+          install -m 0755 /tmp/mdpress /usr/local/bin/mdpress
           chmod +x /usr/local/bin/mdpress
           mdpress version
 
@@ -106,13 +110,17 @@ jobs:
 
       - name: Install mdpress
         run: |
+          VERSION="${{ env.MDPRESS_VERSION }}"
+          VERSION_NO_V="${VERSION#v}"
           if [ "${{ env.MDPRESS_VERSION }}" = "latest" ]; then
             RELEASE_URL=$(curl -fsSL https://api.github.com/repos/yeasy/mdpress/releases/latest \
-              | grep "browser_download_url.*linux.*amd64" | cut -d '"' -f 4)
+              | grep "browser_download_url.*mdpress_.*_linux_amd64.tar.gz" | cut -d '"' -f 4 | head -n1)
           else
-            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${{ env.MDPRESS_VERSION }}/mdpress_linux_amd64"
+            RELEASE_URL="https://github.com/yeasy/mdpress/releases/download/${VERSION}/mdpress_${VERSION_NO_V}_linux_amd64.tar.gz"
           fi
-          curl -fsSL "$RELEASE_URL" -o /usr/local/bin/mdpress
+          curl -fsSL "$RELEASE_URL" -o /tmp/mdpress.tar.gz
+          tar -xzf /tmp/mdpress.tar.gz -C /tmp mdpress
+          install -m 0755 /tmp/mdpress /usr/local/bin/mdpress
           chmod +x /usr/local/bin/mdpress
 
       - name: Build static site for GitHub Pages
