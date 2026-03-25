@@ -182,7 +182,7 @@ func (b *SiteBuilder) Build(ctx *BuildContext, baseName string) error {
 	outputDir := baseName + "_site"
 	ctx.Logger.Info("Generating HTML site", slog.String("output", outputDir))
 
-	pageNames := sitePageFilenames(len(ctx.ChaptersHTML))
+	pageNames := sitePageFilenames(ctx.ChapterFiles)
 	siteChapters := rewriteChapterLinksForSite(ctx.ChaptersHTML, ctx.ChapterFiles, pageNames)
 	if err := generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, outputDir, siteChapters, pageNames); err != nil {
 		return fmt.Errorf("failed to generate HTML site: %w", err)

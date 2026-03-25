@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -592,76 +591,78 @@ func TestInjectBannerIntoHTML(t *testing.T) {
 // Tests for sitePageFilenames
 func TestSitePageFilenames(t *testing.T) {
 	tests := []struct {
-		count  int
-		verify func([]string) error
+		name     string
+		files    []string
+		expected []string
 	}{
 		{
-			count: 0,
-			verify: func(files []string) error {
-				if len(files) != 0 {
-					return fmt.Errorf("expected empty slice, got %d items", len(files))
-				}
-				return nil
-			},
+			name:     "empty",
+			files:    []string{},
+			expected: []string{},
 		},
 		{
-			count: 1,
-			verify: func(files []string) error {
-				if len(files) != 1 {
-					return fmt.Errorf("expected 1 item, got %d", len(files))
-				}
-				if files[0] != "ch_000.html" {
-					return fmt.Errorf("expected ch_000.html, got %s", files[0])
-				}
-				return nil
-			},
+			name:     "single file",
+			files:    []string{"intro.md"},
+			expected: []string{"intro.html"},
 		},
 		{
-			count: 5,
-			verify: func(files []string) error {
-				if len(files) != 5 {
-					return fmt.Errorf("expected 5 items, got %d", len(files))
-				}
-				expected := []string{"ch_000.html", "ch_001.html", "ch_002.html", "ch_003.html", "ch_004.html"}
-				for i, exp := range expected {
-					if files[i] != exp {
-						return fmt.Errorf("at index %d: expected %s, got %s", i, exp, files[i])
-					}
-				}
-				return nil
-			},
+			name:     "README becomes dir name",
+			files:    []string{"chapter01/README.md", "chapter01/section1.md"},
+			expected: []string{"chapter01.html", "chapter01-section1.html"},
 		},
 		{
-			count: 100,
-			verify: func(files []string) error {
-				if len(files) != 100 {
-					return fmt.Errorf("expected 100 items, got %d", len(files))
-				}
-				if files[99] != "ch_099.html" {
-					return fmt.Errorf("expected ch_099.html at index 99, got %s", files[99])
-				}
-				return nil
-			},
+			name:     "nested paths",
+			files:    []string{"preface.md", "01_ai_intro/README.md", "01_ai_intro/1.1_what_is_ai.md"},
+			expected: []string{"preface.html", "01_ai_intro.html", "01_ai_intro-1.1_what_is_ai.html"},
 		},
 		{
-			count: 1000,
-			verify: func(files []string) error {
-				if len(files) != 1000 {
-					return fmt.Errorf("expected 1000 items, got %d", len(files))
-				}
-				if files[999] != "ch_999.html" {
-					return fmt.Errorf("expected ch_999.html at index 999, got %s", files[999])
-				}
-				return nil
-			},
+			name:     "empty source falls back to ch_NNN",
+			files:    []string{"intro.md", "", "outro.md"},
+			expected: []string{"intro.html", "ch_001.html", "outro.html"},
+		},
+		{
+			name:     "collision falls back to ch_NNN",
+			files:    []string{"a/README.md", "a/README.md"},
+			expected: []string{"a.html", "ch_001.html"},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("count_%d", tt.count), func(t *testing.T) {
-			result := sitePageFilenames(tt.count)
-			if err := tt.verify(result); err != nil {
-				t.Error(err)
+		t.Run(tt.name, func(t *testing.T) {
+			result := sitePageFilenames(tt.files)
+			if len(result) != len(tt.expected) {
+				t.Fatalf("expected %d items, got %d: %v", len(tt.expected), len(result), result)
+			}
+			for i, exp := range tt.expected {
+				if result[i] != exp {
+					t.Errorf("at index %d: expected %s, got %s", i, exp, result[i])
+				}
+			}
+		})
+	}
+}
+
+// Tests for mdFileToHTMLName
+func TestMdFileToHTMLName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"intro.md", "intro.html"},
+		{"README.md", "README.html"},
+		{"chapter01/README.md", "chapter01.html"},
+		{"chapter01/section1.md", "chapter01-section1.html"},
+		{"01_ai_intro/1.1_what_is_ai.md", "01_ai_intro-1.1_what_is_ai.html"},
+		{"preface.md", "preface.html"},
+		{"a/b/c.md", "a-b-c.html"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := mdFileToHTMLName(tt.input)
+			if result != tt.expected {
+				t.Errorf("mdFileToHTMLName(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
