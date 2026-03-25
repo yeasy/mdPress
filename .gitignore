@@ -17,6 +17,7 @@ coverage.html
 
 # Dependencies
 /vendor/
+node_modules/
 
 # IDE
 .idea/
