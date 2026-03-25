@@ -671,16 +671,17 @@ func TestResolveWindowsExecutableSuffix_MultipleExtensions(t *testing.T) {
 func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 	tests := []struct {
 		name      string
-		setup     func(dir string) (basePath string, expectedExt string)
+		setup     func(t *testing.T, dir string) (basePath string, expectedExt string)
 		wantFound bool
 	}{
 		{
 			name: "finds .exe",
-			setup: func(dir string) (string, string) {
+			setup: func(t *testing.T, dir string) (string, string) {
+				t.Helper()
 				base := filepath.Join(dir, "plugin")
 				path := base + ".exe"
 				if err := os.WriteFile(path, []byte("test"), 0755); err != nil {
-					panic(err)
+					t.Fatal(err)
 				}
 				return base, ".exe"
 			},
@@ -688,11 +689,12 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 		},
 		{
 			name: "finds .bat",
-			setup: func(dir string) (string, string) {
+			setup: func(t *testing.T, dir string) (string, string) {
+				t.Helper()
 				base := filepath.Join(dir, "plugin")
 				path := base + ".bat"
 				if err := os.WriteFile(path, []byte("test"), 0755); err != nil {
-					panic(err)
+					t.Fatal(err)
 				}
 				return base, ".bat"
 			},
@@ -700,7 +702,7 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 		},
 		{
 			name: "no matching extensions",
-			setup: func(dir string) (string, string) {
+			setup: func(t *testing.T, dir string) (string, string) {
 				base := filepath.Join(dir, "plugin")
 				return base, ""
 			},
@@ -708,13 +710,14 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 		},
 		{
 			name: "skips directories",
-			setup: func(dir string) (string, string) {
+			setup: func(t *testing.T, dir string) (string, string) {
+				t.Helper()
 				base := filepath.Join(dir, "plugin")
 				if err := os.Mkdir(base+".bat", 0755); err != nil {
-					panic(err)
+					t.Fatal(err)
 				}
 				if err := os.WriteFile(base+".exe", []byte("test"), 0755); err != nil {
-					panic(err)
+					t.Fatal(err)
 				}
 				return base, ".exe"
 			},
@@ -725,7 +728,7 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			basePath, expectedExt := tt.setup(dir)
+			basePath, expectedExt := tt.setup(t, dir)
 
 			resolved := resolveWindowsExecutableSuffix(basePath)
 
