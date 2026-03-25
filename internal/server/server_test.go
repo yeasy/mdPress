@@ -20,6 +20,20 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool, description string) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("timed out waiting for %s", description)
+}
+
 // TestNewServer 测试服务器创建的基本属性
 func TestNewServer(t *testing.T) {
 	watchDir1 := t.TempDir()
@@ -181,6 +195,12 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 	if !strings.Contains(body, "location.reload()") {
 		t.Error("HTML 响应应包含自动刷新逻辑")
 	}
+	if !strings.Contains(body, "mdpress-serve-panel") {
+		t.Error("HTML 响应应包含 serve 开发浮层脚本")
+	}
+	if !strings.Contains(body, "build-start") {
+		t.Error("HTML 响应应包含 build-start 事件处理逻辑")
+	}
 	// 验证原始内容保留
 	if !strings.Contains(body, "<h1>Hello</h1>") {
 		t.Error("原始 HTML 内容应保留")
@@ -287,8 +307,11 @@ func TestHandleWebSocket(t *testing.T) {
 
 	// 关闭连接后验证客户端被移除
 	conn.Close() //nolint:errcheck
-	// 等待一小段时间让 goroutine 处理断开事件
-	time.Sleep(100 * time.Millisecond)
+	waitForCondition(t, time.Second, func() bool {
+		srv.clientsMu.RLock()
+		defer srv.clientsMu.RUnlock()
+		return len(srv.clients) == 0
+	}, "WebSocket client cleanup")
 
 	srv.clientsMu.RLock()
 	clientCount = len(srv.clients)
@@ -481,9 +504,16 @@ func TestCheckForChanges(t *testing.T) {
 	}
 
 	// 修改文件
-	time.Sleep(50 * time.Millisecond) // 确保时间戳不同
+	originalModTime, ok := modTimes[mdFile]
+	if !ok {
+		t.Fatalf("初始扫描未记录 %s", mdFile)
+	}
 	if err := os.WriteFile(mdFile, []byte("# Test Modified"), 0644); err != nil {
 		t.Fatalf("rewrite test.md failed: %v", err)
+	}
+	updatedModTime := originalModTime.Add(2 * time.Second)
+	if err := os.Chtimes(mdFile, updatedModTime, updatedModTime); err != nil {
+		t.Fatalf("update test.md mod time failed: %v", err)
 	}
 
 	// 检测到变化
@@ -985,6 +1015,45 @@ func TestNotifyBuildError(t *testing.T) {
 		t.Errorf("Expected error message %q in notification, got: %q", errorMsg, msgStr)
 	}
 
+	if !strings.Contains(msgStr, `"timestamp"`) {
+		t.Errorf("Expected timestamp in message, got: %q", msgStr)
+	}
+}
+
+// TestNotifyBuildStart tests build start notifications
+func TestNotifyBuildStart(t *testing.T) {
+	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
+
+	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer conn.Close() //nolint:errcheck
+
+	if _, _, err := conn.ReadMessage(); err != nil {
+		t.Fatalf("Failed to read connected message: %v", err)
+	}
+
+	srv.notifyBuildStart()
+
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("Failed to set read deadline: %v", err)
+	}
+
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to read message: %v", err)
+	}
+
+	msgStr := string(msg)
+	if !strings.Contains(msgStr, `"type":"build-start"`) {
+		t.Errorf("Expected build-start message, got: %q", msgStr)
+	}
 	if !strings.Contains(msgStr, `"timestamp"`) {
 		t.Errorf("Expected timestamp in message, got: %q", msgStr)
 	}

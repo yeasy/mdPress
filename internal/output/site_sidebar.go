@@ -9,8 +9,20 @@ import (
 // buildSidebar renders the sidebar navigation HTML.
 func (g *SiteGenerator) buildSidebar(chapters []SiteChapter, activeFile string) string {
 	var b strings.Builder
-	g.renderSidebarItems(&b, chapters, activeFile)
+	g.renderSidebarItems(&b, sidebarChapters(chapters, g.Meta.Title), activeFile)
 	return b.String()
+}
+
+func sidebarChapters(chapters []SiteChapter, siteTitle string) []SiteChapter {
+	if len(chapters) == 0 {
+		return chapters
+	}
+	first := chapters[0]
+	lowerFile := strings.ToLower(first.Filename)
+	if strings.Contains(lowerFile, "readme/") || strings.Contains(lowerFile, "readme.") || first.Title == siteTitle {
+		return chapters[1:]
+	}
+	return chapters
 }
 
 // renderSidebarItems recursively renders sidebar chapter navigation items as HTML.
@@ -21,6 +33,10 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 		filename := ch.Filename
 		if filename == "" {
 			filename = "#"
+		}
+		href := filename
+		if href != "#" {
+			href = relativeSiteHref(activeFile, filename)
 		}
 		groupClass := "nav-group"
 		hasChildren := (maxSidebarHeadingDepth > 0 && len(ch.Headings) > 0) ||
@@ -43,10 +59,11 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 			fmt.Fprintf(b, `<button class="nav-toggle" type="button" aria-label="Toggle section" aria-expanded="%s"></button>`, expanded)
 		}
 		escapedFilename := template.HTMLEscapeString(filename)
+		escapedHref := template.HTMLEscapeString(href)
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-chapter nav-depth-%d" href="%s" data-file="%s" data-group-link="%t">%s</a>`,
 			ch.Depth+1,
-			escapedFilename,
+			escapedHref,
 			escapedFilename,
 			hasChildren,
 			template.HTMLEscapeString(ch.Title))
@@ -56,7 +73,7 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 			b.WriteString(`<div class="nav-children">`)
 			b.WriteString(`<div class="nav-children-inner">`)
 			if len(ch.Headings) > 0 {
-				g.renderSidebarHeadings(b, ch.Filename, ch.Headings, 0)
+				g.renderSidebarHeadings(b, activeFile, ch.Filename, ch.Headings, 0)
 			}
 			if len(ch.Children) > 0 {
 				g.renderSidebarItems(b, ch.Children, activeFile)
@@ -121,21 +138,22 @@ const maxSidebarChapterDepth = 1
 const maxSidebarHeadingDepth = 0
 
 // renderSidebarHeadings recursively renders heading navigation items for the sidebar.
-func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, filename string, headings []SiteNavHeading, depth int) {
+func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, activeFile string, filename string, headings []SiteNavHeading, depth int) {
 	if depth >= maxSidebarHeadingDepth {
 		return
 	}
 	for _, heading := range headings {
+		href := relativeSiteHref(activeFile, filename)
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-heading nav-heading-depth-%d" href="%s#%s" data-file="%s" data-target="%s">%s</a>`,
 			depth+1,
-			template.HTMLEscapeString(filename),
+			template.HTMLEscapeString(href),
 			template.HTMLEscapeString(heading.ID),
 			template.HTMLEscapeString(filename),
 			template.HTMLEscapeString(heading.ID),
 			template.HTMLEscapeString(heading.Title))
 		if len(heading.Children) > 0 {
-			g.renderSidebarHeadings(b, filename, heading.Children, depth+1)
+			g.renderSidebarHeadings(b, activeFile, filename, heading.Children, depth+1)
 		}
 	}
 }

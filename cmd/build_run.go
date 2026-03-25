@@ -177,6 +177,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	chaptersHTML := result.Chapters
 	chapterFiles := result.ChapterFiles
+	chapterMarkdown := result.ChapterMarkdown
 	allHeadings := result.AllHeadings
 	var pdfChaptersHTML []renderer.ChapterHTML
 	var pdfChapterFiles []string
@@ -297,6 +298,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		PDFSinglePageParts: pdfSinglePageParts,
 		ChaptersHTML:       chaptersHTML,
 		ChapterFiles:       chapterFiles,
+		ChapterMarkdown:    chapterMarkdown,
 		CustomCSS:          customCSS,
 		Logger:             logger,
 	}
@@ -1007,15 +1009,18 @@ func guessLanguageCode(langDir string) string {
 }
 
 // sitePageFilenames derives HTML page filenames from the original markdown
-// source paths.  For example, "chapter01/README.md" becomes "chapter01.html"
-// and "intro.md" becomes "intro.html".  When the source path is empty or
-// produces a collision, a sequential fallback (ch_NNN.html) is used instead.
+// source paths while preserving directory hierarchy where possible.
+// Examples:
+//
+//	README.md -> index.html
+//	chapter01/README.md -> chapter01/index.html
+//	chapter01/section1.md -> chapter01/section1.html
+//
+// When the source path is empty or produces a collision, a sequential fallback
+// (ch_NNN.html) is used instead.
 func sitePageFilenames(chapterFiles []string) []string {
 	files := make([]string, len(chapterFiles))
 	seen := make(map[string]bool)
-
-	// Reserve "index.html" — it's used by the site generator for the first page.
-	seen["index.html"] = true
 
 	for i, src := range chapterFiles {
 		name := mdFileToHTMLName(src)
@@ -1032,62 +1037,56 @@ func sitePageFilenames(chapterFiles []string) []string {
 	return files
 }
 
-// mdFileToHTMLName converts a markdown source path into a flat HTML filename.
-// Examples:
-//
-//	"intro.md"                → "intro.html"
-//	"chapter01/README.md"     → "chapter01.html"
-//	"chapter01/section1.md"   → "chapter01-section1.html"
-//	"01_ai_intro/1.1_foo.md"  → "01_ai_intro-1.1_foo.html"
+// mdFileToHTMLName converts a markdown source path into a site page path while
+// preserving directory structure. README.md becomes the index of its directory.
 func mdFileToHTMLName(src string) string {
 	if src == "" {
 		return ""
 	}
-	// Normalize path separators.
 	src = filepath.ToSlash(src)
-
-	// Strip the .md extension.
 	base := strings.TrimSuffix(src, filepath.Ext(src))
-
-	// Split into directory and file components.
 	parts := strings.Split(base, "/")
-
-	// Remove empty parts.
 	var cleaned []string
 	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			cleaned = append(cleaned, p)
+		if sanitized := sanitizeSitePathSegment(strings.TrimSpace(p)); sanitized != "" {
+			cleaned = append(cleaned, sanitized)
 		}
 	}
 	if len(cleaned) == 0 {
 		return ""
 	}
 
-	// If the last component is "README" or "readme", use the parent directory name.
-	// For root-level README.md (no parent), keep "readme" as the filename.
 	last := cleaned[len(cleaned)-1]
-	if strings.EqualFold(last, "readme") && len(cleaned) > 1 {
-		cleaned = cleaned[:len(cleaned)-1]
+	if strings.EqualFold(last, "readme") {
+		if len(cleaned) == 1 {
+			return "index.html"
+		}
+		return filepath.ToSlash(filepath.Join(filepath.Join(cleaned[:len(cleaned)-1]...), "index.html"))
 	}
 
-	// Join with hyphens to create a flat filename.
-	name := strings.Join(cleaned, "-")
+	dir := ""
+	if len(cleaned) > 1 {
+		dir = filepath.Join(cleaned[:len(cleaned)-1]...)
+	}
+	filename := cleaned[len(cleaned)-1] + ".html"
+	if dir == "" {
+		return filepath.ToSlash(filename)
+	}
+	return filepath.ToSlash(filepath.Join(dir, filename))
+}
 
-	// Sanitize: keep only safe URL characters.
+func sanitizeSitePathSegment(segment string) string {
+	if segment == "" {
+		return ""
+	}
 	var sb strings.Builder
-	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
-			r == '-' || r == '_' || r == '.' {
+	for _, r := range segment {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
 			sb.WriteRune(r)
 		}
 	}
-	name = sb.String()
-	if name == "" {
-		return ""
-	}
-
-	return name + ".html"
+	return sb.String()
 }
 
 func rewriteChapterLinksForSite(chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string) []renderer.ChapterHTML {
@@ -1114,26 +1113,31 @@ func rewriteChapterLinksForSite(chapters []renderer.ChapterHTML, chapterFiles []
 	return rewritten
 }
 
-func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, outputDir string, chapters []renderer.ChapterHTML, pageFilenames []string) error {
+func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, outputDir string, chapters []renderer.ChapterHTML, pageFilenames []string, chapterMarkdown []string) error {
 	siteGen := output.NewSiteGenerator(output.SiteMeta{
-		Title:    cfg.Book.Title,
-		Author:   cfg.Book.Author,
-		Language: cfg.Book.Language,
+		Title:            cfg.Book.Title,
+		Subtitle:         cfg.Book.Subtitle,
+		Description:      cfg.Book.Description,
+		Author:           cfg.Book.Author,
+		Language:         cfg.Book.Language,
+		Theme:            thm.Name,
+		ThemeDescription: theme.GetThemeDescription(thm.Name),
 	})
 	siteGen.SetCSS(thm.ToCSS() + "\n" + customCSS)
 
-	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, pageFilenames) {
+	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, pageFilenames, chapterMarkdown) {
 		siteGen.AddChapter(ch)
 	}
 
 	return siteGen.Generate(outputDir)
 }
 
-func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, pageFilenames []string) []output.SiteChapter {
+func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, pageFilenames []string, chapterMarkdown []string) []output.SiteChapter {
 	flatDefs := flattenChaptersWithDepth(defs)
 	type siteChapterData struct {
 		html     renderer.ChapterHTML
 		filename string
+		markdown string
 	}
 	byFile := make(map[string]siteChapterData, len(flatDefs))
 	for i, flat := range flatDefs {
@@ -1144,9 +1148,14 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 		if i < len(pageFilenames) {
 			filename = pageFilenames[i]
 		}
+		markdown := ""
+		if i < len(chapterMarkdown) {
+			markdown = chapterMarkdown[i]
+		}
 		byFile[linkrewrite.NormalizePath(flat.Def.File)] = siteChapterData{
 			html:     chapters[i],
 			filename: filename,
+			markdown: markdown,
 		}
 	}
 
@@ -1163,6 +1172,7 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 				ID:       data.html.ID,
 				Filename: data.filename,
 				Content:  data.html.Content,
+				Markdown: data.markdown,
 				Depth:    data.html.Depth,
 				Headings: rendererHeadingsToSiteHeadings(data.html.Headings),
 				Children: build(def.Sections),

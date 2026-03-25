@@ -493,7 +493,7 @@ func TestNewBuildOrchestrator_InvalidThemeFallback(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuildSiteChapterTree_Empty(t *testing.T) {
-	result := buildSiteChapterTree(nil, nil, nil)
+	result := buildSiteChapterTree(nil, nil, nil, nil)
 	if len(result) != 0 {
 		t.Errorf("expected empty, got %d", len(result))
 	}
@@ -502,7 +502,7 @@ func TestBuildSiteChapterTree_Empty(t *testing.T) {
 func TestBuildSiteChapterTree_Mismatch(t *testing.T) {
 	defs := []config.ChapterDef{{Title: "Ch1", File: "ch1.md"}}
 	// No chapters/filenames provided.
-	result := buildSiteChapterTree(defs, nil, nil)
+	result := buildSiteChapterTree(defs, nil, nil, nil)
 	// Chapter has a file but no matching chapter data, so result should be empty.
 	if len(result) != 0 {
 		t.Errorf("expected 0 items when no chapter HTML, got %d", len(result))
@@ -519,13 +519,17 @@ func TestBuildSiteChapterTree_WithData(t *testing.T) {
 		{Title: "Chapter Two", ID: "ch2", Content: "<p>two</p>"},
 	}
 	pages := []string{"ch_000.html", "ch_001.html"}
+	markdown := []string{"# One", "# Two"}
 
-	result := buildSiteChapterTree(defs, chapters, pages)
+	result := buildSiteChapterTree(defs, chapters, pages, markdown)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 chapters, got %d", len(result))
 	}
 	if result[0].ID != "ch1" {
 		t.Errorf("first chapter ID = %q, want ch1", result[0].ID)
+	}
+	if result[0].Markdown != "# One" {
+		t.Errorf("first chapter markdown = %q, want # One", result[0].Markdown)
 	}
 }
 

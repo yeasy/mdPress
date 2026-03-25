@@ -15,6 +15,17 @@ var uiStrings = map[string]map[string]string{
 		"search_button":      "搜索",
 		"no_results":         "未找到相关结果：",
 		"search_unavailable": "搜索不可用",
+		"search_results_one": "1 个结果",
+		"search_results":     "%d 个结果",
+		"recent_pages":       "最近访问",
+		"recent_empty":       "还没有最近访问的页面",
+		"search_navigate":    "选择",
+		"search_open":        "打开",
+		"search_close":       "关闭",
+		"search_match_title": "标题",
+		"search_match_path":  "路径",
+		"search_match_text":  "正文",
+		"search_matched":     "已定位到：%s",
 		"on_this_page":       "本页目录",
 		"copy":               "复制",
 		"copied":             "已复制！",
@@ -22,7 +33,7 @@ var uiStrings = map[string]map[string]string{
 		"light_mode":         "浅色模式",
 		"dark_mode":          "深色模式",
 		"system_default":     "跟随系统",
-		"search_kbd":         "⌘K",
+		"search_kbd":         "Ctrl/⌘ K",
 		"page_of":            "第 %d 页，共 %d 页",
 		"built_with":         "使用 %s 构建",
 	},
@@ -33,6 +44,17 @@ var uiStrings = map[string]map[string]string{
 		"search_button":      "検索",
 		"no_results":         "結果なし：",
 		"search_unavailable": "検索利用不可",
+		"search_results_one": "1 件の結果",
+		"search_results":     "%d 件の結果",
+		"recent_pages":       "最近のページ",
+		"recent_empty":       "最近開いたページはまだありません",
+		"search_navigate":    "移動",
+		"search_open":        "開く",
+		"search_close":       "閉じる",
+		"search_match_title": "タイトル",
+		"search_match_path":  "パス",
+		"search_match_text":  "本文",
+		"search_matched":     "一致箇所：%s",
 		"on_this_page":       "このページの目次",
 		"copy":               "コピー",
 		"copied":             "コピー済み！",
@@ -40,7 +62,7 @@ var uiStrings = map[string]map[string]string{
 		"light_mode":         "ライトモード",
 		"dark_mode":          "ダークモード",
 		"system_default":     "システムデフォルト",
-		"search_kbd":         "⌘K",
+		"search_kbd":         "Ctrl/⌘ K",
 		"page_of":            "%d / %d ページ",
 		"built_with":         "%s で構築",
 	},
@@ -52,6 +74,17 @@ var uiStrings = map[string]map[string]string{
 		"search_button":      "Search",
 		"no_results":         "No results for",
 		"search_unavailable": "Search unavailable",
+		"search_results_one": "1 result",
+		"search_results":     "%d results",
+		"recent_pages":       "Recent pages",
+		"recent_empty":       "No recent pages yet",
+		"search_navigate":    "navigate",
+		"search_open":        "open",
+		"search_close":       "close",
+		"search_match_title": "title",
+		"search_match_path":  "path",
+		"search_match_text":  "text",
+		"search_matched":     "Matched: %s",
 		"on_this_page":       "ON THIS PAGE",
 		"copy":               "Copy",
 		"copied":             "Copied!",
@@ -59,7 +92,7 @@ var uiStrings = map[string]map[string]string{
 		"light_mode":         "Light mode",
 		"dark_mode":          "Dark mode",
 		"system_default":     "System default",
-		"search_kbd":         "⌘K",
+		"search_kbd":         "Ctrl/⌘ K",
 		"page_of":            "Page %d of %d",
 		"built_with":         "Built with %s",
 	},
@@ -101,6 +134,17 @@ func populateUIStrings(d *pageData) {
 	d.UIsearchButton = uiString(lang, "search_button")
 	d.UInoResults = uiString(lang, "no_results")
 	d.UIsearchUnavailable = uiString(lang, "search_unavailable")
+	d.UIsearchResultsOne = uiString(lang, "search_results_one")
+	d.UIsearchResults = uiString(lang, "search_results")
+	d.UIrecentPages = uiString(lang, "recent_pages")
+	d.UIrecentEmpty = uiString(lang, "recent_empty")
+	d.UIsearchNavigate = uiString(lang, "search_navigate")
+	d.UIsearchOpen = uiString(lang, "search_open")
+	d.UIsearchClose = uiString(lang, "search_close")
+	d.UIsearchMatchTitle = uiString(lang, "search_match_title")
+	d.UIsearchMatchPath = uiString(lang, "search_match_path")
+	d.UIsearchMatchText = uiString(lang, "search_match_text")
+	d.UIsearchMatched = uiString(lang, "search_matched")
 	d.UIonThisPage = uiString(lang, "on_this_page")
 	d.UIcopy = uiString(lang, "copy")
 	d.UIcopied = uiString(lang, "copied")
@@ -109,6 +153,8 @@ func populateUIStrings(d *pageData) {
 	d.UIdarkMode = uiString(lang, "dark_mode")
 	d.UIsystemDefault = uiString(lang, "system_default")
 	d.UIsearchKbd = uiString(lang, "search_kbd")
+	d.UIpageOf = uiString(lang, "page_of")
+	d.UIbuiltWith = uiString(lang, "built_with")
 }
 
 // extractDescription returns the first ~160 characters of plain text from HTML

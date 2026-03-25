@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
 func TestNewProgressTracker(t *testing.T) {
@@ -295,9 +294,6 @@ func TestProgressTracker_Timing(t *testing.T) {
 	tracker.Start("Step 1")
 	tracker.Done()
 
-	// Simulate some work
-	time.Sleep(10 * time.Millisecond)
-
 	tracker.Start("Step 2")
 	tracker.Done()
 	tracker.Finish()
@@ -329,18 +325,20 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 	tracker := NewProgressTracker(5)
 
 	var wg sync.WaitGroup
+	start := make(chan struct{})
 	// Create a sequence of operations
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
+			<-start
 			// Note: This is not thread-safe without external synchronization
 			// Just testing that it doesn't panic
 			tracker.Start(fmt.Sprintf("Step %d", index))
-			time.Sleep(1 * time.Millisecond)
 		}(i)
 	}
 
+	close(start)
 	wg.Wait()
 	tracker.Finish()
 

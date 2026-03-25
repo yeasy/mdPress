@@ -49,8 +49,14 @@ func TestSiteGeneratorIndexPage(t *testing.T) {
 		t.Error("index.html should contain the first chapter content")
 	}
 	// The SPA router should recognize ch1.html as the active file.
-	if !strings.Contains(indexHTML, "ch1.html") {
-		t.Error("index.html should reference ch1.html as the active page")
+	if !strings.Contains(indexHTML, `class="sidebar-home-link" href="index.html"`) {
+		t.Error("index.html should point the sidebar title to index.html")
+	}
+	if strings.Contains(indexHTML, `<span class="bc-sep">›</span>`) {
+		t.Error("index.html should not render an extra breadcrumb segment for the first chapter")
+	}
+	if strings.Contains(indexHTML, `href="../index.html"`) {
+		t.Error("index.html should not use parent-directory home links")
 	}
 	// No meta-refresh redirect.
 	if strings.Contains(indexHTML, "meta http-equiv=\"refresh\"") {
@@ -137,6 +143,36 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	// Last page should not have a next link
 	if strings.Contains(ch3HTML, `class="next" href="ch4.html"`) {
 		t.Error("last page should not have a next link")
+	}
+}
+
+func TestSiteGeneratorCurrentFileUsesRelativePath(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 1",
+		ID:       "ch1",
+		Filename: "chapter-1/index.html",
+		Content:  "<h1>Chapter 1</h1>",
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	pageData, err := os.ReadFile(filepath.Join(dir, "chapter-1", "index.html"))
+	if err != nil {
+		t.Fatalf("read nested page failed: %v", err)
+	}
+
+	if !strings.Contains(string(pageData), `var currentFile = 'chapter-1\/index.html';`) {
+		t.Error("page script should keep the full relative path for currentFile")
 	}
 }
 
@@ -494,6 +530,66 @@ graph TD
 	}
 	if !strings.Contains(html, "Start") {
 		t.Error("page should contain mermaid diagram text 'Start'")
+	}
+}
+
+func TestSiteGeneratorMarkdownAndLLMSOutputs(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "LLMS Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 1",
+		ID:       "ch1",
+		Filename: "ch1.html",
+		Content: `<h1>Chapter 1</h1>
+<p>Visit <a href="https://example.com">Example</a>.</p>
+<figure>
+  <img src="cover.png" alt="Cover art">
+  <figcaption>Figure caption</figcaption>
+</figure>
+<div class="mermaid">graph TD; A-->B;</div>`,
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	pageHTML, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	html := string(pageHTML)
+	if !strings.Contains(html, `class="sidebar-home-link"`) {
+		t.Error("sidebar title should be a home link")
+	}
+	if !strings.Contains(html, `id="search-status"`) {
+		t.Error("search modal should include a result status element")
+	}
+	if !strings.Contains(html, "mdpress-recent-pages") {
+		t.Error("search script should persist recent pages")
+	}
+	if !strings.Contains(html, "pathMatch") {
+		t.Error("search script should rank breadcrumb path matches")
+	}
+	if !strings.Contains(html, "Ctrl/⌘ K") {
+		t.Error("search shortcut label should show Ctrl/⌘ K")
+	}
+	if !strings.Contains(html, "figcaption") {
+		t.Error("template should center figure captions by default")
+	}
+	if !strings.Contains(html, ".mermaid") {
+		t.Error("template should include Mermaid centering styles")
+	}
+
+	for _, path := range []string{"ch1.html.md", "index.html.md", "llms.txt", "llms-full.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(err) {
+			t.Fatalf("%s should not be generated anymore", path)
+		}
 	}
 }
 

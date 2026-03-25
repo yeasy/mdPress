@@ -276,12 +276,13 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 
 	chaptersHTML := result.Chapters
 	chapterFiles := result.ChapterFiles
+	chapterMarkdown := result.ChapterMarkdown
 
 	customCSS := orchestrator.LoadCustomCSS()
 
 	sitePages := sitePageFilenames(chapterFiles)
 	siteChapters := rewriteChapterLinksForSite(chaptersHTML, chapterFiles, sitePages)
-	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, sitePages); err != nil {
+	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, sitePages, chapterMarkdown); err != nil {
 		return fmt.Errorf("failed to generate site output: %w", err)
 	}
 
