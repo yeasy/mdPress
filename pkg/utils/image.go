@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -86,6 +87,13 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		return "", fmt.Errorf("failed to parse URL %q: %w", urlStr, err)
 	}
 
+	// SSRF prevention: block requests to private/internal network addresses.
+	if ssrfCheckEnabled {
+		if err := checkURLNotPrivate(parsedURL); err != nil {
+			return "", fmt.Errorf("blocked image download from %q: %w", urlStr, err)
+		}
+	}
+
 	// Ensure the destination directory exists.
 	if err := EnsureDir(destDir); err != nil {
 		return "", fmt.Errorf("failed to create destination directory: %w", err)
@@ -120,9 +128,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 	// Download with a timeout so unresponsive servers do not hang forever.
 	client := &http.Client{Timeout: imageDownloadTimeout}
-	ctx, cancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for image download: %w", err)
 	}
@@ -282,7 +288,7 @@ func looksLikeSVG(data []byte) bool {
 		return false
 	}
 	return bytes.HasPrefix(trimmed, []byte("<svg")) ||
-		bytes.HasPrefix(trimmed, []byte("<?xml")) && bytes.Contains(trimmed, []byte("<svg"))
+		(bytes.HasPrefix(trimmed, []byte("<?xml")) && bytes.Contains(trimmed, []byte("<svg")))
 }
 
 // ProcessImages resolves image paths in HTML and optionally embeds them as base64.
@@ -435,17 +441,17 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 
 func resolveLocalImagePath(baseDir string, src string) string {
 	if filepath.IsAbs(src) {
-		return src
+		return "" // reject absolute paths to prevent reading arbitrary files
 	}
 	resolved := filepath.Clean(filepath.Join(baseDir, src))
 	// Ensure the resolved path stays within baseDir
 	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
-		return resolved
+		return "" // cannot verify containment; reject
 	}
 	absResolved, err := filepath.Abs(resolved)
 	if err != nil {
-		return resolved
+		return "" // cannot verify containment; reject
 	}
 	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
 		// Path escapes baseDir, return empty to prevent traversal
@@ -489,4 +495,46 @@ func StableHash(parts ...string) string {
 		_, _ = io.WriteString(h, "\x00")
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// ssrfCheckEnabled controls whether DownloadImage blocks private/internal IPs.
+// Tests that use local HTTP servers should set this to false via DisableSSRFCheck.
+var ssrfCheckEnabled = true
+
+// DisableSSRFCheck disables the SSRF prevention check. Intended for testing only.
+func DisableSSRFCheck() { ssrfCheckEnabled = false }
+
+// EnableSSRFCheck re-enables the SSRF prevention check.
+func EnableSSRFCheck() { ssrfCheckEnabled = true }
+
+// checkURLNotPrivate checks that a URL's hostname does not resolve to a
+// private, loopback, or link-local IP address (SSRF prevention).
+func checkURLNotPrivate(u *url.URL) error {
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("empty hostname")
+	}
+
+	// Block known internal hostnames.
+	lower := strings.ToLower(host)
+	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
+		return fmt.Errorf("requests to %q are not allowed", host)
+	}
+
+	// Resolve and check IP addresses.
+	ips, err := net.DefaultResolver.LookupHost(context.Background(), host)
+	if err != nil {
+		// DNS resolution failure — block the request to prevent DNS rebinding attacks.
+		return fmt.Errorf("DNS resolution failed for %q: %w", host, err)
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			continue
+		}
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("requests to private/internal address %s are not allowed", ipStr)
+		}
+	}
+	return nil
 }

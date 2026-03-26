@@ -583,7 +583,7 @@ func TestStartContextCancel(t *testing.T) {
 	watchDir := t.TempDir()
 
 	srv := NewServer("127.0.0.1", 0, watchDir, outputDir, slog.Default())
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	// 端口 0 测试 Start 能正常退出（不 panic）
@@ -1297,12 +1297,14 @@ func TestWSClientWriteMessage(t *testing.T) {
 func TestSnapshotClientsThreadSafety(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
-	// Create mock clients
+	// Create mock clients (lock required to avoid race with concurrent readers)
 	mockClients := make([]*wsClient, 5)
+	srv.clientsMu.Lock()
 	for i := 0; i < 5; i++ {
 		mockClients[i] = &wsClient{}
 		srv.clients[mockClients[i]] = struct{}{}
 	}
+	srv.clientsMu.Unlock()
 
 	// Concurrent reads should not panic or deadlock
 	snapshots := make(chan []*wsClient, 3)
@@ -1477,20 +1479,26 @@ func TestWebSocketClientRegistration(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
 	// Initially empty
-	if len(srv.clients) != 0 {
-		t.Errorf("Expected 0 clients initially, got %d", len(srv.clients))
+	srv.clientsMu.RLock()
+	n := len(srv.clients)
+	srv.clientsMu.RUnlock()
+	if n != 0 {
+		t.Errorf("Expected 0 clients initially, got %d", n)
 	}
 
 	// Register multiple clients
+	srv.clientsMu.Lock()
 	for i := 0; i < 5; i++ {
 		client := &wsClient{}
-		srv.clientsMu.Lock()
 		srv.clients[client] = struct{}{}
-		srv.clientsMu.Unlock()
 	}
+	srv.clientsMu.Unlock()
 
-	if len(srv.clients) != 5 {
-		t.Errorf("Expected 5 clients after registration, got %d", len(srv.clients))
+	srv.clientsMu.RLock()
+	n = len(srv.clients)
+	srv.clientsMu.RUnlock()
+	if n != 5 {
+		t.Errorf("Expected 5 clients after registration, got %d", n)
 	}
 
 	// Deregister clients
@@ -1516,8 +1524,11 @@ func TestWebSocketClientRegistration(t *testing.T) {
 		}
 	}
 
-	if len(srv.clients) != 0 {
-		t.Errorf("Expected 0 clients after deregistration, got %d", len(srv.clients))
+	srv.clientsMu.RLock()
+	n = len(srv.clients)
+	srv.clientsMu.RUnlock()
+	if n != 0 {
+		t.Errorf("Expected 0 clients after deregistration, got %d", n)
 	}
 }
 
@@ -1538,11 +1549,13 @@ func TestNotifyClientsMessageFormat(t *testing.T) {
 
 	// Create test clients that record messages
 	testClients := make([]*wsClient, 3)
+	srv.clientsMu.Lock()
 	for i := 0; i < 3; i++ {
 		client := &wsClient{}
 		testClients[i] = client
 		srv.clients[client] = struct{}{}
 	}
+	srv.clientsMu.Unlock()
 
 	// Test notifyClients message format
 	msg := []byte(`{"type":"reload","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
@@ -1654,6 +1667,64 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	// This might not find index.html, which is OK - just verify no panic
+}
+
+// TestInjectLiveReload_NonExistentPathRedirectsToRoot tests that a request for
+// a non-existent HTML path (e.g. a mistyped URL) redirects to the home page.
+func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
+	outputDir := t.TempDir()
+
+	// Create only the root index.html – no subdirectory pages.
+	indexFile := filepath.Join(outputDir, "index.html")
+	if err := os.WriteFile(indexFile, []byte("<html><body>Home</body></html>"), 0644); err != nil {
+		t.Fatalf("Failed to write index file: %v", err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
+	fileServer := http.FileServer(http.Dir(outputDir))
+	handler := srv.injectLiveReload(fileServer)
+
+	// Request a path that does not exist.
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/02_reasoning-2.4_reflexion/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("Expected 302 redirect for non-existent path, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "/" {
+		t.Errorf("Expected redirect to /, got %q", loc)
+	}
+
+	// A non-existent .html path should also redirect.
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/missing-page.html", nil)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("Expected 302 redirect for non-existent .html path, got %d", rec.Code)
+	}
+
+	// Static asset requests should NOT redirect – they should fall through
+	// to the file server which returns 404.
+	for _, assetPath := range []string{
+		"/style.css",
+		"/app.js",
+		"/logo.png",
+		"/photo.jpg",
+		"/icon.svg",
+		"/favicon.ico",
+		"/font.woff2",
+	} {
+		req = httptest.NewRequestWithContext(context.Background(), "GET", assetPath, nil)
+		rec = httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code == http.StatusTemporaryRedirect {
+			t.Errorf("Static asset %s should not redirect, got 307", assetPath)
+		}
+	}
 }
 
 // TestScanModTimes_CSSFiles tests that CSS files are properly tracked

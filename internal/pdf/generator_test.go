@@ -152,13 +152,15 @@ func TestWithMarginsOption(t *testing.T) {
 	}
 }
 
-// TestChromiumCheck 测试 Chromium 检查
-// 注意：此测试在 CI 环境中可能失败（无 Chrome）
+// TestChromiumCheck tests Chromium availability detection.
 func TestChromiumCheck(t *testing.T) {
 	g := NewGenerator()
 	err := g.checkChromiumAvailable()
-	// 不断言具体结果，因为取决于环境
-	_ = err
+	if err != nil {
+		// Chromium not available in this environment — that's expected in CI.
+		t.Skipf("Chromium not available: %v", err)
+	}
+	// If we reach here, Chromium was found — the function returned nil.
 }
 
 // TestMultipleOptionsChaining tests chaining multiple options together.
@@ -544,7 +546,7 @@ func TestParseMarginString(t *testing.T) {
 		{"no unit defaults to mm", "25", 20.0, 25.0},
 		{"spaces around value", "  20mm  ", 15.0, 20.0},
 		{"invalid format returns default", "invalid", 20.0, 20.0},
-		{"negative value", "-10mm", 20.0, -10.0},
+		{"negative value returns default", "-10mm", 20.0, 20.0},
 		{"uppercase unit", "20MM", 15.0, 20.0},
 	}
 

@@ -11,19 +11,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+var (
+	errChecksumMismatch = errors.New("checksum mismatch")
+	errNoChecksumEntry  = errors.New("no matching checksum entry")
+)
+
+// upgradeHTTPClient is a shared HTTP client with sensible timeouts for upgrade operations.
+// Using http.DefaultClient has no timeout and could hang indefinitely.
+var upgradeHTTPClient = &http.Client{
+	Timeout: 5 * time.Minute,
+}
 
 var upgradeCheckOnly bool
 
@@ -117,7 +131,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 
 	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := upgradeHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch latest release: %w", err)
 	}
@@ -218,6 +232,11 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 	slog.Info("found asset", slog.String("asset", assetName))
 	utils.Success("Downloading %s", assetName)
 
+	// Validate the download URL points to a known GitHub domain.
+	if !isGitHubDownloadURL(assetURL) {
+		return fmt.Errorf("asset URL has unexpected host (expected github.com or *.githubusercontent.com)")
+	}
+
 	// Download the binary.
 	assetData, err := downloadBinary(ctx, assetURL)
 	if err != nil {
@@ -228,6 +247,11 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 
 	// Verify checksum if available.
 	if err := verifyChecksum(ctx, release, assetName, assetData); err != nil {
+		// Abort on integrity failures (mismatch or missing entry in existing checksum file).
+		// Only warn for non-critical issues (no checksum file in release, download failure).
+		if errors.Is(err, errChecksumMismatch) || errors.Is(err, errNoChecksumEntry) {
+			return fmt.Errorf("checksum verification failed: %w", err)
+		}
 		slog.Warn("checksum verification", slog.String("warning", err.Error()))
 	}
 
@@ -244,7 +268,12 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 
 	// Use atomic rename: write to temp file, then rename to target.
 	// This prevents corruption if the process crashes mid-write.
-	tempPath := currentPath + ".tmp"
+	tempFile, err := os.CreateTemp(filepath.Dir(currentPath), "mdpress-upgrade-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	tempFile.Close()
 
 	// Write the new binary to a temporary file.
 	if err := writeBinaryFile(tempPath, binaryData); err != nil {
@@ -356,7 +385,16 @@ func containsAny(assetName string, candidates []string) bool {
 	return false
 }
 
-// downloadBinary downloads binary data from a URL.
+// isGitHubDownloadURL returns true if rawURL points to a known GitHub domain.
+func isGitHubDownloadURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "https" &&
+		(u.Host == "github.com" || strings.HasSuffix(u.Host, ".githubusercontent.com"))
+}
+
 func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -365,7 +403,7 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 
 	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := upgradeHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
@@ -375,7 +413,15 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	const maxBinarySize = 500 << 20 // 500 MB
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBinarySize+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBinarySize {
+		return nil, fmt.Errorf("binary exceeds maximum size of %d bytes", maxBinarySize)
+	}
+	return data, nil
 }
 
 func extractBinaryData(assetName string, data []byte) ([]byte, error) {
@@ -417,7 +463,8 @@ func extractBinaryFromTarGz(data []byte) ([]byte, error) {
 			continue
 		}
 		if isExpectedBinaryEntry(header.Name) {
-			return io.ReadAll(tr)
+			const maxBinarySize = 500 << 20 // 500 MB
+			return io.ReadAll(io.LimitReader(tr, maxBinarySize))
 		}
 	}
 
@@ -438,7 +485,8 @@ func extractBinaryFromZip(data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open zip entry: %w", err)
 		}
-		content, readErr := io.ReadAll(reader)
+		const maxBinarySize = 500 << 20 // 500 MB
+		content, readErr := io.ReadAll(io.LimitReader(reader, maxBinarySize))
 		closeErr := reader.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read zip entry: %w", readErr)
@@ -507,8 +555,11 @@ func verifyChecksum(ctx context.Context, release *GitHubRelease, assetName strin
 		expectedHash := parts[0]
 		checksumAssetName := parts[1]
 
-		// Check if this line matches our asset.
-		if strings.Contains(checksumAssetName, assetName) || strings.Contains(assetName, checksumAssetName) {
+		// Match by exact basename to avoid substring false positives
+		// (e.g., "mdpress-linux-amd64" matching "mdpress-linux-amd64-musl").
+		checksumBase := filepath.Base(checksumAssetName)
+		assetBase := filepath.Base(assetName)
+		if checksumBase == assetBase {
 			// Compute SHA256 of the downloaded binary.
 			actualHash := sha256.Sum256(binaryData)
 			actualHashStr := hex.EncodeToString(actualHash[:])
@@ -519,11 +570,11 @@ func verifyChecksum(ctx context.Context, release *GitHubRelease, assetName strin
 				return nil
 			}
 
-			return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHashStr)
+			return fmt.Errorf("expected %s, got %s: %w", expectedHash, actualHashStr, errChecksumMismatch)
 		}
 	}
 
-	return fmt.Errorf("no matching checksum entry found for %s", assetName)
+	return fmt.Errorf("%s: %w", assetName, errNoChecksumEntry)
 }
 
 // writeBinaryFile writes binary data to a file with executable permissions.

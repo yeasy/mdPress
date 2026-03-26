@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,8 +103,17 @@ func NewServer(host string, port int, watchDir, outputDir string, logger *slog.L
 		clients:     make(map[*wsClient]struct{}),
 		logger:      logger,
 		upgrader: websocket.Upgrader{
-			// Allow all origins for local development.
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true // non-browser clients
+				}
+				u, err := url.Parse(origin)
+				if err != nil {
+					return false
+				}
+				return u.Host == r.Host
+			},
 		},
 	}
 }
@@ -287,8 +297,12 @@ func (s *Server) notifyBuildError(errMsg string) {
 	}
 }
 
+// maxWSClients is the maximum number of concurrent WebSocket connections.
+const maxWSClients = 100
+
 // handleWebSocket upgrades an HTTP request to a WebSocket connection.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Upgrade first, then atomically check-and-register under a single lock.
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("WebSocket upgrade failed", slog.String("error", err.Error()))
@@ -298,8 +312,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Wrap the connection so writes remain thread-safe.
 	client := &wsClient{conn: conn}
 
-	// Register the client.
+	// Atomically check the limit and register, preventing TOCTOU races.
 	s.clientsMu.Lock()
+	if len(s.clients) >= maxWSClients {
+		s.clientsMu.Unlock()
+		conn.Close()
+		return
+	}
 	s.clients[client] = struct{}{}
 	total := len(s.clients)
 	s.clientsMu.Unlock()
@@ -582,11 +601,19 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			return
 		}
 		// Resolve symlinks so that a symlink pointing outside OutputDir is caught.
+		// Only resolve the output dir when the file path also resolves, so that
+		// both stay in the same namespace.  When the file does not exist,
+		// EvalSymlinks fails and the output dir may resolve differently (e.g.
+		// /tmp → /private/tmp on macOS), causing a false path-traversal block.
+		fileSymlinksResolved := false
 		if resolved, err := filepath.EvalSymlinks(absFilePath); err == nil {
 			absFilePath = resolved
+			fileSymlinksResolved = true
 		}
-		if resolved, err := filepath.EvalSymlinks(absOutputDir); err == nil {
-			absOutputDir = resolved
+		if fileSymlinksResolved {
+			if resolved, err := filepath.EvalSymlinks(absOutputDir); err == nil {
+				absOutputDir = resolved
+			}
 		}
 		// Normalize paths and perform case-insensitive comparison on case-insensitive systems
 		cleanFilePath := filepath.Clean(absFilePath)
@@ -603,8 +630,21 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			return
 		}
 
-		content, err := os.ReadFile(filePath)
+		content, err := os.ReadFile(absFilePath)
 		if err != nil {
+			// Fallback: if the requested HTML page does not exist and this is
+			// not already the root path, redirect to the home page so that
+			// mistyped or stale URLs land on a useful page instead of a 404.
+			// Only redirect page navigations (no extension or .html); static
+			// asset requests (.css, .js, .png, etc.) should still 404.
+			if os.IsNotExist(err) && r.URL.Path != "/" {
+				ext := filepath.Ext(r.URL.Path)
+				if ext == "" || ext == ".html" {
+					s.logger.Warn("Page not found, redirecting to /", slog.String("path", r.URL.Path))
+					http.Redirect(w, r, "/", http.StatusFound)
+					return
+				}
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -615,6 +655,8 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
 		if _, err := w.Write([]byte(injected)); err != nil {
 			s.logger.Debug("Failed to write HTTP response", slog.String("error", err.Error()))
 		}
@@ -912,7 +954,10 @@ func openBrowser(url string) {
 		return
 	}
 
-	if err := exec.CommandContext(context.Background(), cmd, args...).Start(); err != nil {
+	c := exec.CommandContext(context.Background(), cmd, args...)
+	if err := c.Start(); err != nil {
 		return
 	}
+	// Collect exit status in background to prevent zombie processes.
+	go c.Wait() //nolint:errcheck
 }

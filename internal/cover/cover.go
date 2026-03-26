@@ -4,12 +4,16 @@ package cover
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// cssColorPattern matches safe CSS color values (hex, rgb, rgba, hsl, hsla, named colors).
+var cssColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([\d\s,%.]+\)|[a-z]{1,30})$`)
 
 // CoverGenerator builds the HTML cover page.
 type CoverGenerator struct {
@@ -75,8 +79,8 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`      padding: 60px 40px;` + "\n")
 
 	// Prefer a configured background color or image.
-	if cg.meta.Cover.Background != "" {
-		fmt.Fprintf(&buf, `      background-color: %s;`+"\n", cg.meta.Cover.Background)
+	if cg.meta.Cover.Background != "" && cssColorPattern.MatchString(strings.TrimSpace(cg.meta.Cover.Background)) {
+		fmt.Fprintf(&buf, `      background-color: %s;`+"\n", strings.TrimSpace(cg.meta.Cover.Background))
 		buf.WriteString(`      background-size: cover;` + "\n")
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
@@ -229,14 +233,19 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	return buf.String()
 }
 
-// escapeURL escapes URL-sensitive characters.
+// urlReplacer escapes URL-sensitive characters for CSS url() context.
+// Pre-compiled to avoid allocation on every call.
+var urlReplacer = strings.NewReplacer(
+	`'`, "%27",
+	`"`, "%22",
+	`)`, "%29",
+	`(`, "%28",
+	"\n", "%0A",
+	"\r", "%0D",
+	`\`, "%5C",
+)
+
+// escapeURL escapes URL-sensitive characters for CSS url() context.
 func escapeURL(u string) string {
-	// Apply minimal escaping to avoid injection.
-	replacer := strings.NewReplacer(
-		`'`, "\\'",
-		`"`, `\"`,
-		"\n", "\\n",
-		"\r", "\\r",
-	)
-	return replacer.Replace(u)
+	return urlReplacer.Replace(u)
 }
