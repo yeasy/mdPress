@@ -2,8 +2,8 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.6.1
-> 更新日期: 2026-03-24
+> 版本: v0.6.2
+> 更新日期: 2026-03-25
 
 ## 1. 系统架构总览
 
@@ -54,6 +54,9 @@ mdpress (root)
   ├─ validate    验证项目配置
   ├─ doctor      验证环境设置
   ├─ migrate     从 GitBook/HonKit 迁移
+  ├─ upgrade     自升级到最新版本
+  ├─ completion  生成 shell 补全脚本
+  ├─ version     打印版本信息
   └─ themes      查看主题（list / show / preview）
 ```
 
@@ -254,7 +257,7 @@ type GeneratorOption func(*Generator)
 |------|------|
 | `HTMLGenerator` | 单页 HTML 输出 |
 | `SiteGenerator` | Gitbook 风格多页静态站点 |
-| `EpubGenerator` | ePub 2.0 电子书 |
+| `EpubGenerator` | ePub 3 电子书 |
 
 ### 3.7 internal/cover — 封面生成
 
@@ -785,4 +788,3 @@ func (o *BuildOrchestrator) LoadCustomCSS() string
 
 - CI：添加 Windows 到测试矩阵
 - `source/github.go`：添加 `GitLabSource` 以支持更广泛的 Git 托管平台
-- 考虑为基于文件哈希的重构缓存提取 `IncrementalBuilder`（v0.4.0）

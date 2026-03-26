@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.6.1
-> Updated: 2026-03-24
+> Version: v0.6.2
+> Updated: 2026-03-25
 
 ## 1. System Overview
 
@@ -55,6 +55,9 @@ mdpress (root)
   ├─ validate    Validate project configuration
   ├─ doctor      Verify environment setup
   ├─ migrate     Migrate from GitBook/HonKit
+  ├─ upgrade     Self-upgrade to the latest release
+  ├─ completion  Generate shell completion scripts
+  ├─ version     Print version information
   └─ themes      Inspect themes (list / show / preview)
 ```
 
@@ -802,4 +805,3 @@ func (o *BuildOrchestrator) LoadCustomCSS() string
 
 - CI: add Windows to the test matrix
 - `source/github.go`: add `GitLabSource` for broader Git hosting support
-- Consider extracting `IncrementalBuilder` for file-hash-based rebuild caching (v0.4.0)

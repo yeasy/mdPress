@@ -42,7 +42,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Search index optimization**: Replaced `len([]rune(...))` with `utf8.RuneCountInString()` for search snippet slicing
 - **Font family formatting**: Fixed double-space issue in `quoteFontFamily` CSS output
 
-### Docs
+### Documentation
 
 - **validate command**: Documented the `--report` flag (was listed as "no dedicated flags")
 - **completion command**: Corrected `--no-descriptions` support from `bash`/`zsh` to `bash`/`fish`

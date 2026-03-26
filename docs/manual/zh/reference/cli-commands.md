@@ -568,7 +568,7 @@ mdpress -v
 
 # 输出：
 # mdPress version 1.2.3
-# Go version: go1.21.0
+# Go version: go1.25.0
 # Platform: linux/amd64
 ```
 
