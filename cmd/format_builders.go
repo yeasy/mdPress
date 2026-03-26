@@ -278,7 +278,6 @@ func (b *TypstBuilder) Build(ctx *BuildContext, baseName string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	_, _ = getPageDimensions(ctx.Config.Style.PageSize) // For future use
 	typstTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
 	if typstTimeout <= 0 {
 		typstTimeout = defaultTypstTimeout

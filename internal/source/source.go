@@ -20,20 +20,6 @@ type Source interface {
 	Type() string
 }
 
-// ReadableSource extends Source with file-level access APIs for future use cases.
-type ReadableSource interface {
-	Source
-
-	// ReadFile reads a file relative to the source root.
-	ReadFile(path string) ([]byte, error)
-
-	// ListFiles lists files matching a glob pattern relative to the source root.
-	ListFiles(pattern string) ([]string, error)
-
-	// Resolve normalizes a relative path inside the source.
-	Resolve(base, rel string) string
-}
-
 // Options configures source resolution.
 type Options struct {
 	Branch string // Branch override for remote repository sources.
