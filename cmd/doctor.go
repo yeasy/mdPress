@@ -127,8 +127,17 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	// Check Network connectivity
 	checkNetworkConnectivity(&report)
 
+	// Try to load project config once for reuse by multiple checks.
+	bookPath := filepath.Join(absDir, "book.yaml")
+	var doctorCfg *config.BookConfig
+	if _, err := os.Stat(bookPath); err == nil {
+		if cfg, loadErr := config.Load(bookPath); loadErr == nil {
+			doctorCfg = cfg
+		}
+	}
+
 	// Check disk space in output directory
-	checkDiskSpace(absDir, &report)
+	checkDiskSpace(absDir, doctorCfg, &report)
 
 	// Check CJK font availability for PDF rendering of Chinese/Japanese/Korean content.
 	cjkStatus := utils.CheckCJKFonts()
@@ -145,12 +154,11 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	checkPlantUML(absDir, &report)
 
 	// Check plugins availability
-	checkPlugins(absDir, &report)
+	checkPlugins(absDir, doctorCfg, &report)
 
 	fmt.Println()
 	utils.Header("Project Check")
 
-	bookPath := filepath.Join(absDir, "book.yaml")
 	summaryPath := filepath.Join(absDir, "SUMMARY.md")
 	langsPath := filepath.Join(absDir, "LANGS.md")
 
@@ -307,9 +315,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 		return
 	}
 
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
+	client := &http.Client{}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -326,27 +332,28 @@ func checkNetworkConnectivity(report *doctorReport) {
 	utils.Success("Network connectivity to github.com available")
 }
 
-func checkDiskSpace(targetDir string, report *doctorReport) {
-	// Try to get the output directory from book.yaml if it exists
-	bookPath := filepath.Join(targetDir, "book.yaml")
+func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorReport) {
 	outputDir := filepath.Join(targetDir, "output")
 
-	// If book.yaml exists, try to load it to get the output directory
-	if _, err := os.Stat(bookPath); err == nil {
-		cfg, err := config.Load(bookPath)
-		if err == nil && cfg.Output.Filename != "" {
-			outPath := filepath.Dir(cfg.Output.Filename)
-			if !filepath.IsAbs(outPath) {
-				outPath = filepath.Join(targetDir, outPath)
-			}
-			outputDir, _ = filepath.Abs(outPath)
+	// Use loaded config to get the output directory if available.
+	if cfg != nil && cfg.Output.Filename != "" {
+		outPath := filepath.Dir(cfg.Output.Filename)
+		if !filepath.IsAbs(outPath) {
+			outPath = filepath.Join(targetDir, outPath)
 		}
+		outputDir, _ = filepath.Abs(outPath)
 	}
 
-	// Make sure output directory exists
-	if err := os.MkdirAll(outputDir, 0755); err != nil && doctorVerbose {
-		utils.Warning("Could not access output directory: %v", err)
-		return
+	// Check output directory without creating it (doctor is read-only)
+	if _, err := os.Stat(outputDir); err != nil {
+		// Fall back to parent directory for disk space check
+		outputDir = filepath.Dir(outputDir)
+		if _, err := os.Stat(outputDir); err != nil {
+			if doctorVerbose {
+				utils.Warning("Could not access output directory: %v", err)
+			}
+			return
+		}
 	}
 
 	// Get disk space using the df command (works on macOS, Linux, and most Unix systems).
@@ -390,20 +397,9 @@ func checkDiskSpace(targetDir string, report *doctorReport) {
 	}
 }
 
-func checkPlugins(targetDir string, report *doctorReport) {
-	// Try to load book.yaml to check plugins
-	bookPath := filepath.Join(targetDir, "book.yaml")
-	if _, err := os.Stat(bookPath); err != nil {
-		// No book.yaml, no plugins to check
+func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport) {
+	if cfg == nil {
 		report.PluginsValid = true
-		return
-	}
-
-	cfg, err := config.Load(bookPath)
-	if err != nil {
-		if doctorVerbose {
-			utils.Warning("Could not load book.yaml to check plugins: %v", err)
-		}
 		return
 	}
 
@@ -433,7 +429,8 @@ func checkPlugins(targetDir string, report *doctorReport) {
 		}
 
 		// Check if the executable exists
-		if _, err := os.Stat(pluginPath); err != nil {
+		info, err := os.Stat(pluginPath)
+		if err != nil {
 			allValid = false
 			if doctorVerbose {
 				utils.Error("Plugin %q not found at %s", plugin.Name, pluginPath)
@@ -444,8 +441,7 @@ func checkPlugins(targetDir string, report *doctorReport) {
 		}
 
 		// Check if it's executable
-		info, _ := os.Stat(pluginPath)
-		if !isExecutable(info.Mode()) {
+		if !isPluginExecutable(pluginPath, info.Mode()) {
 			allValid = false
 			if doctorVerbose {
 				utils.Warning("Plugin %q is not executable", plugin.Name)
@@ -464,6 +460,18 @@ func checkPlugins(targetDir string, report *doctorReport) {
 
 func isExecutable(mode os.FileMode) bool {
 	return (mode & 0111) != 0
+}
+
+func isPluginExecutable(path string, mode os.FileMode) bool {
+	if runtime.GOOS == "windows" {
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".exe", ".bat", ".cmd", ".com", ".ps1":
+			return true
+		default:
+			return false
+		}
+	}
+	return isExecutable(mode)
 }
 
 func checkPlantUML(targetDir string, report *doctorReport) {

@@ -120,8 +120,6 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	if manifest == nil {
 		manifest = NewBuildManifest(Version)
 	}
-	stats := NewCacheStatistics()
-
 	// Compute hashes for cache invalidation
 	configPath := filepath.Join(cfg.BaseDir(), "book.yaml")
 	configHash := ""
@@ -211,8 +209,9 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 			}
 			tocHeadings = filtered
 		}
-		entries := toc.NewGenerator().Generate(tocHeadings)
-		tocHTML = toc.NewGenerator().RenderHTML(entries)
+		tocGen := toc.NewGenerator()
+		entries := tocGen.Generate(tocHeadings)
+		tocHTML = tocGen.RenderHTML(entries)
 		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)),
 			slog.Int("maxDepth", cfg.Output.TOCMaxDepth))
 	}
@@ -327,11 +326,6 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	manifest.CSSHash = cssHash
 	if err := SaveManifest(cacheDir, manifest); err != nil {
 		logger.Warn("failed to save build manifest", slog.String("error", err.Error()))
-	}
-
-	// Log cache statistics if we tracked any
-	if stats.Total > 0 {
-		logger.Info(stats.String())
 	}
 
 	progress.Done()
@@ -863,7 +857,9 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	}
 
 	if defaultTarget != "" {
-		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %q; }, 1200);</script>\n", defaultTarget)
+		safeTarget := strings.ReplaceAll(strings.ReplaceAll(defaultTarget, `\`, `\\`), `"`, `\"`)
+		safeTarget = strings.ReplaceAll(safeTarget, "</", `<\/`)
+		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = \"%s\"; }, 1200);</script>\n", safeTarget)
 	}
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
 	tmpPath := landingPath + ".tmp"
@@ -1027,8 +1023,8 @@ func sitePageFilenames(chapterFiles []string) []string {
 		if name == "" || seen[name] {
 			// Fallback to sequential naming on collision or empty source.
 			name = fmt.Sprintf("ch_%03d.html", i)
-			for seen[name] {
-				name = fmt.Sprintf("ch_%03d_%d.html", i, i)
+			for suffix := 2; seen[name]; suffix++ {
+				name = fmt.Sprintf("ch_%03d_%d.html", i, suffix)
 			}
 		}
 		seen[name] = true

@@ -694,7 +694,7 @@ func TestCheckDiskSpace(t *testing.T) {
 	tmpDir := t.TempDir()
 	report := &doctorReport{}
 
-	checkDiskSpace(tmpDir, report)
+	checkDiskSpace(tmpDir, nil, report)
 
 	// Verify report fields were populated
 	if !report.DiskSpaceOK && report.DiskSpaceGB >= 0.1 {
@@ -713,7 +713,7 @@ func TestCheckPluginsNone(t *testing.T) {
 	report := &doctorReport{}
 
 	// No book.yaml, so no plugins to check
-	checkPlugins(tmpDir, report)
+	checkPlugins(tmpDir, nil, report)
 
 	if !report.PluginsValid {
 		t.Error("PluginsValid should be true when no plugins configured")
@@ -746,8 +746,13 @@ plugins:
 		t.Fatalf("failed to create chapter file: %v", err)
 	}
 
+	cfg, err := config.Load(filepath.Join(tmpDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
 	report := &doctorReport{}
-	checkPlugins(tmpDir, report)
+	checkPlugins(tmpDir, cfg, report)
 
 	// Plugin path doesn't exist, so should not be valid
 	if report.PluginsValid {
@@ -800,8 +805,13 @@ plugins:
 		t.Fatalf("failed to create chapter file: %v", err)
 	}
 
+	cfg, err := config.Load(filepath.Join(tmpDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
 	report := &doctorReport{}
-	checkPlugins(tmpDir, report)
+	checkPlugins(tmpDir, cfg, report)
 
 	if !report.PluginsValid {
 		t.Error("PluginsValid should be true when plugin is executable")
