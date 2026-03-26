@@ -1,11 +1,11 @@
-// Package markdown 提供 Markdown 解析和 HTML 转换功能。
-// 基于 goldmark 库，支持 GFM 扩展、代码高亮、脚注等特性。
+// Package markdown provides Markdown parsing and HTML conversion.
+// Built on the goldmark library, it supports GFM extensions, syntax highlighting, footnotes, and more.
 //
-// 核心类型：
-//   - Parser: Markdown 解析器，调用 Parse() 返回 HTML 和标题列表
-//   - HeadingInfo: 标题信息（级别、文本、ID），用于目录生成
+// Core types:
+//   - Parser: Markdown parser; call Parse() to get HTML and a heading list
+//   - HeadingInfo: Heading metadata (level, text, ID), used for TOC generation
 //
-// 使用示例：
+// Usage example:
 //
 //	p := markdown.NewParser(markdown.WithCodeTheme("monokai"))
 //	html, headings, err := p.Parse(source)

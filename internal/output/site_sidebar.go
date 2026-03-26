@@ -128,7 +128,7 @@ func (g *SiteGenerator) buildBreadcrumbs(chapters []SiteChapter, filename string
 // maxSidebarChapterDepth limits how deep chapter nesting goes in the sidebar.
 // Chapters at this depth or deeper are rendered as flat links without expand
 // triangles, and their Children are not shown.  A value of 1 means only
-// top-level groups (e.g. "第二章") expand to show their direct children
+// top-level groups (e.g. "Chapter 2") expand to show their direct children
 // (2.1, 2.2, …); those children appear as plain links without further nesting.
 const maxSidebarChapterDepth = 1
 

@@ -1,14 +1,14 @@
 // summary.go parses chapter structure from SUMMARY.md.
 // SUMMARY.md uses Markdown link lists to define chapter order in a GitBook-compatible format.
 //
-// 格式示例：
+// Format example:
 //
 //	# Summary
 //
-//	* [前言](preface.md)
-//	* [第一章](chapter01/README.md)
-//	  * [1.1 小节](chapter01/section01.md)
-//	* [第二章](chapter02/README.md)
+//	* [Preface](preface.md)
+//	* [Chapter 1](chapter01/README.md)
+//	  * [Section 1.1](chapter01/section01.md)
+//	* [Chapter 2](chapter02/README.md)
 package config
 
 import (

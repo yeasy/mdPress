@@ -74,25 +74,25 @@ func colorize(color, text string) string {
 }
 
 // Success prints a green success message with a checkmark prefix.
-func Success(format string, args ...interface{}) {
+func Success(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Println(colorize(colorGreen, "  ✓ "+msg))
 }
 
 // Warning prints a yellow warning message with a warning prefix.
-func Warning(format string, args ...interface{}) {
+func Warning(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Println(colorize(colorYellow, "  ⚠ "+msg))
 }
 
 // Error prints a red error message with an error prefix.
-func Error(format string, args ...interface{}) {
+func Error(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprintln(os.Stderr, colorize(colorRed, "  ✗ "+msg))
 }
 
 // Info prints a blue informational message with an info prefix.
-func Info(format string, args ...interface{}) {
+func Info(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Println(colorize(colorBlue, "  ℹ "+msg))
 }

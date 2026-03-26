@@ -1,5 +1,5 @@
-// Package markdown 提供 Markdown 解析和 HTML 转换功能。
-// 基于 goldmark 库，支持 GFM 扩展、代码高亮、脚注等特性。
+// Package markdown provides Markdown parsing and HTML conversion.
+// Built on the goldmark library, it supports GFM extensions, syntax highlighting, footnotes, and more.
 package markdown
 
 import (
@@ -24,19 +24,19 @@ var (
 	headingIDSpaceRegexp = regexp.MustCompile(`\s+`)
 )
 
-// HeadingInfo 标题信息结构体，用于目录生成
+// HeadingInfo holds heading metadata, used for TOC generation.
 type HeadingInfo struct {
-	Level  int    // 标题等级 (1-6)
-	Text   string // 标题文本内容
-	ID     string // 标题 ID，用于交叉引用
-	Line   int    // 标题所在行
-	Column int    // 标题所在列
+	Level  int    // Heading level (1-6)
+	Text   string // Heading text content
+	ID     string // Heading ID, used for cross-references
+	Line   int    // Line number of the heading
+	Column int    // Column number of the heading
 }
 
-// ParserOption 函数式选项类型
+// ParserOption is a functional option type.
 type ParserOption func(*Parser)
 
-// Parser Markdown 解析器
+// Parser is the Markdown parser.
 type Parser struct {
 	md         goldmark.Markdown
 	headings   []HeadingInfo
@@ -44,7 +44,7 @@ type Parser struct {
 	codeTheme  string
 }
 
-// NewParser 创建并返回一个新的 Markdown 解析器实例
+// NewParser creates and returns a new Markdown parser instance.
 func NewParser(opts ...ParserOption) *Parser {
 	p := &Parser{
 		headings:  make([]HeadingInfo, 0),
@@ -59,17 +59,17 @@ func NewParser(opts ...ParserOption) *Parser {
 	return p
 }
 
-// initGoldmark 初始化 goldmark 解析器和所有扩展
+// initGoldmark initializes the goldmark parser and all extensions.
 func (p *Parser) initGoldmark() {
 	exts := []goldmark.Extender{
-		// GFM 扩展
+		// GFM extensions.
 		extension.NewTable(),
 		extension.Strikethrough,
 		extension.TaskList,
 		extension.Linkify,
-		// 脚注
+		// Footnotes.
 		extension.Footnote,
-		// 代码高亮
+		// Syntax highlighting.
 		highlighting.NewHighlighting(
 			highlighting.WithStyle(p.codeTheme),
 		),
@@ -88,18 +88,18 @@ func (p *Parser) initGoldmark() {
 			),
 		),
 		goldmark.WithRendererOptions(
-			html.WithUnsafe(), // 允许原始 HTML
+			html.WithUnsafe(), // Allow raw HTML.
 		),
 	)
 }
 
-// Parse 解析 Markdown 源代码，返回 HTML 和标题信息
+// Parse parses Markdown source and returns HTML and heading information.
 func (p *Parser) Parse(source []byte) (string, []HeadingInfo, error) {
 	html, headings, _, err := p.ParseWithDiagnostics(source)
 	return html, headings, err
 }
 
-// ParseWithDiagnostics 解析 Markdown，并返回构建期 warning。
+// ParseWithDiagnostics parses Markdown and also returns build-time warnings.
 func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []Diagnostic, error) {
 	if len(source) == 0 {
 		return "", []HeadingInfo{}, nil, nil
@@ -143,7 +143,7 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	return htmlResult, headingsCopy, diagnostics, nil
 }
 
-// collectHeadings 递归遍历 AST 收集标题信息
+// collectHeadings recursively walks the AST to collect heading information.
 func (p *Parser) collectHeadings(node ast.Node, source []byte, index *sourceIndex) {
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		if heading, ok := child.(*ast.Heading); ok {
@@ -158,7 +158,7 @@ func (p *Parser) collectHeadings(node ast.Node, source []byte, index *sourceInde
 	}
 }
 
-// extractHeadingInfo 从标题节点中提取信息
+// extractHeadingInfo extracts information from a heading node.
 func (p *Parser) extractHeadingInfo(heading *ast.Heading, source []byte, index *sourceIndex) HeadingInfo {
 	headingText := extractNodeText(heading, source)
 
@@ -186,7 +186,7 @@ func (p *Parser) extractHeadingInfo(heading *ast.Heading, source []byte, index *
 	}
 }
 
-// SetCodeTheme 设置代码高亮主题
+// SetCodeTheme sets the syntax highlighting theme.
 func (p *Parser) SetCodeTheme(theme string) {
 	p.codeTheme = theme
 	// Note: The highlighting library falls back to a default style on invalid themes,
@@ -195,7 +195,7 @@ func (p *Parser) SetCodeTheme(theme string) {
 	p.initGoldmark()
 }
 
-// GetHeadings 获取当前收集的所有标题信息
+// GetHeadings returns all currently collected heading information.
 func (p *Parser) GetHeadings() []HeadingInfo {
 	p.headingsMu.RLock()
 	defer p.headingsMu.RUnlock()
@@ -204,12 +204,12 @@ func (p *Parser) GetHeadings() []HeadingInfo {
 	return headingsCopy
 }
 
-// generateHeadingID 生成规范化的标题 ID
+// generateHeadingID generates a normalized heading ID.
 func generateHeadingID(text string) string {
 	id := bytes.ToLower([]byte(text))
-	// 移除非字母数字字符（保留中文等 Unicode 字符）
+	// Remove non-alphanumeric characters (preserving CJK and other Unicode letters).
 	id = headingIDStripRegexp.ReplaceAll(id, []byte(""))
-	// 空格替换为连字符
+	// Replace spaces with hyphens.
 	id = headingIDSpaceRegexp.ReplaceAll(id, []byte("-"))
 	id = bytes.Trim(id, "-")
 	if len(id) == 0 {
@@ -218,7 +218,7 @@ func generateHeadingID(text string) string {
 	return string(id)
 }
 
-// WithCodeTheme 选项：设置代码高亮主题
+// WithCodeTheme is an option that sets the syntax highlighting theme.
 func WithCodeTheme(theme string) ParserOption {
 	return func(p *Parser) {
 		p.codeTheme = theme

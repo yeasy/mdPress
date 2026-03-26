@@ -17,14 +17,14 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// StandaloneHTMLRenderer 渲染自包含单页 HTML 文档
+// StandaloneHTMLRenderer renders a self-contained single-page HTML document.
 type StandaloneHTMLRenderer struct {
 	config *config.BookConfig
 	theme  *theme.Theme
 	tmpl   *template.Template
 }
 
-// standaloneData 是模板数据模型
+// standaloneData is the template data model.
 type standaloneData struct {
 	Title       string
 	Author      string
@@ -34,18 +34,18 @@ type standaloneData struct {
 	SidebarHTML template.HTML
 }
 
-// standaloneChapter 存储章节渲染数据（含前后章导航）
+// standaloneChapter stores chapter rendering data (with prev/next navigation).
 type standaloneChapter struct {
 	Title     string
 	ID        string
 	Content   template.HTML
-	PrevTitle string // 上一章标题（空则无上一章）
-	PrevID    string // 上一章 ID
-	NextTitle string // 下一章标题（空则无下一章）
-	NextID    string // 下一章 ID
+	PrevTitle string // Previous chapter title (empty if none)
+	PrevID    string // Previous chapter ID
+	NextTitle string // Next chapter title (empty if none)
+	NextID    string // Next chapter ID
 }
 
-// standaloneSidebarChapter 是侧边栏树节点
+// standaloneSidebarChapter is a sidebar tree node.
 type standaloneSidebarChapter struct {
 	ChapterHTML
 	Children []standaloneSidebarChapter
@@ -76,13 +76,13 @@ func NewStandaloneHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*Stand
 	}, nil
 }
 
-// Render 渲染完整的单页 HTML 文档
+// Render renders the complete single-page HTML document.
 func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	if parts == nil {
 		return "", fmt.Errorf("render parts cannot be nil")
 	}
 
-	// 组装 CSS 包（主题 CSS + 自定义 CSS）
+	// Assemble CSS bundle (theme CSS + custom CSS).
 	var cssBuilder strings.Builder
 	if r.theme != nil {
 		cssBuilder.WriteString(r.theme.ToCSS())
@@ -93,7 +93,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		cssBuilder.WriteString("\n")
 	}
 
-	// 转换章节数据，预计算前后章导航信息
+	// Convert chapter data and pre-compute prev/next navigation info.
 	chapters := make([]standaloneChapter, 0, len(parts.ChaptersHTML))
 	for i, ch := range parts.ChaptersHTML {
 		chID := ch.ID
@@ -101,7 +101,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 			chID = fmt.Sprintf("chapter-%d", i+1)
 		}
 
-		// 计算前后章信息
+		// Compute prev/next chapter info.
 		var prevTitle, prevID, nextTitle, nextID string
 		if i > 0 {
 			prev := parts.ChaptersHTML[i-1]
@@ -147,7 +147,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	return result.String(), nil
 }
 
-// buildSidebar 生成左侧全局 TOC 侧边栏 HTML
+// buildSidebar generates the left-side global TOC sidebar HTML.
 func (r *StandaloneHTMLRenderer) buildSidebar(chapters []ChapterHTML) string {
 	var b strings.Builder
 	for _, ch := range buildStandaloneSidebarTree(chapters) {
@@ -156,12 +156,12 @@ func (r *StandaloneHTMLRenderer) buildSidebar(chapters []ChapterHTML) string {
 	return b.String()
 }
 
-// renderSidebarChapter 递归渲染一个侧边栏章节条目。
-// 注意：保留 toc-group、data-group-id、data-group-link 等属性以维持测试兼容性。
+// renderSidebarChapter recursively renders a sidebar chapter entry.
+// Note: toc-group, data-group-id, data-group-link attributes are preserved for test compatibility.
 func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch standaloneSidebarChapter) {
 	hasChildren := len(ch.Headings) > 0 || len(ch.Children) > 0
 
-	// 保持 toc-group 类名（测试兼容）并添加新的 toc-item 类
+	// Keep toc-group class (test compat) and add new toc-item class.
 	groupClass := "toc-group toc-item"
 	if hasChildren {
 		groupClass += " has-children"
@@ -172,12 +172,12 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 	b.WriteString(`<div class="toc-row">`)
 
 	if hasChildren {
-		b.WriteString(`<button class="toc-toggle" type="button" aria-label="展开/折叠" aria-expanded="false"></button>`)
+		b.WriteString(`<button class="toc-toggle" type="button" aria-label="Expand/Collapse" aria-expanded="false"></button>`)
 	} else {
 		b.WriteString(`<span class="toc-spacer"></span>`)
 	}
 
-	// 保留 data-group-link="true"（测试兼容）
+	// Preserve data-group-link="true" (test compat).
 	fmt.Fprintf(b,
 		`<a href="#%s" class="toc-link toc-link-chapter toc-depth-%d" data-target="%s" data-group-link="true">%s</a>`,
 		template.HTMLEscapeString(ch.ID),
@@ -187,7 +187,7 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 	b.WriteString(`</div>`)
 
 	if hasChildren {
-		// 默认折叠（hidden 属性）
+		// Collapsed by default (hidden attribute).
 		b.WriteString(`<div class="toc-children" hidden>`)
 		if len(ch.Headings) > 0 {
 			r.renderSidebarHeadings(b, ch.Headings, 0)
@@ -201,7 +201,7 @@ func (r *StandaloneHTMLRenderer) renderSidebarChapter(b *strings.Builder, ch sta
 	b.WriteString(`</div>`)
 }
 
-// renderSidebarHeadings 递归渲染侧边栏中的标题条目
+// renderSidebarHeadings recursively renders heading entries in the sidebar.
 func (r *StandaloneHTMLRenderer) renderSidebarHeadings(b *strings.Builder, headings []NavHeading, depth int) {
 	for _, h := range headings {
 		fmt.Fprintf(b,
@@ -216,7 +216,7 @@ func (r *StandaloneHTMLRenderer) renderSidebarHeadings(b *strings.Builder, headi
 	}
 }
 
-// buildStandaloneSidebarTree 将扁平章节列表转换为树形结构
+// buildStandaloneSidebarTree converts a flat chapter list into a tree structure.
 func buildStandaloneSidebarTree(chapters []ChapterHTML) []standaloneSidebarChapter {
 	var build func(start, depth int) ([]standaloneSidebarChapter, int)
 	build = func(start, depth int) ([]standaloneSidebarChapter, int) {

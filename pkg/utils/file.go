@@ -178,8 +178,8 @@ func ExtractTitleFromFile(path string) string {
 		}
 
 		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "# ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		if title, ok := strings.CutPrefix(line, "# "); ok {
+			return strings.TrimSpace(title)
 		}
 	}
 

@@ -9,8 +9,8 @@ const standaloneHTMLHead = `<!DOCTYPE html>
   <meta name="author" content="{{.Author}}">
   <title>{{.Title}}</title>
   <!--
-    防止主题闪烁（FOUC）：在页面渲染前从 localStorage 读取主题设置并立即应用。
-    此脚本必须放在 <head> 内，在任何 CSS 之前执行。
+    Prevent theme flash (FOUC): read theme setting from localStorage and apply immediately before page renders.
+    This script must be placed inside <head> and executed before any CSS.
   -->
   <script>
   (function() {
@@ -28,28 +28,28 @@ const standaloneHTMLHead = `<!DOCTYPE html>
 const standaloneHTMLMiddle = `  </style>
 </head>
 <body>
-  <!-- 阅读进度条 -->
+  <!-- Reading progress bar -->
   <div id="reading-progress"></div>
 
-  <!-- 顶部工具栏 -->
+  <!-- Top toolbar -->
   <header class="toolbar">
-    <button class="toolbar-btn icon-only" id="btn-sidebar" title="切换目录" aria-label="切换目录">☰</button>
+    <button class="toolbar-btn icon-only" id="btn-sidebar" title="Toggle table of contents" aria-label="Toggle table of contents">☰</button>
     <a class="toolbar-brand" href="#">{{.Title}}</a>
-    <button class="toolbar-btn" id="btn-search" title="全文搜索 (⌘K / Ctrl+K)" aria-label="搜索">🔍 搜索</button>
-    <button class="toolbar-btn icon-only" id="btn-theme" title="切换主题" aria-label="切换主题">🌙</button>
+    <button class="toolbar-btn" id="btn-search" title="Full-text search (⌘K / Ctrl+K)" aria-label="Search">🔍 Search</button>
+    <button class="toolbar-btn icon-only" id="btn-theme" title="Toggle theme" aria-label="Toggle theme">🌙</button>
   </header>
 
-  <!-- 移动端侧边栏遮罩 -->
+  <!-- Mobile sidebar overlay -->
   <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-  <!-- 左侧栏：全局 TOC 侧边栏 -->
+  <!-- Left sidebar: global TOC sidebar -->
   <nav id="left-sidebar">
     <div id="sidebar-nav">
       {{.SidebarHTML}}
     </div>
   </nav>
 
-  <!-- 中间栏：主内容区域 -->
+  <!-- Center: main content area -->
   <main id="main-content">
     {{range .Chapters}}
     <article class="chapter" id="{{.ID}}" data-title="{{.Title}}">
@@ -61,13 +61,13 @@ const standaloneHTMLMiddle = `  </style>
       <nav class="chapter-nav">
         {{if .PrevTitle}}
         <a href="#{{.PrevID}}" class="nav-prev">
-          <div class="nav-label">← 上一章</div>
+          <div class="nav-label">← Previous chapter</div>
           <div class="nav-title">{{.PrevTitle}}</div>
         </a>
         {{end}}
         {{if .NextTitle}}
         <a href="#{{.NextID}}" class="nav-next">
-          <div class="nav-label">下一章 →</div>
+          <div class="nav-label">Next chapter →</div>
           <div class="nav-title">{{.NextTitle}}</div>
         </a>
         {{end}}
@@ -77,20 +77,20 @@ const standaloneHTMLMiddle = `  </style>
     {{end}}
   </main>
 
-  <!-- 右侧栏：当前页 TOC -->
+  <!-- Right sidebar: current page TOC -->
   <nav id="right-toc-nav">
-    <div class="toc-title">本页目录</div>
+    <div class="toc-title">On this page</div>
     <div id="toc-list" class="toc-list"></div>
   </nav>
 
-  <!-- 搜索对话框 -->
+  <!-- Search dialog -->
   <div id="search-overlay" class="search-dialog">
     <div class="search-box">
       <input
         id="search-input"
         type="text"
         class="search-input"
-        placeholder="搜索文档... (按 ESC 关闭)"
+        placeholder="Search documents... (press ESC to close)"
         autocomplete="off"
       >
       <div class="search-count-label" id="search-count-label"></div>
@@ -98,13 +98,13 @@ const standaloneHTMLMiddle = `  </style>
     </div>
   </div>
 
-  <!-- 图片灯箱 -->
-  <div class="img-lightbox" id="img-lightbox" role="dialog" aria-modal="true" aria-label="图片预览">
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
     <img id="img-lightbox-src" src="" alt="">
   </div>
 
-  <!-- 回到顶部 -->
-  <button id="back-to-top" aria-label="回到顶部">↑</button>
+  <!-- Back to top -->
+  <button id="back-to-top" aria-label="Back to top">↑</button>
 
   <script>
 `

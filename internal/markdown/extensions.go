@@ -9,7 +9,7 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// headingIDTransformer 为标题自动生成唯一 ID 属性.
+// headingIDTransformer auto-generates unique ID attributes for headings.
 // It is safe for concurrent use: each Transform call uses a local map so
 // multiple documents can be parsed in parallel without interference.
 type headingIDTransformer struct{}
@@ -18,7 +18,7 @@ func newHeadingIDTransformer() parser.ASTTransformer {
 	return &headingIDTransformer{}
 }
 
-// Transform 遍历 AST，为所有标题节点生成 ID.
+// Transform walks the AST and generates IDs for all heading nodes.
 // A fresh usedIDs map is created per call so heading IDs are scoped to a
 // single document and concurrent Transform calls don't interfere.
 func (t *headingIDTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -35,7 +35,7 @@ func (t *headingIDTransformer) Transform(node *ast.Document, reader text.Reader,
 	})
 }
 
-// processHeading 为单个标题节点设置 ID 属性
+// processHeading sets the ID attribute for a single heading node.
 func processHeading(heading *ast.Heading, source []byte, usedIDs map[string]int) {
 	if _, ok := heading.AttributeString("id"); ok {
 		return
@@ -50,7 +50,7 @@ func processHeading(heading *ast.Heading, source []byte, usedIDs map[string]int)
 	heading.SetAttributeString("id", []byte(id))
 }
 
-// generateUniqueID 生成唯一的标题 ID，遇到重复自动添加后缀
+// generateUniqueID generates a unique heading ID, auto-appending a suffix on duplicates.
 func generateUniqueID(text string, usedIDs map[string]int) string {
 	baseID := generateHeadingID(text)
 	if baseID == "" {
@@ -67,7 +67,7 @@ func generateUniqueID(text string, usedIDs map[string]int) string {
 	return fmt.Sprintf("%s-%d", baseID, count+1)
 }
 
-// extractNodeText 从 AST 节点中递归提取纯文本
+// extractNodeText recursively extracts plain text from an AST node.
 func extractNodeText(node ast.Node, source []byte) string {
 	var result strings.Builder
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {

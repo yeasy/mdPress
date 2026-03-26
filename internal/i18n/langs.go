@@ -1,12 +1,12 @@
 // Package i18n provides multi-language book support.
 // It parses language definitions from LANGS.md, where each language maps to a subdirectory.
 //
-// LANGS.md 格式：
+// LANGS.md format:
 //
 //	# Languages
 //
 //	* [English](en/)
-//	* [中文](zh/)
+//	* [Chinese](zh/)
 package i18n
 
 import (
