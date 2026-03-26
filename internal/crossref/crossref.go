@@ -15,8 +15,8 @@ import (
 // Package-level compiled regexps to avoid recompilation per call.
 var (
 	refPlaceholderRegexp = regexp.MustCompile(`\{\{ref:([a-zA-Z0-9_\-]+)\}\}`)
-	figureCaptionRegexp  = regexp.MustCompile(`<figure\s+id="([^"]+)"([^>]*)>(.*?)</figure>`)
-	tableCaptionRegexp   = regexp.MustCompile(`<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
+	figureCaptionRegexp  = regexp.MustCompile(`(?s)<figure\s+id="([^"]+)"([^>]*)>(.*?)</figure>`)
+	tableCaptionRegexp   = regexp.MustCompile(`(?s)<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
 )
 
 // ReferenceType 定义引用类型的常量

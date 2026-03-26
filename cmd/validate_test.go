@@ -700,19 +700,19 @@ func TestSummarizeValidationResults(t *testing.T) {
 	}{
 		{
 			name:       "all passed",
-			results:    []validateResult{{ok: true}, {ok: true}, {ok: true}},
+			results:    []validateResult{{OK: true}, {OK: true}, {OK: true}},
 			wantPassed: 3,
 			wantFailed: 0,
 		},
 		{
 			name:       "all failed",
-			results:    []validateResult{{ok: false}, {ok: false}},
+			results:    []validateResult{{OK: false}, {OK: false}},
 			wantPassed: 0,
 			wantFailed: 2,
 		},
 		{
 			name:       "mixed",
-			results:    []validateResult{{ok: true}, {ok: false}, {ok: true}, {ok: false}},
+			results:    []validateResult{{OK: true}, {OK: false}, {OK: true}, {OK: false}},
 			wantPassed: 2,
 			wantFailed: 2,
 		},
@@ -724,21 +724,21 @@ func TestSummarizeValidationResults(t *testing.T) {
 		},
 		{
 			name:       "single passed",
-			results:    []validateResult{{ok: true}},
+			results:    []validateResult{{OK: true}},
 			wantPassed: 1,
 			wantFailed: 0,
 		},
 		{
 			name:       "single failed",
-			results:    []validateResult{{ok: false}},
+			results:    []validateResult{{OK: false}},
 			wantPassed: 0,
 			wantFailed: 1,
 		},
 		{
 			name: "many results",
 			results: []validateResult{
-				{ok: true}, {ok: true}, {ok: false}, {ok: true}, {ok: false},
-				{ok: true}, {ok: false}, {ok: true}, {ok: true}, {ok: false},
+				{OK: true}, {OK: true}, {OK: false}, {OK: true}, {OK: false},
+				{OK: true}, {OK: false}, {OK: true}, {OK: true}, {OK: false},
 			},
 			wantPassed: 6,
 			wantFailed: 4,
@@ -802,8 +802,8 @@ func TestRenderValidationMarkdown(t *testing.T) {
 				Passed:      5,
 				Failed:      0,
 				Results: []validateResult{
-					{ok: true, message: "Check 1 passed"},
-					{ok: true, message: "Check 2 passed"},
+					{OK: true, Message: "Check 1 passed"},
+					{OK: true, Message: "Check 2 passed"},
 				},
 			},
 			mustHave: []string{
@@ -825,9 +825,9 @@ func TestRenderValidationMarkdown(t *testing.T) {
 				Passed:      2,
 				Failed:      1,
 				Results: []validateResult{
-					{ok: true, message: "Config found"},
-					{ok: false, message: "File not found"},
-					{ok: true, message: "Valid"},
+					{OK: true, Message: "Config found"},
+					{OK: false, Message: "File not found"},
+					{OK: true, Message: "Valid"},
 				},
 			},
 			mustHave: []string{

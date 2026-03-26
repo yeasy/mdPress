@@ -16,8 +16,8 @@ func TestWriteValidationReportMarkdown(t *testing.T) {
 		Passed:      1,
 		Failed:      1,
 		Results: []validateResult{
-			{ok: true, message: "Config syntax is valid"},
-			{ok: false, message: "Markdown link target is outside the build graph"},
+			{OK: true, Message: "Config syntax is valid"},
+			{OK: false, Message: "Markdown link target is outside the build graph"},
 		},
 	}
 
@@ -46,7 +46,7 @@ func TestWriteValidationReportJSON(t *testing.T) {
 		Passed:      1,
 		Failed:      0,
 		Results: []validateResult{
-			{ok: true, message: "Config syntax is valid"},
+			{OK: true, Message: "Config syntax is valid"},
 		},
 	}
 

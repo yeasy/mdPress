@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,10 +18,8 @@ func FileExists(path string) bool {
 }
 
 // EnsureDir creates a directory when it does not already exist.
+// MkdirAll is idempotent, so we call it directly to avoid a TOCTOU race.
 func EnsureDir(path string) error {
-	if FileExists(path) {
-		return nil
-	}
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
@@ -48,23 +47,16 @@ func CacheDisabled() bool {
 
 // ReadFile reads a file and returns clearer errors.
 func ReadFile(path string) ([]byte, error) {
-	// Ensure the file exists first.
-	if !FileExists(path) {
-		return nil, fmt.Errorf("file does not exist: %q", path)
-	}
-
-	// Reject directories explicitly.
-	fi, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat file %q: %w", path, err)
-	}
-	if fi.IsDir() {
-		return nil, fmt.Errorf("path is a directory, not a file: %q", path)
-	}
-
-	// Read the file content.
+	// Read the file directly to avoid TOCTOU race between stat and read.
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("file does not exist: %q", path)
+		}
+		// Reject directories explicitly.
+		if fi, statErr := os.Stat(path); statErr == nil && fi.IsDir() {
+			return nil, fmt.Errorf("path is a directory, not a file: %q", path)
+		}
 		return nil, fmt.Errorf("failed to read file %q: %w", path, err)
 	}
 
@@ -129,6 +121,8 @@ func CopyFile(src, dst string) error {
 
 	// Copy file content.
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		dstFile.Close() //nolint:errcheck
+		os.Remove(dst)  //nolint:errcheck
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
 
@@ -189,11 +183,9 @@ func ExtractTitleFromFile(path string) string {
 		}
 	}
 
-	// Check for scanner errors; silently ignore them for best-effort title extraction.
+	// Best-effort title extraction — log scan errors for debugging.
 	if err := scanner.Err(); err != nil {
-		// Error occurred during scanning, but we continue with empty result.
-		// This is best-effort title extraction.
-		_ = err
+		slog.Debug("scanner error during title extraction", slog.String("error", err.Error()))
 	}
 	return ""
 }
@@ -201,16 +193,12 @@ func ExtractTitleFromFile(path string) string {
 // ParseVersionPart parses a version number component (e.g., "25" from "1.25.0").
 func ParseVersionPart(s string) (int, error) {
 	// Strip any non-numeric suffix (e.g., "25rc1" -> parse as "25")
-	numericPart := ""
-	for _, ch := range s {
-		if ch >= '0' && ch <= '9' {
-			numericPart += string(ch)
-		} else {
-			break
-		}
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
 	}
-	if numericPart == "" {
+	if i == 0 {
 		return 0, fmt.Errorf("no numeric part found in %q", s)
 	}
-	return strconv.Atoi(numericPart)
+	return strconv.Atoi(s[:i])
 }

@@ -19,7 +19,7 @@ func sidebarChapters(chapters []SiteChapter, siteTitle string) []SiteChapter {
 	}
 	first := chapters[0]
 	lowerFile := strings.ToLower(first.Filename)
-	if strings.Contains(lowerFile, "readme/") || strings.Contains(lowerFile, "readme.") || first.Title == siteTitle {
+	if strings.Contains(lowerFile, "readme/") || strings.Contains(lowerFile, "readme.") || strings.EqualFold(first.Title, siteTitle) {
 		return chapters[1:]
 	}
 	return chapters
@@ -36,7 +36,7 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 		}
 		href := filename
 		if href != "#" {
-			href = relativeSiteHref(activeFile, filename)
+			href = absoluteSiteHref(filename)
 		}
 		groupClass := "nav-group"
 		hasChildren := (maxSidebarHeadingDepth > 0 && len(ch.Headings) > 0) ||
@@ -143,7 +143,7 @@ func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, activeFile str
 		return
 	}
 	for _, heading := range headings {
-		href := relativeSiteHref(activeFile, filename)
+		href := absoluteSiteHref(filename)
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-heading nav-heading-depth-%d" href="%s#%s" data-file="%s" data-target="%s">%s</a>`,
 			depth+1,

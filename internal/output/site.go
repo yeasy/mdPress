@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -160,15 +161,15 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ThemeDescription: g.Meta.ThemeDescription,
 			PageTitle:        page.Title,
 			Description:      extractDescription(page.Content),
-			Breadcrumbs:      relativeBreadcrumbs(page.Filename, g.buildBreadcrumbs(g.Chapters, page.Filename)),
+			Breadcrumbs:      resolveBreadcrumbs(g.buildBreadcrumbs(g.Chapters, page.Filename)),
 			Content:          page.Content,
 			CSS:              g.CSS,
 			SidebarHTML:      sidebarHTML,
-			HomeLink:         relativeSiteHref(page.Filename, "index.html"),
-			SitemapLink:      relativeSiteHref(page.Filename, "sitemap.xml"),
-			PrevLink:         relativeSiteHref(page.Filename, prevLink),
+			HomeLink:         absoluteSiteHref("index.html"),
+			SitemapLink:      absoluteSiteHref("sitemap.xml"),
+			PrevLink:         absoluteSiteHref(prevLink),
 			PrevTitle:        prevTitle,
-			NextLink:         relativeSiteHref(page.Filename, nextLink),
+			NextLink:         absoluteSiteHref(nextLink),
 			NextTitle:        nextTitle,
 			ActiveFile:       page.Filename,
 			TotalPages:       len(flatPages),
@@ -220,9 +221,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			Content:          firstPage.Content,
 			CSS:              g.CSS,
 			SidebarHTML:      g.buildSidebar(g.Chapters, "index.html"),
-			HomeLink:         "index.html",
-			SitemapLink:      "sitemap.xml",
-			NextLink:         relativeSiteHref("index.html", nextLink),
+			HomeLink:         "/index.html",
+			SitemapLink:      "/sitemap.xml",
+			NextLink:         absoluteSiteHref(nextLink),
 			NextTitle:        nextTitle,
 			ActiveFile:       "index.html",
 			TotalPages:       len(flatPages),
@@ -245,9 +246,6 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	}
 	// Generate sitemap.xml for search engine indexing.
 	if len(flatPages) > 0 {
-		if err := utils.EnsureDir(outputDir); err != nil {
-			return fmt.Errorf("failed to ensure site output directory: %w", err)
-		}
 		var sm strings.Builder
 		sm.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 		sm.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
@@ -263,9 +261,6 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 
 	// Generate search-index.json for client-side full-text search.
 	if len(flatPages) > 0 {
-		if err := utils.EnsureDir(outputDir); err != nil {
-			return fmt.Errorf("failed to ensure site output directory: %w", err)
-		}
 		entries := make([]searchEntry, 0, len(flatPages))
 		for _, page := range flatPages {
 			plainText := htmlTagPattern.ReplaceAllString(page.Content, " ")
@@ -400,10 +395,23 @@ func searchEntriesForHeadings(page SiteChapter, plainText string) []searchEntry 
 	walk = func(items []SiteNavHeading) {
 		for _, item := range items {
 			if item.ID != "" {
+				// Include only a short snippet around the heading to avoid
+				// duplicating the entire page text for every heading entry.
+				snippet := item.Title
+				if idx := strings.Index(plainText, item.Title); idx >= 0 {
+					// Convert to rune slice for safe UTF-8 slicing.
+					runeText := []rune(plainText)
+					runeIdx := utf8.RuneCountInString(plainText[:idx])
+					end := runeIdx + utf8.RuneCountInString(item.Title) + 500
+					if end > len(runeText) {
+						end = len(runeText)
+					}
+					snippet = string(runeText[runeIdx:end])
+				}
 				entries = append(entries, searchEntry{
 					Title:    item.Title,
 					Filename: page.Filename + "#" + item.ID,
-					Text:     item.Title + " " + plainText,
+					Text:     snippet,
 					Path:     page.Title,
 				})
 			}
@@ -423,22 +431,18 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func relativeSiteHref(currentFile, target string) string {
+func absoluteSiteHref(target string) string {
 	if target == "" {
 		return ""
 	}
-	if currentFile == "" {
-		return filepath.ToSlash(target)
-	}
-	currentDir := filepath.Dir(filepath.Clean(currentFile))
-	rel, err := filepath.Rel(currentDir, filepath.Clean(target))
-	if err != nil {
-		return filepath.ToSlash(target)
-	}
-	return filepath.ToSlash(rel)
+	// Use absolute paths (rooted with "/") so that links remain correct after
+	// SPA client-side navigation changes the browser URL.  Relative paths
+	// break because the sidebar HTML is not re-rendered during SPA page swaps,
+	// and the browser resolves relative hrefs against the new (changed) URL.
+	return "/" + filepath.ToSlash(filepath.Clean(target))
 }
 
-func relativeBreadcrumbs(currentFile string, crumbs []breadcrumb) []breadcrumb {
+func resolveBreadcrumbs(crumbs []breadcrumb) []breadcrumb {
 	if len(crumbs) == 0 {
 		return nil
 	}
@@ -446,7 +450,7 @@ func relativeBreadcrumbs(currentFile string, crumbs []breadcrumb) []breadcrumb {
 	for i, crumb := range crumbs {
 		out[i] = breadcrumb{
 			Title:    crumb.Title,
-			Filename: relativeSiteHref(currentFile, crumb.Filename),
+			Filename: absoluteSiteHref(crumb.Filename),
 		}
 	}
 	return out

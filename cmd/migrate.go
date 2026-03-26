@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/yeasy/mdpress/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -129,8 +130,8 @@ func executeMigrate(dir string, dryRun bool) error {
 	bookJSONPath := filepath.Join(absDir, "book.json")
 	summaryPath := filepath.Join(absDir, "SUMMARY.md")
 
-	hasBookJSON := fileExists(bookJSONPath)
-	hasSummary := fileExists(summaryPath)
+	hasBookJSON := utils.FileExists(bookJSONPath)
+	hasSummary := utils.FileExists(summaryPath)
 
 	if !hasBookJSON && !hasSummary {
 		return fmt.Errorf("no GitBook project detected in %s (expected book.json or SUMMARY.md)", absDir)
@@ -381,10 +382,4 @@ func summarisePluginWarnings(gb *gitBookConfig, report *migrateReport) {
 			p,
 		))
 	}
-}
-
-// fileExists reports whether path names an existing file.
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

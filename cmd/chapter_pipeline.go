@@ -219,9 +219,8 @@ func (p *ChapterPipeline) parseChaptersParallel(
 
 // parseChapterWorker performs the parsing for a single chapter.
 // It's designed to be run in a worker goroutine.
-// Returns with job.err != nil if there was a CRITICAL error that should abort the whole pipeline.
-// Returns with job.err == nil if the chapter was skipped (missing file) or successfully parsed.
-// The caller checks if htmlContent is empty to determine if it was skipped.
+// Returns with job.err != nil if the chapter could not be read or parsed.
+// Returns with job.err == nil on success.
 // parserCodeTheme returns the code highlighting theme from config or theme.
 func (p *ChapterPipeline) parserCodeTheme() string {
 	codeTheme := p.Config.Style.CodeTheme
@@ -248,8 +247,8 @@ func (p *ChapterPipeline) parseChapterWorker(
 	// Read file
 	content, err := utils.ReadFile(chapterPath)
 	if err != nil {
-		p.Logger.Warn("Failed to read chapter, skipping", slog.String("file", chDef.File), slog.String("error", err.Error()))
-		// Skip silently - not a critical error, just skip this chapter
+		p.Logger.Warn("Failed to read chapter", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		job.err = fmt.Errorf("failed to read chapter %q: %w", chDef.File, err)
 		return
 	}
 
@@ -258,10 +257,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 	job.expandedContent = string(content)
 
 	// Check cache
-	codeTheme := p.Config.Style.CodeTheme
-	if codeTheme == "" && p.Theme != nil {
-		codeTheme = p.Theme.CodeTheme
-	}
+	codeTheme := p.parserCodeTheme()
 	cached, cacheHit, cacheErr := loadParsedChapterCache(chapterPath, job.expandedContent, codeTheme)
 
 	var htmlContent string
@@ -278,7 +274,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 		htmlContent, headings, diagnostics, parseErr = workerParser.ParseWithDiagnostics(content)
 		if parseErr != nil {
 			p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
-			// Skip silently - not a critical error, just skip this chapter
+			job.err = fmt.Errorf("failed to parse chapter %q: %w", chDef.File, parseErr)
 			return
 		}
 		if storeErr := storeParsedChapterCache(chapterPath, job.expandedContent, codeTheme, &cachedParsedChapter{
