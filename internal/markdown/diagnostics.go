@@ -408,7 +408,7 @@ func isMatchingBracket(open, close rune) bool {
 }
 
 func runeCountBytes(b []byte) int {
-	return utf8.RuneCountInString(string(b))
+	return utf8.RuneCount(b)
 }
 
 // longHeadingThreshold 是触发"标题文本过长"警告的字符数阈值。

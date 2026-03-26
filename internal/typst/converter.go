@@ -144,8 +144,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 // convertInline processes inline Markdown formatting.
 func (c *MarkdownToTypstConverter) convertInline(text string) string {
 	// Process in order to avoid conflicts
-	// 1. Convert code spans (backticks)
-	text = c.convertCodeSpans(text)
+	// 1. Code spans (backticks) — Typst uses the same syntax, no conversion needed.
 
 	// 2. Convert images
 	text = c.convertImages(text)
@@ -159,13 +158,6 @@ func (c *MarkdownToTypstConverter) convertInline(text string) string {
 	// 5. Convert italic (* or _) - must come after bold
 	text = c.convertItalic(text)
 
-	return text
-}
-
-// convertCodeSpans converts backtick-enclosed code to Typst backticks.
-func (c *MarkdownToTypstConverter) convertCodeSpans(text string) string {
-	// Match `code` and convert to `code` (same in Typst)
-	// No change needed, Typst uses the same syntax
 	return text
 }
 
@@ -356,14 +348,16 @@ func countLeadingSpaces(s string) int {
 }
 
 // isOrderedListItem checks if a line is an ordered list item (e.g., "1. Item").
+// Supports both ASCII and fullwidth digits (e.g., "１. Item").
 func isOrderedListItem(line string) bool {
-	trimmed := strings.TrimSpace(line)
-	for i, ch := range trimmed {
-		if !unicode.IsDigit(ch) {
-			return i > 0 && trimmed[i:i+1] == "." && i+1 < len(trimmed) && trimmed[i+1] == ' '
-		}
+	runes := []rune(strings.TrimSpace(line))
+	// Find the first non-digit rune.
+	i := 0
+	for i < len(runes) && unicode.IsDigit(runes[i]) {
+		i++
 	}
-	return false
+	// Must have at least one digit followed by ". ".
+	return i > 0 && i+1 < len(runes) && runes[i] == '.' && runes[i+1] == ' '
 }
 
 // extractListItemContent extracts the text from an ordered list item.

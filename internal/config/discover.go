@@ -106,8 +106,11 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 	}
 
-	// If book.json was found and we got this far, return the config from it
+	// If book.json was found and we got this far, validate and return the config.
 	if hasBookJSON {
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("book.json config validation failed: %w", err)
+		}
 		return cfg, nil
 	}
 
@@ -237,9 +240,11 @@ func fileNameToTitle(path string) string {
 		"-", " ",
 	).Replace(name)
 
-	// Uppercase the first letter.
-	if len(name) > 0 {
-		name = strings.ToUpper(name[:1]) + name[1:]
+	// Uppercase the first rune (safe for multi-byte UTF-8).
+	runes := []rune(name)
+	if len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+		name = string(runes)
 	}
 
 	return name
@@ -427,8 +432,10 @@ func inferBookTitle(h1Title, content, dir string) string {
 	dirName := filepath.Base(dir)
 	dirName = strings.ReplaceAll(dirName, "_", " ")
 	dirName = strings.ReplaceAll(dirName, "-", " ")
-	if len(dirName) > 0 {
-		dirName = strings.ToUpper(dirName[:1]) + dirName[1:]
+	dr := []rune(dirName)
+	if len(dr) > 0 {
+		dr[0] = unicode.ToUpper(dr[0])
+		dirName = string(dr)
 	}
 	return dirName
 }

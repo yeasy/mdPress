@@ -226,13 +226,6 @@ func TestParseComplexTable(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // ===== Add Lazy Loading =====
 
 func TestAddLazyLoading(t *testing.T) {

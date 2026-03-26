@@ -32,8 +32,9 @@ func FuzzParse(f *testing.F) {
 		f.Add([]byte(s))
 	}
 
-	parser := NewParser()
 	f.Fuzz(func(t *testing.T, data []byte) {
+		// Create a fresh parser per iteration to avoid stale usedIDs state.
+		parser := NewParser()
 		// The parser should never panic on any input.
 		_, _, _ = parser.Parse(data)
 		_, _, _, _ = parser.ParseWithDiagnostics(data)

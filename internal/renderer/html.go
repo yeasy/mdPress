@@ -66,6 +66,9 @@ type templateChapter struct {
 
 // NewHTMLRenderer creates a new HTML renderer used for PDF generation.
 func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config must not be nil")
+	}
 	// Substitute CDN URL placeholders so the template does not need to import
 	// the utils package at template execution time.
 	resolvedTemplate := strings.ReplaceAll(htmlTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL)
@@ -157,6 +160,11 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 
 	pageSize := r.config.Style.PageSize
 	if pageSize == "" {
+		pageSize = "A4"
+	}
+	// Defense-in-depth: validate at point of use, not just config load time.
+	validSizes := map[string]bool{"A4": true, "A5": true, "Letter": true, "Legal": true, "B5": true}
+	if !validSizes[pageSize] {
 		pageSize = "A4"
 	}
 

@@ -4,30 +4,34 @@ package utils
 
 import "strings"
 
-// EscapeHTML escapes HTML special characters including single quotes.
-// This is the canonical HTML escaping function used throughout mdpress.
-func EscapeHTML(s string) string {
-	replacer := strings.NewReplacer(
+// Pre-compiled replacers to avoid allocation on every call.
+var (
+	htmlReplacer = strings.NewReplacer(
 		"&", "&amp;",
 		"<", "&lt;",
 		">", "&gt;",
 		`"`, "&quot;",
 		"'", "&#39;",
 	)
-	return replacer.Replace(s)
-}
-
-// EscapeXML escapes XML special characters.
-// Similar to EscapeHTML but uses &apos; for single quotes per the XML specification.
-func EscapeXML(s string) string {
-	replacer := strings.NewReplacer(
+	xmlReplacer = strings.NewReplacer(
 		"&", "&amp;",
 		"<", "&lt;",
 		">", "&gt;",
 		`"`, "&quot;",
 		"'", "&apos;",
 	)
-	return replacer.Replace(s)
+)
+
+// EscapeHTML escapes HTML special characters including single quotes.
+// This is the canonical HTML escaping function used throughout mdpress.
+func EscapeHTML(s string) string {
+	return htmlReplacer.Replace(s)
+}
+
+// EscapeXML escapes XML special characters.
+// Similar to EscapeHTML but uses &apos; for single quotes per the XML specification.
+func EscapeXML(s string) string {
+	return xmlReplacer.Replace(s)
 }
 
 // EscapeAttr escapes an HTML attribute value.

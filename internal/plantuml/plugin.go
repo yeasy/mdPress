@@ -37,7 +37,7 @@ func (p *Plugin) Description() string {
 
 // Init initializes the plugin from configuration.
 // Expects config options:
-//   - server: Base URL for PlantUML server (optional, defaults to http://www.plantuml.com/plantuml)
+//   - server: Base URL for PlantUML server (optional, defaults to https://www.plantuml.com/plantuml)
 //   - local: Boolean flag to use local plantuml command (optional, defaults to false)
 func (p *Plugin) Init(cfg *config.BookConfig) error {
 	serverURL := ""

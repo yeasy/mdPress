@@ -172,15 +172,15 @@ func DefaultConfig() *BookConfig {
 // It also auto-detects GLOSSARY.md and LANGS.md.
 func Load(path string) (*BookConfig, error) {
 	// Limit config size to guard against malformed or malicious YAML inputs.
+	// Check size via os.Stat before reading to avoid loading large files into memory.
 	const maxConfigSize = 10 * 1024 * 1024 // 10MB
-	fi, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w (ensure %s exists and is readable)", err, path)
+		return nil, fmt.Errorf("failed to stat config file: %w (ensure %s exists and is readable)", err, path)
 	}
-	if fi.Size() > maxConfigSize {
-		return nil, fmt.Errorf("config file is too large (%d bytes; max allowed is %d bytes)", fi.Size(), maxConfigSize)
+	if info.Size() > int64(maxConfigSize) {
+		return nil, fmt.Errorf("config file is too large (%d bytes; max allowed is %d bytes)", info.Size(), maxConfigSize)
 	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w (ensure %s exists and is readable)", err, path)
@@ -295,8 +295,17 @@ func (c *BookConfig) Validate() error {
 	return nil
 }
 
+const maxChapterNestingDepth = 20
+
 // validateChapters recursively validates chapter definitions and their nested sections.
 func (c *BookConfig) validateChapters(chapters []ChapterDef, prefix string) error {
+	return c.validateChaptersDepth(chapters, prefix, 0)
+}
+
+func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string, depth int) error {
+	if depth > maxChapterNestingDepth {
+		return fmt.Errorf("chapter nesting exceeds maximum depth of %d", maxChapterNestingDepth)
+	}
 	for i, ch := range chapters {
 		label := fmt.Sprintf("%s%d", prefix, i+1)
 		if ch.File == "" {
@@ -309,7 +318,7 @@ func (c *BookConfig) validateChapters(chapters []ChapterDef, prefix string) erro
 		}
 		// Recursively validate nested sections.
 		if len(ch.Sections) > 0 {
-			if err := c.validateChapters(ch.Sections, label+"."); err != nil {
+			if err := c.validateChaptersDepth(ch.Sections, label+".", depth+1); err != nil {
 				return fmt.Errorf("nested section validation failed: %w", err)
 			}
 		}

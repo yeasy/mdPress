@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -70,7 +71,9 @@ func CheckCJKFonts() CJKFontStatus {
 
 func checkCJKFontsLinux() CJKFontStatus {
 	// Use fc-list to query for CJK fonts.
-	out, err := exec.CommandContext(context.Background(), "fc-list", ":lang=zh").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "fc-list", ":lang=zh").Output()
 	if err != nil {
 		// fc-list not available; try alternative check.
 		return checkCJKFontsFallback()
@@ -105,7 +108,9 @@ func checkCJKFontsMacOS() CJKFontStatus {
 	// macOS ships with CJK fonts (PingFang SC, Hiragino Sans GB, etc.)
 	// by default, so they're almost always available.
 	// Do a quick check with fc-list if available, otherwise assume present.
-	out, err := exec.CommandContext(context.Background(), "fc-list", ":lang=zh").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "fc-list", ":lang=zh").Output()
 	if err != nil {
 		// fc-list not installed on macOS is common; assume fonts are available
 		// since macOS bundles PingFang SC etc.

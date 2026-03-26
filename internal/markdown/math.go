@@ -12,6 +12,7 @@ package markdown
 
 import (
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 )
@@ -81,18 +82,23 @@ func (m *mathPreprocessor) preprocess(md string) string {
 //
 // KaTeX auto-render is configured with $$ and $ delimiters, so it scans the
 // text nodes inside these spans and renders the LaTeX.
-func (m *mathPreprocessor) postprocess(html string) string {
+func (m *mathPreprocessor) postprocess(htmlStr string) string {
 	for i, content := range m.blocks {
 		placeholder := fmt.Sprintf("MDPMATHBLOCK%06d", i)
-		replacement := `<span class="math math-display">$$` + content + `$$</span>`
-		html = strings.ReplaceAll(html, placeholder, replacement)
+		// HTML-escape the formula content to prevent XSS injection.
+		// KaTeX auto-render reads textContent from DOM nodes, so the
+		// browser-decoded text still contains the original LaTeX.
+		escaped := html.EscapeString(content)
+		replacement := `<span class="math math-display">$$` + escaped + `$$</span>`
+		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)
 	}
 	for i, content := range m.inlines {
 		placeholder := fmt.Sprintf("MDPMATHINLINE%06d", i)
-		replacement := `<span class="math math-inline">$` + content + `$</span>`
-		html = strings.ReplaceAll(html, placeholder, replacement)
+		escaped := html.EscapeString(content)
+		replacement := `<span class="math math-inline">$` + escaped + `$</span>`
+		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)
 	}
-	return html
+	return htmlStr
 }
 
 // HasMath reports whether the Markdown source contains any math formula syntax.

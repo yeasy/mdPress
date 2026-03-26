@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 func TestHTMLGeneratorBasic(t *testing.T) {
@@ -95,7 +97,7 @@ func TestSiteGeneratorNestedSidebar(t *testing.T) {
 	if !strings.Contains(html, "nav-group") {
 		t.Error("sidebar should contain collapsible nav group")
 	}
-	if !strings.Contains(html, "href=\"ch1.html\"") {
+	if !strings.Contains(html, "href=\"/ch1.html\"") {
 		t.Error("sidebar should contain child chapter link")
 	}
 }
@@ -453,6 +455,10 @@ func TestEpubGeneratorPackagesRelativeChapterImageAssets(t *testing.T) {
 }
 
 func TestEpubGeneratorPackagesRemoteChapterImageAssets(t *testing.T) {
+	// Disable SSRF check since the test uses a local httptest server.
+	utils.DisableSSRFCheck()
+	t.Cleanup(utils.EnableSSRFCheck)
+
 	onePixelPNG, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wn2lXQAAAAASUVORK5CYII=")
 	if err != nil {
 		t.Fatalf("decode png fixture failed: %v", err)

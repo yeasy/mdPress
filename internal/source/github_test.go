@@ -272,13 +272,7 @@ func TestGitHubSourceEdgeCases(t *testing.T) {
 // suggests GITHUB_TOKEN when the token is not set.
 func TestGitHubSourceTokenHintOnCloneFailure(t *testing.T) {
 	// Ensure GITHUB_TOKEN is not set for this test.
-	original := os.Getenv("GITHUB_TOKEN")
-	os.Unsetenv("GITHUB_TOKEN")
-	defer func() {
-		if original != "" {
-			os.Setenv("GITHUB_TOKEN", original)
-		}
-	}()
+	t.Setenv("GITHUB_TOKEN", "")
 
 	// Use an invalid owner/repo combination that will fail validation,
 	// so we don't actually try to clone anything.

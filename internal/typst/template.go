@@ -91,11 +91,47 @@ const typstTemplateStr = `#set page(
 #pagebreak()
 
 // Body content
-{{ .Content }}
+__MDPRESS_CONTENT_PLACEHOLDER__
 `
+
+// sanitizeTypstText escapes Typst control characters in user-supplied metadata
+// to prevent code injection via fields like Title or Author.
+func sanitizeTypstText(s string) string {
+	replacer := strings.NewReplacer(
+		"\\", "\\\\",
+		"#", "\\#",
+		"$", "\\$",
+		"=", "\\=",
+		"@", "\\@",
+		"<", "\\<",
+		">", "\\>",
+		"_", "\\_",
+		"*", "\\*",
+	)
+	return replacer.Replace(s)
+}
+
+// contentPlaceholder is used instead of a Go template action for Content
+// to prevent user-supplied Typst content containing "{{ }}" from being
+// interpreted as template directives (which could panic or inject code).
+const contentPlaceholder = "__MDPRESS_CONTENT_PLACEHOLDER__"
 
 // RenderTypstDocument renders the template with the provided data.
 func RenderTypstDocument(data TypstTemplateData) (string, error) {
+	// Sanitize user-supplied metadata to prevent Typst injection.
+	data.Title = sanitizeTypstText(data.Title)
+	data.Subtitle = sanitizeTypstText(data.Subtitle)
+	data.Author = sanitizeTypstText(data.Author)
+	data.Version = sanitizeTypstText(data.Version)
+	data.Date = sanitizeTypstText(data.Date)
+	data.Language = sanitizeTypstText(data.Language)
+
+	// Save content before template execution — it is injected via string
+	// replacement afterwards to avoid text/template interpreting any
+	// "{{ }}" sequences in the Markdown-converted Typst body.
+	content := data.Content
+	data.Content = "" // not used by template
+
 	tmpl, err := template.New("typst").Parse(typstTemplateStr)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse Typst template: %w", err)
@@ -106,7 +142,9 @@ func RenderTypstDocument(data TypstTemplateData) (string, error) {
 		return "", fmt.Errorf("failed to render Typst template: %w", err)
 	}
 
-	return buf.String(), nil
+	// Inject the body content safely outside the template engine.
+	result := strings.Replace(buf.String(), contentPlaceholder, content, 1)
+	return result, nil
 }
 
 // WriteTypstFile writes Typst content to a file.
@@ -193,8 +231,10 @@ func MakeTypstFontSize(cssFontSize string) string {
 		// Parse and convert
 		sizeStr := cssFontSize[:len(cssFontSize)-2]
 		var sizeVal float64
-		_, _ = fmt.Sscanf(sizeStr, "%f", &sizeVal)
-		return fmt.Sprintf("%.1fpt", sizeVal*0.75)
+		if n, _ := fmt.Sscanf(sizeStr, "%f", &sizeVal); n == 1 && sizeVal > 0 {
+			return fmt.Sprintf("%.1fpt", sizeVal*0.75)
+		}
+		return "12pt" // fallback for unparseable px values
 	}
 	return sanitizeTypstValue(cssFontSize)
 }

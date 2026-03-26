@@ -207,16 +207,12 @@ func TestExternalPlugin_Execute_ErrorResponse(t *testing.T) {
 		Phase:    PhaseAfterParse,
 		Metadata: map[string]interface{}{},
 	}
-	result, err := ep.Execute(ctx)
-	if err != nil {
-		t.Fatalf("Execute should not return Go error for JSON error field, got: %v", err)
+	_, err = ep.Execute(ctx)
+	if err == nil {
+		t.Fatal("Execute should return error when plugin reports an error")
 	}
-	if result == nil {
-		t.Fatal("result should not be nil")
-	}
-	// Error should be recorded in Metadata.
-	if v, ok := ctx.Metadata["errplugin.error"]; !ok || v != "something broke" {
-		t.Errorf("expected error in metadata, got %v", ctx.Metadata)
+	if !strings.Contains(err.Error(), "something broke") {
+		t.Errorf("error should contain plugin message, got: %v", err)
 	}
 }
 
@@ -313,6 +309,7 @@ func TestExternalPlugin_Execute_Timeout(t *testing.T) {
 func TestExternalPlugin_Execute_NilMetadata(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
+	// Plugin reports an error in JSON; Execute should return that as a Go error.
 	resp, _ := json.Marshal(ExternalPluginResponse{Error: "oops"})
 	p := writeScript(t, dir, "nilmeta", "echo '"+string(resp)+"'")
 	ep, err := NewExternalPlugin("nilmeta", p, nil)
@@ -326,11 +323,11 @@ func TestExternalPlugin_Execute_NilMetadata(t *testing.T) {
 		Metadata: nil, // nil metadata should be handled gracefully
 	}
 	_, err = ep.Execute(ctx)
-	if err != nil {
-		t.Fatalf("Execute returned error: %v", err)
+	if err == nil {
+		t.Fatal("expected error from plugin reporting 'oops'")
 	}
-	if ctx.Metadata == nil {
-		t.Error("expected Metadata to be initialized")
+	if !strings.Contains(err.Error(), "oops") {
+		t.Errorf("error should contain plugin message, got: %v", err)
 	}
 }
 
@@ -750,11 +747,9 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 
 func TestWindowsExecutableExtensions_DefaultExtensions(t *testing.T) {
 	// Save original PATHEXT
-	original := os.Getenv("PATHEXT")
-	defer os.Setenv("PATHEXT", original)
 
 	// Set empty PATHEXT to trigger default behavior
-	os.Setenv("PATHEXT", "")
+	t.Setenv("PATHEXT", "")
 
 	exts := windowsExecutableExtensions()
 
@@ -770,10 +765,8 @@ func TestWindowsExecutableExtensions_DefaultExtensions(t *testing.T) {
 }
 
 func TestWindowsExecutableExtensions_CustomPATHEXT(t *testing.T) {
-	original := os.Getenv("PATHEXT")
-	defer os.Setenv("PATHEXT", original)
 
-	os.Setenv("PATHEXT", ".COM;.EXE;.BAT;.CMD")
+	t.Setenv("PATHEXT", ".COM;.EXE;.BAT;.CMD")
 
 	exts := windowsExecutableExtensions()
 
@@ -789,10 +782,8 @@ func TestWindowsExecutableExtensions_CustomPATHEXT(t *testing.T) {
 }
 
 func TestWindowsExecutableExtensions_TrimsWhitespace(t *testing.T) {
-	original := os.Getenv("PATHEXT")
-	defer os.Setenv("PATHEXT", original)
 
-	os.Setenv("PATHEXT", ".exe ; .bat ; .cmd")
+	t.Setenv("PATHEXT", ".exe ; .bat ; .cmd")
 
 	exts := windowsExecutableExtensions()
 
@@ -807,10 +798,8 @@ func TestWindowsExecutableExtensions_TrimsWhitespace(t *testing.T) {
 }
 
 func TestWindowsExecutableExtensions_SkipsEmptyComponents(t *testing.T) {
-	original := os.Getenv("PATHEXT")
-	defer os.Setenv("PATHEXT", original)
 
-	os.Setenv("PATHEXT", ".exe;;.bat;;")
+	t.Setenv("PATHEXT", ".exe;;.bat;;")
 
 	exts := windowsExecutableExtensions()
 
@@ -822,10 +811,8 @@ func TestWindowsExecutableExtensions_SkipsEmptyComponents(t *testing.T) {
 }
 
 func TestWindowsExecutableExtensions_AddsDotPrefix(t *testing.T) {
-	original := os.Getenv("PATHEXT")
-	defer os.Setenv("PATHEXT", original)
 
-	os.Setenv("PATHEXT", ".exe;bat;cmd")
+	t.Setenv("PATHEXT", ".exe;bat;cmd")
 
 	exts := windowsExecutableExtensions()
 
@@ -912,10 +899,8 @@ func TestWindowsExecutableExtensions_TableDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			original := os.Getenv("PATHEXT")
-			defer os.Setenv("PATHEXT", original)
 
-			os.Setenv("PATHEXT", tt.pathext)
+			t.Setenv("PATHEXT", tt.pathext)
 
 			exts := windowsExecutableExtensions()
 

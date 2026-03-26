@@ -122,18 +122,14 @@ const standaloneJS = `
   // Supports multiple expanded sections simultaneously
   // ============================================================
 
-  // Set flag when user clicks navigation to suppress scroll spy accordion
-  var navClickLock = false;
-  var navClickTimer = null;
-  function lockNavClick() {
-    navClickLock = true;
-    if (navClickTimer) clearTimeout(navClickTimer);
-    navClickTimer = setTimeout(function() { navClickLock = false; }, 600);
-  }
-
   // Expand subsection list with max-height animation
   function expandTocGroup(children, btn) {
     if (!children.hidden && children.style.maxHeight === '') return; // already expanded
+    // If a collapse transition is in progress, force-complete it first
+    if (children.style.maxHeight === '0' || children.style.maxHeight === '0px') {
+      children.setAttribute('hidden', '');
+      children.style.maxHeight = '';
+    }
     children.style.maxHeight = '0';
     children.removeAttribute('hidden');
     void children.offsetHeight;
@@ -148,6 +144,10 @@ const standaloneJS = `
   // Collapse subsection list with max-height animation
   function collapseTocGroup(children, btn) {
     if (children.hidden) return; // already collapsed
+    // If an expand transition is in progress, force-complete it first
+    if (children.style.maxHeight !== '' && children.style.maxHeight !== '0' && children.style.maxHeight !== '0px') {
+      children.style.maxHeight = '';
+    }
     children.style.maxHeight = children.scrollHeight + 'px';
     void children.offsetHeight;
     children.style.maxHeight = '0';
@@ -159,30 +159,9 @@ const standaloneJS = `
     });
   }
 
-  // Collapse sibling groups at any level (accordion behavior)
-  function collapseSiblingGroups(item) {
-    if (!item || !item.parentElement) return;
-    var container = item.parentElement;
-    container.querySelectorAll(':scope > .toc-group.has-children').forEach(function(sib) {
-      if (sib === item) return;
-      var sc = sib.querySelector(':scope > .toc-children');
-      var sb = sib.querySelector(':scope > .toc-row > .toc-toggle');
-      if (sc && !sc.hidden) {
-        // Also collapse any expanded children within the sibling
-        sib.querySelectorAll('.toc-group.has-children').forEach(function(nested) {
-          var nc = nested.querySelector(':scope > .toc-children');
-          var nb = nested.querySelector(':scope > .toc-row > .toc-toggle');
-          if (nc && !nc.hidden) collapseTocGroup(nc, nb);
-        });
-        collapseTocGroup(sc, sb);
-      }
-    });
-  }
-
   document.querySelectorAll('.toc-toggle').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
-      lockNavClick();
       var item = btn.closest('.toc-group');
       var children = item ? item.querySelector(':scope > .toc-children') : null;
       if (!children) return;
@@ -190,7 +169,6 @@ const standaloneJS = `
       if (expanded) {
         collapseTocGroup(children, btn);
       } else {
-        collapseSiblingGroups(item);
         expandTocGroup(children, btn);
       }
     });
@@ -207,7 +185,6 @@ const standaloneJS = `
     var targetEl = document.getElementById(targetId);
     if (!targetEl) return;
     e.preventDefault();
-    lockNavClick(); // suppress accordion during scroll
 
     // Smooth scroll with offset for sticky header (80px)
     var offsetY = 80;
@@ -325,10 +302,6 @@ const standaloneJS = `
         var toggle = group.querySelector(':scope > .toc-row > .toc-toggle');
         var children = group.querySelector(':scope > .toc-children');
         if (toggle && children && children.hidden) {
-          // Collapse sibling sections during non-click navigation
-          if (!navClickLock) {
-            collapseSiblingGroups(group);
-          }
           expandTocGroup(children, toggle);
         }
         var parent = group.parentElement;
@@ -387,7 +360,6 @@ const standaloneJS = `
     // Use transform scaleX for GPU acceleration instead of width
     var progressBar = document.getElementById('reading-progress');
     progressBar.style.transform = 'scaleX(' + (pct / 100) + ')';
-    progressBar.style.transformOrigin = '0 50%';
 
     // Show back-to-top only after scrolling past 300px
     document.getElementById('back-to-top').classList.toggle('visible', scrollTop > 300);
@@ -791,7 +763,10 @@ const standaloneJS = `
 
   function scrollToId(id) {
     var el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!el) return;
+    var offsetY = 80;
+    var elementPosition = el.getBoundingClientRect().top + window.scrollY - offsetY;
+    window.scrollTo({ top: elementPosition, behavior: 'smooth' });
   }
 
   function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -839,7 +814,7 @@ const standaloneJS = `
 
           // 找最近标题作为结果标题
           var nearH = node.parentElement ? node.parentElement.closest('h1,h2,h3,h4') : null;
-          var itemTitle  = nearH ? nearH.textContent : (chapter.querySelector('.chapter-content h1,h2,h3') || {textContent: chapter.id}).textContent;
+          var itemTitle  = nearH ? nearH.textContent : (chapter.querySelector('.chapter-content h1, .chapter-content h2, .chapter-content h3') || {textContent: chapter.id}).textContent;
           var targetId   = nearH ? nearH.id : chapter.id;
 
           var key = targetId + '|' + excerpt.slice(0, 20);

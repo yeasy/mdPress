@@ -130,6 +130,9 @@ func resolvePluginExecutablePath(execPath string) (string, error) {
 		if info.IsDir() {
 			return "", fmt.Errorf("plugin path %q is a directory, expected an executable", absPath)
 		}
+		if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+			return "", fmt.Errorf("plugin %q is not executable (missing execute permission)", absPath)
+		}
 		return absPath, nil
 	} else if !os.IsNotExist(err) {
 		return "", fmt.Errorf("plugin executable not found at %q: %w", absPath, err)
@@ -306,12 +309,9 @@ func (p *ExternalPlugin) Execute(hookCtx *HookContext) (*HookResult, error) {
 		return nil, fmt.Errorf("failed to parse plugin response: %w (output: %s)", err, truncate(string(respBytes), 200))
 	}
 
-	// Surface any error the plugin reported via its JSON response.
+	// Treat plugin-reported errors as failures rather than silently storing them.
 	if resp.Error != "" {
-		if hookCtx.Metadata == nil {
-			hookCtx.Metadata = make(map[string]interface{})
-		}
-		hookCtx.Metadata[p.name+".error"] = resp.Error
+		return nil, fmt.Errorf("plugin %q reported error: %s", p.name, resp.Error)
 	}
 
 	return &HookResult{

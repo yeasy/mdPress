@@ -151,11 +151,6 @@ func TestRenderMultipleChapters(t *testing.T) {
 		t.Fatalf("渲染失败: %v", err)
 	}
 
-	for i := 1; i <= 3; i++ {
-		chID := "ch" + strings.Repeat("", 0) // just to use strings
-		_ = chID
-	}
-
 	if !strings.Contains(html, "Chapter 1") {
 		t.Error("应包含第一章内容")
 	}
