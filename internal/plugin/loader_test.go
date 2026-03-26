@@ -72,7 +72,7 @@ func TestLoadPlugins_SinglePlugin(t *testing.T) {
 		{
 			Name: "test-plugin",
 			Path: pluginPath,
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"key": "value",
 			},
 		},
@@ -289,7 +289,7 @@ func TestLoadPlugins_PluginConfigPassed(t *testing.T) {
 	dir := t.TempDir()
 	pluginPath := createTestPlugin(t, dir, "configurable")
 
-	pluginConfig := map[string]interface{}{
+	pluginConfig := map[string]any{
 		"setting1": "value1",
 		"setting2": 42,
 		"setting3": true,

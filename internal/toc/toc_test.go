@@ -7,29 +7,29 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// TestNewGenerator 测试创建生成器
+// TestNewGenerator tests creating a generator
 func TestNewGenerator(t *testing.T) {
 	g := NewGenerator()
 	if g == nil {
-		t.Fatal("NewGenerator 返回 nil")
+		t.Fatal("NewGenerator returned nil")
 	}
 }
 
-// TestGenerateEmpty 测试空标题列表
+// TestGenerateEmpty tests empty heading list
 func TestGenerateEmpty(t *testing.T) {
 	g := NewGenerator()
 	entries := g.Generate(nil)
 	if len(entries) != 0 {
-		t.Errorf("空输入应返回空列表: got %d entries", len(entries))
+		t.Errorf("empty input should return empty list: got %d entries", len(entries))
 	}
 
 	entries = g.Generate([]HeadingInfo{})
 	if len(entries) != 0 {
-		t.Errorf("空切片应返回空列表: got %d entries", len(entries))
+		t.Errorf("empty slice should return empty list: got %d entries", len(entries))
 	}
 }
 
-// TestGenerateFlat 测试同级标题
+// TestGenerateFlat tests same-level headings
 func TestGenerateFlat(t *testing.T) {
 	g := NewGenerator()
 	headings := []HeadingInfo{
@@ -40,20 +40,20 @@ func TestGenerateFlat(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 3 {
-		t.Fatalf("应有 3 个顶层条目: got %d", len(entries))
+		t.Fatalf("should have 3 top-level entries: got %d", len(entries))
 	}
 
 	for i, entry := range entries {
 		if entry.Level != 1 {
-			t.Errorf("条目 %d 级别错误: got %d", i, entry.Level)
+			t.Errorf("entry %d has wrong level: got %d", i, entry.Level)
 		}
 		if len(entry.Children) != 0 {
-			t.Errorf("条目 %d 不应有子条目: got %d", i, len(entry.Children))
+			t.Errorf("entry %d should have no children: got %d", i, len(entry.Children))
 		}
 	}
 }
 
-// TestGenerateNested 测试嵌套标题
+// TestGenerateNested tests nested headings
 func TestGenerateNested(t *testing.T) {
 	g := NewGenerator()
 	headings := []HeadingInfo{
@@ -67,38 +67,38 @@ func TestGenerateNested(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 2 {
-		t.Fatalf("应有 2 个顶层条目: got %d", len(entries))
+		t.Fatalf("should have 2 top-level entries: got %d", len(entries))
 	}
 
-	// 第一章应有 2 个子条目
+	// Chapter 1 should have 2 children
 	ch1 := entries[0]
 	if ch1.Title != "第一章" {
-		t.Errorf("第一个条目标题错误: got %q", ch1.Title)
+		t.Errorf("first entry has wrong title: got %q", ch1.Title)
 	}
 	if len(ch1.Children) != 2 {
-		t.Fatalf("第一章应有 2 个子条目: got %d", len(ch1.Children))
+		t.Fatalf("chapter 1 should have 2 children: got %d", len(ch1.Children))
 	}
 
-	// 1.2 小节应有 1 个子条目（1.2.1）
+	// Section 1.2 should have 1 child (1.2.1)
 	sec12 := ch1.Children[1]
 	if len(sec12.Children) != 1 {
-		t.Errorf("1.2 小节应有 1 个子条目: got %d", len(sec12.Children))
+		t.Errorf("section 1.2 should have 1 child: got %d", len(sec12.Children))
 	}
 
-	// 第二章应有 1 个子条目
+	// Chapter 2 should have 1 child
 	ch2 := entries[1]
 	if len(ch2.Children) != 1 {
-		t.Errorf("第二章应有 1 个子条目: got %d", len(ch2.Children))
+		t.Errorf("chapter 2 should have 1 child: got %d", len(ch2.Children))
 	}
 
-	// 总条目数应为 6
+	// Total entry count should be 6
 	total := CountEntries(entries)
 	if total != 6 {
-		t.Errorf("应有 6 个总条目: got %d", total)
+		t.Errorf("should have 6 total entries: got %d", total)
 	}
 }
 
-// TestGenerateDeepNesting 测试深层嵌套
+// TestGenerateDeepNesting tests deep nesting
 func TestGenerateDeepNesting(t *testing.T) {
 	g := NewGenerator()
 	headings := []HeadingInfo{
@@ -112,20 +112,20 @@ func TestGenerateDeepNesting(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 1 {
-		t.Fatalf("应有 1 个顶层条目: got %d", len(entries))
+		t.Fatalf("should have 1 top-level entry: got %d", len(entries))
 	}
 }
 
-// TestRenderHTMLEmpty 测试渲染空目录
+// TestRenderHTMLEmpty tests rendering an empty TOC
 func TestRenderHTMLEmpty(t *testing.T) {
 	g := NewGenerator()
 	html := g.RenderHTML(nil)
 	if html != "" {
-		t.Errorf("空目录应返回空字符串: got %q", html)
+		t.Errorf("empty TOC should return empty string: got %q", html)
 	}
 }
 
-// TestRenderHTMLBasic 测试基本 HTML 渲染
+// TestRenderHTMLBasic tests basic HTML rendering
 func TestRenderHTMLBasic(t *testing.T) {
 	g := NewGenerator()
 	entries := []TOCEntry{
@@ -136,20 +136,20 @@ func TestRenderHTMLBasic(t *testing.T) {
 	html := g.RenderHTML(entries)
 
 	if !strings.Contains(html, `<nav class="toc">`) {
-		t.Error("HTML 应包含 nav.toc 标签")
+		t.Error("HTML should contain nav.toc tag")
 	}
 	if !strings.Contains(html, `href="#intro"`) {
-		t.Error("HTML 应包含 intro 锚点链接")
+		t.Error("HTML should contain intro anchor link")
 	}
 	if !strings.Contains(html, `href="#summary"`) {
-		t.Error("HTML 应包含 summary 锚点链接")
+		t.Error("HTML should contain summary anchor link")
 	}
 	if !strings.Contains(html, "简介") {
-		t.Error("HTML 应包含标题文本")
+		t.Error("HTML should contain heading text")
 	}
 }
 
-// TestRenderHTMLNested 测试嵌套 HTML 渲染
+// TestRenderHTMLNested tests nested HTML rendering
 func TestRenderHTMLNested(t *testing.T) {
 	g := NewGenerator()
 	entries := []TOCEntry{
@@ -163,14 +163,14 @@ func TestRenderHTMLNested(t *testing.T) {
 
 	html := g.RenderHTML(entries)
 
-	// 应有嵌套的 ul
+	// Should have nested ul elements
 	ulCount := strings.Count(html, "<ul>")
 	if ulCount < 2 {
-		t.Errorf("嵌套目录应有至少 2 层 ul 标签: got %d", ulCount)
+		t.Errorf("nested TOC should have at least 2 ul tags: got %d", ulCount)
 	}
 }
 
-// TestRenderHTMLEscaping 测试特殊字符转义
+// TestRenderHTMLEscaping tests special character escaping
 func TestRenderHTMLEscaping(t *testing.T) {
 	g := NewGenerator()
 	entries := []TOCEntry{
@@ -180,14 +180,14 @@ func TestRenderHTMLEscaping(t *testing.T) {
 	html := g.RenderHTML(entries)
 
 	if strings.Contains(html, "<script>") {
-		t.Error("HTML 标签应被转义")
+		t.Error("HTML tags should be escaped")
 	}
 	if !strings.Contains(html, "&lt;script&gt;") {
-		t.Error("应包含转义后的标签")
+		t.Error("should contain escaped tags")
 	}
 }
 
-// TestGetEntry 测试按 ID 查找条目
+// TestGetEntry tests finding entries by ID
 func TestGetEntry(t *testing.T) {
 	entries := []TOCEntry{
 		{
@@ -221,19 +221,19 @@ func TestGetEntry(t *testing.T) {
 		entry := GetEntry(entries, tt.id)
 		if tt.found {
 			if entry == nil {
-				t.Errorf("应找到 ID=%q 的条目", tt.id)
+				t.Errorf("should find entry with ID=%q", tt.id)
 				continue
 			}
 			if entry.Title != tt.title {
-				t.Errorf("ID=%q 的标题错误: got %q, want %q", tt.id, entry.Title, tt.title)
+				t.Errorf("wrong title for ID=%q: got %q, want %q", tt.id, entry.Title, tt.title)
 			}
 		} else if entry != nil {
-			t.Errorf("ID=%q 应不存在", tt.id)
+			t.Errorf("ID=%q should not exist", tt.id)
 		}
 	}
 }
 
-// TestFlattenToList 测试扁平化
+// TestFlattenToList tests flattening
 func TestFlattenToList(t *testing.T) {
 	entries := []TOCEntry{
 		{
@@ -248,25 +248,25 @@ func TestFlattenToList(t *testing.T) {
 
 	flat := FlattenToList(entries)
 	if len(flat) != 4 {
-		t.Fatalf("扁平化后应有 4 个条目: got %d", len(flat))
+		t.Fatalf("should have 4 entries after flattening: got %d", len(flat))
 	}
 
 	expectedTitles := []string{"A", "A1", "A2", "B"}
 	for i, title := range expectedTitles {
 		if flat[i].Title != title {
-			t.Errorf("条目 %d 标题错误: got %q, want %q", i, flat[i].Title, title)
+			t.Errorf("entry %d has wrong title: got %q, want %q", i, flat[i].Title, title)
 		}
 	}
 
-	// 扁平化后不应有 Children
+	// After flattening, Children should be empty
 	for i, entry := range flat {
 		if len(entry.Children) != 0 {
-			t.Errorf("条目 %d 扁平化后不应有子条目", i)
+			t.Errorf("entry %d should have no children after flattening", i)
 		}
 	}
 }
 
-// TestCountEntries 测试条目计数
+// TestCountEntries tests entry counting
 func TestCountEntries(t *testing.T) {
 	entries := []TOCEntry{
 		{
@@ -286,32 +286,32 @@ func TestCountEntries(t *testing.T) {
 
 	count := CountEntries(entries)
 	if count != 5 {
-		t.Errorf("应有 5 个条目: got %d", count)
+		t.Errorf("should have 5 entries: got %d", count)
 	}
 }
 
-// TestCountEntriesEmpty 测试空列表计数
+// TestCountEntriesEmpty tests counting an empty list
 func TestCountEntriesEmpty(t *testing.T) {
 	count := CountEntries(nil)
 	if count != 0 {
-		t.Errorf("空列表计数应为 0: got %d", count)
+		t.Errorf("empty list count should be 0: got %d", count)
 	}
 }
 
-// TestEscapeHTMLToc 测试 toc 包内的 HTML 转义
+// TestEscapeHTMLToc tests HTML escaping in the toc package
 func TestEscapeHTMLToc(t *testing.T) {
 	input := `<a href="test">&'`
 	expected := `&lt;a href=&quot;test&quot;&gt;&amp;&#39;`
 	got := utils.EscapeHTML(input)
 	if got != expected {
-		t.Errorf("EscapeHTML 结果错误: got %q, want %q", got, expected)
+		t.Errorf("EscapeHTML result error: got %q, want %q", got, expected)
 	}
 }
 
-// TestGenerateSkippedLevels 测试跳过标题级别的处理
+// TestGenerateSkippedLevels tests handling of skipped heading levels
 func TestGenerateSkippedLevels(t *testing.T) {
 	g := NewGenerator()
-	// 测试直接从 H1 跳到 H3 的情况
+	// Test jumping from H1 directly to H3
 	headings := []HeadingInfo{
 		{Level: 1, Text: "第一章", ID: "ch1"},
 		{Level: 3, Text: "直接跳到三级", ID: "skip2"},
@@ -320,25 +320,25 @@ func TestGenerateSkippedLevels(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 1 {
-		t.Fatalf("应有 1 个顶层条目: got %d", len(entries))
+		t.Fatalf("should have 1 top-level entry: got %d", len(entries))
 	}
 
-	// 验证跳过的级别仍能正确嵌套
+	// Verify skipped levels are still nested correctly
 	ch1 := entries[0]
 	if len(ch1.Children) < 2 {
-		t.Errorf("第一章应有至少 2 个子条目，以处理跳过的级别: got %d", len(ch1.Children))
+		t.Errorf("chapter 1 should have at least 2 children to handle skipped levels: got %d", len(ch1.Children))
 	}
 
 	total := CountEntries(entries)
 	if total != 3 {
-		t.Errorf("总条目数应为 3: got %d", total)
+		t.Errorf("total entries should be 3: got %d", total)
 	}
 }
 
-// TestGenerateRepeatedTitles 测试相同标题但不同 ID 的处理
+// TestGenerateRepeatedTitles tests handling of same titles with different IDs
 func TestGenerateRepeatedTitles(t *testing.T) {
 	g := NewGenerator()
-	// 相同标题但不同 ID
+	// Same title but different ID
 	headings := []HeadingInfo{
 		{Level: 1, Text: "简介", ID: "intro-1"},
 		{Level: 1, Text: "简介", ID: "intro-2"},
@@ -347,23 +347,23 @@ func TestGenerateRepeatedTitles(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 3 {
-		t.Fatalf("应有 3 个条目: got %d", len(entries))
+		t.Fatalf("should have 3 entries: got %d", len(entries))
 	}
 
-	// 验证每个条目都有不同的 ID
+	// Verify each entry has a distinct ID
 	ids := make(map[string]bool)
 	for _, entry := range entries {
 		if ids[entry.ID] {
-			t.Errorf("ID %q 重复了", entry.ID)
+			t.Errorf("ID %q is duplicated", entry.ID)
 		}
 		ids[entry.ID] = true
 		if entry.Title != "简介" {
-			t.Errorf("标题应为 '简介': got %q", entry.Title)
+			t.Errorf("title should be '简介': got %q", entry.Title)
 		}
 	}
 }
 
-// TestGenerateSpecialCharIDs 测试包含特殊字符的 ID
+// TestGenerateSpecialCharIDs tests IDs with special characters
 func TestGenerateSpecialCharIDs(t *testing.T) {
 	g := NewGenerator()
 	headings := []HeadingInfo{
@@ -375,21 +375,21 @@ func TestGenerateSpecialCharIDs(t *testing.T) {
 
 	entries := g.Generate(headings)
 	if len(entries) != 4 {
-		t.Fatalf("应有 4 个条目: got %d", len(entries))
+		t.Fatalf("should have 4 entries: got %d", len(entries))
 	}
 
 	expectedIDs := []string{"id-with-dashes", "id_with_underscores", "id.with.dots", "id-123-numbers"}
 	for i, expectedID := range expectedIDs {
 		if entries[i].ID != expectedID {
-			t.Errorf("条目 %d 的 ID 应为 %q: got %q", i, expectedID, entries[i].ID)
+			t.Errorf("entry %d ID should be %q: got %q", i, expectedID, entries[i].ID)
 		}
 	}
 }
 
-// TestRenderHTMLDeepNesting 测试 4+ 层级的深层嵌套 HTML 渲染
+// TestRenderHTMLDeepNesting tests 4+ level deep nested HTML rendering
 func TestRenderHTMLDeepNesting(t *testing.T) {
 	g := NewGenerator()
-	// 构建 4 层深的嵌套结构
+	// Build 4-level deep nested structure
 	entries := []TOCEntry{
 		{
 			Level: 1, Title: "Level 1", ID: "l1",
@@ -411,36 +411,36 @@ func TestRenderHTMLDeepNesting(t *testing.T) {
 
 	html := g.RenderHTML(entries)
 
-	// 检查深层嵌套结构
+	// Check deep nested structure
 	if !strings.Contains(html, "Level 1") {
-		t.Error("HTML 应包含第 1 层标题")
+		t.Error("HTML should contain level 1 heading")
 	}
 	if !strings.Contains(html, "Level 2") {
-		t.Error("HTML 应包含第 2 层标题")
+		t.Error("HTML should contain level 2 heading")
 	}
 	if !strings.Contains(html, "Level 3") {
-		t.Error("HTML 应包含第 3 层标题")
+		t.Error("HTML should contain level 3 heading")
 	}
 	if !strings.Contains(html, "Level 4") {
-		t.Error("HTML 应包含第 4 层标题")
+		t.Error("HTML should contain level 4 heading")
 	}
 
-	// 检查嵌套的 ul 标签
+	// Check nested ul tags
 	ulCount := strings.Count(html, "<ul>")
 	if ulCount < 4 {
-		t.Errorf("4 层嵌套应有至少 4 个 ul 标签: got %d", ulCount)
+		t.Errorf("4-level nesting should have at least 4 ul tags: got %d", ulCount)
 	}
 
-	// 检查所有锚点链接存在
+	// Check all anchor links exist
 	links := []string{"#l1", "#l2", "#l3", "#l4"}
 	for _, link := range links {
 		if !strings.Contains(html, link) {
-			t.Errorf("HTML 应包含链接 %s", link)
+			t.Errorf("HTML should contain link %s", link)
 		}
 	}
 }
 
-// TestFlattenToListEmpty 测试扁平化空和 nil 列表
+// TestFlattenToListEmpty tests flattening empty and nil lists
 func TestFlattenToListEmpty(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -448,17 +448,17 @@ func TestFlattenToListEmpty(t *testing.T) {
 		expect int
 	}{
 		{
-			name:   "nil 切片",
+			name:   "nil slice",
 			input:  nil,
 			expect: 0,
 		},
 		{
-			name:   "空切片",
+			name:   "empty slice",
 			input:  []TOCEntry{},
 			expect: 0,
 		},
 		{
-			name: "单层无子条目",
+			name: "single level no children",
 			input: []TOCEntry{
 				{Level: 1, Title: "A", ID: "a", Children: []TOCEntry{}},
 			},
@@ -470,13 +470,13 @@ func TestFlattenToListEmpty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := FlattenToList(tt.input)
 			if len(result) != tt.expect {
-				t.Errorf("应有 %d 个条目: got %d", tt.expect, len(result))
+				t.Errorf("should have %d entries: got %d", tt.expect, len(result))
 			}
 		})
 	}
 }
 
-// TestGetEntryFirstMatch 测试 GetEntry 返回第一个匹配项
+// TestGetEntryFirstMatch tests that GetEntry returns the first match
 func TestGetEntryFirstMatch(t *testing.T) {
 	entries := []TOCEntry{
 		{
@@ -493,24 +493,24 @@ func TestGetEntryFirstMatch(t *testing.T) {
 		},
 	}
 
-	// 查询可能出现多次的 ID
+	// Query an ID that may appear multiple times
 	entry := GetEntry(entries, "duplicate-id")
 	if entry == nil {
-		t.Fatal("应找到 ID 为 'duplicate-id' 的条目")
+		t.Fatal("should find entry with ID 'duplicate-id'")
 		return
 	}
 
-	// 验证返回的是第一个匹配项
+	// Verify the first match is returned
 	if entry.Title != "1.1" {
-		t.Errorf("应返回第一个匹配项，标题为 '1.1': got %q", entry.Title)
+		t.Errorf("should return first match with title '1.1': got %q", entry.Title)
 	}
 
 	if entry.Level != 2 {
-		t.Errorf("第一个匹配项应为 Level 2: got %d", entry.Level)
+		t.Errorf("first match should be Level 2: got %d", entry.Level)
 	}
 }
 
-// TestRenderHTMLWithPageNumbers 测试渲染包含页码的 TOC 条目
+// TestRenderHTMLWithPageNumbers tests rendering TOC entries with page numbers
 func TestRenderHTMLWithPageNumbers(t *testing.T) {
 	g := NewGenerator()
 	entries := []TOCEntry{
@@ -522,16 +522,16 @@ func TestRenderHTMLWithPageNumbers(t *testing.T) {
 
 	html := g.RenderHTML(entries)
 
-	// 验证 HTML 中包含标题和链接
+	// Verify HTML contains headings and links
 	if !strings.Contains(html, "第一章") {
-		t.Error("HTML 应包含 '第一章'")
+		t.Error("HTML should contain '第一章'")
 	}
 	if !strings.Contains(html, "#ch1") {
-		t.Error("HTML 应包含 #ch1 链接")
+		t.Error("HTML should contain #ch1 link")
 	}
 
-	// 页码可能以不同方式呈现（取决于实现）
+	// Page numbers may render differently depending on implementation
 	if !strings.Contains(html, "<nav class=\"toc\">") {
-		t.Error("HTML 应包含 toc 导航容器")
+		t.Error("HTML should contain toc navigation container")
 	}
 }

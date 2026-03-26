@@ -1072,7 +1072,7 @@ func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
 	}
 
 	// Verify it is valid JSON
-	var searchEntries []interface{}
+	var searchEntries []any
 	if err := json.Unmarshal(searchIndexData, &searchEntries); err != nil {
 		t.Fatalf("search-index.json is not valid JSON: %v", err)
 	}
@@ -1083,7 +1083,7 @@ func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
 
 	// Verify each entry has expected fields (t, f, x)
 	for i, entry := range searchEntries {
-		entryMap, ok := entry.(map[string]interface{})
+		entryMap, ok := entry.(map[string]any)
 		if !ok {
 			t.Errorf("entry %d is not a JSON object", i)
 			continue

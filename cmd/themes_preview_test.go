@@ -342,8 +342,7 @@ func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
 
 	err = executeThemesPreview("")
 	if err != nil {
-		t.Logf("executeThemesPreview(\"\") returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview(\"\") returned error: %v", err)
 	}
 
 	// Verify file was created with default name
@@ -359,8 +358,7 @@ func TestExecuteThemesPreview_CustomPath(t *testing.T) {
 
 	err := executeThemesPreview(customPath)
 	if err != nil {
-		t.Logf("executeThemesPreview with custom path returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview with custom path returned error: %v", err)
 	}
 
 	// Verify file was created at custom path
@@ -376,8 +374,7 @@ func TestExecuteThemesPreview_CreatesValidHTML(t *testing.T) {
 
 	err := executeThemesPreview(filePath)
 	if err != nil {
-		t.Logf("executeThemesPreview returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview returned error: %v", err)
 	}
 
 	// Read the generated file
@@ -407,8 +404,7 @@ func TestExecuteThemesPreview_FilePermissions(t *testing.T) {
 
 	err := executeThemesPreview(filePath)
 	if err != nil {
-		t.Logf("executeThemesPreview returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview returned error: %v", err)
 	}
 
 	// Check file exists and is readable
@@ -435,8 +431,7 @@ func TestExecuteThemesPreview_AbsolutePath(t *testing.T) {
 
 	err := executeThemesPreview(absPath)
 	if err != nil {
-		t.Logf("executeThemesPreview with absolute path returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview with absolute path returned error: %v", err)
 	}
 
 	// Verify file was created
@@ -461,8 +456,7 @@ func TestExecuteThemesPreview_RelativePath(t *testing.T) {
 	relPath := "relative-preview.html"
 	err = executeThemesPreview(relPath)
 	if err != nil {
-		t.Logf("executeThemesPreview with relative path returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview with relative path returned error: %v", err)
 	}
 
 	// Verify file was created
@@ -478,8 +472,7 @@ func TestExecuteThemesPreview_FileSize(t *testing.T) {
 
 	err := executeThemesPreview(filePath)
 	if err != nil {
-		t.Logf("executeThemesPreview returned error: %v (may be due to environment)", err)
-		return
+		t.Fatalf("executeThemesPreview returned error: %v", err)
 	}
 
 	info, err := os.Stat(filePath)

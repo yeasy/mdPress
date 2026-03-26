@@ -60,9 +60,14 @@ func TestContainsChinese(t *testing.T) {
 }
 
 func TestCheckCJKFonts(t *testing.T) {
-	// This is an environment-dependent test; just verify it doesn't panic.
+	// Environment-dependent test; verify it doesn't panic and returns valid status.
 	status := CheckCJKFonts()
-	t.Logf("CJK fonts available: %v, fonts: %v", status.Available, status.Fonts)
+	if status.Available && len(status.Fonts) == 0 {
+		t.Error("CheckCJKFonts reports available but returns no fonts")
+	}
+	if !status.Available && len(status.Fonts) > 0 {
+		t.Errorf("CheckCJKFonts reports unavailable but has %d fonts", len(status.Fonts))
+	}
 }
 
 func TestCJKFontInstallHint(t *testing.T) {

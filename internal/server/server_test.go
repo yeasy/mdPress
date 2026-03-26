@@ -1,5 +1,5 @@
-// server_test.go 测试预览服务器的核心功能。
-// 包括：NewServer 创建、WebSocket 处理、HTML 注入、文件变化检测、轮询监听等。
+// server_test.go Tests preview server core functionality.
+// Covers: NewServer creation, WebSocket handling, HTML injection, file change detection, polling, etc.
 package server
 
 import (
@@ -34,7 +34,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 	t.Fatalf("timed out waiting for %s", description)
 }
 
-// TestNewServer 测试服务器创建的基本属性
+// TestNewServer tests basic server creation properties
 func TestNewServer(t *testing.T) {
 	watchDir1 := t.TempDir()
 	outputDir1 := t.TempDir()
@@ -52,7 +52,7 @@ func TestNewServer(t *testing.T) {
 		logger    *slog.Logger
 	}{
 		{
-			name:      "基本创建",
+			name:      "basic creation",
 			host:      "127.0.0.1",
 			port:      8080,
 			watchDir:  watchDir1,
@@ -60,7 +60,7 @@ func TestNewServer(t *testing.T) {
 			logger:    slog.Default(),
 		},
 		{
-			name:      "自定义端口",
+			name:      "custom port",
 			host:      "0.0.0.0",
 			port:      3000,
 			watchDir:  watchDir2,
@@ -68,7 +68,7 @@ func TestNewServer(t *testing.T) {
 			logger:    slog.Default(),
 		},
 		{
-			name:      "nil logger 使用默认",
+			name:      "nil logger uses default",
 			host:      "",
 			port:      9090,
 			watchDir:  watchDir3,
@@ -82,33 +82,33 @@ func TestNewServer(t *testing.T) {
 			srv := NewServer(tt.host, tt.port, tt.watchDir, tt.outputDir, tt.logger)
 
 			if srv == nil {
-				t.Fatal("NewServer 返回 nil")
+				t.Fatal("NewServer returned nil")
 			}
 			expectedHost := tt.host
 			if expectedHost == "" {
 				expectedHost = "127.0.0.1"
 			}
 			if srv.Host != expectedHost {
-				t.Errorf("Host = %q, 期望 %q", srv.Host, expectedHost)
+				t.Errorf("Host = %q, want %q", srv.Host, expectedHost)
 			}
 			if srv.Port != tt.port {
-				t.Errorf("Port = %d, 期望 %d", srv.Port, tt.port)
+				t.Errorf("Port = %d, want %d", srv.Port, tt.port)
 			}
 			if srv.WatchDir != tt.watchDir {
-				t.Errorf("WatchDir = %q, 期望 %q", srv.WatchDir, tt.watchDir)
+				t.Errorf("WatchDir = %q, want %q", srv.WatchDir, tt.watchDir)
 			}
 			if srv.OutputDir != tt.outputDir {
-				t.Errorf("OutputDir = %q, 期望 %q", srv.OutputDir, tt.outputDir)
+				t.Errorf("OutputDir = %q, want %q", srv.OutputDir, tt.outputDir)
 			}
 			if srv.clients == nil {
-				t.Error("clients map 应该被初始化")
+				t.Error("clients map should be initialized")
 			}
 			if srv.logger == nil {
-				t.Error("logger 不应为 nil（即使传入 nil 也应使用默认）")
+				t.Error("logger should not be nil (should use default even if nil is passed)")
 			}
-			// AutoOpen 默认为 false
+			// AutoOpen defaults to false
 			if srv.AutoOpen {
-				t.Error("AutoOpen 默认应为 false")
+				t.Error("AutoOpen should default to false")
 			}
 		})
 	}
@@ -117,7 +117,7 @@ func TestNewServer(t *testing.T) {
 func TestListen_PortAlreadyInUse(t *testing.T) {
 	occupied, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("无法占用测试端口: %v", err)
+		t.Fatalf("failed to occupy test port: %v", err)
 	}
 	defer occupied.Close() //nolint:errcheck
 
@@ -126,17 +126,17 @@ func TestListen_PortAlreadyInUse(t *testing.T) {
 
 	_, err = srv.Listen()
 	if err == nil {
-		t.Fatal("预期 Listen 返回端口占用错误")
+		t.Fatal("expected Listen to return port-in-use error")
 	}
 	if !strings.Contains(err.Error(), "already in use") {
-		t.Fatalf("错误信息应包含端口占用提示, 实际: %v", err)
+		t.Fatalf("error should mention port in use, got: %v", err)
 	}
 }
 
 func TestListenFrom_SkipsOccupiedPort(t *testing.T) {
 	occupied, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("无法占用测试端口: %v", err)
+		t.Fatalf("failed to occupy test port: %v", err)
 	}
 	defer occupied.Close() //nolint:errcheck
 
@@ -145,18 +145,18 @@ func TestListenFrom_SkipsOccupiedPort(t *testing.T) {
 
 	ln, err := srv.ListenFrom(startPort)
 	if err != nil {
-		t.Fatalf("ListenFrom 返回错误: %v", err)
+		t.Fatalf("ListenFrom returned error: %v", err)
 	}
 	defer ln.Close() //nolint:errcheck
 
 	if srv.Port <= startPort {
-		t.Fatalf("应跳过已占用端口 %d, 实际使用 %d", startPort, srv.Port)
+		t.Fatalf("should skip occupied port %d, actually used %d", startPort, srv.Port)
 	}
 }
 
-// TestInjectLiveReload_HTMLFile 测试 HTML 文件中注入实时刷新脚本
+// TestInjectLiveReload_HTMLFile tests live-reload script injection in HTML files
 func TestInjectLiveReload_HTMLFile(t *testing.T) {
-	// 创建临时输出目录和 HTML 文件
+	// Create temp output directory and HTML file
 	outputDir := t.TempDir()
 	htmlContent := `<!DOCTYPE html>
 <html>
@@ -171,53 +171,53 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 
 	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
 
-	// 创建一个带注入中间件的 handler
+	// Create a handler with injection middleware
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	// 请求根路径（应该注入脚本）
+	// Request root path (should inject script)
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 
-	// 验证脚本被注入
+	// Verify script was injected
 	if !strings.Contains(body, "__mdpress_ws") {
-		t.Error("HTML 响应应包含 WebSocket 连接脚本")
+		t.Error("HTML response should contain WebSocket connection script")
 	}
 	if strings.Contains(body, "ws://localhost:8080") {
-		t.Error("HTML 响应不应硬编码 localhost WebSocket 地址")
+		t.Error("HTML response should not hardcode localhost WebSocket address")
 	}
 	if !strings.Contains(body, "window.location.host") {
-		t.Error("HTML 响应应基于当前访问地址建立 WebSocket 连接")
+		t.Error("HTML response should establish WebSocket connection based on current host")
 	}
 	if !strings.Contains(body, "location.reload()") {
-		t.Error("HTML 响应应包含自动刷新逻辑")
+		t.Error("HTML response should contain auto-reload logic")
 	}
 	if !strings.Contains(body, "mdpress-serve-panel") {
-		t.Error("HTML 响应应包含 serve 开发浮层脚本")
+		t.Error("HTML response should contain serve dev panel script")
 	}
 	if !strings.Contains(body, "build-start") {
-		t.Error("HTML 响应应包含 build-start 事件处理逻辑")
+		t.Error("HTML response should contain build-start event handling logic")
 	}
-	// 验证原始内容保留
+	// Verify original content is preserved
 	if !strings.Contains(body, "<h1>Hello</h1>") {
-		t.Error("原始 HTML 内容应保留")
+		t.Error("original HTML content should be preserved")
 	}
-	// 验证 Content-Type
+	// Verify Content-Type
 	ct := rec.Header().Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {
-		t.Errorf("Content-Type 应为 text/html, 实际 %q", ct)
+		t.Errorf("Content-Type should be text/html, got %q", ct)
 	}
-	// 验证 Cache-Control
+	// Verify Cache-Control
 	cc := rec.Header().Get("Cache-Control")
 	if cc != "no-cache" {
-		t.Errorf("Cache-Control 应为 no-cache, 实际 %q", cc)
+		t.Errorf("Cache-Control should be no-cache, got %q", cc)
 	}
 }
 
-// TestInjectLiveReload_NonHTML 测试非 HTML 文件不会被注入脚本
+// TestInjectLiveReload_NonHTML tests that non-HTML files are not injected with script
 func TestInjectLiveReload_NonHTML(t *testing.T) {
 	outputDir := t.TempDir()
 	cssContent := `body { color: red; }`
@@ -235,13 +235,13 @@ func TestInjectLiveReload_NonHTML(t *testing.T) {
 
 	body := rec.Body.String()
 
-	// 非 HTML 文件不应包含注入脚本
+	// Non-HTML files should not contain injected script
 	if strings.Contains(body, "__mdpress_ws") {
-		t.Error("非 HTML 文件不应包含 WebSocket 脚本")
+		t.Error("non-HTML files should not contain WebSocket script")
 	}
 }
 
-// TestInjectLiveReload_DirectoryPath 测试目录路径请求（以 / 结尾）
+// TestInjectLiveReload_DirectoryPath tests directory path requests (ending with /)
 func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	outputDir := t.TempDir()
 	subDir := filepath.Join(outputDir, "chapter1")
@@ -257,55 +257,55 @@ func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	// 请求以 / 结尾的路径
+	// Request path ending with /
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/chapter1/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, "__mdpress_ws") {
-		t.Error("目录路径请求的 HTML 也应注入脚本")
+		t.Error("HTML from directory path requests should also have script injected")
 	}
 }
 
-// TestHandleWebSocket 测试 WebSocket 连接处理
+// TestHandleWebSocket tests WebSocket connection handling
 func TestHandleWebSocket(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
-	// 创建测试服务器
+	// Create test server
 	ts := httptest.NewServer(http.HandlerFunc(srv.handleWebSocket))
 	defer ts.Close()
 
-	// 将 http:// 替换为 ws://
+	// Replace http:// with ws://
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
 
-	// 连接 WebSocket
+	// Connect WebSocket
 	dialer := websocket.DefaultDialer
 	conn, _, err := dialer.Dial(wsURL, nil)
 	if err != nil {
-		t.Fatalf("WebSocket 连接失败: %v", err)
+		t.Fatalf("WebSocket connection failed: %v", err)
 	}
 	defer conn.Close() //nolint:errcheck
 
-	// 读取连接确认消息
+	// Read connection acknowledgment message
 	_, msg, err := conn.ReadMessage()
 	if err != nil {
-		t.Fatalf("读取 WebSocket 消息失败: %v", err)
+		t.Fatalf("failed to read WebSocket message: %v", err)
 	}
 	if string(msg) != "connected" {
-		t.Errorf("期望收到 'connected'，实际收到 %q", string(msg))
+		t.Errorf("expected 'connected', got %q", string(msg))
 	}
 
-	// 验证客户端已注册
+	// Verify client was registered
 	srv.clientsMu.RLock()
 	clientCount := len(srv.clients)
 	srv.clientsMu.RUnlock()
 
 	if clientCount != 1 {
-		t.Errorf("应有 1 个客户端, 实际 %d", clientCount)
+		t.Errorf("expected 1 client, got %d", clientCount)
 	}
 
-	// 关闭连接后验证客户端被移除
+	// Verify client is removed after disconnection
 	conn.Close() //nolint:errcheck
 	waitForCondition(t, time.Second, func() bool {
 		srv.clientsMu.RLock()
@@ -318,11 +318,11 @@ func TestHandleWebSocket(t *testing.T) {
 	srv.clientsMu.RUnlock()
 
 	if clientCount != 0 {
-		t.Errorf("断开后应有 0 个客户端, 实际 %d", clientCount)
+		t.Errorf("expected 0 clients after disconnect, got %d", clientCount)
 	}
 }
 
-// TestNotifyClients 测试通知所有客户端
+// TestNotifyClients tests notifying all clients
 func TestNotifyClients(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
@@ -331,18 +331,18 @@ func TestNotifyClients(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
 
-	// 连接多个客户端
+	// Connect multiple clients
 	const numClients = 3
 	conns := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
-			t.Fatalf("客户端 %d 连接失败: %v", i, err)
+			t.Fatalf("client %d connection failed: %v", i, err)
 		}
 		conns[i] = conn
-		// 读取 "connected" 确认消息
+		// Read "connected" acknowledgment
 		if _, _, err := conn.ReadMessage(); err != nil {
-			t.Fatalf("客户端 %d 读取 connected 消息失败: %v", i, err)
+			t.Fatalf("client %d failed to read connected message: %v", i, err)
 		}
 	}
 	defer func() {
@@ -353,38 +353,38 @@ func TestNotifyClients(t *testing.T) {
 		}
 	}()
 
-	// 通知所有客户端
+	// Notify all clients
 	srv.notifyClients()
 
-	// 验证所有客户端都收到 "reload" 消息
+	// Verify all clients received "reload" message
 	for i, conn := range conns {
 		if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
-			t.Fatalf("客户端 %d 设置读取超时失败: %v", i, err)
+			t.Fatalf("client %d failed to set read deadline: %v", i, err)
 		}
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
-			t.Fatalf("客户端 %d 读取消息失败: %v", i, err)
+			t.Fatalf("client %d failed to read message: %v", i, err)
 		}
 		if !strings.Contains(string(msg), `"type":"reload"`) {
-			t.Errorf("客户端 %d 收到 %q, 期望包含 reload JSON 消息", i, string(msg))
+			t.Errorf("client %d got %q, expected reload JSON message", i, string(msg))
 		}
 	}
 }
 
-// TestNotifyClientsEmpty 测试没有客户端时通知不报错
+// TestNotifyClientsEmpty tests that notification with no clients does not error
 func TestNotifyClientsEmpty(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
-	// 不应 panic 或报错
+	// Should not panic or error
 	srv.notifyClients()
 }
 
-// TestNotifyClientsConcurrent 测试并发通知的安全性
-// 每个 wsClient 有独立的 writeMu，保证并发 notifyClients 不会导致
-// gorilla/websocket 并发写入 panic。
+// TestNotifyClientsConcurrent tests concurrent notification safety
+// Each wsClient has its own writeMu, ensuring concurrent notifyClients calls
+// do not cause gorilla/websocket concurrent write panics.
 func TestNotifyClientsConcurrent(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
-	// 测试无客户端时的并发安全性
+	// Test concurrency safety with no clients
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -396,7 +396,7 @@ func TestNotifyClientsConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
-// TestNotifyClientsConcurrentWithClients 测试有真实客户端连接时的并发写入安全性
+// TestNotifyClientsConcurrentWithClients tests concurrent write safety with real client connections
 func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
@@ -405,17 +405,17 @@ func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/"
 
-	// 连接多个客户端
+	// Connect multiple clients
 	const numClients = 3
 	conns := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
 		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 		if err != nil {
-			t.Fatalf("客户端 %d 连接失败: %v", i, err)
+			t.Fatalf("client %d connection failed: %v", i, err)
 		}
 		conns[i] = conn
-		if _, _, err := conn.ReadMessage(); err != nil { // 读取 "connected"
-			t.Fatalf("客户端 %d 读取 connected 消息失败: %v", i, err)
+		if _, _, err := conn.ReadMessage(); err != nil { // read "connected"
+			t.Fatalf("client %d failed to read connected message: %v", i, err)
 		}
 	}
 	defer func() {
@@ -426,7 +426,7 @@ func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 		}
 	}()
 
-	// 并发调用 notifyClients，验证 wsClient.writeMu 防止并发写入 panic
+	// Concurrently call notifyClients; verify wsClient.writeMu prevents concurrent write panics
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -438,11 +438,11 @@ func TestNotifyClientsConcurrentWithClients(t *testing.T) {
 	wg.Wait()
 }
 
-// TestScanModTimes 测试文件修改时间扫描
+// TestScanModTimes tests file modification time scanning
 func TestScanModTimes(t *testing.T) {
 	watchDir := t.TempDir()
 
-	// 创建测试文件
+	// Create test files
 	for name, content := range map[string]string{
 		"chapter1.md": "# Chapter 1",
 		"config.yaml": "title: test",
@@ -454,7 +454,7 @@ func TestScanModTimes(t *testing.T) {
 		}
 	}
 
-	// 创建隐藏目录（应被跳过）
+	// Create hidden directory (should be skipped)
 	hiddenDir := filepath.Join(watchDir, ".git")
 	if err := os.MkdirAll(hiddenDir, 0755); err != nil {
 		t.Fatalf("mkdir hidden dir failed: %v", err)
@@ -467,23 +467,23 @@ func TestScanModTimes(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// 应该扫描到 .md, .yaml, .css 文件
+	// Should scan .md, .yaml, .css files
 	if len(modTimes) != 3 {
-		t.Errorf("应扫描到 3 个文件, 实际 %d", len(modTimes))
+		t.Errorf("expected 3 scanned files, got %d", len(modTimes))
 		for k := range modTimes {
-			t.Logf("  文件: %s", k)
+			t.Logf("  file: %s", k)
 		}
 	}
 
-	// 验证不包含 .png 文件
+	// Verify .png files are excluded
 	for path := range modTimes {
 		if strings.HasSuffix(path, ".png") {
-			t.Errorf("不应包含 .png 文件: %s", path)
+			t.Errorf("should not include .png file: %s", path)
 		}
 	}
 }
 
-// TestCheckForChanges 测试文件变化检测
+// TestCheckForChanges tests file change detection
 func TestCheckForChanges(t *testing.T) {
 	watchDir := t.TempDir()
 	mdFile := filepath.Join(watchDir, "test.md")
@@ -493,20 +493,20 @@ func TestCheckForChanges(t *testing.T) {
 
 	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
 
-	// 初始扫描
+	// Initial scan
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// 没有变化时应返回 false
+	// Should return false when no changes
 	changed := srv.checkForChanges(modTimes)
 	if changed {
-		t.Error("无文件变化时应返回 false")
+		t.Error("should return false when no files changed")
 	}
 
-	// 修改文件
+	// Modify file
 	originalModTime, ok := modTimes[mdFile]
 	if !ok {
-		t.Fatalf("初始扫描未记录 %s", mdFile)
+		t.Fatalf("initial scan did not record %s", mdFile)
 	}
 	if err := os.WriteFile(mdFile, []byte("# Test Modified"), 0644); err != nil {
 		t.Fatalf("rewrite test.md failed: %v", err)
@@ -516,20 +516,20 @@ func TestCheckForChanges(t *testing.T) {
 		t.Fatalf("update test.md mod time failed: %v", err)
 	}
 
-	// 检测到变化
+	// Detect change
 	changed = srv.checkForChanges(modTimes)
 	if !changed {
-		t.Error("文件修改后应返回 true")
+		t.Error("should return true after file modification")
 	}
 
-	// 再次检查（modTimes 已更新）应返回 false
+	// Check again (modTimes updated) should return false
 	changed = srv.checkForChanges(modTimes)
 	if changed {
-		t.Error("modTimes 更新后应返回 false")
+		t.Error("should return false after modTimes updated")
 	}
 }
 
-// TestCheckForChanges_NewFile 测试新增文件检测
+// TestCheckForChanges_NewFile tests new file detection
 func TestCheckForChanges_NewFile(t *testing.T) {
 	watchDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(watchDir, "existing.md"), []byte("# Existing"), 0644); err != nil {
@@ -540,18 +540,18 @@ func TestCheckForChanges_NewFile(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// 新增一个文件
+	// Add a new file
 	if err := os.WriteFile(filepath.Join(watchDir, "new_file.md"), []byte("# New"), 0644); err != nil {
 		t.Fatalf("write new_file.md failed: %v", err)
 	}
 
 	changed := srv.checkForChanges(modTimes)
 	if !changed {
-		t.Error("新增文件后应返回 true")
+		t.Error("should return true after new file added")
 	}
 }
 
-// TestCheckForChanges_DeleteFile 测试删除文件检测
+// TestCheckForChanges_DeleteFile tests deleted file detection
 func TestCheckForChanges_DeleteFile(t *testing.T) {
 	watchDir := t.TempDir()
 	toDelete := filepath.Join(watchDir, "to_delete.md")
@@ -563,18 +563,18 @@ func TestCheckForChanges_DeleteFile(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// 删除文件
+	// Delete file
 	if err := os.Remove(toDelete); err != nil {
 		t.Fatalf("remove file failed: %v", err)
 	}
 
 	changed := srv.checkForChanges(modTimes)
 	if !changed {
-		t.Error("删除文件后应返回 true")
+		t.Error("should return true after file deleted")
 	}
 }
 
-// TestStartContextCancel 测试通过 context 取消来停止服务器
+// TestStartContextCancel tests stopping the server via context cancellation
 func TestStartContextCancel(t *testing.T) {
 	outputDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte("<html><body></body></html>"), 0644); err != nil {
@@ -586,18 +586,18 @@ func TestStartContextCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	// 端口 0 测试 Start 能正常退出（不 panic）
+	// Port 0 test: Start should exit cleanly when context is canceled.
 	err := srv.Start(ctx)
-	if err != nil {
-		t.Logf("Start 返回错误（预期的）: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "context") {
+		t.Fatalf("Start returned unexpected error: %v", err)
 	}
 }
 
-// TestScanModTimes_SkipNodeModules 测试跳过 node_modules 目录
+// TestScanModTimes_SkipNodeModules tests skipping node_modules directory
 func TestScanModTimes_SkipNodeModules(t *testing.T) {
 	watchDir := t.TempDir()
 
-	// 创建 node_modules 目录
+	// Create node_modules directory
 	nmDir := filepath.Join(watchDir, "node_modules")
 	if err := os.MkdirAll(nmDir, 0755); err != nil {
 		t.Fatalf("mkdir node_modules failed: %v", err)
@@ -606,7 +606,7 @@ func TestScanModTimes_SkipNodeModules(t *testing.T) {
 		t.Fatalf("write package.md failed: %v", err)
 	}
 
-	// 创建正常文件
+	// Create normal file
 	if err := os.WriteFile(filepath.Join(watchDir, "chapter.md"), []byte("# Chapter"), 0644); err != nil {
 		t.Fatalf("write chapter.md failed: %v", err)
 	}
@@ -615,13 +615,13 @@ func TestScanModTimes_SkipNodeModules(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// 应该只有 1 个文件（chapter.md），不包含 node_modules 下的文件
+	// Should only have 1 file (chapter.md), excluding node_modules
 	if len(modTimes) != 1 {
-		t.Errorf("应扫描到 1 个文件, 实际 %d", len(modTimes))
+		t.Errorf("expected 1 scanned file, got %d", len(modTimes))
 	}
 }
 
-// TestScanModTimes_SkipBookDir 测试跳过 _book 目录
+// TestScanModTimes_SkipBookDir tests skipping _book directory
 func TestScanModTimes_SkipBookDir(t *testing.T) {
 	watchDir := t.TempDir()
 
@@ -642,11 +642,11 @@ func TestScanModTimes_SkipBookDir(t *testing.T) {
 	srv.scanModTimes(modTimes)
 
 	if len(modTimes) != 1 {
-		t.Errorf("应扫描到 1 个文件, 实际 %d", len(modTimes))
+		t.Errorf("expected 1 scanned file, got %d", len(modTimes))
 	}
 }
 
-// TestScanModTimes_YAMLAndYML 测试同时识别 .yaml 和 .yml 扩展名
+// TestScanModTimes_YAMLAndYML tests recognizing both .yaml and .yml extensions
 func TestScanModTimes_YAMLAndYML(t *testing.T) {
 	watchDir := t.TempDir()
 
@@ -662,11 +662,11 @@ func TestScanModTimes_YAMLAndYML(t *testing.T) {
 	srv.scanModTimes(modTimes)
 
 	if len(modTimes) != 2 {
-		t.Errorf("应扫描到 2 个文件（.yaml 和 .yml）, 实际 %d", len(modTimes))
+		t.Errorf("expected 2 scanned files (.yaml and .yml), got %d", len(modTimes))
 	}
 }
 
-// TestInjectLiveReload_MissingFile 测试请求不存在的 HTML 文件
+// TestInjectLiveReload_MissingFile tests requesting a non-existent HTML file
 func TestInjectLiveReload_MissingFile(t *testing.T) {
 	outputDir := t.TempDir()
 
@@ -678,21 +678,21 @@ func TestInjectLiveReload_MissingFile(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	// 不应 panic，应返回 404 或由文件服务器处理
+	// Should not panic; should return 404 or be handled by file server
 	if rec.Code == http.StatusOK {
-		t.Error("不存在的文件不应返回 200")
+		t.Error("non-existent file should not return 200")
 	}
 }
 
-// TestNewServerDefaultLogger 测试 nil logger 时使用默认 logger
+// TestNewServerDefaultLogger tests that nil logger defaults to standard logger
 func TestNewServerDefaultLogger(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", nil)
 	if srv.logger == nil {
-		t.Error("传入 nil logger 时应使用默认 logger")
+		t.Error("should use default logger when nil is passed")
 	}
 }
 
-// TestBuildFuncIntegration 测试 BuildFunc 回调的集成
+// TestBuildFuncIntegration tests BuildFunc callback integration
 func TestBuildFuncIntegration(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
@@ -702,36 +702,36 @@ func TestBuildFuncIntegration(t *testing.T) {
 		return nil
 	}
 
-	// BuildFunc 不为 nil
+	// BuildFunc should not be nil
 	if srv.BuildFunc == nil {
-		t.Error("BuildFunc 应已设置")
+		t.Error("BuildFunc should be set")
 	}
 
-	// 手动调用
+	// Manual invocation
 	err := srv.BuildFunc()
 	if err != nil {
-		t.Errorf("BuildFunc 不应报错: %v", err)
+		t.Errorf("BuildFunc should not error: %v", err)
 	}
 	if !buildCalled {
-		t.Error("BuildFunc 应被调用")
+		t.Error("BuildFunc should have been called")
 	}
 }
 
-// TestBuildFuncError 测试 BuildFunc 返回错误
+// TestBuildFuncError tests BuildFunc returning an error
 func TestBuildFuncError(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
 
-	expectedErr := fmt.Errorf("构建失败")
+	expectedErr := fmt.Errorf("build failed")
 	srv.BuildFunc = func() error {
 		return expectedErr
 	}
 
 	err := srv.BuildFunc()
 	if err == nil {
-		t.Error("BuildFunc 应返回错误")
+		t.Error("BuildFunc should return error")
 	}
 	if err.Error() != expectedErr.Error() {
-		t.Errorf("错误消息不匹配: 得到 %q, 期望 %q", err.Error(), expectedErr.Error())
+		t.Errorf("error message mismatch: got %q, want %q", err.Error(), expectedErr.Error())
 	}
 }
 

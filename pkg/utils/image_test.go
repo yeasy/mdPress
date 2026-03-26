@@ -19,7 +19,7 @@ func disableSSRF(t *testing.T) {
 	t.Cleanup(EnableSSRFCheck)
 }
 
-// TestIsRemoteURL 测试远程 URL 判断
+// TestIsRemoteURL tests remote URL detection
 func TestIsRemoteURL(t *testing.T) {
 	tests := []struct {
 		input string
@@ -42,7 +42,7 @@ func TestIsRemoteURL(t *testing.T) {
 	}
 }
 
-// TestGetImageMIME 测试 MIME 类型推断
+// TestGetImageMIME tests MIME type inference
 func TestGetImageMIME(t *testing.T) {
 	tests := []struct {
 		path string
@@ -58,8 +58,8 @@ func TestGetImageMIME(t *testing.T) {
 		{"icon.ico", "image/x-icon"},
 		{"UPPER.PNG", "image/png"},
 		{"Photo.JPG", "image/jpeg"},
-		{"unknown.xyz", "image/png"}, // 默认
-		{"noext", "image/png"},       // 无扩展名
+		{"unknown.xyz", "image/png"}, // default
+		{"noext", "image/png"},       // no extension
 	}
 
 	for _, tt := range tests {
@@ -70,11 +70,11 @@ func TestGetImageMIME(t *testing.T) {
 	}
 }
 
-// TestImageToBase64 测试图片转 base64
+// TestImageToBase64 tests image to base64 conversion
 func TestImageToBase64(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 创建一个假 PNG 文件（PNG 文件头）
+	// Create a fake PNG file (PNG header)
 	pngHeader := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 	imgPath := filepath.Join(tmpDir, "test.png")
 	if err := os.WriteFile(imgPath, pngHeader, 0644); err != nil {
@@ -83,15 +83,15 @@ func TestImageToBase64(t *testing.T) {
 
 	dataURI, err := ImageToBase64(imgPath)
 	if err != nil {
-		t.Fatalf("转换 base64 失败: %v", err)
+		t.Fatalf("base64 conversion failed: %v", err)
 	}
 
 	if !strings.HasPrefix(dataURI, "data:image/png;base64,") {
-		t.Errorf("data URI 格式错误: %q", dataURI[:50])
+		t.Errorf("data URI format error: %q", dataURI[:50])
 	}
 }
 
-// TestImageToBase64JPEG 测试 JPEG 转 base64
+// TestImageToBase64JPEG tests JPEG to base64 conversion
 func TestImageToBase64JPEG(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "test.jpg")
@@ -101,11 +101,11 @@ func TestImageToBase64JPEG(t *testing.T) {
 
 	dataURI, err := ImageToBase64(imgPath)
 	if err != nil {
-		t.Fatalf("转换 base64 失败: %v", err)
+		t.Fatalf("base64 conversion failed: %v", err)
 	}
 
 	if !strings.HasPrefix(dataURI, "data:image/jpeg;base64,") {
-		t.Errorf("JPEG data URI 格式错误: %q", dataURI)
+		t.Errorf("JPEG data URI format error: %q", dataURI)
 	}
 }
 
@@ -119,27 +119,27 @@ func TestImageToBase64SVGWithoutExtension(t *testing.T) {
 
 	dataURI, err := ImageToBase64(imgPath)
 	if err != nil {
-		t.Fatalf("转换 base64 失败: %v", err)
+		t.Fatalf("base64 conversion failed: %v", err)
 	}
 
 	if !strings.HasPrefix(dataURI, "data:image/svg+xml;base64,") {
-		t.Errorf("SVG 无扩展名时 MIME 识别错误: %q", dataURI)
+		t.Errorf("SVG MIME detection failed for file without extension: %q", dataURI)
 	}
 }
 
-// TestImageToBase64NonExistent 测试不存在的图片
+// TestImageToBase64NonExistent tests non-existent image
 func TestImageToBase64NonExistent(t *testing.T) {
 	_, err := ImageToBase64("/nonexistent/image.png")
 	if err == nil {
-		t.Error("不存在的文件应返回错误")
+		t.Error("non-existent file should return an error")
 	}
 }
 
-// TestProcessImagesLocalEmbed 测试本地图片嵌入
+// TestProcessImagesLocalEmbed tests local image embedding
 func TestProcessImagesLocalEmbed(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 创建图片文件
+	// Create image file
 	imgPath := filepath.Join(tmpDir, "image.png")
 	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644); err != nil {
 		t.Fatalf("write image failed: %v", err)
@@ -148,18 +148,18 @@ func TestProcessImagesLocalEmbed(t *testing.T) {
 	html := `<img src="image.png">`
 	result, err := ProcessImages(html, tmpDir, true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
 	if !strings.Contains(result, "data:image/png;base64,") {
-		t.Error("本地图片应被嵌入为 base64")
+		t.Error("local image should be embedded as base64")
 	}
 	if strings.Contains(result, `src="image.png"`) {
-		t.Error("原始 src 应被替换")
+		t.Error("original src should be replaced")
 	}
 }
 
-// TestProcessImagesNoEmbed 测试不嵌入模式
+// TestProcessImagesNoEmbed tests no-embed mode
 func TestProcessImagesNoEmbed(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "image.png")
@@ -170,61 +170,61 @@ func TestProcessImagesNoEmbed(t *testing.T) {
 	html := `<img src="image.png">`
 	result, err := ProcessImages(html, tmpDir, false)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
-	// 不嵌入时应保持相对路径
+	// In no-embed mode, relative paths should be preserved
 	if strings.Contains(result, "data:image") {
-		t.Error("不嵌入模式下不应有 data URI")
+		t.Error("no-embed mode should not produce data URIs")
 	}
 }
 
-// TestProcessImagesDataURI 测试已有 data URI 的图片
+// TestProcessImagesDataURI tests images with existing data URI
 func TestProcessImagesDataURI(t *testing.T) {
 	html := `<img src="data:image/png;base64,abc123">`
 	result, err := ProcessImages(html, ".", true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
-	// 已有 data URI 应保持不变
+	// Existing data URI should remain unchanged
 	if result != html {
-		t.Error("已有 data URI 不应被修改")
+		t.Error("existing data URI should not be modified")
 	}
 }
 
-// TestProcessImagesRemoteURL 测试远程 URL 图片（不嵌入）
+// TestProcessImagesRemoteURL tests remote URL images (no embed)
 func TestProcessImagesRemoteURL(t *testing.T) {
 	html := `<img src="https://example.com/img.png">`
 	result, err := ProcessImages(html, ".", false)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
 	if result != html {
-		t.Error("不嵌入模式下远程 URL 应保持不变")
+		t.Error("remote URL should remain unchanged in no-embed mode")
 	}
 }
 
-// TestProcessImagesNonExistentLocal 测试引用不存在的本地图片
+// TestProcessImagesNonExistentLocal tests referencing non-existent local images
 func TestProcessImagesNonExistentLocal(t *testing.T) {
 	html := `<img src="nonexistent.png">`
 	result, err := ProcessImages(html, "/tmp", true)
 	if err != nil {
-		t.Fatalf("ProcessImages 不应因不存在的图片报错: %v", err)
+		t.Fatalf("ProcessImages should not error on non-existent image: %v", err)
 	}
 
-	// 不存在的文件应保持原样
+	// Non-existent file should remain unchanged
 	if result != html {
-		t.Error("不存在的图片路径应保持原样")
+		t.Error("non-existent image path should remain unchanged")
 	}
 }
 
-// TestProcessImagesMultiple 测试多个图片
+// TestProcessImagesMultiple tests multiple images
 func TestProcessImagesMultiple(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 创建两个图片
+	// Create two images
 	for _, name := range []string{"a.png", "b.jpg"} {
 		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte{1, 2, 3}, 0644); err != nil {
 			t.Fatalf("write image %s failed: %v", name, err)
@@ -234,16 +234,16 @@ func TestProcessImagesMultiple(t *testing.T) {
 	html := `<img src="a.png"><p>text</p><img src="b.jpg">`
 	result, err := ProcessImages(html, tmpDir, true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
 	count := strings.Count(result, "data:image")
 	if count != 2 {
-		t.Errorf("应有 2 个 base64 图片: got %d", count)
+		t.Errorf("expected 2 base64 images, got %d", count)
 	}
 }
 
-// TestProcessImagesWithAttributes 测试带属性的 img 标签
+// TestProcessImagesWithAttributes tests img tags with attributes
 func TestProcessImagesWithAttributes(t *testing.T) {
 	tmpDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(tmpDir, "img.png"), []byte{1, 2}, 0644); err != nil {
@@ -253,23 +253,23 @@ func TestProcessImagesWithAttributes(t *testing.T) {
 	html := `<img class="photo" src="img.png" alt="test" width="100">`
 	result, err := ProcessImages(html, tmpDir, true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
 	if !strings.Contains(result, "data:image") {
-		t.Error("带属性的 img 标签也应被处理")
+		t.Error("img tags with attributes should also be processed")
 	}
 }
 
-// TestProcessImagesNoImages 测试无图片的 HTML
+// TestProcessImagesNoImages tests HTML without images
 func TestProcessImagesNoImages(t *testing.T) {
 	html := `<p>No images here</p><div>Just text</div>`
 	result, err := ProcessImages(html, ".", true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 	if result != html {
-		t.Error("无图片的 HTML 不应被修改")
+		t.Error("HTML without images should not be modified")
 	}
 }
 
@@ -314,18 +314,18 @@ func TestDownloadImageUsesCacheOnRepeatedRequests(t *testing.T) {
 	destDir := t.TempDir()
 	first, err := DownloadImage(server.URL+"/badge", destDir)
 	if err != nil {
-		t.Fatalf("第一次下载失败: %v", err)
+		t.Fatalf("first download failed: %v", err)
 	}
 	second, err := DownloadImage(server.URL+"/badge", destDir)
 	if err != nil {
-		t.Fatalf("第二次下载失败: %v", err)
+		t.Fatalf("second download failed: %v", err)
 	}
 
 	if first != second {
-		t.Fatalf("缓存文件路径不一致: %q vs %q", first, second)
+		t.Fatalf("cached file paths differ: %q vs %q", first, second)
 	}
 	if got := atomic.LoadInt32(&hits); got != 1 {
-		t.Fatalf("应只命中远程服务一次，实际 %d 次", got)
+		t.Fatalf("expected remote server to be hit once, got %d times", got)
 	}
 }
 
@@ -356,17 +356,17 @@ func TestProcessImagesWithOptionsUsesFileURLsAndDedupesRemoteDownloads(t *testin
 		MaxConcurrentDownloads: 4,
 	})
 	if err != nil {
-		t.Fatalf("ProcessImagesWithOptions 失败: %v", err)
+		t.Fatalf("ProcessImagesWithOptions failed: %v", err)
 	}
 
 	if strings.Count(result, `src="file://`) != 3 {
-		t.Fatalf("应将所有图片改写为 file:// URL，实际结果: %s", result)
+		t.Fatalf("expected all images rewritten to file:// URLs, got: %s", result)
 	}
 	if strings.Contains(result, "data:image") {
-		t.Fatal("file URL 模式下不应嵌入 base64")
+		t.Fatal("file URL mode should not embed base64")
 	}
 	if got := atomic.LoadInt32(&hits); got != 1 {
-		t.Fatalf("重复远程 URL 应只下载一次，实际 %d 次", got)
+		t.Fatalf("duplicate remote URLs should be downloaded only once, got %d times", got)
 	}
 }
 

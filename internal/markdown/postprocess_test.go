@@ -8,7 +8,7 @@ import (
 // ===== GFM Alerts =====
 
 func TestProcessAlertNote(t *testing.T) {
-	// goldmark 把 > [!NOTE]\n> text 渲染成:
+	// goldmark renders > [!NOTE]\n> text as:
 	input := "<blockquote>\n<p>[!NOTE]\nThis is important.</p>\n</blockquote>"
 	result := PostProcess(input)
 
@@ -112,8 +112,10 @@ func TestProcessMermaidBasic(t *testing.T) {
 	if !strings.Contains(result, `class="mermaid"`) {
 		t.Error("should have mermaid class div")
 	}
-	if !strings.Contains(result, "A-->B") {
-		t.Error("HTML entities should be decoded")
+	// After XSS fix, entities are re-escaped for safe HTML embedding.
+	// Mermaid.js reads textContent, so escaped entities render correctly.
+	if !strings.Contains(result, "A--&gt;B") {
+		t.Error("mermaid content should be HTML-escaped for safety")
 	}
 }
 
@@ -123,8 +125,9 @@ func TestProcessMermaidSequenceDiagram(t *testing.T) {
     Bob-&gt;&gt;Alice: Hi</code></pre>`
 	result := PostProcess(input)
 
-	if !strings.Contains(result, "Alice->>Bob") {
-		t.Error("should decode entities in sequence diagram")
+	// After XSS fix, entities are re-escaped for safe HTML embedding.
+	if !strings.Contains(result, "Alice-&gt;&gt;Bob") {
+		t.Error("mermaid content should be HTML-escaped for safety")
 	}
 }
 

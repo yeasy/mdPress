@@ -152,11 +152,10 @@ func TestReportBuildIssues_VerboseMode(t *testing.T) {
 
 	// In verbose mode, should log each issue individually
 	if !strings.Contains(output, "document issue detected") {
-		t.Logf("Verbose output: %s", output)
-		// Verbose output shows individual warnings
+		t.Errorf("Expected 'document issue detected' in verbose output, got: %s", output)
 	}
 	if !strings.Contains(output, "file1.md") {
-		t.Logf("Expected file reference, got: %s", output)
+		t.Errorf("Expected file reference 'file1.md', got: %s", output)
 	}
 }
 
@@ -181,7 +180,7 @@ func TestReportBuildIssues_NonVerboseMode(t *testing.T) {
 
 	// In non-verbose mode, should summarize
 	if !strings.Contains(output, "document issue") {
-		t.Logf("Non-verbose output: %s", output)
+		t.Errorf("Expected 'document issue' in non-verbose output, got: %s", output)
 	}
 }
 
@@ -213,7 +212,7 @@ func TestReportBuildIssues_ManyTitleStyleIssues(t *testing.T) {
 
 	// Should show summarized message when count > 10
 	if !strings.Contains(output, "chapter title style inconsistencies") {
-		t.Logf("Expected summarized message, got: %s", output)
+		t.Errorf("Expected summarized message 'chapter title style inconsistencies', got: %s", output)
 	}
 }
 
@@ -245,7 +244,7 @@ func TestReportBuildIssues_FewerTitleStyleIssues(t *testing.T) {
 
 	// Should show individual issues when count <= 10
 	if !strings.Contains(output, "chapter0.md") {
-		t.Logf("Expected individual issues shown, got: %s", output)
+		t.Errorf("Expected individual issues shown (chapter0.md), got: %s", output)
 	}
 }
 
@@ -271,7 +270,7 @@ func TestReportBuildIssues_MixedIssues(t *testing.T) {
 
 	// Should show non-title-style issues
 	if !strings.Contains(output, "other-rule") && !strings.Contains(output, "intro.md") {
-		t.Logf("Expected other-rule to be shown: %s", output)
+		t.Errorf("Expected other-rule or intro.md to be shown, got: %s", output)
 	}
 }
 
@@ -304,7 +303,7 @@ func TestReportBuildIssues_VerboseShowsAll(t *testing.T) {
 	// In verbose mode, should show all issues individually
 	// and also the summary
 	if !strings.Contains(output, "document issue detected") {
-		t.Logf("Expected verbose detail output: %s", output)
+		t.Errorf("Expected 'document issue detected' in verbose output, got: %s", output)
 	}
 }
 
@@ -417,6 +416,6 @@ func TestReportBuildIssues_SuppressVerboseLog(t *testing.T) {
 
 	// With only 3 issues, should show all (not summarized)
 	if !strings.Contains(output, "ch1.md") {
-		t.Logf("Expected ch1.md to be shown: %s", output)
+		t.Errorf("Expected ch1.md to be shown, got: %s", output)
 	}
 }

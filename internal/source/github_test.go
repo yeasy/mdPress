@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestNewGitHubSource 测试 GitHub 源创建
+// TestNewGitHubSource tests GitHub source creation
 func TestNewGitHubSource(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -14,31 +14,31 @@ func TestNewGitHubSource(t *testing.T) {
 		opts  Options
 	}{
 		{
-			name:  "基本 GitHub 源",
+			name:  "basic GitHub source",
 			owner: "golang",
 			repo:  "go",
 			opts:  Options{},
 		},
 		{
-			name:  "带分支选项",
+			name:  "with branch option",
 			owner: "python",
 			repo:  "cpython",
 			opts:  Options{Branch: "main"},
 		},
 		{
-			name:  "带子目录选项",
+			name:  "with subdirectory option",
 			owner: "nodejs",
 			repo:  "node",
 			opts:  Options{SubDir: "docs"},
 		},
 		{
-			name:  "带多个选项",
+			name:  "with multiple options",
 			owner: "kubernetes",
 			repo:  "kubernetes",
 			opts:  Options{Branch: "release-1.29", SubDir: "docs"},
 		},
 		{
-			name:  "特殊字符在 owner",
+			name:  "special characters in owner",
 			owner: "my-org",
 			repo:  "repo_name",
 			opts:  Options{},
@@ -65,7 +65,7 @@ func TestNewGitHubSource(t *testing.T) {
 				t.Errorf("opts = %v, want %v", src.opts, tt.opts)
 			}
 
-			// tempDir 应该初始为空
+			// tempDir should be empty initially
 			if src.tempDir != "" {
 				t.Errorf("tempDir should be empty initially, got %q", src.tempDir)
 			}
@@ -73,7 +73,7 @@ func TestNewGitHubSource(t *testing.T) {
 	}
 }
 
-// TestGitHubSourceType 测试 GitHub 源类型
+// TestGitHubSourceType tests GitHub source type
 func TestGitHubSourceType(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 	if src.Type() != "github" {
@@ -81,7 +81,7 @@ func TestGitHubSourceType(t *testing.T) {
 	}
 }
 
-// TestGitHubSourceRepoName 测试仓库全名格式
+// TestGitHubSourceRepoName tests repository full name format
 func TestGitHubSourceRepoName(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -90,25 +90,25 @@ func TestGitHubSourceRepoName(t *testing.T) {
 		wantName string
 	}{
 		{
-			name:     "基本格式",
+			name:     "basic format",
 			owner:    "golang",
 			repo:     "go",
 			wantName: "golang/go",
 		},
 		{
-			name:     "特殊字符",
+			name:     "special characters",
 			owner:    "my-org",
 			repo:     "my_repo-v2",
 			wantName: "my-org/my_repo-v2",
 		},
 		{
-			name:     "数字",
+			name:     "numbers",
 			owner:    "org123",
 			repo:     "repo456",
 			wantName: "org123/repo456",
 		},
 		{
-			name:     "大写字母",
+			name:     "uppercase letters",
 			owner:    "MyOrg",
 			repo:     "MyRepo",
 			wantName: "MyOrg/MyRepo",
@@ -127,14 +127,14 @@ func TestGitHubSourceRepoName(t *testing.T) {
 	}
 }
 
-// TestGitHubSourceCleanupNoTempDir 测试未设置 tempDir 的清理
+// TestGitHubSourceCleanupNoTempDir tests cleanup when tempDir is unset
 func TestGitHubSourceCleanupNoTempDir(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 
-	// 不调用 Prepare，因此 tempDir 应该为空
+	// Prepare is not called, so tempDir should be empty
 	err := src.Cleanup()
 
-	// 应该安全返回 nil，不会尝试删除不存在的目录
+	// Should safely return nil without attempting to remove a non-existent directory
 	if err != nil {
 		t.Errorf("Cleanup() should return nil when tempDir is empty, got %v", err)
 	}
@@ -144,43 +144,43 @@ func TestGitHubSourceCleanupNoTempDir(t *testing.T) {
 	}
 }
 
-// TestGitHubSourceCleanupMultipleCalls 测试多次清理调用的安全性
+// TestGitHubSourceCleanupMultipleCalls tests safety of multiple cleanup calls
 func TestGitHubSourceCleanupMultipleCalls(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 
-	// 创建临时目录模拟 Prepare 的结果
+	// Create temp directory to simulate Prepare result
 	tempDir := t.TempDir()
 	src.tempDir = tempDir
 
-	// 验证目录存在
+	// Verify directory exists
 	if _, err := os.Stat(tempDir); err != nil {
 		t.Fatalf("Test setup failed: %v", err)
 	}
 
-	// 第一次清理应该成功
+	// First cleanup should succeed
 	err := src.Cleanup()
 	if err != nil {
 		t.Errorf("First Cleanup() failed: %v", err)
 	}
 
-	// 验证 tempDir 已清空
+	// Verify tempDir was cleared
 	if src.tempDir != "" {
 		t.Errorf("tempDir should be empty after Cleanup(), got %q", src.tempDir)
 	}
 
-	// 第二次清理应该安全返回 nil（目录已删除）
+	// Second cleanup should safely return nil (directory already removed)
 	err = src.Cleanup()
 	if err != nil {
 		t.Errorf("Second Cleanup() should safely return nil, got %v", err)
 	}
 }
 
-// TestGitHubSourceFields 测试 GitHub 源的字段访问
+// TestGitHubSourceFields tests GitHub source field access
 func TestGitHubSourceFields(t *testing.T) {
 	opts := Options{Branch: "dev", SubDir: "src"}
 	src := NewGitHubSource("test-owner", "test-repo", opts)
 
-	// 通过公共方法验证字段
+	// Verify fields via public methods
 	if src.Type() != "github" {
 		t.Error("Type() failed")
 	}
@@ -189,7 +189,7 @@ func TestGitHubSourceFields(t *testing.T) {
 		t.Error("RepoName() failed")
 	}
 
-	// opts 应该被保存
+	// opts should be saved
 	if src.opts.Branch != "dev" {
 		t.Errorf("Branch option not saved, got %q", src.opts.Branch)
 	}
@@ -199,30 +199,30 @@ func TestGitHubSourceFields(t *testing.T) {
 	}
 }
 
-// TestGitHubSourceCleanupWithInvalidTempDir 测试清理无效的临时目录
+// TestGitHubSourceCleanupWithInvalidTempDir tests cleanup with invalid temp directory
 func TestGitHubSourceCleanupWithInvalidTempDir(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 
-	// 设置一个已经不存在的临时目录路径
+	// Set a temp directory path that no longer exists
 	src.tempDir = "/nonexistent/temp/dir/that/should/not/exist"
 
-	// 尝试清理不存在的目录
-	// 根据实现，os.RemoveAll 对不存在的目录返回 nil
+	// Attempt to clean up a non-existent directory
+	// Per implementation, os.RemoveAll returns nil for non-existent directories
 	err := src.Cleanup()
 
-	// 应该返回 nil（os.RemoveAll 的行为）或相应的错误
-	// 这里我们检查实现的行为是合理的
+	// Should return nil (os.RemoveAll behavior) or an appropriate error
+	// Here we verify the implementation's behavior is reasonable
 	if err != nil {
-		t.Logf("Cleanup() with invalid dir: %v", err)
+		t.Errorf("Cleanup() with invalid dir should not error: %v", err)
 	}
 
-	// tempDir 应该被清空
-	if src.tempDir == "" {
-		t.Log("tempDir properly cleared after Cleanup()")
+	// tempDir should be cleared
+	if src.tempDir != "" {
+		t.Errorf("tempDir should be cleared after Cleanup(), got %q", src.tempDir)
 	}
 }
 
-// TestGitHubSourceEdgeCases 测试边界情况
+// TestGitHubSourceEdgeCases tests edge cases
 func TestGitHubSourceEdgeCases(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -230,22 +230,22 @@ func TestGitHubSourceEdgeCases(t *testing.T) {
 		repo  string
 	}{
 		{
-			name:  "空字符串 owner",
+			name:  "empty string owner",
 			owner: "",
 			repo:  "repo",
 		},
 		{
-			name:  "空字符串 repo",
+			name:  "empty string repo",
 			owner: "owner",
 			repo:  "",
 		},
 		{
-			name:  "两个都空",
+			name:  "both empty",
 			owner: "",
 			repo:  "",
 		},
 		{
-			name:  "仅空格",
+			name:  "spaces only",
 			owner: "  ",
 			repo:  "  ",
 		},

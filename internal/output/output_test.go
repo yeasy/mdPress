@@ -112,14 +112,19 @@ func TestRegistry_Register_Replace(t *testing.T) {
 
 func TestRegistry_Register_NilFormat(t *testing.T) {
 	reg := NewRegistry()
-	// This should not panic, but behavior may vary
-	// Most implementations would skip or handle gracefully
-	defer func() {
-		if r := recover(); r != nil {
-			t.Logf("panic on nil register: %v (expected behavior)", r)
-		}
+	// Registering nil should panic because the implementation calls f.Name().
+	panicked := false
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = true
+			}
+		}()
+		reg.Register(nil)
 	}()
-	reg.Register(nil)
+	if !panicked {
+		t.Error("expected Register(nil) to panic, but it did not")
+	}
 }
 
 // ---------------------------------------------------------------------------

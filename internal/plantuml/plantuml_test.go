@@ -130,7 +130,7 @@ func TestRenderHTML(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	renderer := NewRenderer(mockServer.URL, false)
+	renderer := newRendererNoValidation(mockServer.URL, false)
 
 	tests := []struct {
 		name     string
@@ -255,7 +255,7 @@ func TestCaching(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	renderer := NewRenderer(mockServer.URL, false)
+	renderer := newRendererNoValidation(mockServer.URL, false)
 	ctx := context.Background()
 
 	code := "Alice -> Bob: Hello"
@@ -295,7 +295,7 @@ func TestVariousDiagramTypes(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	renderer := NewRenderer(mockServer.URL, false)
+	renderer := newRendererNoValidation(mockServer.URL, false)
 
 	diagrams := map[string]string{
 		"sequence": `Alice -> Bob: Hello
@@ -338,7 +338,7 @@ func TestServerError(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	renderer := NewRenderer(mockServer.URL, false)
+	renderer := newRendererNoValidation(mockServer.URL, false)
 	ctx := context.Background()
 
 	html := `<pre><code class="language-plantuml">Alice -> Bob</code></pre>`
@@ -365,7 +365,7 @@ func TestWhitespaceHandling(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	renderer := NewRenderer(mockServer.URL, false)
+	renderer := newRendererNoValidation(mockServer.URL, false)
 	ctx := context.Background()
 
 	html := `<pre><code class="language-plantuml">
@@ -443,7 +443,7 @@ func TestRenderLocalNotFound(t *testing.T) {
 	t.Setenv("PATH", dir)
 
 	ctx := context.Background()
-	r := NewRenderer("", true)
+	r := newRendererNoValidation("", true)
 	_, err := r.renderLocal(ctx, "Alice -> Bob")
 	if err == nil {
 		t.Fatal("expected an error when plantuml is not available")
@@ -472,7 +472,7 @@ func TestRenderLocalWithFakePlantuml(t *testing.T) {
 	t.Setenv("PATH", dir)
 
 	ctx := context.Background()
-	r := NewRenderer("", true)
+	r := newRendererNoValidation("", true)
 	svg, err := r.renderLocal(ctx, "Alice -> Bob: Hello")
 	if err != nil {
 		t.Fatalf("renderLocal failed: %v", err)

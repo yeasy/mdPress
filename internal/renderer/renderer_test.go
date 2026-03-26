@@ -21,34 +21,34 @@ func newTestTheme() *theme.Theme {
 	return thm
 }
 
-// TestNewHTMLRenderer 测试创建渲染器
+// TestNewHTMLRenderer tests creating a renderer
 func TestNewHTMLRenderer(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	if r == nil {
-		t.Fatal("NewHTMLRenderer 返回 nil")
+		t.Fatal("NewHTMLRenderer returned nil")
 	}
 }
 
-// TestRenderEmpty 测试渲染空部件
+// TestRenderEmpty tests rendering nil parts
 func TestRenderEmpty(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	_, err = r.Render(nil)
 	if err == nil {
-		t.Error("nil 部件应返回错误")
+		t.Error("nil parts should return an error")
 	}
 }
 
-// TestRenderBasic 测试基本渲染
+// TestRenderBasic tests basic rendering
 func TestRenderBasic(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CoverHTML: "<div>cover</div>",
@@ -59,38 +59,38 @@ func TestRenderBasic(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "<!DOCTYPE html>") {
-		t.Error("应包含 DOCTYPE 声明")
+		t.Error("should contain DOCTYPE declaration")
 	}
 	if !strings.Contains(html, `lang="zh-CN"`) {
-		t.Error("PDF HTML 应带书籍语言 lang 属性")
+		t.Error("PDF HTML should have book language lang attribute")
 	}
 	if !strings.Contains(html, "测试图书") {
-		t.Error("应包含书名")
+		t.Error("should contain book title")
 	}
 	if !strings.Contains(html, "测试作者") {
-		t.Error("应包含作者名")
+		t.Error("should contain author name")
 	}
 	// Brand footer appears only inside the cover-page div.
 	if !strings.Contains(html, `Build with md<span class="brand-accent">Press</span>`) {
-		t.Error("应包含默认品牌页脚（封面内）")
+		t.Error("should contain default brand footer (in cover)")
 	}
 	if !strings.Contains(html, "第一章") {
-		t.Error("应包含章节标题")
+		t.Error("should contain chapter title")
 	}
 	if !strings.Contains(html, "<p>内容</p>") {
-		t.Error("应包含章节内容")
+		t.Error("should contain chapter content")
 	}
 }
 
-// TestRenderWithCover 测试带封面渲染
+// TestRenderWithCover tests rendering with cover
 func TestRenderWithCover(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CoverHTML: `<div class="test-cover">封面</div>`,
@@ -101,19 +101,19 @@ func TestRenderWithCover(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "test-cover") {
-		t.Error("应包含封面内容")
+		t.Error("should contain cover content")
 	}
 }
 
-// TestRenderWithTOC 测试带目录渲染
+// TestRenderWithTOC tests rendering with TOC
 func TestRenderWithTOC(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		TOCHTML: `<nav class="toc"><ul><li>Chapter 1</li></ul></nav>`,
@@ -124,19 +124,19 @@ func TestRenderWithTOC(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "toc") {
-		t.Error("应包含目录内容")
+		t.Error("should contain TOC content")
 	}
 }
 
-// TestRenderMultipleChapters 测试多章节渲染
+// TestRenderMultipleChapters tests multi-chapter rendering
 func TestRenderMultipleChapters(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -148,24 +148,24 @@ func TestRenderMultipleChapters(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "Chapter 1") {
-		t.Error("应包含第一章内容")
+		t.Error("should contain chapter 1 content")
 	}
 	if !strings.Contains(html, "Chapter 2") {
-		t.Error("应包含第二章内容")
+		t.Error("should contain chapter 2 content")
 	}
 	if !strings.Contains(html, "Chapter 3") {
-		t.Error("应包含第三章内容")
+		t.Error("should contain chapter 3 content")
 	}
 }
 
 func TestStandaloneRenderNestedSidebar(t *testing.T) {
 	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewStandaloneHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -188,27 +188,27 @@ func TestStandaloneRenderNestedSidebar(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("单页 HTML 渲染失败: %v", err)
+		t.Fatalf("standalone HTML render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "toc-group") {
-		t.Error("侧边栏应包含可折叠章节分组")
+		t.Error("sidebar should contain collapsible chapter group")
 	}
 	if !strings.Contains(html, "data-group-link=\"true\"") {
-		t.Error("章节链接应标记为可折叠分组")
+		t.Error("chapter link should be marked as collapsible group")
 	}
 	if !strings.Contains(html, "href=\"#sec-1\"") {
-		t.Error("侧边栏应包含章节内标题锚点")
+		t.Error("sidebar should contain in-chapter heading anchors")
 	}
 	if !strings.Contains(html, "细节") {
-		t.Error("侧边栏应渲染嵌套标题")
+		t.Error("sidebar should render nested headings")
 	}
 }
 
 func TestStandaloneRenderNestedChapterTree(t *testing.T) {
 	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewStandaloneHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -221,28 +221,28 @@ func TestStandaloneRenderNestedChapterTree(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("单页 HTML 渲染失败: %v", err)
+		t.Fatalf("standalone HTML render failed: %v", err)
 	}
 
 	if !strings.Contains(html, `data-group-id="ch1"`) {
-		t.Fatal("应包含第一章分组")
+		t.Fatal("should contain chapter 1 group")
 	}
 	if !strings.Contains(html, `data-group-id="ch1-1"`) {
-		t.Fatal("应包含子章节分组")
+		t.Fatal("should contain sub-chapter group")
 	}
 	ch1Idx := strings.Index(html, `data-group-id="ch1"`)
 	ch11Idx := strings.Index(html, `data-group-id="ch1-1"`)
 	ch2Idx := strings.Index(html, `data-group-id="ch2"`)
 	if ch1Idx < 0 || ch11Idx <= ch1Idx || ch2Idx <= ch11Idx {
-		t.Fatalf("子章节应渲染在父章节分组内部，索引: ch1=%d ch1-1=%d ch2=%d", ch1Idx, ch11Idx, ch2Idx)
+		t.Fatalf("sub-chapters should render inside parent chapter group, indices: ch1=%d ch1-1=%d ch2=%d", ch1Idx, ch11Idx, ch2Idx)
 	}
 }
 
-// TestRenderWithCustomCSS 测试自定义 CSS
+// TestRenderWithCustomCSS tests custom CSS
 func TestRenderWithCustomCSS(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CustomCSS: ".custom-class { color: red; }",
@@ -253,19 +253,19 @@ func TestRenderWithCustomCSS(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, ".custom-class") {
-		t.Error("应包含自定义 CSS")
+		t.Error("should contain custom CSS")
 	}
 }
 
-// TestRenderIncludesThemeCSS 测试包含主题 CSS
+// TestRenderIncludesThemeCSS tests inclusion of theme CSS
 func TestRenderIncludesThemeCSS(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -275,19 +275,19 @@ func TestRenderIncludesThemeCSS(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "--font-family") {
-		t.Error("应包含主题 CSS 变量")
+		t.Error("should contain theme CSS variables")
 	}
 }
 
-// TestRenderHTMLValidity 测试 HTML 结构完整性
+// TestRenderHTMLValidity tests HTML structural validity
 func TestRenderHTMLValidity(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CoverHTML: "<div>Cover</div>",
@@ -299,7 +299,7 @@ func TestRenderHTMLValidity(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	requiredTags := []string{
@@ -316,19 +316,19 @@ func TestRenderHTMLValidity(t *testing.T) {
 
 	for _, tag := range requiredTags {
 		if !strings.Contains(html, tag) {
-			t.Errorf("HTML 应包含 %q", tag)
+			t.Errorf("HTML should contain %q", tag)
 		}
 	}
 }
 
-// TestRenderPrintCSS 测试打印 CSS
+// TestRenderPrintCSS tests print CSS
 func TestRenderPrintCSS(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = "Letter"
 
 	r, err := NewHTMLRenderer(cfg, newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -338,22 +338,22 @@ func TestRenderPrintCSS(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	if !strings.Contains(html, "@page") {
-		t.Error("应包含 @page 规则")
+		t.Error("should contain @page rule")
 	}
 	if !strings.Contains(html, "Letter") {
-		t.Error("应包含指定的页面尺寸 Letter")
+		t.Error("should contain specified page size Letter")
 	}
 }
 
-// TestRenderNilTheme 测试空主题
+// TestRenderNilTheme tests nil theme
 func TestRenderNilTheme(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), nil)
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -361,51 +361,51 @@ func TestRenderNilTheme(t *testing.T) {
 		},
 	}
 
-	// 不应 panic
+	// Should not panic
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("空主题渲染不应报错: %v", err)
+		t.Fatalf("nil theme render should not error: %v", err)
 	}
 	if html == "" {
-		t.Error("即使无主题也应生成 HTML")
+		t.Error("should generate HTML even without a theme")
 	}
 }
 
-// TestRenderEmptyChapters 测试空章节切片（非 nil）
+// TestRenderEmptyChapters tests empty chapter slice (non-nil)
 func TestRenderEmptyChapters(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CoverHTML:    "<div>Cover</div>",
 		TOCHTML:      "<div>TOC</div>",
-		ChaptersHTML: []ChapterHTML{}, // 空切片，非 nil
+		ChaptersHTML: []ChapterHTML{}, // empty slice, not nil
 		CustomCSS:    "",
 	}
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("空章节列表渲染失败: %v", err)
+		t.Fatalf("empty chapter list render failed: %v", err)
 	}
 
-	// 应包含封面和目录，但无章节内容
+	// Should contain cover and TOC but no chapter content
 	if !strings.Contains(html, "Cover") {
-		t.Error("应包含封面")
+		t.Error("should contain cover")
 	}
 	if !strings.Contains(html, "TOC") {
-		t.Error("应包含目录")
+		t.Error("should contain TOC")
 	}
 	if !strings.Contains(html, "<!DOCTYPE html>") {
-		t.Error("应包含有效的 HTML")
+		t.Error("should contain valid HTML")
 	}
 }
 
-// TestRenderWithAllParts 测试包含所有部分的渲染：封面、目录、章节和自定义 CSS
+// TestRenderWithAllParts tests rendering with all parts: cover, TOC, chapters, and custom CSS
 func TestRenderWithAllParts(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		CoverHTML: `<div class="cover-section"><h1>书籍封面</h1></div>`,
@@ -426,66 +426,66 @@ func TestRenderWithAllParts(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("完整部分渲染失败: %v", err)
+		t.Fatalf("full parts render failed: %v", err)
 	}
 
-	// 验证所有部分都存在
+	// Verify all parts are present
 	if !strings.Contains(html, "书籍封面") {
-		t.Error("应包含封面标题")
+		t.Error("should contain cover title")
 	}
 	if !strings.Contains(html, "cover-section") {
-		t.Error("应包含封面类名")
+		t.Error("should contain cover class name")
 	}
 	if !strings.Contains(html, "toc") {
-		t.Error("应包含目录导航")
+		t.Error("should contain TOC navigation")
 	}
 	if !strings.Contains(html, "第一章") {
-		t.Error("应包含第一章")
+		t.Error("should contain chapter 1")
 	}
 	if !strings.Contains(html, "第二章") {
-		t.Error("应包含第二章")
+		t.Error("should contain chapter 2")
 	}
 	if !strings.Contains(html, "这是第一章的内容") {
-		t.Error("应包含第一章内容")
+		t.Error("should contain chapter 1 content")
 	}
 	if !strings.Contains(html, ".custom-heading") {
-		t.Error("应包含自定义 CSS - custom-heading")
+		t.Error("should contain custom CSS - custom-heading")
 	}
 	if !strings.Contains(html, ".custom-text") {
-		t.Error("应包含自定义 CSS - custom-text")
+		t.Error("should contain custom CSS - custom-text")
 	}
 }
 
-// TestRenderPageSizeVariations 表驱动测试不同页面大小
+// TestRenderPageSizeVariations table-driven tests for different page sizes
 func TestRenderPageSizeVariations(t *testing.T) {
-	// 页面大小测试案例
+	// Page size test cases
 	testCases := []struct {
 		name     string
 		pageSize string
 		expected string
 	}{
 		{
-			name:     "A4 页面大小",
+			name:     "A4 page size",
 			pageSize: "A4",
 			expected: "size: A4",
 		},
 		{
-			name:     "Letter 页面大小",
+			name:     "Letter page size",
 			pageSize: "Letter",
 			expected: "size: Letter",
 		},
 		{
-			name:     "A5 页面大小",
+			name:     "A5 page size",
 			pageSize: "A5",
 			expected: "size: A5",
 		},
 		{
-			name:     "Legal 页面大小",
+			name:     "Legal page size",
 			pageSize: "Legal",
 			expected: "size: Legal",
 		},
 		{
-			name:     "B5 页面大小",
+			name:     "B5 page size",
 			pageSize: "B5",
 			expected: "size: B5",
 		},
@@ -498,7 +498,7 @@ func TestRenderPageSizeVariations(t *testing.T) {
 
 			r, err := NewHTMLRenderer(cfg, newTestTheme())
 			if err != nil {
-				t.Fatalf("NewHTMLRenderer 失败: %v", err)
+				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
 			parts := &RenderParts{
 				ChaptersHTML: []ChapterHTML{
@@ -508,17 +508,17 @@ func TestRenderPageSizeVariations(t *testing.T) {
 
 			html, err := r.Render(parts)
 			if err != nil {
-				t.Fatalf("渲染失败: %v", err)
+				t.Fatalf("render failed: %v", err)
 			}
 
 			if !strings.Contains(html, tc.expected) {
-				t.Errorf("应在输出中包含 %q", tc.expected)
+				t.Errorf("output should contain %q", tc.expected)
 			}
 		})
 	}
 }
 
-// TestRenderMarginValues 测试自定义边距值是否出现在输出中
+// TestRenderMarginValues tests that custom margin values appear in output
 func TestRenderMarginValues(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -529,7 +529,7 @@ func TestRenderMarginValues(t *testing.T) {
 		expectedRight  string
 	}{
 		{
-			name: "标准边距（25mm）",
+			name: "standard margins (25mm)",
 			margins: config.MarginConfig{
 				Top:    25,
 				Bottom: 25,
@@ -542,7 +542,7 @@ func TestRenderMarginValues(t *testing.T) {
 			expectedRight:  "20",
 		},
 		{
-			name: "大边距",
+			name: "large margins",
 			margins: config.MarginConfig{
 				Top:    30,
 				Bottom: 30,
@@ -555,7 +555,7 @@ func TestRenderMarginValues(t *testing.T) {
 			expectedRight:  "30",
 		},
 		{
-			name: "不对称边距",
+			name: "asymmetric margins",
 			margins: config.MarginConfig{
 				Top:    15,
 				Bottom: 25,
@@ -576,7 +576,7 @@ func TestRenderMarginValues(t *testing.T) {
 
 			r, err := NewHTMLRenderer(cfg, newTestTheme())
 			if err != nil {
-				t.Fatalf("NewHTMLRenderer 失败: %v", err)
+				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
 			parts := &RenderParts{
 				ChaptersHTML: []ChapterHTML{
@@ -586,18 +586,18 @@ func TestRenderMarginValues(t *testing.T) {
 
 			html, err := r.Render(parts)
 			if err != nil {
-				t.Fatalf("渲染失败: %v", err)
+				t.Fatalf("render failed: %v", err)
 			}
 
-			// 检查边距值是否在 @page 规则中出现
+			// Check if margin values appear in @page rules
 			if !strings.Contains(html, "margin:") {
-				t.Error("应包含 margin 属性")
+				t.Error("should contain margin property")
 			}
 		})
 	}
 }
 
-// TestBuildPrintCSS 测试 buildPrintCSS 方法处理不同配置
+// TestBuildPrintCSS tests buildPrintCSS method with different configurations
 func TestBuildPrintCSS(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -606,19 +606,19 @@ func TestBuildPrintCSS(t *testing.T) {
 		expectPageRule  bool
 	}{
 		{
-			name:            "默认配置",
+			name:            "default config",
 			pageSize:        "A4",
 			expectPageBreak: true,
 			expectPageRule:  true,
 		},
 		{
-			name:            "自定义页面大小",
+			name:            "custom page size",
 			pageSize:        "Letter",
 			expectPageBreak: true,
 			expectPageRule:  true,
 		},
 		{
-			name:            "空页面大小（应用默认）",
+			name:            "empty page size (uses default)",
 			pageSize:        "",
 			expectPageBreak: true,
 			expectPageRule:  true,
@@ -632,7 +632,7 @@ func TestBuildPrintCSS(t *testing.T) {
 
 			r, err := NewHTMLRenderer(cfg, newTestTheme())
 			if err != nil {
-				t.Fatalf("NewHTMLRenderer 失败: %v", err)
+				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
 			parts := &RenderParts{
 				ChaptersHTML: []ChapterHTML{
@@ -642,14 +642,14 @@ func TestBuildPrintCSS(t *testing.T) {
 
 			html, err := r.Render(parts)
 			if err != nil {
-				t.Fatalf("渲染失败: %v", err)
+				t.Fatalf("render failed: %v", err)
 			}
 
 			if tc.expectPageRule && !strings.Contains(html, "@page") {
-				t.Error("应包含 @page 规则")
+				t.Error("should contain @page rule")
 			}
 			if tc.expectPageBreak && !strings.Contains(html, "page-break") {
-				t.Error("应包含 page-break 属性")
+				t.Error("should contain page-break property")
 			}
 		})
 	}
@@ -658,7 +658,7 @@ func TestBuildPrintCSS(t *testing.T) {
 func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
 	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	parts := &RenderParts{
 		ChaptersHTML: []ChapterHTML{
@@ -668,7 +668,7 @@ func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
 
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
 	for _, snippet := range []string{
@@ -679,7 +679,7 @@ func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
 		"overflow-wrap: anywhere;",
 	} {
 		if !strings.Contains(html, snippet) {
-			t.Errorf("应包含打印布局修正规则 %q", snippet)
+			t.Errorf("should contain print layout fix rule %q", snippet)
 		}
 	}
 }

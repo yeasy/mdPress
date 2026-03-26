@@ -100,7 +100,7 @@ func TestNewExternalPlugin_BasicProperties(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
 	p := writeScript(t, dir, "plug", "echo '{}'")
-	ep, err := NewExternalPlugin("my-plug", p, map[string]interface{}{"key": "val"})
+	ep, err := NewExternalPlugin("my-plug", p, map[string]any{"key": "val"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestExternalPlugin_Execute_EmptyOutput(t *testing.T) {
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
 		Content:  "original",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	result, err := ep.Execute(ctx)
 	if err != nil {
@@ -157,7 +157,7 @@ func TestExternalPlugin_Execute_ContentReplacement(t *testing.T) {
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
 		Content:  "original",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	result, err := ep.Execute(ctx)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestExternalPlugin_Execute_StopPropagation(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	result, err := ep.Execute(ctx)
 	if err != nil {
@@ -205,7 +205,7 @@ func TestExternalPlugin_Execute_ErrorResponse(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	_, err = ep.Execute(ctx)
 	if err == nil {
@@ -228,7 +228,7 @@ func TestExternalPlugin_Execute_MalformedJSON(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	_, err = ep.Execute(ctx)
 	if err == nil {
@@ -248,7 +248,7 @@ func TestExternalPlugin_Execute_ProcessFailure(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	_, err = ep.Execute(ctx)
 	if err == nil {
@@ -268,7 +268,7 @@ func TestExternalPlugin_Execute_Stderr(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	_, err = ep.Execute(ctx)
 	if err == nil {
@@ -298,7 +298,7 @@ func TestExternalPlugin_Execute_Timeout(t *testing.T) {
 	ctx := &HookContext{
 		Context:  context.Background(),
 		Phase:    PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	_, err = ep.Execute(ctx)
 	if err == nil {

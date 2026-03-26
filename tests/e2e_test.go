@@ -1,5 +1,5 @@
-// e2e_test.go 端到端测试。
-// 测试完整的 init → build → 验证输出 流程，包括零配置模式和 HTML 输出。
+// e2e_test.go End-to-end tests.
+// Tests the full init -> build -> verify output flow, including zero-config mode and HTML output.
 package tests
 
 import (
@@ -25,34 +25,34 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// TestE2E_QuickstartBuildVerify 测试完整的 quickstart → build → 验证输出 流程
+// TestE2E_QuickstartBuildVerify tests the full quickstart -> build -> verify output flow
 func TestE2E_QuickstartBuildVerify(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
-	// 1. 加载配置
+	// 1. Load config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 2. 初始化主题
+	// 2. Initialize theme
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get(cfg.Style.Theme)
 	if err != nil {
 		thm, err = tm.Get("technical")
 		if err != nil {
-			t.Fatalf("加载默认主题失败: %v", err)
+			t.Fatalf("failed to load default theme: %v", err)
 		}
 	}
 
-	// 3. 初始化解析器
+	// 3. Initialize parser
 	parser := markdown.NewParser()
 
-	// 4. 初始化交叉引用
+	// 4. Initialize cross-references
 	resolver := crossref.NewResolver()
 
-	// 5. 解析所有章节
+	// 5. Parse all chapters
 	var allHeadings []toc.HeadingInfo
 	chaptersHTML := make([]renderer.ChapterHTML, 0)
 
@@ -60,29 +60,31 @@ func TestE2E_QuickstartBuildVerify(t *testing.T) {
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := utils.ReadFile(chapterPath)
 		if err != nil {
-			t.Logf("跳过章节 %s: %v", ch.File, err)
-			continue
+			t.Fatalf("failed to read chapter %s: %v", ch.File, err)
 		}
 
-		// 模板变量替换
+		// Template variable substitution
 		content = variables.Expand(content, cfg)
 
 		htmlContent, headings, err := parser.Parse(content)
 		if err != nil {
-			t.Fatalf("解析章节 %s 失败: %v", ch.File, err)
+			t.Fatalf("failed to parse chapter %s: %v", ch.File, err)
 		}
 
-		// 图片处理
+		// Image processing
 		chapterDir := filepath.Dir(chapterPath)
-		htmlContent, _ = utils.ProcessImages(htmlContent, chapterDir, true)
+		htmlContent, err = utils.ProcessImages(htmlContent, chapterDir, true)
+		if err != nil {
+			t.Fatalf("ProcessImages failed for chapter %s: %v", ch.File, err)
+		}
 
-		// 收集标题
+		// Collect headings
 		for _, h := range headings {
 			allHeadings = append(allHeadings, toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID})
 			resolver.RegisterSection(h.ID, h.Text, h.Level)
 		}
 
-		// 交叉引用
+		// Cross-references
 		htmlContent = resolver.ProcessHTML(htmlContent)
 		htmlContent = resolver.AddCaptions(htmlContent)
 
@@ -99,19 +101,19 @@ func TestE2E_QuickstartBuildVerify(t *testing.T) {
 	}
 
 	if len(chaptersHTML) == 0 {
-		t.Fatal("没有成功处理任何章节")
+		t.Fatal("no chapters were successfully processed")
 	}
 
-	// 6. 生成封面
+	// 6. Generate cover
 	coverGen := cover.NewCoverGenerator(cfg.Book)
 	coverHTML := coverGen.RenderHTML()
 
-	// 7. 生成目录
+	// 7. Generate TOC
 	tocGen := toc.NewGenerator()
 	entries := tocGen.Generate(allHeadings)
 	tocHTML := tocGen.RenderHTML(entries)
 
-	// 8. 组装 HTML
+	// 8. Assemble HTML
 	parts := &renderer.RenderParts{
 		CoverHTML:    coverHTML,
 		TOCHTML:      tocHTML,
@@ -120,49 +122,49 @@ func TestE2E_QuickstartBuildVerify(t *testing.T) {
 
 	htmlRenderer, err := renderer.NewHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染 HTML 失败: %v", err)
+		t.Fatalf("HTML rendering failed: %v", err)
 	}
 
-	// 9. 验证最终输出
+	// 9. Verify final output
 	if fullHTML == "" {
-		t.Fatal("输出 HTML 不应为空")
+		t.Fatal("output HTML should not be empty")
 	}
 	if !strings.Contains(fullHTML, "<!DOCTYPE html>") {
-		t.Error("输出应包含 DOCTYPE 声明")
+		t.Error("output should contain DOCTYPE declaration")
 	}
 	if !strings.Contains(fullHTML, cfg.Book.Title) {
-		t.Error("输出应包含书名")
+		t.Error("output should contain book title")
 	}
 	if !strings.Contains(fullHTML, cfg.Book.Author) {
-		t.Error("输出应包含作者")
+		t.Error("output should contain author")
 	}
 	if !strings.Contains(fullHTML, "<nav") {
-		t.Error("输出应包含目录导航")
+		t.Error("output should contain TOC navigation")
 	}
-	// 验证封面
+	// Verify cover
 	if !strings.Contains(fullHTML, cfg.Book.Version) {
-		t.Error("输出应包含版本号")
+		t.Error("output should contain version number")
 	}
-	// 验证所有章节都在输出中
+	// Verify all chapters are in the output
 	for _, ch := range chaptersHTML {
 		if !strings.Contains(fullHTML, ch.Title) {
-			t.Errorf("输出应包含章节: %s", ch.Title)
+			t.Errorf("output should contain chapter: %s", ch.Title)
 		}
 	}
 
-	t.Logf("端到端测试完成: 输出 HTML 大小 %d 字节, 章节 %d 个", len(fullHTML), len(chaptersHTML))
+	t.Logf("end-to-end test complete: output HTML size %d bytes, %d chapters", len(fullHTML), len(chaptersHTML))
 }
 
-// TestE2E_ZeroConfigMode 测试零配置模式的端到端流程
+// TestE2E_ZeroConfigMode tests zero-config mode end-to-end flow
 func TestE2E_ZeroConfigMode(t *testing.T) {
-	// 创建临时目录模拟零配置场景
+	// Create temp directory to simulate zero-config scenario
 	tempDir := t.TempDir()
 
-	// 创建一些 Markdown 文件（不包含 book.yaml）
+	// Create some Markdown files (without book.yaml)
 	if err := os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(`# 简介
 
 这是一个零配置测试。
@@ -190,25 +192,25 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 		t.Fatalf("write chapter1.md failed: %v", err)
 	}
 
-	// 使用 Discover 进行零配置加载
+	// Use Discover for zero-config loading
 	cfg, err := config.Discover(context.Background(), tempDir)
 	if err != nil {
-		t.Fatalf("零配置发现失败: %v", err)
+		t.Fatalf("zero-config discovery failed: %v", err)
 	}
 
-	// 验证自动发现的配置
+	// Verify auto-discovered config
 	if len(cfg.Chapters) == 0 {
-		t.Fatal("零配置应自动发现章节")
+		t.Fatal("zero-config should auto-discover chapters")
 	}
 
-	t.Logf("零配置发现 %d 个章节", len(cfg.Chapters))
+	t.Logf("zero-config discovered %d chapters", len(cfg.Chapters))
 
-	// 初始化主题和解析器
+	// Initialize theme and parser
 	tm := theme.NewThemeManager()
 	thm, _ := tm.Get("technical")
 	parser := markdown.NewParser()
 
-	// 解析所有发现的章节
+	// Parse all discovered chapters
 	chaptersHTML := make([]renderer.ChapterHTML, 0)
 	for i, ch := range cfg.Chapters {
 		chapterPath := cfg.ResolvePath(ch.File)
@@ -235,45 +237,45 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 	}
 
 	if len(chaptersHTML) == 0 {
-		t.Fatal("零配置模式应至少处理一个章节")
+		t.Fatal("zero-config mode should process at least one chapter")
 	}
 
-	// 渲染 HTML
+	// Render HTML
 	parts := &renderer.RenderParts{
 		ChaptersHTML: chaptersHTML,
 	}
 
 	htmlRenderer, err := renderer.NewHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
-		t.Fatalf("零配置渲染失败: %v", err)
+		t.Fatalf("zero-config rendering failed: %v", err)
 	}
 
 	if !strings.Contains(fullHTML, "<!DOCTYPE html>") {
-		t.Error("零配置输出应包含完整 HTML 结构")
+		t.Error("zero-config output should contain complete HTML structure")
 	}
 
-	t.Logf("零配置端到端完成: 输出 %d 字节", len(fullHTML))
+	t.Logf("zero-config end-to-end complete: output %d bytes", len(fullHTML))
 }
 
-// TestE2E_HTMLOutput 测试 --format html 端到端输出
+// TestE2E_HTMLOutput tests --format html end-to-end output
 func TestE2E_HTMLOutput(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
 	tm := theme.NewThemeManager()
 	thm, _ := tm.Get("technical")
 	parser := markdown.NewParser()
 
-	// 解析章节
+	// Parse chapters
 	chaptersHTML := make([]renderer.ChapterHTML, 0)
 	var allHeadings []toc.HeadingInfo
 
@@ -290,7 +292,10 @@ func TestE2E_HTMLOutput(t *testing.T) {
 		}
 
 		chapterDir := filepath.Dir(chapterPath)
-		htmlContent, _ = utils.ProcessImages(htmlContent, chapterDir, true)
+		htmlContent, err = utils.ProcessImages(htmlContent, chapterDir, true)
+		if err != nil {
+			t.Fatalf("ProcessImages failed for chapter %s: %v", ch.File, err)
+		}
 
 		for _, h := range headings {
 			allHeadings = append(allHeadings, toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID})
@@ -308,15 +313,15 @@ func TestE2E_HTMLOutput(t *testing.T) {
 		})
 	}
 
-	// 生成目录
+	// Generate TOC
 	tocGen := toc.NewGenerator()
 	entries := tocGen.Generate(allHeadings)
 	tocHTML := tocGen.RenderHTML(entries)
 
-	// 使用 Standalone HTML 渲染器（对应 --format html）
+	// Use standalone HTML renderer (for --format html)
 	standaloneRenderer, err := renderer.NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("NewStandaloneHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
 	}
 	parts := &renderer.RenderParts{
 		TOCHTML:      tocHTML,
@@ -325,48 +330,48 @@ func TestE2E_HTMLOutput(t *testing.T) {
 
 	standaloneHTML, err := standaloneRenderer.Render(parts)
 	if err != nil {
-		t.Fatalf("单页 HTML 渲染失败: %v", err)
+		t.Fatalf("standalone HTML rendering failed: %v", err)
 	}
 
-	// 验证单页 HTML 输出
+	// Verify standalone HTML output
 	if standaloneHTML == "" {
-		t.Fatal("单页 HTML 输出不应为空")
+		t.Fatal("standalone HTML output should not be empty")
 	}
 	if !strings.Contains(standaloneHTML, "<!DOCTYPE html>") {
-		t.Error("单页 HTML 应包含 DOCTYPE")
+		t.Error("standalone HTML should contain DOCTYPE")
 	}
 	if !strings.Contains(standaloneHTML, "<style") {
-		t.Error("单页 HTML 应包含内联样式（自包含）")
+		t.Error("standalone HTML should contain inline styles (self-contained)")
 	}
 
-	// 写入临时文件验证
+	// Write to temp file for verification
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "test-output.html")
 	err = os.WriteFile(outputPath, []byte(standaloneHTML), 0644)
 	if err != nil {
-		t.Fatalf("写入 HTML 文件失败: %v", err)
+		t.Fatalf("failed to write HTML file: %v", err)
 	}
 
-	// 验证文件已创建且非空
+	// Verify file was created and is non-empty
 	info, err := os.Stat(outputPath)
 	if err != nil {
-		t.Fatalf("输出文件不存在: %v", err)
+		t.Fatalf("output file does not exist: %v", err)
 	}
 	if info.Size() == 0 {
-		t.Error("输出 HTML 文件不应为空")
+		t.Error("output HTML file should not be empty")
 	}
 
-	t.Logf("HTML 端到端完成: 文件大小 %d 字节", info.Size())
+	t.Logf("HTML end-to-end complete: file size %d bytes", info.Size())
 }
 
-// TestE2E_EPubOutput 测试 ePub 输出流程
+// TestE2E_EPubOutput tests ePub output flow
 func TestE2E_EPubOutput(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
 	tm := theme.NewThemeManager()
@@ -398,7 +403,7 @@ func TestE2E_EPubOutput(t *testing.T) {
 		})
 	}
 
-	// 生成 ePub
+	// Generate ePub
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "test-output.epub")
 
@@ -423,74 +428,74 @@ func TestE2E_EPubOutput(t *testing.T) {
 
 	err = epubGen.Generate(outputPath)
 	if err != nil {
-		t.Fatalf("生成 ePub 失败: %v", err)
+		t.Fatalf("failed to generate ePub: %v", err)
 	}
 
 	info, err := os.Stat(outputPath)
 	if err != nil {
-		t.Fatalf("ePub 文件不存在: %v", err)
+		t.Fatalf("ePub file does not exist: %v", err)
 	}
 	if info.Size() == 0 {
-		t.Error("ePub 文件不应为空")
+		t.Error("ePub file should not be empty")
 	}
 
 	reader, err := zip.OpenReader(outputPath)
 	if err != nil {
-		t.Fatalf("打开 ePub zip 失败: %v", err)
+		t.Fatalf("failed to open ePub zip: %v", err)
 	}
 	defer reader.Close() //nolint:errcheck
 
 	opf := readEpubEntry(t, reader.File, "OEBPS/content.opf")
 	if !strings.Contains(opf, `version="3.0"`) {
-		t.Error("ePub 输出应使用 EPUB 3 package 版本")
+		t.Error("ePub output should use EPUB 3 package version")
 	}
 
 	nav := readEpubEntry(t, reader.File, "OEBPS/nav.xhtml")
 	if !strings.Contains(nav, "Contents") {
-		t.Error("ePub 输出应包含 nav.xhtml 导航文档")
+		t.Error("ePub output should contain nav.xhtml navigation document")
 	}
 
-	t.Logf("ePub 端到端完成: 文件大小 %d 字节", info.Size())
+	t.Logf("ePub end-to-end complete: file size %d bytes", info.Size())
 }
 
-// TestE2E_GlossaryIntegration 测试术语表集成流程
+// TestE2E_GlossaryIntegration tests glossary integration flow
 func TestE2E_GlossaryIntegration(t *testing.T) {
 	testDataDir := getTestDataDir()
 	glossaryPath := filepath.Join(testDataDir, "GLOSSARY.md")
 
-	// 检查 GLOSSARY.md 是否存在
+	// Check if GLOSSARY.md exists
 	if _, err := os.Stat(glossaryPath); os.IsNotExist(err) {
-		t.Skip("测试数据中没有 GLOSSARY.md")
+		t.Skip("no GLOSSARY.md in test data")
 	}
 
 	gloss, err := glossary.ParseFile(glossaryPath)
 	if err != nil {
-		t.Fatalf("解析术语表失败: %v", err)
+		t.Fatalf("failed to parse glossary: %v", err)
 	}
 
 	if len(gloss.Terms) == 0 {
-		t.Skip("术语表为空，跳过")
+		t.Skip("glossary is empty, skipping")
 	}
 
-	// 测试术语高亮功能
+	// Test glossary term highlighting
 	testHTML := "<p>这是一个包含术语的测试段落。</p>"
 	processedHTML := gloss.ProcessHTML(testHTML)
 
-	// 渲染术语表页面
+	// Render glossary page
 	glossHTML := gloss.RenderHTML()
 	if glossHTML == "" {
-		t.Error("术语表 HTML 不应为空")
+		t.Error("glossary HTML should not be empty")
 	}
 
-	t.Logf("术语表集成: %d 个术语, 处理后 HTML 长度 %d", len(gloss.Terms), len(processedHTML))
+	t.Logf("glossary integration: %d terms, processed HTML length %d", len(gloss.Terms), len(processedHTML))
 }
 
-// TestE2E_MultiChapterTOC 测试多章节目录生成的完整性
+// TestE2E_MultiChapterTOC tests completeness of multi-chapter TOC generation
 func TestE2E_MultiChapterTOC(t *testing.T) {
 	testDataDir := getTestDataDir()
 	parser := markdown.NewParser()
 
-	// 读取所有 Markdown 文件
+	// Read all Markdown files
 	files := []string{"ch01.md", "ch02.md"}
 	var allHeadings []toc.HeadingInfo
 
@@ -516,30 +521,30 @@ func TestE2E_MultiChapterTOC(t *testing.T) {
 	}
 
 	if len(allHeadings) == 0 {
-		t.Fatal("应提取到标题")
+		t.Fatal("should have extracted headings")
 	}
 
 	tocGen := toc.NewGenerator()
 	entries := tocGen.Generate(allHeadings)
 	tocHTML := tocGen.RenderHTML(entries)
 
-	// 验证目录结构
+	// Verify TOC structure
 	if !strings.Contains(tocHTML, "<nav") {
-		t.Error("多章节目录应包含 nav 标签")
+		t.Error("multi-chapter TOC should contain nav tag")
 	}
 	if !strings.Contains(tocHTML, "<a") {
-		t.Error("目录应包含链接")
+		t.Error("TOC should contain links")
 	}
 
-	// 验证所有标题都在目录中
+	// Verify all headings are in the TOC
 	for _, h := range allHeadings {
 		if h.Level <= 2 && !strings.Contains(tocHTML, h.Text) {
-			t.Errorf("目录应包含标题: %s (level %d)", h.Text, h.Level)
+			t.Errorf("TOC should contain heading: %s (level %d)", h.Text, h.Level)
 		}
 	}
 
 	totalEntries := toc.CountEntries(entries)
-	t.Logf("多章节目录: %d 个标题, %d 个目录条目", len(allHeadings), totalEntries)
+	t.Logf("multi-chapter TOC: %d headings, %d TOC entries", len(allHeadings), totalEntries)
 }
 
 func readEpubEntry(t *testing.T, files []*zip.File, name string) string {
@@ -551,36 +556,36 @@ func readEpubEntry(t *testing.T, files []*zip.File, name string) string {
 		}
 		rc, err := file.Open()
 		if err != nil {
-			t.Fatalf("打开 ePub 条目 %s 失败: %v", name, err)
+			t.Fatalf("failed to open ePub entry %s: %v", name, err)
 		}
 		defer rc.Close() //nolint:errcheck
 
 		data, err := io.ReadAll(rc)
 		if err != nil {
-			t.Fatalf("读取 ePub 条目 %s 失败: %v", name, err)
+			t.Fatalf("failed to read ePub entry %s: %v", name, err)
 		}
 		return string(data)
 	}
 
-	t.Fatalf("ePub 条目不存在: %s", name)
+	t.Fatalf("ePub entry does not exist: %s", name)
 	return ""
 }
 
-// TestE2E_SiteOutput 测试 HTML 站点输出
+// TestE2E_SiteOutput tests HTML site output
 func TestE2E_SiteOutput(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
 	tm := theme.NewThemeManager()
 	thm, _ := tm.Get("technical")
 	parser := markdown.NewParser()
 
-	// 创建站点生成器
+	// Create site generator
 	siteGen := output.NewSiteGenerator(output.SiteMeta{
 		Title:    cfg.Book.Title,
 		Author:   cfg.Book.Author,
@@ -614,54 +619,54 @@ func TestE2E_SiteOutput(t *testing.T) {
 	outputDir := t.TempDir()
 	err = siteGen.Generate(outputDir)
 	if err != nil {
-		t.Fatalf("站点生成失败: %v", err)
+		t.Fatalf("site generation failed: %v", err)
 	}
 
-	// 验证站点输出
+	// Verify site output
 	indexPath := filepath.Join(outputDir, "index.html")
 	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-		t.Error("站点应生成 index.html")
+		t.Error("site should generate index.html")
 	}
 
 	indexContent, _ := os.ReadFile(indexPath)
 	if len(indexContent) == 0 {
-		t.Error("index.html 不应为空")
+		t.Error("index.html should not be empty")
 	}
 
-	t.Logf("站点输出完成: %s", outputDir)
+	t.Logf("site output complete: %s", outputDir)
 }
 
-// TestE2E_VariableExpansion 测试模板变量替换的端到端流程
+// TestE2E_VariableExpansion tests template variable expansion end-to-end flow
 func TestE2E_VariableExpansion(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 创建包含模板变量的内容（使用 {{ book.title }} 格式）
+	// Create content with template variables (using {{ book.title }} format)
 	content := []byte("# {{ book.title }}\n\n作者: {{ book.author }}\n\n版本: {{ book.version }}")
 
-	// 进行变量替换
+	// Perform variable substitution
 	expanded := variables.Expand(content, cfg)
 
-	// 解析替换后的 Markdown
+	// Parse substituted Markdown
 	parser := markdown.NewParser()
 	html, _, err := parser.Parse(expanded)
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 
-	// 验证变量被正确替换
+	// Verify variables were correctly replaced
 	if strings.Contains(html, "{{ book.title }}") {
-		t.Error("模板变量 {{ book.title }} 应被替换")
+		t.Error("template variable {{ book.title }} should be replaced")
 	}
 	if !strings.Contains(html, cfg.Book.Title) {
-		t.Error("HTML 应包含实际书名")
+		t.Error("HTML should contain actual book title")
 	}
 	if !strings.Contains(html, cfg.Book.Author) {
-		t.Error("HTML 应包含实际作者名")
+		t.Error("HTML should contain actual author name")
 	}
 }

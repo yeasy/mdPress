@@ -17,69 +17,69 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// 获取测试数据目录路径
+// Get test data directory path
 func getTestDataDir() string {
 	// Go tests run from the package directory, so testdata is relative to here
 	return "testdata"
 }
 
-// TestConfigLoadAndValidate 测试加载和验证配置文件
+// TestConfigLoadAndValidate tests loading and validating a config file
 func TestConfigLoadAndValidate(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 验证书籍元数据
+	// Verify book metadata
 	if cfg.Book.Title != "集成测试图书" {
-		t.Errorf("期望书名为 '集成测试图书'，实际为 '%s'", cfg.Book.Title)
+		t.Errorf("expected book title '集成测试图书', got '%s'", cfg.Book.Title)
 	}
 	if cfg.Book.Author != "测试作者" {
-		t.Errorf("期望作者为 '测试作者'，实际为 '%s'", cfg.Book.Author)
+		t.Errorf("expected author '测试作者', got '%s'", cfg.Book.Author)
 	}
 	if cfg.Book.Version != "1.0.0" {
-		t.Errorf("期望版本为 '1.0.0'，实际为 '%s'", cfg.Book.Version)
+		t.Errorf("expected version '1.0.0', got '%s'", cfg.Book.Version)
 	}
 
-	// 验证章节
+	// Verify chapters
 	if len(cfg.Chapters) != 2 {
-		t.Errorf("期望 2 个章节，实际为 %d", len(cfg.Chapters))
+		t.Errorf("expected 2 chapters, got %d", len(cfg.Chapters))
 	}
 
-	// 验证样式
+	// Verify style
 	if cfg.Style.Theme != "technical" {
-		t.Errorf("期望主题为 'technical'，实际为 '%s'", cfg.Style.Theme)
+		t.Errorf("expected theme 'technical', got '%s'", cfg.Style.Theme)
 	}
 	if cfg.Style.PageSize != "A4" {
-		t.Errorf("期望页面尺寸为 'A4'，实际为 '%s'", cfg.Style.PageSize)
+		t.Errorf("expected page size 'A4', got '%s'", cfg.Style.PageSize)
 	}
 
-	// 验证输出
+	// Verify output
 	if cfg.Output.Filename != "test-output.pdf" {
-		t.Errorf("期望输出文件为 'test-output.pdf'，实际为 '%s'", cfg.Output.Filename)
+		t.Errorf("expected output file 'test-output.pdf', got '%s'", cfg.Output.Filename)
 	}
 	if !cfg.Output.TOC {
-		t.Error("期望生成目录")
+		t.Error("expected TOC generation")
 	}
 	if !cfg.Output.Cover {
-		t.Error("期望生成封面")
+		t.Error("expected cover generation")
 	}
 }
 
-// TestMarkdownParsing 测试解析 Markdown 文件并验证输出包含期望的 HTML 元素
+// TestMarkdownParsing tests parsing Markdown files and verifying output contains expected HTML elements
 func TestMarkdownParsing(t *testing.T) {
-	// 定义解析测试用例
+	// Define parsing test cases
 	testCases := []struct {
 		name             string
 		filename         string
 		expectedElements []string
 	}{
 		{
-			name:     "第一章解析",
+			name:     "chapter 1 parsing",
 			filename: "ch01.md",
 			expectedElements: []string{
 				"第一章",
@@ -91,7 +91,7 @@ func TestMarkdownParsing(t *testing.T) {
 			},
 		},
 		{
-			name:     "第二章解析",
+			name:     "chapter 2 parsing",
 			filename: "ch02.md",
 			expectedElements: []string{
 				"第二章",
@@ -108,239 +108,239 @@ func TestMarkdownParsing(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// 读取 Markdown 文件
+			// Read Markdown file
 			filePath := filepath.Join(testDataDir, tc.filename)
 			data, err := os.ReadFile(filePath)
 			if err != nil {
-				t.Fatalf("读取文件失败: %v", err)
+				t.Fatalf("failed to read file: %v", err)
 			}
 
-			// 解析 Markdown
+			// Parse Markdown
 			html, _, err := parser.Parse(data)
 			if err != nil {
-				t.Fatalf("解析 Markdown 失败: %v", err)
+				t.Fatalf("failed to parse Markdown: %v", err)
 			}
 
-			// 验证输出包含期望的元素
+			// Verify output contains expected elements
 			for _, elem := range tc.expectedElements {
 				if !strings.Contains(html, elem) {
-					t.Errorf("HTML 中未找到期望的元素: %s", elem)
+					t.Errorf("expected element not found in HTML: %s", elem)
 				}
 			}
 
-			// 验证输出是 HTML
+			// Verify output is HTML
 			if !strings.Contains(html, "<") || !strings.Contains(html, ">") {
-				t.Error("输出应该是 HTML 格式")
+				t.Error("output should be HTML format")
 			}
 		})
 	}
 }
 
-// TestTOCGeneration 测试解析章节、收集标题、生成目录并验证结构
+// TestTOCGeneration tests parsing chapters, collecting headings, generating TOC, and verifying structure
 func TestTOCGeneration(t *testing.T) {
 	testDataDir := getTestDataDir()
 
-	// 读取第一章文件以提取标题
+	// Read first chapter to extract headings
 	ch01Path := filepath.Join(testDataDir, "ch01.md")
 	ch01Data, err := os.ReadFile(ch01Path)
 	if err != nil {
-		t.Fatalf("读取文件失败: %v", err)
+		t.Fatalf("failed to read file: %v", err)
 	}
 
-	// 解析 Markdown 并提取标题
+	// Parse Markdown and extract headings
 	parser := markdown.NewParser()
 	_, headings, err := parser.Parse(ch01Data)
 	if err != nil {
-		t.Fatalf("解析 Markdown 失败: %v", err)
+		t.Fatalf("failed to parse Markdown: %v", err)
 	}
 
-	// 验证提取的标题数量（应至少有 1 个，即主标题）
+	// Verify heading count (should be at least 1, the main heading)
 	if len(headings) == 0 {
-		t.Error("应该提取到至少一个标题")
+		t.Error("should have extracted at least one heading")
 	}
 
-	// 转换标题类型
+	// Convert heading types
 	tocHeadings := make([]toc.HeadingInfo, len(headings))
 	for i, h := range headings {
 		tocHeadings[i] = toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID}
 	}
 
-	// 生成目录
+	// Generate TOC
 	tocGen := toc.NewGenerator()
 	entries := tocGen.Generate(tocHeadings)
 
-	// 验证生成的目录
+	// Verify generated TOC
 	if len(entries) == 0 {
-		t.Error("应该生成目录条目")
+		t.Error("should have generated TOC entries")
 	}
 
-	// 渲染目录为 HTML
+	// Render TOC as HTML
 	tocHTML := tocGen.RenderHTML(entries)
 
-	// 验证目录 HTML
+	// Verify TOC HTML
 	if !strings.Contains(tocHTML, "<nav") {
-		t.Error("目录 HTML 应包含 <nav 标签")
+		t.Error("TOC HTML should contain <nav tag")
 	}
 	if !strings.Contains(tocHTML, "<ul") {
-		t.Error("目录 HTML 应包含 <ul 标签")
+		t.Error("TOC HTML should contain <ul tag")
 	}
 	if !strings.Contains(tocHTML, "<li") {
-		t.Error("目录 HTML 应包含 <li 标签")
+		t.Error("TOC HTML should contain <li tag")
 	}
 	if !strings.Contains(tocHTML, "<a") {
-		t.Error("目录 HTML 应包含 <a 标签")
+		t.Error("TOC HTML should contain <a tag")
 	}
 }
 
-// TestCoverGeneration 测试从配置元数据生成封面并验证 HTML 结构
+// TestCoverGeneration tests generating a cover from config metadata and verifying HTML structure
 func TestCoverGeneration(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 生成封面
+	// Generate cover
 	coverGen := cover.NewCoverGenerator(cfg.Book)
 	coverHTML := coverGen.RenderHTML()
 
-	// 验证封面 HTML 结构
+	// Verify cover HTML structure
 	if !strings.Contains(coverHTML, "<!DOCTYPE html>") {
-		t.Error("封面应包含 DOCTYPE 声明")
+		t.Error("cover should contain DOCTYPE declaration")
 	}
 	if !strings.Contains(coverHTML, cfg.Book.Title) {
-		t.Error("封面应包含书籍标题")
+		t.Error("cover should contain book title")
 	}
 	if !strings.Contains(coverHTML, cfg.Book.Author) {
-		t.Error("封面应包含作者名")
+		t.Error("cover should contain author name")
 	}
 	if !strings.Contains(coverHTML, cfg.Book.Version) {
-		t.Error("封面应包含版本号")
+		t.Error("cover should contain version number")
 	}
 	if !strings.Contains(coverHTML, "<style") {
-		t.Error("封面应包含样式")
+		t.Error("cover should contain styles")
 	}
 }
 
-// TestCrossRefWorkflow 测试交叉引用工作流：注册引用、处理 HTML、验证替换
+// TestCrossRefWorkflow tests cross-reference workflow: register references, process HTML, verify replacements
 func TestCrossRefWorkflow(t *testing.T) {
-	// 创建交叉引用解析器
+	// Create cross-reference resolver
 	resolver := crossref.NewResolver()
 
-	// 注册图表
+	// Register figures
 	figNum1 := resolver.RegisterFigure("fig1", "示例图表 1")
 	figNum2 := resolver.RegisterFigure("fig2", "示例图表 2")
 
-	// 验证图表编号
+	// Verify figure numbers
 	if figNum1 != 1 {
-		t.Errorf("第一个图表编号应为 1，实际为 %d", figNum1)
+		t.Errorf("first figure number should be 1, got %d", figNum1)
 	}
 	if figNum2 != 2 {
-		t.Errorf("第二个图表编号应为 2，实际为 %d", figNum2)
+		t.Errorf("second figure number should be 2, got %d", figNum2)
 	}
 
-	// 注册表格
+	// Register tables
 	tableNum1 := resolver.RegisterTable("tbl1", "示例表格 1")
 	tableNum2 := resolver.RegisterTable("tbl2", "示例表格 2")
 
-	// 验证表格编号
+	// Verify table numbers
 	if tableNum1 != 1 {
-		t.Errorf("第一个表格编号应为 1，实际为 %d", tableNum1)
+		t.Errorf("first table number should be 1, got %d", tableNum1)
 	}
 	if tableNum2 != 2 {
-		t.Errorf("第二个表格编号应为 2，实际为 %d", tableNum2)
+		t.Errorf("second table number should be 2, got %d", tableNum2)
 	}
 
-	// 注册章节
+	// Register sections
 	resolver.RegisterSection("sec1", "第 1 章", 1)
 	resolver.RegisterSection("sec2", "第 2 章", 1)
 
-	// 验证解析功能
+	// Verify resolution
 	ref1, err := resolver.Resolve("fig1")
 	if err != nil {
-		t.Fatalf("解析图表引用失败: %v", err)
+		t.Fatalf("failed to resolve figure reference: %v", err)
 	}
 	if ref1.Number != 1 {
-		t.Errorf("期望引用编号为 1，实际为 %d", ref1.Number)
+		t.Errorf("expected reference number 1, got %d", ref1.Number)
 	}
 
-	// 测试 HTML 处理
+	// Test HTML processing
 	testHTML := `<p>参考 {{ref:fig1}} 和 {{ref:tbl1}}</p>`
 	processedHTML := resolver.ProcessHTML(testHTML)
 
-	// 验证占位符被替换
+	// Verify placeholders were replaced
 	if strings.Contains(processedHTML, "{{ref:fig1}}") {
-		t.Error("占位符 {{ref:fig1}} 应被替换")
+		t.Error("placeholder {{ref:fig1}} should be replaced")
 	}
 	if strings.Contains(processedHTML, "{{ref:tbl1}}") {
-		t.Error("占位符 {{ref:tbl1}} 应被替换")
+		t.Error("placeholder {{ref:tbl1}} should be replaced")
 	}
 
-	// 验证所有引用
+	// Verify all references
 	allRefs := resolver.GetAllReferences()
 	if len(allRefs) == 0 {
-		t.Error("应该返回至少一个引用")
+		t.Error("should return at least one reference")
 	}
 }
 
-// TestFullHTMLRender 测试渲染完整文档（包含所有部分）并验证结构
+// TestFullHTMLRender tests rendering a complete document (all parts) and verifying structure
 func TestFullHTMLRender(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 获取主题
+	// Get theme
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get("technical")
 	if err != nil {
-		t.Fatalf("获取主题失败: %v", err)
+		t.Fatalf("failed to get theme: %v", err)
 	}
 
-	// 生成封面
+	// Generate cover
 	coverGen := cover.NewCoverGenerator(cfg.Book)
 	coverHTML := coverGen.RenderHTML()
 
-	// 解析第一章
+	// Parse chapter 1
 	ch01Path := filepath.Join(testDataDir, "ch01.md")
 	ch01Data, err := os.ReadFile(ch01Path)
 	if err != nil {
-		t.Fatalf("读取第一章失败: %v", err)
+		t.Fatalf("failed to read chapter 1: %v", err)
 	}
 
 	parser := markdown.NewParser()
 	ch01HTML, _, err := parser.Parse(ch01Data)
 	if err != nil {
-		t.Fatalf("解析第一章失败: %v", err)
+		t.Fatalf("failed to parse chapter 1: %v", err)
 	}
 
-	// 解析第二章
+	// Parse chapter 2
 	ch02Path := filepath.Join(testDataDir, "ch02.md")
 	ch02Data, err := os.ReadFile(ch02Path)
 	if err != nil {
-		t.Fatalf("读取第二章失败: %v", err)
+		t.Fatalf("failed to read chapter 2: %v", err)
 	}
 
 	ch02HTML, _, err := parser.Parse(ch02Data)
 	if err != nil {
-		t.Fatalf("解析第二章失败: %v", err)
+		t.Fatalf("failed to parse chapter 2: %v", err)
 	}
 
-	// 生成目录
+	// Generate TOC
 	allMDHeadings := []markdown.HeadingInfo{}
 	_, h1, _ := parser.Parse(ch01Data)
 	_, h2, _ := parser.Parse(ch02Data)
 	allMDHeadings = append(allMDHeadings, h1...)
 	allMDHeadings = append(allMDHeadings, h2...)
 
-	// 转换标题类型
+	// Convert heading types
 	allTocHeadings := make([]toc.HeadingInfo, len(allMDHeadings))
 	for i, h := range allMDHeadings {
 		allTocHeadings[i] = toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID}
@@ -350,7 +350,7 @@ func TestFullHTMLRender(t *testing.T) {
 	tocEntries := tocGen.Generate(allTocHeadings)
 	tocHTML := tocGen.RenderHTML(tocEntries)
 
-	// 组织渲染部分
+	// Assemble render parts
 	parts := &renderer.RenderParts{
 		CoverHTML: coverHTML,
 		TOCHTML:   tocHTML,
@@ -361,17 +361,17 @@ func TestFullHTMLRender(t *testing.T) {
 		CustomCSS: ".custom { margin: 20px; }",
 	}
 
-	// 渲染完整 HTML
+	// Render full HTML
 	r, err := renderer.NewHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("NewHTMLRenderer 失败: %v", err)
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
 	html, err := r.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
-	// 验证完整结构
+	// Verify full structure
 	requiredElements := []string{
 		"<!DOCTYPE html>",
 		"<html",
@@ -385,142 +385,140 @@ func TestFullHTMLRender(t *testing.T) {
 
 	for _, elem := range requiredElements {
 		if !strings.Contains(html, elem) {
-			t.Errorf("完整 HTML 应包含: %s", elem)
+			t.Errorf("full HTML should contain: %s", elem)
 		}
 	}
 
-	// 验证是有效的 HTML
+	// Verify valid HTML
 	if !strings.Contains(html, "</html>") {
-		t.Error("HTML 应有闭合标签")
+		t.Error("HTML should have closing tag")
 	}
 }
 
-// TestSummaryParsing 测试解析 SUMMARY.md 文件
+// TestSummaryParsing tests parsing a SUMMARY.md file
 func TestSummaryParsing(t *testing.T) {
 	testDataDir := getTestDataDir()
 	summaryPath := filepath.Join(testDataDir, "SUMMARY.md")
 
-	// 读取 SUMMARY.md
+	// Read SUMMARY.md
 	data, err := os.ReadFile(summaryPath)
 	if err != nil {
-		t.Fatalf("读取 SUMMARY.md 失败: %v", err)
+		t.Fatalf("failed to read SUMMARY.md: %v", err)
 	}
 
 	content := string(data)
 
-	// 验证文件内容
+	// Verify file content
 	if !strings.Contains(content, "第一章") {
-		t.Error("SUMMARY.md 应包含第一章")
+		t.Error("SUMMARY.md should contain chapter 1")
 	}
 	if !strings.Contains(content, "第二章") {
-		t.Error("SUMMARY.md 应包含第二章")
+		t.Error("SUMMARY.md should contain chapter 2")
 	}
 	if !strings.Contains(content, "ch01.md") {
-		t.Error("SUMMARY.md 应包含 ch01.md 引用")
+		t.Error("SUMMARY.md should contain ch01.md reference")
 	}
 	if !strings.Contains(content, "ch02.md") {
-		t.Error("SUMMARY.md 应包含 ch02.md 引用")
+		t.Error("SUMMARY.md should contain ch02.md reference")
 	}
 
-	// 验证目录结构
+	// Verify TOC structure
 	if !strings.Contains(content, "* [") {
-		t.Error("SUMMARY.md 应使用 Markdown 列表语法")
+		t.Error("SUMMARY.md should use Markdown list syntax")
 	}
 }
 
-// TestEmptyFileParsing 测试解析空 Markdown 文件
+// TestEmptyFileParsing tests parsing an empty Markdown file
 func TestEmptyFileParsing(t *testing.T) {
 	testDataDir := getTestDataDir()
 	emptyPath := filepath.Join(testDataDir, "empty.md")
 
-	// 读取空文件
+	// Read empty file
 	data, err := os.ReadFile(emptyPath)
 	if err != nil {
-		t.Fatalf("读取 empty.md 失败: %v", err)
+		t.Fatalf("failed to read empty.md: %v", err)
 	}
 
-	// 解析空 Markdown
+	// Parse empty Markdown
 	parser := markdown.NewParser()
 	html, headings, err := parser.Parse(data)
 	if err != nil {
-		// 空文件可能返回错误或空字符串，都是可接受的
-		t.Logf("空文件解析返回错误: %v", err)
+		t.Fatalf("failed to parse empty file: %v", err)
 	}
 
-	// 验证结果（即使是空的也应该返回有效值）
+	// Verify result (even empty input should return valid values)
 	if html == "" {
-		t.Logf("空文件生成空 HTML，这是可以接受的")
+		t.Logf("empty file produced empty HTML, which is acceptable")
 	}
 
-	// 应该没有标题
+	// Should have no headings
 	if len(headings) > 0 {
-		t.Error("空文件应该没有标题")
+		t.Error("empty file should have no headings")
 	}
 }
 
-// TestSpecialCharsParsing 测试解析包含特殊字符的 Markdown 文件
+// TestSpecialCharsParsing tests parsing a Markdown file with special characters
 func TestSpecialCharsParsing(t *testing.T) {
 	testDataDir := getTestDataDir()
 	specialPath := filepath.Join(testDataDir, "special_chars.md")
 
-	// 读取特殊字符文件
+	// Read special characters file
 	data, err := os.ReadFile(specialPath)
 	if err != nil {
-		t.Fatalf("读取 special_chars.md 失败: %v", err)
+		t.Fatalf("failed to read special_chars.md: %v", err)
 	}
 
-	// 解析 Markdown
+	// Parse Markdown
 	parser := markdown.NewParser()
 	html, _, err := parser.Parse(data)
 	if err != nil {
-		t.Fatalf("解析 Markdown 失败: %v", err)
+		t.Fatalf("failed to parse Markdown: %v", err)
 	}
 
-	// 验证特殊字符被正确转义
-	// HTML 应将 < 转为 &lt;，> 转为 &gt;，& 转为 &amp;
-	if !strings.Contains(html, "&") {
-		// 特殊字符应被转义
-		t.Logf("特殊字符在输出中: %s", html)
+	// Verify special characters are properly escaped
+	// HTML should encode < as &lt;, > as &gt;, & as &amp;
+	if !strings.Contains(html, "&amp;") && !strings.Contains(html, "&lt;") && !strings.Contains(html, "&gt;") {
+		t.Errorf("special characters should be HTML-escaped, but no escape entities found: %s", html)
 	}
 
-	// 验证标题被处理（即使包含特殊字符）
+	// Verify headings are processed (even with special characters)
 	if !strings.Contains(html, "<h1") {
-		t.Error("应该生成 <h1 标题")
+		t.Error("should generate <h1 heading")
 	}
 
-	// 验证代码块中的反引号被保留
+	// Verify backtick code block content is preserved
 	if !strings.Contains(html, "特殊字符") {
-		t.Error("应该包含代码块内容")
+		t.Error("should contain code block content")
 	}
 }
 
-// TestMultiLanguageBuild 测试多语言构建：创建临时项目，发现多个语言，验证章节
+// TestMultiLanguageBuild tests multilingual build: create temp project, discover languages, verify chapters
 func TestMultiLanguageBuild(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 创建 SUMMARY.md（Discover 需要它来触发 LANGS.md 检测）
+	// Create SUMMARY.md (Discover needs it to trigger LANGS.md detection)
 	summaryContent := "# Summary\n\n* [Introduction](README.md)\n"
 	if err := os.WriteFile(filepath.Join(tempDir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
-		t.Fatalf("写入 SUMMARY.md 失败: %v", err)
+		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(tempDir, "README.md"), []byte("# Test Book\n"), 0644); err != nil {
-		t.Fatalf("写入 README.md 失败: %v", err)
+		t.Fatalf("failed to write README.md: %v", err)
 	}
 
-	// 创建 LANGS.md 文件定义多个语言
+	// Create LANGS.md defining multiple languages
 	langsContent := `# Languages
 
 - [中文](./zh/)
 - [English](./en/)
 `
 	if err := os.WriteFile(filepath.Join(tempDir, "LANGS.md"), []byte(langsContent), 0644); err != nil {
-		t.Fatalf("写入 LANGS.md 失败: %v", err)
+		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
-	// 创建中文目录和配置
+	// Create Chinese directory and config
 	zhDir := filepath.Join(tempDir, "zh")
 	if err := os.MkdirAll(zhDir, 0755); err != nil {
-		t.Fatalf("创建中文目录失败: %v", err)
+		t.Fatalf("failed to create Chinese directory: %v", err)
 	}
 
 	zhConfigContent := `book:
@@ -537,17 +535,17 @@ output:
   cover: true
 `
 	if err := os.WriteFile(filepath.Join(zhDir, "book.yaml"), []byte(zhConfigContent), 0644); err != nil {
-		t.Fatalf("写入中文 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write Chinese book.yaml: %v", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(zhDir, "ch01.md"), []byte("# 第一章\n\n中文内容"), 0644); err != nil {
-		t.Fatalf("写入中文章节失败: %v", err)
+		t.Fatalf("failed to write Chinese chapter: %v", err)
 	}
 
-	// 创建英文目录和配置
+	// Create English directory and config
 	enDir := filepath.Join(tempDir, "en")
 	if err := os.MkdirAll(enDir, 0755); err != nil {
-		t.Fatalf("创建英文目录失败: %v", err)
+		t.Fatalf("failed to create English directory: %v", err)
 	}
 
 	enConfigContent := `book:
@@ -564,54 +562,54 @@ output:
   cover: true
 `
 	if err := os.WriteFile(filepath.Join(enDir, "book.yaml"), []byte(enConfigContent), 0644); err != nil {
-		t.Fatalf("写入英文 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write English book.yaml: %v", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(enDir, "ch01.md"), []byte("# Chapter 1\n\nEnglish content"), 0644); err != nil {
-		t.Fatalf("写入英文章节失败: %v", err)
+		t.Fatalf("failed to write English chapter: %v", err)
 	}
 
-	// 使用 Discover 自动发现配置
+	// Use Discover to auto-detect config
 	cfg, err := config.Discover(context.Background(), tempDir)
 	if err != nil {
-		t.Fatalf("发现配置失败: %v", err)
+		t.Fatalf("config discovery failed: %v", err)
 	}
 
-	// 验证 LANGS.md 被检测到
+	// Verify LANGS.md was detected
 	if cfg.LangsFile == "" {
-		t.Error("应该检测到 LANGS.md")
+		t.Error("should have detected LANGS.md")
 	}
 
-	// 验证可以加载中文配置
+	// Verify Chinese config can be loaded
 	zhCfg, err := config.Load(filepath.Join(zhDir, "book.yaml"))
 	if err != nil {
-		t.Fatalf("加载中文配置失败: %v", err)
+		t.Fatalf("failed to load Chinese config: %v", err)
 	}
 	if zhCfg.Book.Title != "中文书籍" {
-		t.Errorf("期望中文书名，实际: %s", zhCfg.Book.Title)
+		t.Errorf("expected Chinese book title, got: %s", zhCfg.Book.Title)
 	}
 	if len(zhCfg.Chapters) != 1 {
-		t.Errorf("期望 1 个中文章节，实际: %d", len(zhCfg.Chapters))
+		t.Errorf("expected 1 Chinese chapter, got: %d", len(zhCfg.Chapters))
 	}
 
-	// 验证可以加载英文配置
+	// Verify English config can be loaded
 	enCfg, err := config.Load(filepath.Join(enDir, "book.yaml"))
 	if err != nil {
-		t.Fatalf("加载英文配置失败: %v", err)
+		t.Fatalf("failed to load English config: %v", err)
 	}
 	if enCfg.Book.Title != "English Book" {
-		t.Errorf("期望英文书名，实际: %s", enCfg.Book.Title)
+		t.Errorf("expected English book title, got: %s", enCfg.Book.Title)
 	}
 	if len(enCfg.Chapters) != 1 {
-		t.Errorf("期望 1 个英文章节，实际: %d", len(enCfg.Chapters))
+		t.Errorf("expected 1 English chapter, got: %d", len(enCfg.Chapters))
 	}
 }
 
-// TestHTMLRenderingEndToEnd 测试 HTML 渲染端到端：创建最小项目，渲染，验证输出结构
+// TestHTMLRenderingEndToEnd tests HTML rendering end-to-end: create minimal project, render, verify output structure
 func TestHTMLRenderingEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 创建最小项目
+	// Create minimal project
 	bookYAML := `book:
   title: "测试书籍"
   author: "测试作者"
@@ -628,7 +626,7 @@ output:
   cover: true
 `
 	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
-		t.Fatalf("写入 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	introContent := `# 简介
@@ -640,7 +638,7 @@ output:
 - 主要目标
 `
 	if err := os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(introContent), 0644); err != nil {
-		t.Fatalf("写入 intro.md 失败: %v", err)
+		t.Fatalf("failed to write intro.md: %v", err)
 	}
 
 	contentMD := `# 内容
@@ -651,25 +649,25 @@ output:
 ## 代码示例
 ` + "```go\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n```"
 	if err := os.WriteFile(filepath.Join(tempDir, "content.md"), []byte(contentMD), 0644); err != nil {
-		t.Fatalf("写入 content.md 失败: %v", err)
+		t.Fatalf("failed to write content.md: %v", err)
 	}
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(filepath.Join(tempDir, "book.yaml"))
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 初始化主题和解析器
+	// Initialize theme and parser
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get(cfg.Style.Theme)
 	if err != nil {
-		t.Fatalf("获取主题失败: %v", err)
+		t.Fatalf("failed to get theme: %v", err)
 	}
 
 	parser := markdown.NewParser()
 
-	// 解析所有章节
+	// Parse all chapters
 	var chaptersHTML []renderer.ChapterHTML
 	var allHeadings []toc.HeadingInfo
 
@@ -677,12 +675,12 @@ output:
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := os.ReadFile(chapterPath)
 		if err != nil {
-			t.Fatalf("读取章节 %s 失败: %v", ch.File, err)
+			t.Fatalf("failed to read chapter %s: %v", ch.File, err)
 		}
 
 		html, headings, err := parser.Parse(content)
 		if err != nil {
-			t.Fatalf("解析章节 %s 失败: %v", ch.File, err)
+			t.Fatalf("failed to parse chapter %s: %v", ch.File, err)
 		}
 
 		for _, h := range headings {
@@ -697,10 +695,10 @@ output:
 	}
 
 	if len(chaptersHTML) == 0 {
-		t.Fatal("应该至少有一个章节")
+		t.Fatal("should have at least one chapter")
 	}
 
-	// 生成封面和目录
+	// Generate cover and TOC
 	coverGen := cover.NewCoverGenerator(cfg.Book)
 	coverHTML := coverGen.RenderHTML()
 
@@ -708,7 +706,7 @@ output:
 	tocEntries := tocGen.Generate(allHeadings)
 	tocHTML := tocGen.RenderHTML(tocEntries)
 
-	// 渲染完整 HTML
+	// Render full HTML
 	parts := &renderer.RenderParts{
 		CoverHTML:    coverHTML,
 		TOCHTML:      tocHTML,
@@ -717,15 +715,15 @@ output:
 
 	htmlRenderer, err := renderer.NewHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("创建 HTML 渲染器失败: %v", err)
+		t.Fatalf("failed to create HTML renderer: %v", err)
 	}
 
 	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染 HTML 失败: %v", err)
+		t.Fatalf("HTML rendering failed: %v", err)
 	}
 
-	// 验证输出包含预期结构
+	// Verify output contains expected structure
 	requiredElements := []string{
 		"<!DOCTYPE html>",
 		"<html",
@@ -740,29 +738,29 @@ output:
 
 	for _, elem := range requiredElements {
 		if !strings.Contains(fullHTML, elem) {
-			t.Errorf("HTML 应包含: %s", elem)
+			t.Errorf("HTML should contain: %s", elem)
 		}
 	}
 
-	// 验证代码块被处理（代码可能在 <code> 或 <pre> 中）
+	// Verify code blocks are processed (code may be in <code> or <pre>)
 	if !strings.Contains(fullHTML, "func main") && !strings.Contains(fullHTML, "Println") {
-		t.Log("注意: 代码块内容可能被 HTML 模板转义")
+		t.Errorf("code block content should contain 'func main' or 'Println': %s", fullHTML[:min(len(fullHTML), 500)])
 	}
 
-	// 验证标题存在
+	// Verify headings exist
 	if !strings.Contains(fullHTML, "h1") && !strings.Contains(fullHTML, "h2") {
-		t.Error("HTML 应包含标题标签")
+		t.Error("HTML should contain heading tags")
 	}
 
-	t.Logf("HTML 渲染成功: %d 字节", len(fullHTML))
+	t.Logf("HTML rendering succeeded: %d bytes", len(fullHTML))
 }
 
-// TestSiteOutputStructure 测试网站输出结构：验证生成正确的目录布局和 index.html
+// TestSiteOutputStructure tests site output structure: verify correct directory layout and index.html
 func TestSiteOutputStructure(t *testing.T) {
 	tempDir := t.TempDir()
 	_ = filepath.Join(tempDir, "output") // reserved for future site output verification
 
-	// 创建项目
+	// Create project
 	bookYAML := `book:
   title: "网站测试"
   author: "作者"
@@ -775,44 +773,44 @@ style:
   theme: "technical"
 `
 	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
-		t.Fatalf("写入配置失败: %v", err)
+		t.Fatalf("failed to write config: %v", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(tempDir, "page1.md"), []byte("# 页面1\n\n内容1"), 0644); err != nil {
-		t.Fatalf("写入 page1.md 失败: %v", err)
+		t.Fatalf("failed to write page1.md: %v", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(tempDir, "page2.md"), []byte("# 页面2\n\n内容2"), 0644); err != nil {
-		t.Fatalf("写入 page2.md 失败: %v", err)
+		t.Fatalf("failed to write page2.md: %v", err)
 	}
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(filepath.Join(tempDir, "book.yaml"))
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 验证配置有效
+	// Verify config is valid
 	if cfg.Book.Title != "网站测试" {
-		t.Errorf("期望书名 '网站测试'，实际: %s", cfg.Book.Title)
+		t.Errorf("expected book title '网站测试', got: %s", cfg.Book.Title)
 	}
 
 	if len(cfg.Chapters) != 2 {
-		t.Errorf("期望 2 个章节，实际: %d", len(cfg.Chapters))
+		t.Errorf("expected 2 chapters, got: %d", len(cfg.Chapters))
 	}
 
-	// 验证所有章节文件存在
+	// Verify all chapter files exist
 	for _, ch := range cfg.Chapters {
 		resolvedPath := cfg.ResolvePath(ch.File)
 		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
-			t.Errorf("章节文件不存在: %s", resolvedPath)
+			t.Errorf("chapter file does not exist: %s", resolvedPath)
 		}
 	}
 
-	t.Logf("网站项目验证完成: %d 个章节", len(cfg.Chapters))
+	t.Logf("site project verification complete: %d chapters", len(cfg.Chapters))
 }
 
-// TestConfigValidation 测试配置验证：检查各种配置错误
+// TestConfigValidation tests config validation: check various config errors
 func TestConfigValidation(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -820,22 +818,22 @@ func TestConfigValidation(t *testing.T) {
 		expectedErr string
 	}{
 		{
-			name:        "空标题",
+			name:        "empty title",
 			configYAML:  "book:\n  title: \"\"\nchapters:\n  - title: \"ch1\"\n    file: \"ch01.md\"",
 			expectedErr: "title cannot be empty",
 		},
 		{
-			name:        "无章节",
+			name:        "no chapters",
 			configYAML:  "book:\n  title: \"测试\"\nchapters: []",
 			expectedErr: "at least one chapter",
 		},
 		{
-			name:        "无效页面大小",
+			name:        "invalid page size",
 			configYAML:  "book:\n  title: \"测试\"\nchapters:\n  - title: \"ch1\"\n    file: \"ch01.md\"\nstyle:\n  page_size: \"XYZ\"",
 			expectedErr: "unsupported page size",
 		},
 		{
-			name:        "无效主题",
+			name:        "invalid theme",
 			configYAML:  "book:\n  title: \"测试\"\nchapters:\n  - title: \"ch1\"\n    file: \"ch01.md\"\nstyle:\n  theme: \"nonexistent\"",
 			expectedErr: "unknown theme",
 		},
@@ -845,79 +843,79 @@ func TestConfigValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 
-			// 写入配置
+			// Write config
 			if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(tc.configYAML), 0644); err != nil {
-				t.Fatalf("写入配置失败: %v", err)
+				t.Fatalf("failed to write config: %v", err)
 			}
 
-			// 创建虚拟章节文件
+			// Create dummy chapter files
 			if err := os.WriteFile(filepath.Join(tempDir, "ch01.md"), []byte("# 测试"), 0644); err != nil {
-				t.Fatalf("写入章节失败: %v", err)
+				t.Fatalf("failed to write chapter: %v", err)
 			}
 
-			// 尝试加载配置
+			// Attempt to load config
 			cfg := config.DefaultConfig()
 			configPath := filepath.Join(tempDir, "book.yaml")
 			data, err := os.ReadFile(configPath)
 			if err != nil {
-				t.Fatalf("读取配置失败: %v", err)
+				t.Fatalf("failed to read config: %v", err)
 			}
 
 			if err := yaml.Unmarshal(data, cfg); err != nil {
-				t.Fatalf("解析 YAML 失败: %v", err)
+				t.Fatalf("failed to parse YAML: %v", err)
 			}
 
 			cfg.SetBaseDir(tempDir)
 
-			// 验证应该失败
+			// Verify it should fail
 			err = cfg.Validate()
 			if err == nil {
-				t.Error("期望配置验证失败")
+				t.Error("expected config validation to fail")
 			}
 			if !strings.Contains(err.Error(), tc.expectedErr) {
-				t.Errorf("期望错误包含 '%s'，实际: %v", tc.expectedErr, err)
+				t.Errorf("expected error to contain '%s', got: %v", tc.expectedErr, err)
 			}
 		})
 	}
 }
 
-// TestThemeApplication 测试主题应用：验证主题 CSS 被包含在输出中
+// TestThemeApplication tests theme application: verify theme CSS is included in output
 func TestThemeApplication(t *testing.T) {
 	testDataDir := getTestDataDir()
 	configPath := filepath.Join(testDataDir, "book.yaml")
 
-	// 加载配置
+	// Load config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		t.Fatalf("加载配置失败: %v", err)
+		t.Fatalf("failed to load config: %v", err)
 	}
 
-	// 获取主题
+	// Get theme
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get(cfg.Style.Theme)
 	if err != nil {
-		t.Fatalf("获取主题失败: %v", err)
+		t.Fatalf("failed to get theme: %v", err)
 	}
 
-	// 验证主题有效
+	// Verify theme is valid
 	if thm == nil {
-		t.Fatal("主题应该有效")
+		t.Fatal("theme should be valid")
 	}
 
-	// 解析章节
+	// Parse chapters
 	parser := markdown.NewParser()
 	ch01Path := filepath.Join(testDataDir, "ch01.md")
 	ch01Data, err := os.ReadFile(ch01Path)
 	if err != nil {
-		t.Fatalf("读取章节失败: %v", err)
+		t.Fatalf("failed to read chapter: %v", err)
 	}
 
 	html, headings, err := parser.Parse(ch01Data)
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 
-	// 生成完整文档
+	// Generate full document
 	coverGen := cover.NewCoverGenerator(cfg.Book)
 	tocGen := toc.NewGenerator()
 
@@ -935,29 +933,29 @@ func TestThemeApplication(t *testing.T) {
 		},
 	}
 
-	// 创建渲染器
+	// Create renderer
 	htmlRenderer, err := renderer.NewHTMLRenderer(cfg, thm)
 	if err != nil {
-		t.Fatalf("创建渲染器失败: %v", err)
+		t.Fatalf("failed to create renderer: %v", err)
 	}
 
-	// 渲染
+	// Render
 	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
-		t.Fatalf("渲染失败: %v", err)
+		t.Fatalf("render failed: %v", err)
 	}
 
-	// 验证 CSS 被包含
+	// Verify CSS is included
 	if !strings.Contains(fullHTML, "<style") {
-		t.Error("输出应包含 <style> 标签")
+		t.Error("output should contain <style> tag")
 	}
 
 	if !strings.Contains(fullHTML, "css") && !strings.Contains(fullHTML, "@") {
-		t.Error("输出应包含 CSS 规则")
+		t.Error("output should contain CSS rules")
 	}
 
-	// 验证主题名称相关的 CSS
-	if strings.Contains(fullHTML, "font-family") || strings.Contains(fullHTML, "color") || strings.Contains(fullHTML, "margin") {
-		t.Logf("验证主题 CSS 被应用")
+	// Verify theme-related CSS rules exist
+	if !strings.Contains(fullHTML, "font-family") && !strings.Contains(fullHTML, "color") && !strings.Contains(fullHTML, "margin") {
+		t.Errorf("output should contain theme CSS rules (font-family, color, or margin)")
 	}
 }

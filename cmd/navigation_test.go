@@ -408,14 +408,17 @@ func TestNavigationPipeline_CompleteFlow(t *testing.T) {
 }
 
 func TestToRendererNavHeadings_ConvertsToCorrectType(t *testing.T) {
-	// Ensure the function returns renderer.NavHeading types correctly
 	input := []navHeading{
 		{Title: "Test", ID: "test"},
 	}
 	result := toRendererNavHeadings(input)
 
-	// Verify type compatibility
-	_ = result
+	if len(result) != 1 {
+		t.Fatalf("expected 1 heading, got %d", len(result))
+	}
+	if result[0].Title != "Test" || result[0].ID != "test" {
+		t.Errorf("expected Title=%q ID=%q, got Title=%q ID=%q", "Test", "test", result[0].Title, result[0].ID)
+	}
 }
 
 func TestFlattenChaptersWithDepth_PreservesChapterData(t *testing.T) {

@@ -6,76 +6,76 @@ import (
 	"testing"
 )
 
-// TestNewParser 测试创建新的解析器
+// TestNewParser tests creating a new parser
 func TestNewParser(t *testing.T) {
 	parser := NewParser()
 	if parser == nil {
-		t.Fatal("NewParser 返回 nil")
+		t.Fatal("NewParser returned nil")
 	}
 }
 
-// TestNewParserWithOptions 测试带选项创建解析器
+// TestNewParserWithOptions tests creating a parser with options
 func TestNewParserWithOptions(t *testing.T) {
 	parser := NewParser(WithCodeTheme("dracula"))
 	if parser == nil {
-		t.Fatal("带选项的 NewParser 返回 nil")
+		t.Fatal("NewParser with options returned nil")
 		return
 	}
 	if parser.codeTheme != "dracula" {
-		t.Errorf("代码主题应为 dracula: got %q", parser.codeTheme)
+		t.Errorf("code theme should be dracula: got %q", parser.codeTheme)
 	}
 }
 
-// TestParseBasic 测试基本 Markdown 解析
+// TestParseBasic tests basic Markdown parsing
 func TestParseBasic(t *testing.T) {
 	parser := NewParser()
 	html, headings, err := parser.Parse([]byte("# 标题\n\n这是内容"))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "标题") {
-		t.Error("HTML 中未包含标题文本")
+		t.Error("HTML does not contain heading text")
 	}
 	if len(headings) != 1 {
-		t.Errorf("期望 1 个标题，得到 %d", len(headings))
+		t.Errorf("expected 1 heading, got %d", len(headings))
 	}
 	if headings[0].Level != 1 {
-		t.Errorf("期望标题等级 1，得到 %d", headings[0].Level)
+		t.Errorf("expected heading level 1, got %d", headings[0].Level)
 	}
 	if headings[0].Text != "标题" {
-		t.Errorf("标题文本错误: got %q", headings[0].Text)
+		t.Errorf("heading text mismatch: got %q", headings[0].Text)
 	}
 }
 
-// TestParseTable 测试表格解析
+// TestParseTable tests table parsing
 func TestParseTable(t *testing.T) {
 	parser := NewParser()
 	md := "| A | B |\n|---|---|\n| 1 | 2 |"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<table>") {
-		t.Error("HTML 中未包含表格标签")
+		t.Error("HTML does not contain table tag")
 	}
 	if !strings.Contains(html, "<th>") {
-		t.Error("HTML 中未包含表头标签")
+		t.Error("HTML does not contain th tag")
 	}
 	if !strings.Contains(html, "<td>") {
-		t.Error("HTML 中未包含单元格标签")
+		t.Error("HTML does not contain td tag")
 	}
 }
 
-// TestParseCodeHighlight 测试代码高亮
+// TestParseCodeHighlight tests code highlighting
 func TestParseCodeHighlight(t *testing.T) {
 	parser := NewParser(WithCodeTheme("monokai"))
 	md := "```go\nfmt.Println(\"hello\")\n```"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<pre") {
-		t.Error("代码块应包含 pre 标签")
+		t.Error("code block should contain pre tag")
 	}
 	// Chroma inline style on <pre> is stripped by PostProcess;
 	// token-level <span style="color:..."> should still be present.
@@ -87,7 +87,7 @@ func TestParseCodeHighlight(t *testing.T) {
 	}
 }
 
-// TestParseCodeMultiLanguages 测试多语言代码高亮
+// TestParseCodeMultiLanguages tests multi-language code highlighting
 func TestParseCodeMultiLanguages(t *testing.T) {
 	parser := NewParser()
 	languages := []string{
@@ -100,236 +100,236 @@ func TestParseCodeMultiLanguages(t *testing.T) {
 	for _, md := range languages {
 		html, _, err := parser.Parse([]byte(md))
 		if err != nil {
-			t.Fatalf("解析 %q 失败: %v", md[:20], err)
+			t.Fatalf("parse %q failed: %v", md[:20], err)
 		}
 		if !strings.Contains(html, "<pre") {
-			t.Errorf("代码块 %q 应包含 pre 标签", md[:20])
+			t.Errorf("code block %q should contain pre tag", md[:20])
 		}
 	}
 }
 
-// TestParseEmpty 测试空内容
+// TestParseEmpty tests empty content
 func TestParseEmpty(t *testing.T) {
 	parser := NewParser()
 	html, headings, err := parser.Parse([]byte(""))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if html != "" {
-		t.Errorf("期望空 HTML，得到 %q", html)
+		t.Errorf("expected empty HTML, got %q", html)
 	}
 	if len(headings) != 0 {
-		t.Errorf("期望 0 个标题，得到 %d", len(headings))
+		t.Errorf("expected 0 headings, got %d", len(headings))
 	}
 }
 
-// TestMultipleHeadings 测试多级标题
+// TestMultipleHeadings tests multi-level headings
 func TestMultipleHeadings(t *testing.T) {
 	parser := NewParser()
 	md := "# H1\n\n## H2\n\n### H3\n\n#### H4\n\n##### H5\n\n###### H6"
 	_, headings, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if len(headings) != 6 {
-		t.Errorf("期望 6 个标题，得到 %d", len(headings))
+		t.Errorf("expected 6 headings, got %d", len(headings))
 	}
 	for i, h := range headings {
 		if h.Level != i+1 {
-			t.Errorf("标题 %d 级别错误: got %d, want %d", i, h.Level, i+1)
+			t.Errorf("heading %d level mismatch: got %d, want %d", i, h.Level, i+1)
 		}
 	}
 }
 
-// TestParseStrikethrough 测试删除线
+// TestParseStrikethrough tests strikethrough
 func TestParseStrikethrough(t *testing.T) {
 	parser := NewParser()
 	md := "~~deleted text~~"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<del>") {
-		t.Error("删除线应生成 <del> 标签")
+		t.Error("strikethrough should generate <del> tag")
 	}
 }
 
-// TestParseTaskList 测试任务列表
+// TestParseTaskList tests task lists
 func TestParseTaskList(t *testing.T) {
 	parser := NewParser()
 	md := "- [x] 完成的任务\n- [ ] 未完成的任务"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "checkbox") || !strings.Contains(html, "input") {
-		t.Error("任务列表应包含 checkbox")
+		t.Error("task list should contain checkbox")
 	}
 }
 
-// TestParseFootnotes 测试脚注
+// TestParseFootnotes tests footnotes
 func TestParseFootnotes(t *testing.T) {
 	parser := NewParser()
 	md := "这是正文[^1]\n\n[^1]: 这是脚注内容"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "footnote") {
-		t.Error("脚注应在 HTML 中生成")
+		t.Error("footnotes should be generated in HTML")
 	}
 }
 
-// TestParseBlockquote 测试引用块
+// TestParseBlockquote tests blockquotes
 func TestParseBlockquote(t *testing.T) {
 	parser := NewParser()
 	md := "> 这是引用内容\n> 第二行"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<blockquote>") {
-		t.Error("引用块应生成 blockquote 标签")
+		t.Error("blockquote should generate blockquote tag")
 	}
 }
 
-// TestParseLinks 测试链接
+// TestParseLinks tests links
 func TestParseLinks(t *testing.T) {
 	parser := NewParser()
 	md := "[点击这里](https://example.com)"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, `href="https://example.com"`) {
-		t.Error("链接应正确生成")
+		t.Error("link should be generated correctly")
 	}
 	if !strings.Contains(html, "点击这里") {
-		t.Error("链接文本应正确")
+		t.Error("link text should be correct")
 	}
 }
 
-// TestParseImages 测试图片
+// TestParseImages tests images
 func TestParseImages(t *testing.T) {
 	parser := NewParser()
 	md := "![替代文本](image.png)"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<img") {
-		t.Error("图片应生成 img 标签")
+		t.Error("image should generate img tag")
 	}
 	if !strings.Contains(html, `src="image.png"`) {
-		t.Error("图片 src 应正确")
+		t.Error("image src should be correct")
 	}
 	if !strings.Contains(html, `alt="替代文本"`) {
-		t.Error("图片 alt 应正确")
+		t.Error("image alt should be correct")
 	}
 }
 
-// TestParseBold 测试加粗
+// TestParseBold tests bold text
 func TestParseBold(t *testing.T) {
 	parser := NewParser()
 	md := "**加粗文本**"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<strong>") {
-		t.Error("加粗应生成 strong 标签")
+		t.Error("bold should generate strong tag")
 	}
 }
 
-// TestParseItalic 测试斜体
+// TestParseItalic tests italic text
 func TestParseItalic(t *testing.T) {
 	parser := NewParser()
 	md := "*斜体文本*"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<em>") {
-		t.Error("斜体应生成 em 标签")
+		t.Error("italic should generate em tag")
 	}
 }
 
-// TestParseInlineCode 测试行内代码
+// TestParseInlineCode tests inline code
 func TestParseInlineCode(t *testing.T) {
 	parser := NewParser()
 	md := "使用 `go build` 命令"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<code>") {
-		t.Error("行内代码应生成 code 标签")
+		t.Error("inline code should generate code tag")
 	}
 }
 
-// TestParseOrderedList 测试有序列表
+// TestParseOrderedList tests ordered lists
 func TestParseOrderedList(t *testing.T) {
 	parser := NewParser()
 	md := "1. 第一项\n2. 第二项\n3. 第三项"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<ol>") {
-		t.Error("有序列表应生成 ol 标签")
+		t.Error("ordered list should generate ol tag")
 	}
 }
 
-// TestParseHorizontalRule 测试分隔线
+// TestParseHorizontalRule tests horizontal rules
 func TestParseHorizontalRule(t *testing.T) {
 	parser := NewParser()
 	md := "---"
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<hr") {
-		t.Error("分隔线应生成 hr 标签")
+		t.Error("horizontal rule should generate hr tag")
 	}
 }
 
-// TestHeadingIDs 测试标题 ID 生成
+// TestHeadingIDs tests heading ID generation
 func TestHeadingIDs(t *testing.T) {
 	parser := NewParser()
 	md := "# Hello World\n\n## 中文标题"
 	_, headings, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析失败: %v", err)
+		t.Fatalf("parse failed: %v", err)
 	}
 	if len(headings) < 2 {
-		t.Fatalf("应有至少 2 个标题: got %d", len(headings))
+		t.Fatalf("should have at least 2 headings: got %d", len(headings))
 	}
 
-	// ID 不应为空
+	// ID should not be empty
 	for i, h := range headings {
 		if h.ID == "" {
-			t.Errorf("标题 %d 的 ID 不应为空", i)
+			t.Errorf("heading %d ID should not be empty", i)
 		}
 	}
 }
 
-// TestSetCodeTheme 测试动态切换代码主题
+// TestSetCodeTheme tests dynamic code theme switching
 func TestSetCodeTheme(t *testing.T) {
 	parser := NewParser()
 	parser.SetCodeTheme("dracula")
 	if parser.codeTheme != "dracula" {
-		t.Errorf("代码主题应为 dracula: got %q", parser.codeTheme)
+		t.Errorf("code theme should be dracula: got %q", parser.codeTheme)
 	}
 
-	// 切换后应能正常解析
+	// Should parse correctly after switching
 	md := "```go\nfmt.Println(\"hello\")\n```"
 	_, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("切换主题后解析失败: %v", err)
+		t.Fatalf("parse failed after theme switch: %v", err)
 	}
 }
 
-// TestGetHeadings 测试获取标题列表
+// TestGetHeadings tests retrieving heading list
 func TestGetHeadings(t *testing.T) {
 	parser := NewParser()
 	if _, _, err := parser.Parse([]byte("# A\n\n## B")); err != nil {
@@ -338,11 +338,11 @@ func TestGetHeadings(t *testing.T) {
 
 	headings := parser.GetHeadings()
 	if len(headings) != 2 {
-		t.Errorf("应有 2 个标题: got %d", len(headings))
+		t.Errorf("should have 2 headings: got %d", len(headings))
 	}
 }
 
-// TestParseComplexDocument 测试复杂文档
+// TestParseComplexDocument tests complex document
 func TestParseComplexDocument(t *testing.T) {
 	parser := NewParser()
 	md := `# 项目介绍
@@ -383,31 +383,31 @@ func main() {
 `
 	html, headings, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("解析复杂文档失败: %v", err)
+		t.Fatalf("parse complex document failed: %v", err)
 	}
 
 	if len(headings) != 4 {
-		t.Errorf("应有 4 个标题: got %d", len(headings))
+		t.Errorf("should have 4 headings: got %d", len(headings))
 	}
 
-	// 检查各种元素
+	// Check various elements
 	checks := map[string]string{
-		"<strong>":     "加粗",
-		"<table>":      "表格",
-		"<blockquote>": "引用块",
-		"<hr":          "分隔线",
-		"<a ":          "链接", //nolint:gocritic // intentional trailing space to match tag prefix
-		"<pre":         "代码块",
+		"<strong>":     "bold",
+		"<table>":      "table",
+		"<blockquote>": "blockquote",
+		"<hr":          "horizontal rule",
+		"<a ":          "link", //nolint:gocritic // intentional trailing space to match tag prefix
+		"<pre":         "code block",
 	}
 
 	for tag, name := range checks {
 		if !strings.Contains(html, tag) {
-			t.Errorf("复杂文档应包含 %s (%s)", name, tag)
+			t.Errorf("complex document should contain %s (%s)", name, tag)
 		}
 	}
 }
 
-// TestGenerateHeadingID 测试标题 ID 生成函数
+// TestGenerateHeadingID tests heading ID generation function
 func TestGenerateHeadingID(t *testing.T) {
 	tests := []struct {
 		input string
@@ -425,7 +425,7 @@ func TestGenerateHeadingID(t *testing.T) {
 	}
 }
 
-// TestParseConcurrent 测试并发解析安全性
+// TestParseConcurrent tests concurrent parsing safety
 func TestParseConcurrent(t *testing.T) {
 	parser := NewParser()
 	done := make(chan bool, 10)
@@ -434,7 +434,7 @@ func TestParseConcurrent(t *testing.T) {
 		go func() {
 			_, _, err := parser.Parse([]byte("# Test\n\nContent"))
 			if err != nil {
-				t.Errorf("并发解析失败: %v", err)
+				t.Errorf("concurrent parse failed: %v", err)
 			}
 			done <- true
 		}()
@@ -445,31 +445,31 @@ func TestParseConcurrent(t *testing.T) {
 	}
 }
 
-// TestParseGFMTableAlignment 测试 GFM 表格对齐语法
+// TestParseGFMTableAlignment tests GFM table alignment syntax
 func TestParseGFMTableAlignment(t *testing.T) {
 	parser := NewParser()
-	// 测试左对齐、居中、右对齐的表格对齐语法
-	// GFM 表格需要前面有空行
+	// Test left-align, center-align, right-align table syntax
+	// GFM tables require a preceding blank line
 	md := "\n| 左对齐 | 居中 | 右对齐 |\n" +
 		"|:---|:---:|---:|\n" +
 		"| L | C | R |"
 
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("表格对齐解析失败: %v", err)
+		t.Fatalf("table alignment parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<table>") {
-		t.Error("对齐表格应包含 table 标签")
+		t.Error("aligned table should contain table tag")
 	}
 	if !strings.Contains(html, "<th") {
-		t.Error("对齐表格应包含表头标签")
+		t.Error("aligned table should contain th tag")
 	}
 	if !strings.Contains(html, "<td") {
-		t.Error("对齐表格应包含单元格标签")
+		t.Error("aligned table should contain td tag")
 	}
 }
 
-// TestParseNestedCodeBlock 测试列表或引用块中的代码块
+// TestParseNestedCodeBlock tests code blocks inside lists or blockquotes
 func TestParseNestedCodeBlock(t *testing.T) {
 	parser := NewParser()
 	tests := []struct {
@@ -477,11 +477,11 @@ func TestParseNestedCodeBlock(t *testing.T) {
 		md   string
 	}{
 		{
-			name: "列表中的代码块",
+			name: "code block in list",
 			md:   "- 第一项\n\n  ```go\n  fmt.Println(\"hello\")\n  ```\n- 第二项",
 		},
 		{
-			name: "引用块中的代码块",
+			name: "code block in blockquote",
 			md:   "> 这是一个引用\n>\n> ```python\n> print('hello')\n> ```",
 		},
 	}
@@ -490,16 +490,16 @@ func TestParseNestedCodeBlock(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("嵌套代码块解析失败: %v", err)
+				t.Fatalf("nested code block parse failed: %v", err)
 			}
 			if !strings.Contains(html, "<pre") {
-				t.Error("嵌套代码块应包含 pre 标签")
+				t.Error("nested code block should contain pre tag")
 			}
 		})
 	}
 }
 
-// TestParseMultipleFootnotes 测试多个脚注
+// TestParseMultipleFootnotes tests multiple footnotes
 func TestParseMultipleFootnotes(t *testing.T) {
 	parser := NewParser()
 	md := "这是第一个脚注[^1]，第二个脚注[^2]，还有第三个[^3]。\n\n" +
@@ -509,42 +509,42 @@ func TestParseMultipleFootnotes(t *testing.T) {
 
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("多脚注解析失败: %v", err)
+		t.Fatalf("multiple footnotes parse failed: %v", err)
 	}
 	if !strings.Contains(html, "footnote") {
-		t.Error("脚注应在 HTML 中生成")
+		t.Error("footnotes should be generated in HTML")
 	}
-	// 验证至少出现脚注标记
+	// Verify footnote markers appear
 	footnoteCount := strings.Count(html, "footnote")
 	if footnoteCount < 3 {
-		t.Logf("脚注计数: %d (可能使用不同的脚注标记方式)", footnoteCount)
+		t.Errorf("expected at least 3 footnote markers, got: %d", footnoteCount)
 	}
 }
 
-// TestParseImageWithTitle 测试带标题的图片
+// TestParseImageWithTitle tests images with title attribute
 func TestParseImageWithTitle(t *testing.T) {
 	parser := NewParser()
 	md := `![替代文本](image.png "这是图片标题")`
 
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("带标题图片解析失败: %v", err)
+		t.Fatalf("image with title parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<img") {
-		t.Error("图片应生成 img 标签")
+		t.Error("image should generate img tag")
 	}
 	if !strings.Contains(html, `src="image.png"`) {
-		t.Error("图片 src 应正确")
+		t.Error("image src should be correct")
 	}
 	if !strings.Contains(html, `alt="替代文本"`) {
-		t.Error("图片 alt 应正确")
+		t.Error("image alt should be correct")
 	}
 	if !strings.Contains(html, "title=") || !strings.Contains(html, "图片标题") {
-		t.Logf("图片标题可能以不同方式处理: %s", html)
+		t.Errorf("image title should be present: %s", html)
 	}
 }
 
-// TestParseLinkVariations 测试不同形式的链接（表格驱动）
+// TestParseLinkVariations tests various link forms (table-driven)
 func TestParseLinkVariations(t *testing.T) {
 	parser := NewParser()
 	tests := []struct {
@@ -554,25 +554,25 @@ func TestParseLinkVariations(t *testing.T) {
 		hasText string
 	}{
 		{
-			name:    "普通链接",
+			name:    "standard link",
 			md:      "[文本](https://example.com)",
 			hasHref: "https://example.com",
 			hasText: "文本",
 		},
 		{
-			name:    "带标题的链接",
+			name:    "link with title",
 			md:      `[文本](https://example.com "标题")`,
 			hasHref: "https://example.com",
 			hasText: "文本",
 		},
 		{
-			name:    "自动链接",
+			name:    "autolink",
 			md:      "https://example.com",
 			hasHref: "https://example.com",
 			hasText: "",
 		},
 		{
-			name:    "引用式链接",
+			name:    "reference link",
 			md:      "[文本][ref]\n\n[ref]: https://example.com",
 			hasHref: "https://example.com",
 			hasText: "文本",
@@ -583,37 +583,37 @@ func TestParseLinkVariations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("链接解析失败: %v", err)
+				t.Fatalf("link parse failed: %v", err)
 			}
 			if !strings.Contains(html, "href=") {
-				t.Error("链接应生成 href 属性")
+				t.Error("link should generate href attribute")
 			}
 			if tt.hasHref != "" && !strings.Contains(html, tt.hasHref) {
-				t.Errorf("链接应包含 %q", tt.hasHref)
+				t.Errorf("link should contain %q", tt.hasHref)
 			}
 			if tt.hasText != "" && !strings.Contains(html, tt.hasText) {
-				t.Errorf("链接应包含文本 %q", tt.hasText)
+				t.Errorf("link should contain text %q", tt.hasText)
 			}
 		})
 	}
 }
 
-// TestParseHTMLPassthrough 测试原始 HTML 直接通过
+// TestParseHTMLPassthrough tests raw HTML passthrough
 func TestParseHTMLPassthrough(t *testing.T) {
 	parser := NewParser()
-	// 由于配置了 WithUnsafe()，原始 HTML 应该被保留
+	// With WithUnsafe() configured, raw HTML should be preserved
 	md := "这是文本\n\n<div class=\"custom\">自定义 HTML</div>\n\n更多文本"
 
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("HTML 直通解析失败: %v", err)
+		t.Fatalf("HTML passthrough parse failed: %v", err)
 	}
 	if !strings.Contains(html, "<div") && !strings.Contains(html, "custom") {
-		t.Logf("HTML 可能被过滤了，但这取决于 HTML 渲染器配置")
+		t.Errorf("HTML passthrough content should be preserved: %s", html)
 	}
 }
 
-// TestGenerateHeadingIDTableDriven 表格驱动测试标题 ID 生成
+// TestGenerateHeadingIDTableDriven table-driven tests for heading ID generation
 func TestGenerateHeadingIDTableDriven(t *testing.T) {
 	tests := []struct {
 		input string
@@ -625,11 +625,11 @@ func TestGenerateHeadingIDTableDriven(t *testing.T) {
 		},
 		{
 			input: "中文标题",
-			want:  "heading", // 中文可能生成默认 ID
+			want:  "中文标题", // Chinese characters are preserved in heading IDs
 		},
 		{
 			input: "Special !@#$% Chars",
-			want:  "special--chars",
+			want:  "special-chars",
 		},
 		{
 			input: "Numbers 123 456",
@@ -648,23 +648,18 @@ func TestGenerateHeadingIDTableDriven(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			got := generateHeadingID(tt.input)
-			// 验证 ID 不为空
+			// Verify ID is not empty
 			if got == "" {
-				t.Error("生成的 ID 不应为空")
+				t.Error("generated ID should not be empty")
 			}
-			// 对于某些特殊情况，只检查非空即可
-			if tt.input == "" || tt.input == "中文标题" {
-				if got != tt.want && got != "heading" {
-					t.Logf("特殊输入 %q 生成 ID: %q (可能有多种正确形式)", tt.input, got)
-				}
-			} else if got != tt.want {
-				t.Logf("generateHeadingID(%q) = %q, want %q (可能有多种合理的生成方式)", tt.input, got, tt.want)
+			if got != tt.want {
+				t.Errorf("generateHeadingID(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestParseNestedFormatting 测试嵌套格式化
+// TestParseNestedFormatting tests nested formatting
 func TestParseNestedFormatting(t *testing.T) {
 	parser := NewParser()
 	tests := []struct {
@@ -672,19 +667,19 @@ func TestParseNestedFormatting(t *testing.T) {
 		md   string
 	}{
 		{
-			name: "粗体中的斜体",
+			name: "italic inside bold",
 			md:   "**粗体 _斜体_ 粗体**",
 		},
 		{
-			name: "斜体中的粗体",
+			name: "bold inside italic",
 			md:   "*斜体 **粗体** 斜体*",
 		},
 		{
-			name: "粗体-斜体混合",
+			name: "bold-italic mixed",
 			md:   "***粗斜体***",
 		},
 		{
-			name: "代码中的格式化",
+			name: "formatting inside code",
 			md:   "`**不应被解析**`",
 		},
 	}
@@ -693,37 +688,37 @@ func TestParseNestedFormatting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("嵌套格式化解析失败: %v", err)
+				t.Fatalf("nested formatting parse failed: %v", err)
 			}
-			// 检查是否生成了 HTML
+			// Check if HTML was generated
 			if html == "" {
-				t.Error("应生成 HTML")
+				t.Error("should generate HTML")
 			}
 		})
 	}
 }
 
-// TestParseDefinitionList 测试定义列表处理
+// TestParseDefinitionList tests definition list handling
 func TestParseDefinitionList(t *testing.T) {
 	parser := NewParser()
-	// 测试定义列表格式（如果支持）
+	// Test definition list format (if supported)
 	md := "Apple\n:   一种水果\n\nBanana\n:   另一种水果"
 
 	html, _, err := parser.Parse([]byte(md))
 	if err != nil {
-		t.Fatalf("定义列表解析失败: %v", err)
+		t.Fatalf("definition list parse failed: %v", err)
 	}
-	// 检查是否生成了内容，具体格式取决于支持情况
+	// Check if content was generated; specific format depends on support
 	if html == "" {
-		t.Error("应生成 HTML 输出")
+		t.Error("should generate HTML output")
 	}
 }
 
 // ============================================================================
-// 新增：复杂集成测试
+// Additional: complex integration tests
 // ============================================================================
 
-// TestComplexMarkdownIntegration 测试复杂 Markdown 混合特性 (表格驱动)
+// TestComplexMarkdownIntegration tests complex Markdown mixed features (table-driven)
 func TestComplexMarkdownIntegration(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -731,7 +726,7 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 		wantElements map[string]string // tag -> description
 	}{
 		{
-			name: "标题+代码+表格+链接",
+			name: "headings+code+table+links",
 			md: "# 项目概述\n\n" +
 				"这是 [官网](https://example.com) 的链接。\n\n" +
 				"## API 文档\n\n" +
@@ -749,18 +744,18 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 				"- **code**: 状态码\n" +
 				"- **data**: 响应数据",
 			wantElements: map[string]string{
-				"<h1":     "主标题",
-				"<h2":     "二级标题",
-				"<h3":     "三级标题",
-				"<a href": "链接",
-				"<pre":    "代码块",
-				"<table>": "表格",
-				"<hr":     "分隔线",
-				"<ul>":    "列表",
+				"<h1":     "main heading",
+				"<h2":     "second-level heading",
+				"<h3":     "third-level heading",
+				"<a href": "link",
+				"<pre":    "code block",
+				"<table>": "table",
+				"<hr":     "horizontal rule",
+				"<ul>":    "list",
 			},
 		},
 		{
-			name: "嵌套结构：列表+代码+强调",
+			name: "nested: list+code+emphasis",
 			md: "## 步骤说明\n\n" +
 				"1. 安装依赖：\n\n" +
 				"   ```bash\n" +
@@ -775,16 +770,16 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 				"   - 调用 *Process* 方法处理数据\n" +
 				"   - 检查 __错误__ 返回值",
 			wantElements: map[string]string{
-				"<h2":      "二级标题",
-				"<ol>":     "有序列表",
-				"<pre":     "代码块",
-				"<strong>": "加粗",
-				"<em>":     "斜体",
-				"<ul>":     "无序列表",
+				"<h2":      "second-level heading",
+				"<ol>":     "ordered list",
+				"<pre":     "code block",
+				"<strong>": "bold",
+				"<em>":     "italic",
+				"<ul>":     "unordered list",
 			},
 		},
 		{
-			name: "引用块+代码+表格",
+			name: "blockquote+code+table",
 			md: "> **注意：** 这是一个重要的提示\n" +
 				">\n" +
 				"> ```python\n" +
@@ -799,10 +794,10 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 				"> | data | string | 是 |\n" +
 				"> | async | bool | 否 |",
 			wantElements: map[string]string{
-				"<blockquote>": "引用块",
-				"<pre":         "代码块",
-				"<table>":      "表格",
-				"<strong>":     "加粗",
+				"<blockquote>": "blockquote",
+				"<pre":         "code block",
+				"<table>":      "table",
+				"<strong>":     "bold",
 			},
 		},
 	}
@@ -812,19 +807,19 @@ func TestComplexMarkdownIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("解析失败: %v", err)
+				t.Fatalf("parse failed: %v", err)
 			}
 
 			for tag, desc := range tt.wantElements {
 				if !strings.Contains(html, tag) {
-					t.Errorf("缺少 %s (%s)", desc, tag)
+					t.Errorf("missing %s (%s)", desc, tag)
 				}
 			}
 		})
 	}
 }
 
-// TestParserEdgeCases 测试边界情况 (表格驱动)
+// TestParserEdgeCases tests edge cases (table-driven)
 func TestParserEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -833,70 +828,70 @@ func TestParserEdgeCases(t *testing.T) {
 		check   func(t *testing.T, html string)
 	}{
 		{
-			name:    "空输入",
+			name:    "empty input",
 			md:      "",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if html != "" {
-					t.Errorf("空输入应返回空 HTML，得 %q", html)
+					t.Errorf("empty input should return empty HTML, got %q", html)
 				}
 			},
 		},
 		{
-			name:    "仅空白字符",
+			name:    "whitespace only",
 			md:      "   \n\n  \t\t\n  ",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if strings.TrimSpace(html) != "" {
-					t.Errorf("仅空白应返回空 HTML，得 %q", html)
+					t.Errorf("whitespace only should return empty HTML, got %q", html)
 				}
 			},
 		},
 		{
-			name:    "特别长的行（>10000字符）",
+			name:    "very long line (>10000 chars)",
 			md:      "# 标题\n\n" + strings.Repeat("x", 12000),
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if html == "" {
-					t.Error("长输入应生成 HTML")
+					t.Error("long input should generate HTML")
 				}
 			},
 		},
 		{
-			name:    "特别长的文档（>1000行）",
+			name:    "very long document (>1000 lines)",
 			md:      buildLongDocument(1500),
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if html == "" {
-					t.Error("长文档应生成 HTML")
+					t.Error("long document should generate HTML")
 				}
-				// 应该有很多标题
+				// Should have many headings
 				headingCount := strings.Count(html, "<h2")
 				if headingCount < 100 {
-					t.Logf("警告: 标题计数较少: %d", headingCount)
+					t.Errorf("expected at least 100 headings, got: %d", headingCount)
 				}
 			},
 		},
 		{
-			name: "多个连续代码块",
+			name: "multiple consecutive code blocks",
 			md: "```python\nprint('a')\n```\n\n" +
 				"```go\nfmt.Println(\"b\")\n```\n\n" +
 				"```js\nconsole.log('c')\n```",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
 				if strings.Count(html, "<pre") < 3 {
-					t.Error("应有至少 3 个代码块")
+					t.Error("should have at least 3 code blocks")
 				}
 			},
 		},
 		{
-			name:    "特殊字符和转义",
+			name:    "special characters and escaping",
 			md:      "# <script>alert('xss')</script>\n\n测试 & < > \" '",
 			wantErr: false,
 			check: func(t *testing.T, html string) {
-				// 应该生成 HTML（具体的转义策略由 renderer 决定）
+				// Should generate HTML (specific escaping strategy depends on renderer)
 				if html == "" {
-					t.Error("特殊字符输入应生成 HTML")
+					t.Error("special character input should generate HTML")
 				}
 			},
 		},
@@ -916,30 +911,30 @@ func TestParserEdgeCases(t *testing.T) {
 	}
 }
 
-// TestCJKContentRendering 测试 CJK 内容渲染 (表格驱动)
+// TestCJKContentRendering tests CJK content rendering (table-driven)
 func TestCJKContentRendering(t *testing.T) {
 	tests := []struct {
 		name string
 		md   string
-		want string // 应该包含的文本
+		want string // text that should be present
 	}{
 		{
-			name: "中文标题",
+			name: "Chinese heading",
 			md:   "# 中文标题\n\n## 二级标题",
 			want: "中文标题",
 		},
 		{
-			name: "日文内容",
+			name: "Japanese content",
 			md:   "# 日本語のタイトル\n\nこれはテキストです。",
 			want: "日本語のタイトル",
 		},
 		{
-			name: "韩文内容",
+			name: "Korean content",
 			md:   "# 한국어 제목\n\n한국어 텍스트입니다.",
 			want: "한국어 제목",
 		},
 		{
-			name: "混合 CJK",
+			name: "mixed CJK",
 			md: "# 中文 日本語 한국어\n\n" +
 				"这是中文段落。\n\n" +
 				"これは日本語です。\n\n" +
@@ -947,14 +942,14 @@ func TestCJKContentRendering(t *testing.T) {
 			want: "中文",
 		},
 		{
-			name: "CJK 表格",
+			name: "CJK table",
 			md: "| 中文 | 日本語 | 한국어 |\n" +
 				"|------|--------|--------|\n" +
 				"| 内容 | コンテンツ | 내용 |",
 			want: "中文",
 		},
 		{
-			name: "CJK 代码注释",
+			name: "CJK code comments",
 			md: "```python\n" +
 				"# 这是中文注释\n" +
 				"# これは日本語のコメントです\n" +
@@ -970,23 +965,23 @@ func TestCJKContentRendering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("解析失败: %v", err)
+				t.Fatalf("parse failed: %v", err)
 			}
 			if !strings.Contains(html, tt.want) {
-				t.Errorf("HTML 应包含 %q，但未找到\nHTML: %s", tt.want, html[:500])
+				t.Errorf("HTML should contain %q but not found\nHTML: %s", tt.want, html[:500])
 			}
 		})
 	}
 }
 
-// TestNestedBlockquoteWithCode 测试嵌套引用块和代码 (表格驱动)
+// TestNestedBlockquoteWithCode tests nested blockquotes with code (table-driven)
 func TestNestedBlockquoteWithCode(t *testing.T) {
 	tests := []struct {
 		name string
 		md   string
 	}{
 		{
-			name: "多层嵌套引用块",
+			name: "multi-level nested blockquotes",
 			md: "> 外层引用\n" +
 				">\n" +
 				"> > 内层引用\n" +
@@ -994,7 +989,7 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 				"> > > 更深层引用",
 		},
 		{
-			name: "引用块内的代码块",
+			name: "code block inside blockquote",
 			md: "> 说明文字\n" +
 				">\n" +
 				"> ```go\n" +
@@ -1006,7 +1001,7 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 				"> 更多说明",
 		},
 		{
-			name: "引用块内的列表和代码",
+			name: "list and code inside blockquote",
 			md: "> 这是引用块\n" +
 				">\n" +
 				"> 1. 第一项\n" +
@@ -1017,7 +1012,7 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 				"> ```",
 		},
 		{
-			name: "复杂嵌套：列表→引用→代码→表格",
+			name: "complex nesting: list->blockquote->code->table",
 			md: "- 项目 A\n" +
 				"\n" +
 				"  > 引用块说明\n" +
@@ -1040,24 +1035,24 @@ func TestNestedBlockquoteWithCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("解析失败: %v", err)
+				t.Fatalf("parse failed: %v", err)
 			}
 
-			// 基本检查：应该包含 blockquote 和 pre 标签
+			// Basic check: should contain blockquote and pre tags
 			if !strings.Contains(html, "<blockquote>") {
-				t.Error("应包含 blockquote 标签")
+				t.Error("should contain blockquote tag")
 			}
 			if !strings.Contains(html, "<pre") && !strings.Contains(tt.md, "```") {
-				// 如果输入中有代码块，应该有 pre 标签
+				// If input has code blocks, there should be pre tags
 				if strings.Contains(tt.md, "```") {
-					t.Error("应包含 pre 标签（代码块）")
+					t.Error("should contain pre tag (code block)")
 				}
 			}
 		})
 	}
 }
 
-// TestMarkdownWithHTMLMixed 测试 Markdown 混合 HTML (表格驱动)
+// TestMarkdownWithHTMLMixed tests Markdown mixed with HTML (table-driven)
 func TestMarkdownWithHTMLMixed(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1065,17 +1060,17 @@ func TestMarkdownWithHTMLMixed(t *testing.T) {
 		wantHTMLTag string
 	}{
 		{
-			name:        "行内 HTML",
+			name:        "inline HTML",
 			md:          "这是文本 <span style='color:red'>红色</span> 继续文本",
 			wantHTMLTag: "<span",
 		},
 		{
-			name:        "块级 HTML",
+			name:        "block-level HTML",
 			md:          "文本开始\n\n<div class='box'>HTML 内容</div>\n\n文本结束",
 			wantHTMLTag: "<div",
 		},
 		{
-			name: "HTML 表单",
+			name: "HTML form",
 			md: "## 表单示例\n\n" +
 				"<form method='post'>\n" +
 				"  <input type='text' name='username'>\n" +
@@ -1084,12 +1079,12 @@ func TestMarkdownWithHTMLMixed(t *testing.T) {
 			wantHTMLTag: "<form",
 		},
 		{
-			name:        "HTML 注释",
+			name:        "HTML comment",
 			md:          "# 标题\n\n<!-- 这是注释 -->\n\n内容",
 			wantHTMLTag: "<!--",
 		},
 		{
-			name:        "Markdown 中的 HTML 转义字符",
+			name:        "HTML escape characters in Markdown",
 			md:          "这是&amp; < > \"引号\"",
 			wantHTMLTag: "&",
 		},
@@ -1100,31 +1095,31 @@ func TestMarkdownWithHTMLMixed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			html, _, err := parser.Parse([]byte(tt.md))
 			if err != nil {
-				t.Fatalf("解析失败: %v", err)
+				t.Fatalf("parse failed: %v", err)
 			}
 
 			if !strings.Contains(html, tt.wantHTMLTag) {
-				t.Errorf("HTML 应包含 %q，实际输出: %s", tt.wantHTMLTag, html[:300])
+				t.Errorf("HTML should contain %q, actual output: %s", tt.wantHTMLTag, html[:300])
 			}
 		})
 	}
 }
 
 // ============================================================================
-// 辅助函数
+// Helper functions
 // ============================================================================
 
-// buildLongDocument 构建一个长文档以测试性能
+// buildLongDocument builds a long document for performance testing
 func buildLongDocument(lines int) string {
 	var buf strings.Builder
 	for i := 0; i < lines; i++ {
-		fmt.Fprintf(&buf, "## 第 %d 章\n\n", i+1)
-		buf.WriteString("这是段落内容。\n\n")
+		fmt.Fprintf(&buf, "## Chapter %d\n\n", i+1)
+		buf.WriteString("This is paragraph content.\n\n")
 		if i%5 == 0 {
 			buf.WriteString("```go\ncode snippet\n```\n\n")
 		}
 		if i%7 == 0 {
-			buf.WriteString("| 列 A | 列 B |\n|------|------|\n| a | b |\n\n")
+			buf.WriteString("| Col A | Col B |\n|------|------|\n| a | b |\n\n")
 		}
 	}
 	return buf.String()

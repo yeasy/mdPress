@@ -458,7 +458,7 @@ func TestTemplateWithMinimalData(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -470,7 +470,7 @@ func TestTemplateWithMinimalData(t *testing.T) {
 		CSS:              "",
 		CoverHTML:        "",
 		TOCHTML:          "",
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		WatermarkOpacity: 0,
 	}
 
@@ -581,7 +581,7 @@ func TestTemplateWithEmptyChapters(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -593,7 +593,7 @@ func TestTemplateWithEmptyChapters(t *testing.T) {
 		CSS:              template.CSS("body { }"),
 		CoverHTML:        template.HTML("<div>Cover</div>"),
 		TOCHTML:          template.HTML("<div>TOC</div>"),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		WatermarkOpacity: 0,
 	}
 
@@ -954,7 +954,7 @@ func TestTemplateCSSIsProperlyEscaped(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -966,7 +966,7 @@ func TestTemplateCSSIsProperlyEscaped(t *testing.T) {
 		CSS:              template.CSS("body { content: \"value\"; }"),
 		CoverHTML:        template.HTML(""),
 		TOCHTML:          template.HTML(""),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		WatermarkOpacity: 0,
 	}
 
@@ -997,7 +997,7 @@ func TestTemplateHTMLInCoverIsNotEscaped(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -1009,7 +1009,7 @@ func TestTemplateHTMLInCoverIsNotEscaped(t *testing.T) {
 		CSS:              template.CSS(""),
 		CoverHTML:        template.HTML("<div class='cover-wrapper'><h1>My Book</h1><p>Subtitle</p></div>"),
 		TOCHTML:          template.HTML(""),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		WatermarkOpacity: 0,
 	}
 
@@ -1043,7 +1043,7 @@ func TestTemplateDefaultLanguageFallback(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -1055,7 +1055,7 @@ func TestTemplateDefaultLanguageFallback(t *testing.T) {
 		CSS:              template.CSS(""),
 		CoverHTML:        template.HTML(""),
 		TOCHTML:          template.HTML(""),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		WatermarkOpacity: 0,
 	}
 
@@ -1085,7 +1085,7 @@ func TestTemplateZeroWatermarkOpacity(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -1097,7 +1097,7 @@ func TestTemplateZeroWatermarkOpacity(t *testing.T) {
 		CSS:              template.CSS(""),
 		CoverHTML:        template.HTML(""),
 		TOCHTML:          template.HTML(""),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		Watermark:        "",
 		WatermarkOpacity: 0.0,
 	}
@@ -1129,7 +1129,7 @@ func TestTemplateHighWatermarkOpacity(t *testing.T) {
 		CSS              template.CSS
 		CoverHTML        template.HTML
 		TOCHTML          template.HTML
-		Chapters         []interface{}
+		Chapters         []any
 		HeaderText       string
 		FooterText       string
 		Watermark        string
@@ -1141,7 +1141,7 @@ func TestTemplateHighWatermarkOpacity(t *testing.T) {
 		CSS:              template.CSS(""),
 		CoverHTML:        template.HTML(""),
 		TOCHTML:          template.HTML(""),
-		Chapters:         []interface{}{},
+		Chapters:         []any{},
 		Watermark:        "SECRET",
 		WatermarkOpacity: 1.0,
 	}
