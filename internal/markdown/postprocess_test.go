@@ -10,7 +10,7 @@ import (
 func TestProcessAlertNote(t *testing.T) {
 	// goldmark renders > [!NOTE]\n> text as:
 	input := "<blockquote>\n<p>[!NOTE]\nThis is important.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if strings.Contains(result, "<blockquote>") {
 		t.Error("blockquote should be replaced by alert div")
@@ -31,7 +31,7 @@ func TestProcessAlertNote(t *testing.T) {
 
 func TestProcessAlertTip(t *testing.T) {
 	input := "<blockquote>\n<p>[!TIP]\nHelpful advice.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "alert-tip") {
 		t.Error("should have alert-tip class")
@@ -43,7 +43,7 @@ func TestProcessAlertTip(t *testing.T) {
 
 func TestProcessAlertWarning(t *testing.T) {
 	input := "<blockquote>\n<p>[!WARNING]\nBe careful.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "alert-warning") {
 		t.Error("should have alert-warning class")
@@ -55,7 +55,7 @@ func TestProcessAlertWarning(t *testing.T) {
 
 func TestProcessAlertCaution(t *testing.T) {
 	input := "<blockquote>\n<p>[!CAUTION]\nDangerous.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "alert-caution") {
 		t.Error("should have alert-caution class")
@@ -64,7 +64,7 @@ func TestProcessAlertCaution(t *testing.T) {
 
 func TestProcessAlertImportant(t *testing.T) {
 	input := "<blockquote>\n<p>[!IMPORTANT]\nKey info.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "alert-important") {
 		t.Error("should have alert-important class")
@@ -74,7 +74,7 @@ func TestProcessAlertImportant(t *testing.T) {
 func TestProcessAlertNormalBlockquote(t *testing.T) {
 	// Normal blockquotes without [!TYPE] should not be affected
 	input := "<blockquote>\n<p>Just a regular quote.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "<blockquote>") {
 		t.Error("normal blockquote should not be converted")
@@ -85,7 +85,7 @@ func TestProcessAlertMultiple(t *testing.T) {
 	input := "<blockquote>\n<p>[!NOTE]\nFirst.</p>\n</blockquote>\n" +
 		"<p>Middle text.</p>\n" +
 		"<blockquote>\n<p>[!WARNING]\nSecond.</p>\n</blockquote>"
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if strings.Count(result, "alert-note") != 1 {
 		t.Error("should have exactly one alert-note")
@@ -104,7 +104,7 @@ func TestProcessMermaidBasic(t *testing.T) {
 	input := `<pre><code class="language-mermaid">graph TD
     A--&gt;B
     B--&gt;C</code></pre>`
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if strings.Contains(result, "<pre>") {
 		t.Error("pre block should be replaced")
@@ -112,10 +112,10 @@ func TestProcessMermaidBasic(t *testing.T) {
 	if !strings.Contains(result, `class="mermaid"`) {
 		t.Error("should have mermaid class div")
 	}
-	// After XSS fix, entities are re-escaped for safe HTML embedding.
-	// Mermaid.js reads textContent, so escaped entities render correctly.
-	if !strings.Contains(result, "A--&gt;B") {
-		t.Error("mermaid content should be HTML-escaped for safety")
+	// Entities are unescaped so Mermaid JS can parse the diagram syntax.
+	// XSS protection is handled by Mermaid's securityLevel:'strict'.
+	if !strings.Contains(result, "A-->B") {
+		t.Error("mermaid arrows should be unescaped for correct parsing")
 	}
 }
 
@@ -123,17 +123,17 @@ func TestProcessMermaidSequenceDiagram(t *testing.T) {
 	input := `<pre><code class="language-mermaid">sequenceDiagram
     Alice-&gt;&gt;Bob: Hello
     Bob-&gt;&gt;Alice: Hi</code></pre>`
-	result := PostProcess(input)
+	result := postProcess(input)
 
-	// After XSS fix, entities are re-escaped for safe HTML embedding.
-	if !strings.Contains(result, "Alice-&gt;&gt;Bob") {
-		t.Error("mermaid content should be HTML-escaped for safety")
+	// Entities are unescaped so Mermaid JS can parse the diagram syntax.
+	if !strings.Contains(result, "Alice->>Bob") {
+		t.Error("mermaid arrows should be unescaped for correct parsing")
 	}
 }
 
 func TestProcessMermaidPreservesOtherCode(t *testing.T) {
 	input := `<pre><code class="language-go">func main() {}</code></pre>`
-	result := PostProcess(input)
+	result := postProcess(input)
 
 	if !strings.Contains(result, "<pre>") {
 		t.Error("non-mermaid code blocks should be preserved")
@@ -153,13 +153,13 @@ func TestNeedsMermaid(t *testing.T) {
 }
 
 func TestMermaidScript(t *testing.T) {
-	s := MermaidScript()
+	s := mermaidScript()
 	if !strings.Contains(s, "mermaid") {
 		t.Error("should contain mermaid script")
 	}
 }
 
-// ===== Integration: Parse + PostProcess =====
+// ===== Integration: Parse + postProcess =====
 
 func TestParseGFMAlert(t *testing.T) {
 	parser := NewParser()

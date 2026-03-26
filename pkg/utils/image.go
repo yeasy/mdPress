@@ -32,9 +32,19 @@ func fnv32a(s string) uint32 {
 	return h
 }
 
-// imgSrcRegex matches HTML <img> tags and captures the src attribute.
-// Compiled once at package level to avoid repeated compilation in ProcessImagesWithOptions.
-var imgSrcRegex = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
+// ImgSrcRegex matches HTML <img> tags and captures the src attribute.
+// Exported so that other packages (e.g. internal/output/epub) can reuse
+// the same compiled pattern instead of declaring a duplicate.
+var ImgSrcRegex = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
+
+// HTMLTagPattern matches any HTML tag. Useful for stripping tags to obtain
+// plain text.  Shared across cmd and internal/output packages.
+var HTMLTagPattern = regexp.MustCompile(`<[^>]*>`)
+
+// StripHTMLTags removes all HTML tags from s, returning plain text.
+func StripHTMLTags(s string) string {
+	return HTMLTagPattern.ReplaceAllString(s, "")
+}
 
 const (
 	// MaxImageSize is the maximum allowed size for a downloaded image (50 MB).
@@ -44,6 +54,25 @@ const (
 	// imageDownloadRetryDelay is the delay before retrying a failed image download.
 	imageDownloadRetryDelay = 1 * time.Second
 )
+
+// imageHTTPClient is a shared HTTP client for image downloads, enabling TCP
+// connection reuse across multiple downloads from the same host.
+// CheckRedirect validates each redirect target against SSRF rules to prevent
+// an attacker from redirecting to internal/cloud-metadata endpoints.
+var imageHTTPClient = &http.Client{
+	Timeout: imageDownloadTimeout,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("too many redirects")
+		}
+		if ssrfCheckEnabled.Load() {
+			if err := checkURLNotPrivate(req.URL); err != nil {
+				return fmt.Errorf("redirect blocked by SSRF check: %w", err)
+			}
+		}
+		return nil
+	},
+}
 
 // ImageExtensionMap maps MIME types to file extensions.
 // This is used by multiple packages (epub, etc.) to ensure consistent MIME type handling.
@@ -128,12 +157,11 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	}
 
 	// Download with a timeout so unresponsive servers do not hang forever.
-	client := &http.Client{Timeout: imageDownloadTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for image download: %w", err)
 	}
-	resp, err := client.Do(req)
+	resp, err := imageHTTPClient.Do(req)
 	if err != nil {
 		// Close response body if there was an error but resp is not nil.
 		if resp != nil {
@@ -144,12 +172,12 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		// Create a fresh context for the retry instead of reusing the original one,
 		// which may have consumed its timeout or been canceled during the first attempt.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
-		defer retryCancel()
+		defer retryCancel() // cancel after response body is fully consumed
 		req, err := http.NewRequestWithContext(retryCtx, "GET", urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
 		}
-		resp, err = client.Do(req)
+		resp, err = imageHTTPClient.Do(req)
 		if err != nil {
 			// Close response body if there was an error on retry but resp is not nil.
 			if resp != nil {
@@ -215,6 +243,15 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 // ImageToBase64 converts an image file to a base64 data URI.
 func ImageToBase64(path string) (string, error) {
+	// Check file size before reading to prevent OOM on very large images.
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat image file: %w", err)
+	}
+	if fi.Size() > MaxImageSize {
+		return "", fmt.Errorf("image %q exceeds maximum size (%d bytes)", path, MaxImageSize)
+	}
+
 	// Read the image file.
 	data, err := ReadFile(path)
 	if err != nil {
@@ -224,12 +261,118 @@ func ImageToBase64(path string) (string, error) {
 	// Detect the MIME type from file content first, then fall back to extension.
 	mimeType := DetectImageMIME(path, data)
 
+	// For SVG images containing CJK characters, inject CJK font declarations
+	// so the text renders correctly when embedded as a data URI in PDF output
+	// (where SVG content is isolated from external CSS).
+	if mimeType == "image/svg+xml" {
+		data = injectSVGCJKFonts(data)
+	}
+
 	// Encode as base64.
 	base64Data := base64.StdEncoding.EncodeToString(data)
 
 	// Build the data URI.
 	dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
 	return dataURI, nil
+}
+
+// svgFontFamilyPattern matches font-family attributes in SVG elements.
+var svgFontFamilyPattern = regexp.MustCompile(`(font-family=")([^"]*)(")`)
+
+// cjkFontFallback is the CJK font stack appended to SVG font-family attributes
+// when CJK characters are detected.  These are common system CJK fonts that
+// cover Chinese, Japanese, and Korean.
+const cjkFontFallback = `,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC','Noto Sans CJK SC','Source Han Sans SC','WenQuanYi Micro Hei'`
+
+// injectSVGCJKFonts adds CJK font families to font-family attributes in SVG
+// content when the SVG contains CJK characters.  This ensures CJK text renders
+// correctly when the SVG is embedded as a data URI in PDF output, where the SVG
+// is isolated from external CSS.
+func injectSVGCJKFonts(data []byte) []byte {
+	s := string(data)
+	if !ContainsCJK(s) {
+		return data
+	}
+	// Append CJK fonts to every font-family attribute in the SVG.
+	result := svgFontFamilyPattern.ReplaceAllStringFunc(s, func(match string) string {
+		parts := svgFontFamilyPattern.FindStringSubmatch(match)
+		if len(parts) < 4 {
+			return match
+		}
+		existing := parts[2]
+		// Avoid duplicate injection.
+		if strings.Contains(existing, "PingFang SC") || strings.Contains(existing, "Noto Sans SC") {
+			return match
+		}
+		return parts[1] + existing + cjkFontFallback + parts[3]
+	})
+	return []byte(result)
+}
+
+// injectSVGStyleForCJK inserts a <style> element after the opening <svg> tag
+// that overrides font-family on all text/tspan elements to include CJK-Embedded.
+func injectSVGStyleForCJK(svg string) string {
+	idx := strings.Index(svg, ">")
+	if idx < 0 {
+		return svg
+	}
+	// Insert right after the opening <svg ...> tag.
+	style := `<style>text,tspan{font-family:"CJK-Embedded",Verdana,Geneva,"DejaVu Sans",sans-serif !important}</style>`
+	return svg[:idx+1] + style + svg[idx+1:]
+}
+
+// svgTextLengthPattern matches textLength attributes in SVG text elements.
+var svgTextLengthPattern = regexp.MustCompile(` textLength="[^"]*"`)
+
+// imgWidthPattern extracts width from an <img> tag's attributes.
+var imgWidthPattern = regexp.MustCompile(`width=["'](\d+)["']`)
+
+// svgStartPattern matches the opening <svg tag to inject attributes.
+var svgStartPattern = regexp.MustCompile(`<svg\b`)
+
+// tryInlineCJKSVG reads an SVG file and, if it contains CJK characters,
+// returns the SVG content inlined directly into the HTML (replacing the <img>
+// tag).  Inlining allows the SVG to inherit the page's CJK @font-face rules
+// which are inaccessible when the SVG is isolated inside <img src="data:...">.
+// Returns "" if the file is not an SVG or contains no CJK text.
+func tryInlineCJKSVG(path string, originalImgTag string) string {
+	data, err := ReadFile(path)
+	if err != nil || !looksLikeSVG(data) {
+		return ""
+	}
+	content := string(data)
+	if !ContainsCJK(content) {
+		return ""
+	}
+	// Remove textLength constraints that cause CJK text to be compressed
+	// (shields.io calculates textLength for Verdana, which is too narrow for CJK).
+	// Inject a <style> inside the SVG to override font-family on text elements
+	// with "CJK-Embedded" (the @font-face declared by the PDF generator).
+	// Using <style> inside the SVG is more reliable than modifying font-family
+	// attributes, as Chrome's PDF backend may not resolve @font-face names
+	// from SVG element attributes.
+	content = svgTextLengthPattern.ReplaceAllString(content, "")
+	content = injectSVGStyleForCJK(content)
+
+	// Extract the <svg>...</svg> portion (skip <?xml ...?> declaration).
+	svgIdx := strings.Index(content, "<svg")
+	if svgIdx < 0 {
+		return ""
+	}
+	svg := content[svgIdx:]
+
+	// Transfer width from <img> to <svg> for consistent sizing.
+	if wm := imgWidthPattern.FindStringSubmatch(originalImgTag); len(wm) >= 2 {
+		w := wm[1]
+		// Only add width if the SVG doesn't already have one.
+		if !strings.Contains(svg[:min(len(svg), 200)], "width=") {
+			svg = svgStartPattern.ReplaceAllString(svg, `<svg width="`+w+`"`)
+		}
+	}
+	// Ensure the SVG renders inline (like the <img> it replaces) rather than
+	// as a block element which would break inline layouts such as badge rows.
+	svg = svgStartPattern.ReplaceAllString(svg, `<svg style="display:inline"`)
+	return svg
 }
 
 // mimeTypesByExt maps image file extensions to their MIME types.
@@ -326,11 +469,11 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 		options.DownloadRemote = true
 	}
 
-	matches := imgSrcRegex.FindAllStringSubmatch(htmlContent, -1)
+	matches := ImgSrcRegex.FindAllStringSubmatch(htmlContent, -1)
 	remoteImages := prefetchRemoteImages(matches, options)
 
-	result := imgSrcRegex.ReplaceAllStringFunc(htmlContent, func(match string) string {
-		submatches := imgSrcRegex.FindStringSubmatch(match)
+	result := ImgSrcRegex.ReplaceAllStringFunc(htmlContent, func(match string) string {
+		submatches := ImgSrcRegex.FindStringSubmatch(match)
 		if len(submatches) < 4 {
 			return match
 		}
@@ -350,6 +493,9 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 			}
 			switch {
 			case options.EmbedRemoteAsBase64:
+				if inlined := tryInlineCJKSVG(localPath, match); inlined != "" {
+					return inlined
+				}
 				dataURI, err := ImageToBase64(localPath)
 				if err != nil {
 					if options.Logger != nil {
@@ -372,6 +518,9 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 
 		switch {
 		case options.EmbedLocalAsBase64:
+			if inlined := tryInlineCJKSVG(targetPath, match); inlined != "" {
+				return inlined
+			}
 			dataURI, err := ImageToBase64(targetPath)
 			if err != nil {
 				return match
@@ -530,8 +679,10 @@ func checkURLNotPrivate(u *url.URL) error {
 		return fmt.Errorf("requests to %q are not allowed", host)
 	}
 
-	// Resolve and check IP addresses.
-	ips, err := net.DefaultResolver.LookupHost(context.Background(), host)
+	// Resolve and check IP addresses (with timeout to prevent DNS hang).
+	dnsCtx, dnsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer dnsCancel()
+	ips, err := net.DefaultResolver.LookupHost(dnsCtx, host)
 	if err != nil {
 		// DNS resolution failure — block the request to prevent DNS rebinding attacks.
 		return fmt.Errorf("DNS resolution failed for %q: %w", host, err)

@@ -736,7 +736,7 @@ func TestRewriteChapterLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := rewriteChapterLinks(tt.chapters, tt.chapterFiles)
 			if tt.shouldReturn && result == nil {
-				t.Error("expected non-nil result")
+				t.Fatal("expected non-nil result")
 			}
 			// Verify length is preserved
 			if len(result) != len(tt.chapters) {

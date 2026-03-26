@@ -1,7 +1,7 @@
 # ---- Build stage ----
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache git make
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 go build \
     -o /usr/local/bin/mdpress .
 
 # ---- Minimal image (HTML, site, ePub — no PDF) ----
-FROM alpine:3.20 AS minimal
+FROM alpine:3.21 AS minimal
 
 RUN apk add --no-cache ca-certificates
 
@@ -36,19 +36,17 @@ ENTRYPOINT ["mdpress"]
 CMD ["--help"]
 
 # ---- Full image (all formats including PDF via Chromium) ----
-FROM alpine:3.20 AS full
+FROM alpine:3.21 AS full
 
 RUN apk add --no-cache \
     ca-certificates \
     chromium \
     font-noto \
     font-noto-cjk \
-    font-noto-emoji \
-    && rm -rf /var/cache/apk/*
+    font-noto-emoji
 
-# Chromium flags required for headless containerised operation.
-ENV CHROME_BIN=/usr/bin/chromium-browser \
-    CHROME_FLAGS="--no-sandbox --headless --disable-gpu --disable-dev-shm-usage"
+# Tell mdpress where to find Chromium for PDF rendering.
+ENV MDPRESS_CHROME_PATH=/usr/bin/chromium-browser
 
 # Run as non-root user for security best practices.
 RUN addgroup -S mdpress && adduser -S mdpress -G mdpress

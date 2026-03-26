@@ -163,12 +163,15 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		manifest.CSSHash = cssHash
 	}
 
+	// Shared metadata map for inter-plugin and inter-phase communication.
+	pluginMeta := make(map[string]any)
+
 	// Invoke the BeforeBuild hook so plugins can do pre-build setup work.
 	runPluginHook(orchestrator.PluginManager, &plugin.HookContext{
 		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeBuild,
-		Metadata: make(map[string]any),
+		Metadata: pluginMeta,
 	}, logger)
 
 	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
@@ -269,7 +272,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeRender,
 		Content:  coverHTML,
-		Metadata: make(map[string]any),
+		Metadata: pluginMeta,
 	}, logger)
 
 	singlePageParts := &renderer.RenderParts{
@@ -295,7 +298,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterRender,
 		Content:  tocHTML,
-		Metadata: make(map[string]any),
+		Metadata: pluginMeta,
 	}, logger)
 
 	progress.Done()
@@ -330,7 +333,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterBuild,
-		Metadata: make(map[string]any),
+		Metadata: pluginMeta,
 	}, logger)
 
 	// Release plugin resources.
@@ -724,7 +727,8 @@ func resolveRequestedBuildOutput(requested string) (string, error) {
 // Priority: explicit config filename > title-based name > directory name > "output".
 func deriveOutputFilename(cfg *config.BookConfig) string {
 	if cfg.Output.Filename != "" && cfg.Output.Filename != "output.pdf" {
-		return cfg.Output.Filename
+		// Use only the base name to prevent path traversal via config.
+		return filepath.Base(cfg.Output.Filename)
 	}
 	title := cfg.Book.Title
 	if title == "" || title == "Untitled Book" {
@@ -757,7 +761,12 @@ func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (stri
 	filename := deriveOutputFilename(cfg)
 
 	if outputOverride == "" {
-		return cfg.ResolvePath(filename), nil
+		// Validate that the derived filename stays within the project directory.
+		safe, err := utils.SafeJoin(cfg.BaseDir(), filename)
+		if err != nil {
+			return "", fmt.Errorf("output filename escapes project directory: %w", err)
+		}
+		return safe, nil
 	}
 
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
@@ -1095,8 +1104,11 @@ func sanitizeSitePathSegment(segment string) string {
 	}
 	var sb strings.Builder
 	for _, r := range segment {
+		// Allow ASCII alphanumeric, common punctuation, and non-ASCII characters
+		// (including CJK) so that filenames remain meaningful for all languages.
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
-			(r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
+			(r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' ||
+			r > 127 {
 			sb.WriteRune(r)
 		}
 	}

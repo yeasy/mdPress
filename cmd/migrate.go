@@ -176,6 +176,14 @@ func executeMigrate(dir string, dryRun bool) error {
 // migrateBookJSON converts book.json → book.yaml.
 // Returns the parsed gitBookConfig for further processing or error if parsing fails.
 func migrateBookJSON(bookJSONPath, projectDir string, dryRun bool, report *migrateReport) (*gitBookConfig, error) {
+	const maxBookJSONSize = 10 * 1024 * 1024 // 10 MB
+	info, err := os.Stat(bookJSONPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat book.json: %w", err)
+	}
+	if info.Size() > maxBookJSONSize {
+		return nil, fmt.Errorf("book.json is too large (%d bytes; max %d bytes)", info.Size(), maxBookJSONSize)
+	}
 	data, err := os.ReadFile(bookJSONPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read book.json: %w", err)
@@ -322,12 +330,19 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 		if info.IsDir() {
 			// Skip hidden and vendor directories.
 			base := info.Name()
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" {
+			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		if strings.ToLower(filepath.Ext(path)) != ".md" {
+			return nil
+		}
+
+		// Reject unreasonably large markdown files (50 MB).
+		const maxMigrateFileSize = 50 << 20
+		if info.Size() > maxMigrateFileSize {
+			report.addWarning(fmt.Sprintf("skipping %s: file too large (%d bytes)", path, info.Size()))
 			return nil
 		}
 

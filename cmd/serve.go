@@ -30,8 +30,8 @@ var (
 	serveOpen bool
 )
 
-// ServeOptions encapsulates configuration for the serve command.
-type ServeOptions struct {
+// serveOptions encapsulates configuration for the serve command.
+type serveOptions struct {
 	Port        int
 	Host        string
 	OutputDir   string
@@ -61,7 +61,7 @@ Examples:
 		if len(args) > 0 {
 			inputSource = args[0]
 		}
-		opts := ServeOptions{
+		opts := serveOptions{
 			Port:        servePort,
 			Host:        serveHost,
 			OutputDir:   serveDir,
@@ -80,7 +80,7 @@ func init() {
 	serveCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
 }
 
-func executeServe(ctx context.Context, inputSource string, opts ServeOptions) error {
+func executeServe(ctx context.Context, inputSource string, opts serveOptions) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}

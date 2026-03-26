@@ -34,6 +34,7 @@ const (
 	debounceInterval    = 500 * time.Millisecond
 	fileWatcherInterval = 1 * time.Second
 	browserOpenDelay    = 500 * time.Millisecond
+	wsReadLimit         = 4096
 )
 
 // wsClient wraps a single WebSocket connection with a dedicated write lock.
@@ -82,6 +83,11 @@ type Server struct {
 	clientsMu sync.RWMutex
 	logger    *slog.Logger
 	upgrader  websocket.Upgrader // WebSocket upgrader.
+
+	// Debounce state for file-change rebuilds.
+	debounceTimer    *time.Timer
+	debounceMu       sync.Mutex
+	lastTriggeredExt string
 }
 
 // NewServer creates a preview server.
@@ -195,8 +201,12 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	go s.watchFilesWithFsnotify(ctx)
 
 	server := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: mux,
+		Addr:              ln.Addr().String(),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Graceful shutdown.
@@ -225,11 +235,14 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	fmt.Printf("\n  File changes automatically trigger browser reloads (fsnotify + WebSocket)\n")
 	fmt.Printf("  Press Ctrl+C to stop the server\n\n")
 
-	// Open the browser when requested.
+	// Open the browser when requested, respecting context cancellation.
 	if s.AutoOpen {
 		go func() {
-			time.Sleep(browserOpenDelay)
-			openBrowser(s.browserURL())
+			select {
+			case <-time.After(browserOpenDelay):
+				openBrowser(s.browserURL())
+			case <-ctx.Done():
+			}
 		}()
 	}
 
@@ -316,7 +329,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.clientsMu.Lock()
 	if len(s.clients) >= maxWSClients {
 		s.clientsMu.Unlock()
-		conn.Close()
+		conn.Close() //nolint:errcheck
 		return
 	}
 	s.clients[client] = struct{}{}
@@ -339,6 +352,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.logger.Debug("WebSocket client disconnected")
 	}()
 
+	// Limit incoming message size — the server only reads to detect disconnects.
+	conn.SetReadLimit(wsReadLimit)
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
@@ -678,6 +693,60 @@ func (s *Server) browserURL() string {
 	return fmt.Sprintf("http://%s:%d", host, s.Port)
 }
 
+// stopDebounceTimer cancels any pending debounce timer. The caller must hold
+// s.debounceMu.
+func (s *Server) stopDebounceTimer() {
+	if s.debounceTimer != nil {
+		s.debounceTimer.Stop()
+	}
+}
+
+// debouncedRebuild resets the debounce timer and schedules a rebuild after
+// debounceInterval. triggerFile is the file that changed (used for logging).
+// ext is the lowercased file extension of the trigger (e.g. ".css", ".md").
+// When ext is ".css" and no non-CSS change was batched, only a CSS-only update
+// is sent; otherwise a full page reload is triggered.
+func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) {
+	s.debounceMu.Lock()
+	s.stopDebounceTimer()
+
+	// Track the "most significant" extension in the current debounce window.
+	// A non-CSS change escalates any pending CSS-only update to a full reload.
+	if ext != ".css" {
+		s.lastTriggeredExt = ext
+	} else if s.lastTriggeredExt == "" {
+		s.lastTriggeredExt = ext
+	}
+	// else: keep the previous non-CSS ext so a full reload is triggered
+
+	capturedExt := s.lastTriggeredExt
+	s.debounceTimer = time.AfterFunc(debounceInterval, func() {
+		if ctx.Err() != nil {
+			return
+		}
+		s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
+		s.notifyBuildStart()
+		if s.BuildFunc != nil {
+			if err := s.BuildFunc(); err != nil {
+				s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
+				s.notifyBuildError(err.Error())
+				return
+			}
+		}
+		s.logger.Info("Build completed, notifying browser to reload")
+		if capturedExt == ".css" {
+			s.notifyCSSUpdate()
+		} else {
+			s.notifyClients()
+		}
+		// Reset for next debounce cycle.
+		s.debounceMu.Lock()
+		s.lastTriggeredExt = ""
+		s.debounceMu.Unlock()
+	})
+	s.debounceMu.Unlock()
+}
+
 // watchFilesWithFsnotify uses fsnotify to watch for changes and trigger rebuilds.
 func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	watcher, err := fsnotify.NewWatcher()
@@ -710,19 +779,12 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 
 	s.logger.Info("fsnotify watcher started", slog.String("dir", s.WatchDir))
 
-	// Debounce rebuilds to avoid repeated triggers on file save.
-	var debounceTimer *time.Timer
-	var debounceMu sync.Mutex
-	var lastTriggeredExt string
-
 	// Stop any pending debounce timer when the watcher exits to prevent
 	// the callback from firing after the server has begun shutting down.
 	defer func() {
-		debounceMu.Lock()
-		if debounceTimer != nil {
-			debounceTimer.Stop()
-		}
-		debounceMu.Unlock()
+		s.debounceMu.Lock()
+		s.stopDebounceTimer()
+		s.debounceMu.Unlock()
 	}()
 
 	for {
@@ -761,51 +823,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			}
 
 			s.logger.Debug("Detected file change", slog.String("file", event.Name), slog.String("op", event.Op.String()))
-
-			// Capture values for the closure to avoid referencing the loop variable.
-			triggerFile := event.Name
-			triggerExt := ext
-
-			// Debounce multiple changes within 500ms into one rebuild.
-			// When a non-CSS file changes, escalate to a full reload so that
-			// a Markdown edit followed by a quick CSS save still triggers a
-			// full page reload instead of a CSS-only update.
-			debounceMu.Lock()
-			if debounceTimer != nil {
-				debounceTimer.Stop()
-			}
-			if triggerExt != ".css" {
-				lastTriggeredExt = triggerExt
-			} else if lastTriggeredExt == "" {
-				lastTriggeredExt = triggerExt
-			}
-			// else: keep the previous non-CSS ext so a full reload is triggered
-			capturedExt := lastTriggeredExt
-			debounceTimer = time.AfterFunc(debounceInterval, func() {
-				if ctx.Err() != nil {
-					return
-				}
-				s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
-				s.notifyBuildStart()
-				if s.BuildFunc != nil {
-					if err := s.BuildFunc(); err != nil {
-						s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
-						s.notifyBuildError(err.Error())
-						return
-					}
-				}
-				s.logger.Info("Build completed, notifying browser to reload")
-				if capturedExt == ".css" {
-					s.notifyCSSUpdate()
-				} else {
-					s.notifyClients()
-				}
-				// Reset for next debounce cycle.
-				debounceMu.Lock()
-				lastTriggeredExt = ""
-				debounceMu.Unlock()
-			})
-			debounceMu.Unlock()
+			s.debouncedRebuild(ctx, event.Name, ext)
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -824,17 +842,12 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 	ticker := time.NewTicker(fileWatcherInterval)
 	defer ticker.Stop()
 
-	var debounceTimer *time.Timer
-	var debounceMu sync.Mutex
-
 	// Stop any pending debounce timer when the watcher exits to prevent
 	// the callback from firing after the server has begun shutting down.
 	defer func() {
-		debounceMu.Lock()
-		if debounceTimer != nil {
-			debounceTimer.Stop()
-		}
-		debounceMu.Unlock()
+		s.debounceMu.Lock()
+		s.stopDebounceTimer()
+		s.debounceMu.Unlock()
 	}()
 
 	for {
@@ -842,29 +855,10 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			changed := s.checkForChanges(lastModTimes)
+			changed, changedFile := s.checkForChanges(lastModTimes)
 			if changed {
-				debounceMu.Lock()
-				if debounceTimer != nil {
-					debounceTimer.Stop()
-				}
-				debounceTimer = time.AfterFunc(debounceInterval, func() {
-					if ctx.Err() != nil {
-						return
-					}
-					s.logger.Info("File change detected, rebuilding...")
-					s.notifyBuildStart()
-					if s.BuildFunc != nil {
-						if err := s.BuildFunc(); err != nil {
-							s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
-							s.notifyBuildError(err.Error())
-							return
-						}
-					}
-					s.logger.Info("Build completed, notifying browser to reload")
-					s.notifyClients()
-				})
-				debounceMu.Unlock()
+				ext := strings.ToLower(filepath.Ext(changedFile))
+				s.debouncedRebuild(ctx, changedFile, ext)
 			}
 		}
 	}
@@ -878,7 +872,7 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 		}
 		base := filepath.Base(path)
 		if info.IsDir() {
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" {
+			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -894,8 +888,9 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 }
 
 // checkForChanges reports whether any watched files changed.
-func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
+func (s *Server) checkForChanges(modTimes map[string]time.Time) (bool, string) {
 	changed := false
+	changedFile := ""
 	newModTimes := make(map[string]time.Time)
 
 	if err := filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
@@ -904,7 +899,7 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 		}
 		base := filepath.Base(path)
 		if info.IsDir() {
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" {
+			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
 				return filepath.SkipDir
 			}
 			return nil
@@ -914,6 +909,9 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 			newModTimes[path] = info.ModTime()
 			if prevTime, ok := modTimes[path]; !ok || !prevTime.Equal(info.ModTime()) {
 				changed = true
+				if changedFile == "" {
+					changedFile = path
+				}
 			}
 		}
 		return nil
@@ -925,6 +923,9 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 	for path := range modTimes {
 		if _, ok := newModTimes[path]; !ok {
 			changed = true
+			if changedFile == "" {
+				changedFile = path
+			}
 		}
 	}
 
@@ -938,7 +939,7 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 		}
 	}
 
-	return changed
+	return changed, changedFile
 }
 
 // openBrowser opens the default browser. Only http/https URLs are allowed.
@@ -965,10 +966,15 @@ func openBrowser(rawURL string) {
 		return
 	}
 
-	c := exec.CommandContext(context.Background(), cmd, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	c := exec.CommandContext(ctx, cmd, args...)
 	if err := c.Start(); err != nil {
+		cancel()
 		return
 	}
 	// Collect exit status in background to prevent zombie processes.
-	go c.Wait() //nolint:errcheck
+	go func() {
+		defer cancel()
+		c.Wait() //nolint:errcheck
+	}()
 }

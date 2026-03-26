@@ -413,6 +413,29 @@ func TestScanMarkdownFilesSkipsTopLevelREADME(t *testing.T) {
 	}
 }
 
+// TestScanMarkdownFilesSkipsDocFiles verifies that top-level documentation files
+// (CHANGELOG.md, CONTRIBUTING.md, LICENSE.md) are excluded from scanning.
+func TestScanMarkdownFilesSkipsDocFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tmpDir, "CHANGELOG.md"), []byte("# Changelog"), 0o644)       //nolint:errcheck
+	os.WriteFile(filepath.Join(tmpDir, "CONTRIBUTING.md"), []byte("# Contributing"), 0o644) //nolint:errcheck
+	os.WriteFile(filepath.Join(tmpDir, "LICENSE.md"), []byte("MIT License"), 0o644)         //nolint:errcheck
+	os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte("# Chapter"), 0o644)           //nolint:errcheck
+
+	files, err := scanMarkdownFiles(tmpDir)
+	if err != nil {
+		t.Fatalf("scanMarkdownFiles() failed: %v", err)
+	}
+
+	if len(files) != 1 {
+		t.Errorf("scanMarkdownFiles() found %d files, want 1", len(files))
+	}
+	if len(files) > 0 && files[0].RelPath != "chapter.md" {
+		t.Errorf("scanMarkdownFiles() = %q, want chapter.md", files[0].RelPath)
+	}
+}
+
 // TestScanMarkdownFilesSortingByDepth tests that files are sorted by depth first.
 func TestScanMarkdownFilesSortingByDepth(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -668,15 +691,13 @@ func TestCreateStarterTemplateDirectoryExists(t *testing.T) {
 	}
 }
 
-// TestIsTerminalInteractive tests terminal detection does not panic.
+// TestIsTerminalInteractive tests terminal detection does not panic
+// and returns a consistent result across calls.
 func TestIsTerminalInteractive(t *testing.T) {
-	// isTerminalInteractive checks if stdin is a real terminal.
-	// In test environments this typically returns false.
-	result := isTerminalInteractive()
-	t.Logf("isTerminalInteractive() = %v", result)
-	// In CI/test environments, stdin is not a terminal
-	if result {
-		t.Log("Running in a real terminal environment")
+	r1 := isTerminalInteractive()
+	r2 := isTerminalInteractive()
+	if r1 != r2 {
+		t.Errorf("isTerminalInteractive() returned inconsistent results: %v then %v", r1, r2)
 	}
 }
 
@@ -750,8 +771,12 @@ func TestPromptUserBasic(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
 
 	result := promptUser(reader, "Enter something", "defaultValue")
 
@@ -771,8 +796,12 @@ func TestPromptChoiceBasic(t *testing.T) {
 
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
 
 	options := []string{"Option1", "Option2", "Option3"}
 	result := promptChoice(reader, "Pick one", options, 1)

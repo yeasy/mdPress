@@ -29,7 +29,10 @@ func TestNewProgressTracker(t *testing.T) {
 func TestProgressTracker_Start(t *testing.T) {
 	// Capture stdout
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(3)
@@ -55,7 +58,10 @@ func TestProgressTracker_Start(t *testing.T) {
 
 func TestProgressTracker_MultipleStarts(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(3)
@@ -86,7 +92,10 @@ func TestProgressTracker_MultipleStarts(t *testing.T) {
 
 func TestProgressTracker_Done(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(1)
@@ -108,7 +117,10 @@ func TestProgressTracker_Done(t *testing.T) {
 
 func TestProgressTracker_Fail(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(1)
@@ -130,7 +142,10 @@ func TestProgressTracker_Fail(t *testing.T) {
 
 func TestProgressTracker_Skip(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(1)
@@ -152,7 +167,10 @@ func TestProgressTracker_Skip(t *testing.T) {
 
 func TestProgressTracker_DoneWithDetail(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(1)
@@ -176,7 +194,10 @@ func TestProgressTracker_DoneWithDetail(t *testing.T) {
 
 func TestProgressTracker_Finish(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(2)
@@ -204,7 +225,10 @@ func TestProgressTracker_Finish(t *testing.T) {
 
 func TestProgressTracker_FinishWithError(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(1)
@@ -232,10 +256,9 @@ func TestProgressTracker_FinishWithError(t *testing.T) {
 
 func TestProgressTracker_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name      string
-		total     int
-		testFunc  func(*ProgressTracker)
-		shouldErr bool
+		name     string
+		total    int
+		testFunc func(*ProgressTracker)
 	}{
 		{
 			name:  "zero total steps",
@@ -243,7 +266,6 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 			testFunc: func(pt *ProgressTracker) {
 				pt.Start("Test")
 			},
-			shouldErr: false, // Should not error, just show [1/0]
 		},
 		{
 			name:  "single step",
@@ -252,7 +274,6 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 				pt.Start("Only step")
 				pt.Done()
 			},
-			shouldErr: false,
 		},
 		{
 			name:  "large number of steps",
@@ -263,7 +284,6 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 					pt.Done()
 				}
 			},
-			shouldErr: false,
 		},
 	}
 
@@ -271,7 +291,11 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Suppress output
 			oldStdout := os.Stdout
-			_, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close()
 			os.Stdout = w
 
 			tracker := NewProgressTracker(tt.total)
@@ -280,14 +304,21 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 			w.Close()
 			os.Stdout = oldStdout
 
-			// Just verify no panic occurred
+			var buf bytes.Buffer
+			_, _ = io.Copy(&buf, r)
+			if buf.Len() == 0 {
+				t.Error("expected output from progress tracker")
+			}
 		})
 	}
 }
 
 func TestProgressTracker_Timing(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(2)
@@ -319,7 +350,10 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 	// This is a stress test - in practice you shouldn't use the same tracker
 	// from multiple goroutines without synchronization
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(5)
@@ -345,14 +379,19 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 	w.Close()
 	os.Stdout = oldStdout
 
-	// Just verify we got output
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
+	if buf.Len() == 0 {
+		t.Error("expected output from concurrent progress tracker calls")
+	}
 }
 
 func TestProgressTracker_ColorOutput(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	// Save original color state
@@ -382,7 +421,10 @@ func TestProgressTracker_ColorOutput(t *testing.T) {
 
 func TestProgressTracker_NoColorOutput(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	// Save original color state
@@ -412,7 +454,10 @@ func TestProgressTracker_NoColorOutput(t *testing.T) {
 
 func TestProgressTracker_WorkflowSequence(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	tracker := NewProgressTracker(4)

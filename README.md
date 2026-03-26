@@ -16,7 +16,6 @@
 $ mdpress build --format site,pdf,html,epub
   ✓ Loaded book.yaml (12 chapters)
   ✓ Parsed Markdown (technical theme)
-  ✓ Generated Markdown mirrors  → _output/my-book_site/*.md
   ✓ Generated PDF        → _output/my-book.pdf
   ✓ Generated HTML       → _output/my-book.html
   ✓ Generated site       → _output/my-book_site/
@@ -52,7 +51,7 @@ Use `book.yaml` for full control, `SUMMARY.md` for GitBook-style projects, or ze
 - Best output: `site` + `html`
 - Good for onboarding, internal standards, process docs
 
-### Book Or Essay
+### Book or Essay
 
 - Theme: `elegant`
 - Best output: `pdf` + `epub`
@@ -73,8 +72,6 @@ Generated sites include:
 - full-text search with `Cmd/Ctrl+K`
 - sidebar navigation and per-page table of contents
 - dark mode
-- Markdown mirrors for each generated page
-- `llms.txt` and `llms-full.txt` for LLM-friendly ingestion
 
 ## Installation
 
@@ -258,7 +255,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | --- | --- |
 | `mdpress build [source]` | Build PDF, HTML, site, or ePub |
 | `mdpress serve [source]` | Start live preview with auto-reload |
-| `mdpress quickstart [name]` | Create a complete sample project |
+| `mdpress quickstart [directory]` | Create a complete sample project |
 | `mdpress migrate [directory]` | Migrate from GitBook/HonKit to mdPress |
 | `mdpress init [directory]` | Generate `book.yaml` from existing Markdown files |
 | `mdpress validate [directory]` | Check your config and files for errors |
@@ -266,6 +263,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 | `mdpress upgrade` | Check for and install a newer version of mdpress |
 | `mdpress completion [shell]` | Generate shell completion scripts |
 | `mdpress themes list\|show\|preview` | Explore built-in themes |
+| `mdpress version` | Print the current version |
 
 ## Requirements
 

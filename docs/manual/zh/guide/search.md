@@ -27,7 +27,7 @@ mdpress build --format site
 
 mdPress 自动：
 1. 从你的 Markdown 提取所有文本内容
-2. 为标题索引更高的权重而不是正文
+2. 赋予标题比正文更高的索引权重
 3. 为每个部分创建入口点
 4. 压缩索引以实现快速加载
 5. 在你的输出文件中嵌入索引
@@ -45,9 +45,9 @@ mdPress 自动：
 
 用户可以根据输出格式以多种方式访问搜索。
 
-### 打开搜索对话框
+### 打开搜索面板
 
-按键盘快捷方式打开搜索对话框：
+按键盘快捷方式打开搜索面板：
 
 - **Mac**：Cmd+K
 - **Windows/Linux**：Ctrl+K
@@ -56,11 +56,11 @@ mdPress 自动：
 
 ### 执行搜索
 
-1. 用 Cmd/Ctrl+K 打开搜索对话框
+1. 用 Cmd/Ctrl+K 打开搜索面板
 2. 输入你的搜索查询
 3. 结果在你输入时实时出现
 4. 点击结果跳转到该部分
-5. 按 Escape 关闭搜索对话框
+5. 按 Escape 关闭搜索面板
 
 ### 搜索查询语法
 
@@ -127,7 +127,7 @@ mdPress 支持中文、日文和韩文的搜索。
 API文档
 ```
 
-返回包含"API"或"文档"（文档）的结果。
+返回包含"API"或"文档"的结果。
 
 日文搜索：
 ```
@@ -152,27 +152,6 @@ API 文档 authentication
 
 找到包含英文和 CJK 术语的结果。
 
-## 搜索配置
-
-在 `book.yaml` 中配置搜索行为：
-
-```yaml
-search:
-  enabled: true
-  languages: ["en", "zh", "ja", "ko"]
-  maxResults: 10
-  highlightResults: true
-  indexPrivatePages: false
-```
-
-### 搜索选项
-
-- `enabled`：启用/禁用搜索功能（默认：true）
-- `languages`：支持分词的语言
-- `maxResults`：显示的最大搜索结果（默认：10）
-- `highlightResults`：在内容中突出显示搜索词（默认：true）
-- `indexPrivatePages`：是否索引标记为私密的页面（默认：false）
-
 ## 不同输出格式中的搜索
 
 ### 网站格式
@@ -180,7 +159,7 @@ search:
 具有完整搜索功能：
 - 输入时实时搜索
 - 多个结果突出显示
-- 功能完整的搜索对话框
+- 功能完整的搜索面板
 - 键盘快捷方式
 
 ### 单文件 HTML
@@ -207,20 +186,6 @@ search:
 
 ## 性能和优化
 
-### 索引大小管理
-
-对于非常大的文档，可以优化搜索索引：
-
-```yaml
-search:
-  maxResults: 20
-  excludePatterns:
-    - "*.draft.md"
-    - "appendix/**"
-```
-
-排除大型部分会减少索引大小。
-
 ### 索引的延迟加载
 
 搜索索引是延迟加载的，这意味着：
@@ -237,35 +202,6 @@ search:
 - 后续搜索（热）：10-50ms
 - 显示结果：<100ms
 
-## 高级搜索功能
-
-### 邻近搜索
-
-某些搜索实现支持邻近：
-```
-"API" within 5 words of "authentication"
-```
-
-（可用性取决于 mdPress 版本和配置。）
-
-### 通配符搜索
-
-使用通配符搜索：
-```
-auth*
-```
-
-匹配"authentication"、"authorize"、"authtoken"等。
-
-### 布尔搜索
-
-使用 AND/OR 组合搜索词：
-```
-API AND authentication
-```
-
-返回包含两个术语的结果。
-
 ## 故障排除
 
 ### 搜索不工作
@@ -273,7 +209,7 @@ API AND authentication
 验证：
 1. 你的浏览器中启用了 JavaScript
 2. 搜索索引文件存在（在浏览器 DevTools 网络选项卡中检查）
-3. 搜索对话框打开（尝试 Cmd/Ctrl+K）
+3. 搜索面板打开（尝试 Cmd/Ctrl+K）
 4. 在不同的浏览器中尝试
 
 如果搜索仍不工作，重建你的文档：
@@ -295,28 +231,14 @@ mdpress build --format site
 1. 验证搜索索引在最新构建中重新生成
 2. 检查内容在你的 Markdown 中正确格式化
 3. 搜索不同的关键字
-4. 如果可用，使用 `--force` 标志重建
+4. 使用 `--no-cache` 标志强制完整重建
 
 ### CJK 搜索问题
 
 如果 CJK 搜索不工作：
-1. 验证 CJK 语言在 `book.yaml` 搜索配置中列出
-2. 确保内容编码为 UTF-8
-3. 检查浏览器控制台的错误
-4. 尝试用原始语言搜索，而不是翻译文本
-
-### 搜索索引过大
-
-要减少搜索索引大小：
-
-```yaml
-search:
-  maxResults: 5
-  excludePatterns:
-    - "api-reference/**"  # 非常大的部分
-    - "appendix/**"
-  indexLevel: 2  # 仅索引 H1 和 H2
-```
+1. 确保内容编码为 UTF-8
+2. 检查浏览器控制台的错误
+3. 尝试用原始语言搜索，而不是翻译文本
 
 ## SEO 和搜索引擎
 
@@ -330,18 +252,6 @@ mdPress 搜索功能用于文档内搜索，而非网页搜索引擎优化。
 2. 在 `book.yaml` 配置中添加适当的元标签
 3. 向 Google Search Console 提交你的站点地图
 4. 确保你的托管允许搜索引擎爬虫
-
-### 机器人和爬虫
-
-控制搜索引擎如何索引你的网站：
-
-```yaml
-site:
-  robots: "index, follow"
-  canonical: "https://docs.example.com"
-```
-
-这帮助搜索引擎理解你的文档结构。
 
 ## 最佳实践
 
@@ -385,12 +295,14 @@ site:
 
 ### 添加搜索友好的元数据
 
-使用词汇表和结构化内容来改进搜索：
+使用 `GLOSSARY.md` 文件来定义术语及其描述。每个术语是一个二级标题，后面跟着其定义：
 
-```yaml
-glossary:
-  - term: "API 密钥"
-    aliases: ["API 令牌", "访问密钥"]
+```markdown
+## API 密钥
+用于验证 API 请求的唯一令牌。
+
+## 速率限制
+每个时间段内允许的最大 API 调用次数。
 ```
 
-这帮助搜索找到内容，即使使用不同的术语。
+词汇表中的术语会在内容中自动高亮和链接，同时也能提高搜索的可发现性。

@@ -871,7 +871,7 @@ func TestRenderValidationMarkdown(t *testing.T) {
 	}
 }
 
-// ========== flattenChapterDefs Tests ==========
+// ========== FlattenChapters Tests ==========
 
 func TestFlattenChapterDefs(t *testing.T) {
 	tests := []struct {
@@ -963,18 +963,18 @@ func TestFlattenChapterDefs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := flattenChapterDefs(tt.chapters)
+			got := config.FlattenChapters(tt.chapters)
 			if len(got) != tt.expectedCount {
-				t.Errorf("flattenChapterDefs(): got %d chapters, want %d", len(got), tt.expectedCount)
+				t.Errorf("config.FlattenChapters(): got %d chapters, want %d", len(got), tt.expectedCount)
 			}
 
 			for i, ch := range got {
 				if i >= len(tt.expectedFiles) {
-					t.Errorf("flattenChapterDefs(): got more chapters than expected")
+					t.Errorf("config.FlattenChapters(): got more chapters than expected")
 					break
 				}
 				if ch.File != tt.expectedFiles[i] {
-					t.Errorf("flattenChapterDefs() chapter %d: got file %q, want %q",
+					t.Errorf("config.FlattenChapters() chapter %d: got file %q, want %q",
 						i, ch.File, tt.expectedFiles[i])
 				}
 			}

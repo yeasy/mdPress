@@ -25,6 +25,10 @@ import (
 const (
 	// maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
 	maxResponseSize = 10 * 1024 * 1024
+	// maxErrorBodySize caps how much of an error response body we read for logging.
+	maxErrorBodySize = 1024
+	// maxStderrSize caps captured stderr from local PlantUML to 1 MB.
+	maxStderrSize = 1024 * 1024
 	// plantumlHTTPTimeout is the timeout for HTTP requests to the PlantUML server.
 	plantumlHTTPTimeout = 30 * time.Second
 )
@@ -59,8 +63,43 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 		useLocal:  useLocal,
 		// HTTP timeout for PlantUML server requests. This balances network
 		// latency and rendering time for typical diagrams while preventing indefinite hangs.
-		httpClient: &http.Client{Timeout: plantumlHTTPTimeout},
+		httpClient: &http.Client{
+			Timeout: plantumlHTTPTimeout,
+			// Validate redirect targets to prevent SSRF via 302 to internal IPs.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return fmt.Errorf("too many redirects")
+				}
+				return validateRedirectTarget(req.URL)
+			},
+		},
 	}, nil
+}
+
+// validateRedirectTarget checks that an HTTP redirect does not point to a
+// private/internal address, preventing SSRF through open redirects.
+func validateRedirectTarget(u *url.URL) error {
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("redirect to empty hostname")
+	}
+	lower := strings.ToLower(host)
+	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
+		return fmt.Errorf("redirect to %q is not allowed", host)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return fmt.Errorf("redirect DNS resolution failed for %q: %w", host, err)
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
+			return fmt.Errorf("redirect to private address %s is not allowed", ipStr)
+		}
+	}
+	return nil
 }
 
 // newRendererNoValidation creates a Renderer without SSRF validation.
@@ -195,7 +234,7 @@ func (r *Renderer) renderServer(ctx context.Context, code string) (string, error
 	if resp.StatusCode != http.StatusOK {
 		// Read error response body (capped to prevent excessive logging)
 		var errBuf bytes.Buffer
-		_, _ = io.Copy(&errBuf, io.LimitReader(resp.Body, 1024))
+		_, _ = io.Copy(&errBuf, io.LimitReader(resp.Body, maxErrorBodySize))
 		errMsg := errBuf.String()
 		if errMsg != "" {
 			return "", fmt.Errorf("plantuml server returned status %d: %s", resp.StatusCode, errMsg)
@@ -230,9 +269,11 @@ func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error)
 
 	cmd.Stdin = strings.NewReader(code)
 
+	// Limit captured output to maxResponseSize to prevent memory exhaustion
+	// from malicious or runaway local PlantUML processes.
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout = &limitedBuffer{buf: &stdout, remaining: maxResponseSize}
+	cmd.Stderr = &limitedBuffer{buf: &stderr, remaining: maxStderrSize}
 
 	if err := cmd.Run(); err != nil {
 		msg := stderr.String()
@@ -353,7 +394,7 @@ func unescapeHTML(s string) string {
 // svgScriptPattern matches <script> tags and event handler attributes in SVG.
 var svgScriptPattern = regexp.MustCompile(`(?i)<script[\s>][\s\S]*?</script>`)
 var svgEventHandlerPattern = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
-var svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*"javascript:[^"]*"`)
+var svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')`)
 
 // sanitizeSVG strips potentially dangerous elements from SVG content
 // to prevent XSS from compromised or malicious PlantUML servers.
@@ -368,4 +409,27 @@ func sanitizeSVG(svg string) string {
 func NeedsPlantuml(html string) bool {
 	return strings.Contains(html, `class="plantuml-diagram"`) ||
 		strings.Contains(html, `language-plantuml`)
+}
+
+// limitedBuffer wraps a bytes.Buffer and silently discards writes that would
+// exceed the configured limit, preventing memory exhaustion from runaway processes.
+type limitedBuffer struct {
+	buf       *bytes.Buffer
+	remaining int64
+}
+
+func (lb *limitedBuffer) Write(p []byte) (int, error) {
+	if lb.remaining <= 0 {
+		return len(p), nil
+	}
+	orig := len(p)
+	if int64(len(p)) > lb.remaining {
+		p = p[:lb.remaining]
+	}
+	n, err := lb.buf.Write(p)
+	lb.remaining -= int64(n)
+	if err != nil {
+		return n, err
+	}
+	return orig, nil
 }

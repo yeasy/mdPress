@@ -74,14 +74,14 @@ func TestParseLangsFileNonExistent(t *testing.T) {
 func TestHasLangsFile(t *testing.T) {
 	dir := t.TempDir()
 
-	if HasLangsFile(dir) {
+	if hasLangsFile(dir) {
 		t.Error("should return false when no LANGS.md")
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("test"), 0644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
-	if !HasLangsFile(dir) {
+	if !hasLangsFile(dir) {
 		t.Error("should return true when LANGS.md exists")
 	}
 }

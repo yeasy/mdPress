@@ -1606,9 +1606,11 @@ func TestMalformedInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Just verify it doesn't panic
+			// Verify it doesn't panic and produces non-empty output.
 			result := converter.Convert(tt.input)
-			_ = result
+			if result == "" {
+				t.Error("expected non-empty output for malformed input")
+			}
 		})
 	}
 }

@@ -11,8 +11,7 @@ func TestBuildCJKFontFaceEdgeCases(t *testing.T) {
 
 	// CSS is either empty (no fonts found) or contains expected structure
 	if result.css == "" {
-		t.Log("No CJK fonts found on this system, buildCJKFontFaceCSS returns empty result")
-		return
+		t.Skip("No CJK fonts found on this system, skipping buildCJKFontFaceCSS structure test")
 	}
 
 	t.Logf("Found CJK font: family=%s path=%s", result.family, result.fontPath)

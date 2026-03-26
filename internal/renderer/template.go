@@ -46,24 +46,6 @@ const htmlTemplate = `<!DOCTYPE html>
       overflow-wrap: anywhere;
     }
 
-    .print-brand-footer {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 8mm;
-      text-align: center;
-      font-size: 8.5pt;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      color: #b8bec8;
-      z-index: 10;
-      pointer-events: none;
-    }
-
-    .print-brand-footer .brand-accent {
-      color: #8ab4f8;
-    }
-
     /* ============================================
        Cover page styles
        ============================================ */
@@ -328,9 +310,14 @@ const htmlTemplate = `<!DOCTYPE html>
     img {
       max-width: 100%;
       height: auto;
+      page-break-inside: avoid;
+    }
+
+    /* Standalone images (sole child of a paragraph) render as centered blocks. */
+    p > img:only-child,
+    p > a:only-child > img {
       display: block;
       margin: 1rem auto;
-      page-break-inside: avoid;
     }
 
     figure {
@@ -425,12 +412,6 @@ const htmlTemplate = `<!DOCTYPE html>
       }
     }
 
-    @media screen {
-      .cover-page .print-brand-footer {
-        display: none;
-      }
-    }
-
     /* ============================================
        Watermark styles
        ============================================ */
@@ -477,7 +458,6 @@ const htmlTemplate = `<!DOCTYPE html>
   {{if .CoverHTML}}
   <div class="cover-page">
     {{.CoverHTML}}
-    <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
   </div>
   {{end}}
 
@@ -503,7 +483,7 @@ const htmlTemplate = `<!DOCTYPE html>
   if (document.querySelector('.mermaid')) {
     var s = document.createElement('script');
     s.src = '{{MERMAID_CDN_URL}}';
-    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); };
+    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default', securityLevel:'strict', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); };
     document.body.appendChild(s);
   }
   </script>

@@ -78,6 +78,28 @@ func TestLoadBookJSON_AuthorArray(t *testing.T) {
 	}
 }
 
+// TestLoadBookJSON_VersionField verifies that a "version" field in book.json
+// overrides the default version.
+func TestLoadBookJSON_VersionField(t *testing.T) {
+	dir := t.TempDir()
+	writeSummary(t, dir)
+
+	content := `{"title":"T","version":"v2.5.0"}`
+	jsonPath := filepath.Join(dir, "book.json")
+	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+		t.Fatalf("write book.json: %v", err)
+	}
+
+	cfg, err := LoadBookJSON(context.Background(), jsonPath)
+	if err != nil {
+		t.Fatalf("LoadBookJSON error: %v", err)
+	}
+	// The "v" prefix should be stripped.
+	if cfg.Book.Version != "2.5.0" {
+		t.Errorf("Version = %q, want %q", cfg.Book.Version, "2.5.0")
+	}
+}
+
 // TestLoadBookJSON_LanguageNormalization checks that short language codes are
 // expanded to BCP 47 tags.
 func TestLoadBookJSON_LanguageNormalization(t *testing.T) {

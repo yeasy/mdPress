@@ -50,6 +50,10 @@ var allowedChromiumFlags = map[string]bool{
 	"user-data-dir":                    true,
 }
 
+// newlineStripper removes CR and LF characters from log messages to prevent
+// log injection via user-controlled flag names.
+var newlineStripper = strings.NewReplacer("\n", "", "\r", "")
+
 // cjkFontCandidate describes a CJK font with filesystem paths that Chromium
 // can load via file:// URL for embedding in PDF output.
 //
@@ -229,11 +233,17 @@ func buildCJKFontFaceCSS() cjkFontResult {
 	// Override Mermaid SVG text elements — Mermaid renders diagrams as SVG
 	// and sets font-family directly on <text>/<foreignObject> elements.
 	// Without this rule, CJK characters in diagrams render as tofu in PDF.
+	// Mermaid renders diagrams as SVG.  SVG <text> elements resolve fonts
+	// differently from HTML — Chrome's PDF backend may fail to fall back to
+	// system Latin fonts after a unicode-range-restricted CJK @font-face.
+	// Place common Latin fonts explicitly before the CJK stack so digits
+	// and ASCII characters always render in the PDF.
 	css.WriteString(".mermaid text, .mermaid tspan, .mermaid foreignObject,\n" +
 		".mermaid .label, .mermaid .nodeLabel, .mermaid .edgeLabel,\n" +
 		".mermaid .cluster-label, .mermaid .titleText,\n" +
 		".mermaid [class*=\"Label\"] {\n" +
-		"  font-family: \"CJK-Embedded\", \"PingFang SC\", \"Hiragino Sans GB\",\n" +
+		"  font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n" +
+		"    Helvetica, Arial, \"CJK-Embedded\", \"PingFang SC\", \"Hiragino Sans GB\",\n" +
 		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
 		"    \"Source Han Sans SC\", sans-serif !important;\n" +
 		"}\n")
@@ -544,7 +554,13 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 			http.ServeFile(w, r, fontPath)
 		})
 	}
-	server := &http.Server{Handler: mux}
+	server := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Debug("Font server error", slog.String("error", err.Error()))
@@ -558,21 +574,20 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 }
 
 func (fs *fontServer) Close() {
+	// server.Close() already closes the underlying listener, so we only
+	// need to close the server itself.
 	if err := fs.server.Close(); err != nil {
 		slog.Debug("Failed to close font server", slog.String("error", err.Error()))
-	}
-	if err := fs.listener.Close(); err != nil {
-		slog.Debug("Failed to close font server listener", slog.String("error", err.Error()))
 	}
 }
 
 // Generate renders an HTML string to a PDF file.
 func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if outputPath == "" {
-		return fmt.Errorf("output path cannot be empty")
+		return fmt.Errorf("GenerateFromHTML: output path cannot be empty")
 	}
 	if htmlContent == "" {
-		return fmt.Errorf("HTML content cannot be empty")
+		return fmt.Errorf("GenerateFromHTML: HTML content cannot be empty")
 	}
 
 	// Find a CJK font and inject @font-face CSS into the HTML.
@@ -656,14 +671,14 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	defer runtimeDirs.cleanup()
 
 	var chromeOutput bytes.Buffer
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
-	defer cancel()
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
+	defer allocCancel()
 
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
+	ctx, ctxCancel := chromedp.NewContext(allocCtx)
+	defer ctxCancel()
 
-	ctx, cancel = context.WithTimeout(ctx, g.timeout)
-	defer cancel()
+	ctx, timeoutCancel := context.WithTimeout(ctx, g.timeout)
+	defer timeoutCancel()
 
 	mmToInch := func(mm float64) float64 { return mm / 25.4 }
 
@@ -853,7 +868,7 @@ func parseChromiumFlags(raw string) map[string]any {
 
 		// Validate against whitelist
 		if !allowedChromiumFlags[flagName] {
-			sanitized := strings.NewReplacer("\n", "", "\r", "").Replace(flagName)
+			sanitized := newlineStripper.Replace(flagName)
 			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
 			continue
 		}
@@ -896,7 +911,7 @@ func filterChromiumCLIFlags(flagsString string) []string {
 
 		// Validate against whitelist
 		if !allowedChromiumFlags[flagName] {
-			sanitized := strings.NewReplacer("\n", "", "\r", "").Replace(flagName)
+			sanitized := newlineStripper.Replace(flagName)
 			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
 			continue
 		}
@@ -963,7 +978,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		Path:   filepath.ToSlash(htmlFilePath),
 	}).String()
 	tmpOutput := outputPath + ".tmp"
-	if err := os.Remove(tmpOutput); err != nil {
+	if err := os.Remove(tmpOutput); err != nil && !os.IsNotExist(err) {
 		slog.Debug("Failed to remove temporary PDF output file", slog.String("file", tmpOutput), slog.String("error", err.Error()))
 	}
 

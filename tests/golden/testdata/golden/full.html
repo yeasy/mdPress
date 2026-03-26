@@ -31,24 +31,6 @@
       overflow-wrap: anywhere;
     }
 
-    .print-brand-footer {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 8mm;
-      text-align: center;
-      font-size: 8.5pt;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      color: #b8bec8;
-      z-index: 10;
-      pointer-events: none;
-    }
-
-    .print-brand-footer .brand-accent {
-      color: #8ab4f8;
-    }
-
      
     .cover-page {
       width: 100%;
@@ -295,9 +277,14 @@
     img {
       max-width: 100%;
       height: auto;
+      page-break-inside: avoid;
+    }
+
+     
+    p > img:only-child,
+    p > a:only-child > img {
       display: block;
       margin: 1rem auto;
-      page-break-inside: avoid;
     }
 
     figure {
@@ -381,12 +368,6 @@
        
       ul, ol {
         page-break-inside: avoid;
-      }
-    }
-
-    @media screen {
-      .cover-page .print-brand-footer {
-        display: none;
       }
     }
 
@@ -648,7 +629,6 @@ table th {
 </body>
 </html>
 
-    <div class="print-brand-footer">Build with md<span class="brand-accent">Press</span></div>
   </div>
   
 
@@ -810,7 +790,7 @@ table th {
   if (document.querySelector('.mermaid')) {
     var s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
-    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); };
+    s.onload = function() { mermaid.initialize({startOnLoad:true, theme:'default', securityLevel:'strict', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); };
     document.body.appendChild(s);
   }
   </script>

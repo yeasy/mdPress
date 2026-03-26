@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -148,7 +149,7 @@ func TestLoadPlugins_MissingName(t *testing.T) {
 	if mgr != nil {
 		t.Error("LoadPlugins should return nil Manager on error")
 	}
-	if !contains(err.Error(), "missing the required 'name' field") {
+	if !strings.Contains(err.Error(), "missing the required 'name' field") {
 		t.Errorf("error message should mention missing name field, got: %v", err)
 	}
 }
@@ -170,7 +171,7 @@ func TestLoadPlugins_MissingPath(t *testing.T) {
 	if mgr != nil {
 		t.Error("LoadPlugins should return nil Manager on error")
 	}
-	if !contains(err.Error(), "missing the required 'path' field") {
+	if !strings.Contains(err.Error(), "missing the required 'path' field") {
 		t.Errorf("error message should mention missing path field, got: %v", err)
 	}
 }
@@ -192,7 +193,7 @@ func TestLoadPlugins_NonExistentPlugin(t *testing.T) {
 	if mgr != nil {
 		t.Error("LoadPlugins should return nil Manager on error")
 	}
-	if !contains(err.Error(), "failed to load plugin") {
+	if !strings.Contains(err.Error(), "failed to load plugin") {
 		t.Errorf("error should wrap load failure, got: %v", err)
 	}
 }
@@ -242,7 +243,7 @@ func TestLoadPlugins_InitFailure(t *testing.T) {
 		t.Fatalf("LoadPlugins should succeed with a valid plugin: %v", err)
 	}
 	if mgr == nil {
-		t.Error("LoadPlugins should return a Manager")
+		t.Fatal("LoadPlugins should return a Manager")
 	}
 	if len(mgr.Plugins()) != 1 {
 		t.Errorf("expected 1 plugin, got %d", len(mgr.Plugins()))
@@ -333,7 +334,7 @@ func TestLoadPlugins_ErrorWrapping(t *testing.T) {
 	}
 	// Error should be wrapped with plugin loading context
 	errMsg := err.Error()
-	if !contains(errMsg, "bad-plugin") {
+	if !strings.Contains(errMsg, "bad-plugin") {
 		t.Errorf("error should mention plugin name 'bad-plugin', got: %v", err)
 	}
 }
@@ -409,7 +410,7 @@ func TestMustLoadPlugins_CallsWarnFn(t *testing.T) {
 	if !warnCalled {
 		t.Fatal("warnFn should be called when plugin loading fails")
 	}
-	if !contains(warnMsg, "plugin loading failed") {
+	if !strings.Contains(warnMsg, "plugin loading failed") {
 		t.Errorf("warn message should mention plugin loading failed, got: %q", warnMsg)
 	}
 	if len(mgr.Plugins()) != 0 {
@@ -474,24 +475,23 @@ func TestMustLoadPlugins_WarnMessage(t *testing.T) {
 
 	MustLoadPlugins(cfg, warnFn)
 
-	if !contains(capturedMsg, "plugin loading failed") {
+	if !strings.Contains(capturedMsg, "plugin loading failed") {
 		t.Errorf("message should contain 'plugin loading failed', got: %q", capturedMsg)
 	}
-	if !contains(capturedMsg, "continuing without plugins") {
+	if !strings.Contains(capturedMsg, "continuing without plugins") {
 		t.Errorf("message should mention continuing without plugins, got: %q", capturedMsg)
 	}
 }
 
 // TestLoadPlugins_ConfigNil tests LoadPlugins handles nil config gracefully.
 func TestLoadPlugins_ConfigNil(t *testing.T) {
-	// This should panic or handle gracefully - depends on implementation
-	// Most likely it will panic when accessing cfg.Plugins on nil
-	defer func() {
-		_ = recover() // nil config may panic; either outcome is acceptable
-	}()
-
-	_, _ = LoadPlugins(nil)
-	// If we get here without panic, that's also acceptable if it returns an error
+	mgr, err := LoadPlugins(nil)
+	if err != nil {
+		t.Fatalf("LoadPlugins(nil) should return an empty manager, got error: %v", err)
+	}
+	if mgr == nil {
+		t.Fatal("LoadPlugins(nil) returned nil manager")
+	}
 }
 
 // TestLoadPlugins_PluginOrderPreserved tests plugins are registered in declaration order.
@@ -525,19 +525,7 @@ func TestLoadPlugins_PluginOrderPreserved(t *testing.T) {
 	}
 }
 
-// --- Helper functions ---
-
-// contains returns true if needle is found in haystack.
-func contains(haystack, needle string) bool {
-	for i := 0; i <= len(haystack)-len(needle); i++ {
-		if haystack[i:i+len(needle)] == needle {
-			return true
-		}
-	}
-	return false
-}
-
-// TestLoadPlugins_MulitpleErrors tests LoadPlugins handles multiple error scenarios.
+// TestLoadPlugins_MultipleErrorScenarios tests LoadPlugins handles multiple error scenarios.
 func TestLoadPlugins_MultipleErrorScenarios(t *testing.T) {
 	stubLoaderMetaQueries(t)
 	testCases := []struct {

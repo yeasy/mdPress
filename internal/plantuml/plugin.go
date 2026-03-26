@@ -2,6 +2,7 @@
 package plantuml
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -92,6 +93,11 @@ func (p *Plugin) Execute(hookCtx *plugin.HookContext) (*plugin.HookResult, error
 	if p.renderer == nil {
 		slog.Warn("plantuml renderer unavailable, diagrams will not be rendered")
 		return &plugin.HookResult{Content: hookCtx.Content}, nil
+	}
+
+	// Ensure context is non-nil to prevent panic in http.NewRequestWithContext.
+	if hookCtx.Context == nil {
+		hookCtx.Context = context.Background()
 	}
 
 	// Process the HTML content

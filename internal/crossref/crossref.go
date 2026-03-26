@@ -182,13 +182,13 @@ func (r *Resolver) Resolve(id string) (*Reference, error) {
 
 // ProcessHTML processes HTML content, replacing {{ref:id}} placeholders with actual references.
 // Supported placeholder formats:
-// - {{ref:fig_1}} replaced with "Figure 1"
-// - {{ref:table_1}} replaced with "Table 1"
-// - {{ref:section_intro}} replaced with "1.2.3" (section number)
+// - {{ref:fig_1}} replaced with "图1" (Chinese figure label)
+// - {{ref:table_1}} replaced with "表1" (Chinese table label)
+// - {{ref:section_intro}} replaced with "§1.2.3" (section number)
 //
 // Example:
 // Input: "As shown in {{ref:fig_demo}}, ..."
-// Output: "As shown in Figure 1, ..."
+// Output: "As shown in 图1, ..."
 func (r *Resolver) ProcessHTML(html string) string {
 	return refPlaceholderRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		// Extract the ID.
@@ -224,11 +224,11 @@ func (r *Resolver) ProcessHTML(html string) string {
 
 // AddCaptions adds numbered captions to figures and tables.
 // Processes HTML like <figure id="fig_1"><img ...></figure>
-// and adds <figcaption>Figure 1: Title</figcaption>.
+// and adds <figcaption>图1: Title</figcaption>.
 //
 // Example:
 // Input: <figure id="fig_demo"><img src="demo.png"></figure>
-// Output: <figure id="fig_demo"><img src="demo.png"><figcaption>Figure 1: Demo</figcaption></figure>
+// Output: <figure id="fig_demo"><img src="demo.png"><figcaption>图1: Demo</figcaption></figure>
 func (r *Resolver) AddCaptions(html string) string {
 	// Copy both maps in a single atomic snapshot
 	r.mu.RLock()

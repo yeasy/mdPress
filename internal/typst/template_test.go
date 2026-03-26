@@ -93,13 +93,13 @@ func TestRenderTypstDocument_BasicMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := RenderTypstDocument(tt.data)
+			result, err := renderTypstDocument(tt.data)
 			if err != nil {
-				t.Fatalf("RenderTypstDocument failed: %v", err)
+				t.Fatalf("renderTypstDocument failed: %v", err)
 			}
 
 			if result == "" {
-				t.Fatal("RenderTypstDocument returned empty string")
+				t.Fatal("renderTypstDocument returned empty string")
 			}
 
 			for _, expected := range tt.shouldContain {
@@ -154,9 +154,9 @@ func TestRenderTypstDocument_SpecialCharacters(t *testing.T) {
 				LineHeight:   1.5,
 			}
 
-			result, err := RenderTypstDocument(data)
+			result, err := renderTypstDocument(data)
 			if err != nil {
-				t.Fatalf("RenderTypstDocument failed: %v", err)
+				t.Fatalf("renderTypstDocument failed: %v", err)
 			}
 
 			if !strings.Contains(result, tt.content) {
@@ -171,9 +171,9 @@ func TestWriteTypstFile(t *testing.T) {
 	filePath := filepath.Join(tmpDir, "test.typ")
 	content := "Test Typst content"
 
-	err := WriteTypstFile(filePath, content)
+	err := writeTypstFile(filePath, content)
 	if err != nil {
-		t.Fatalf("WriteTypstFile failed: %v", err)
+		t.Fatalf("writeTypstFile failed: %v", err)
 	}
 
 	// Verify file was written
@@ -192,10 +192,10 @@ func TestWriteTypstFile_CreateParentDir(t *testing.T) {
 	filePath := filepath.Join(tmpDir, "subdir", "nested", "test.typ")
 	content := "Nested file content"
 
-	// Note: WriteTypstFile doesn't create parent directories, so this should fail
-	err := WriteTypstFile(filePath, content)
+	// Note: writeTypstFile doesn't create parent directories, so this should fail
+	err := writeTypstFile(filePath, content)
 	if err == nil {
-		t.Error("Expected WriteTypstFile to fail when parent directories don't exist")
+		t.Error("Expected writeTypstFile to fail when parent directories don't exist")
 	}
 }
 
@@ -216,9 +216,9 @@ func TestGetPageDimensions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.pageSize, func(t *testing.T) {
-			w, h := GetPageDimensions(tt.pageSize)
+			w, h := getPageDimensions(tt.pageSize)
 			if w != tt.wantW || h != tt.wantH {
-				t.Errorf("GetPageDimensions(%q) = (%q, %q), want (%q, %q)", tt.pageSize, w, h, tt.wantW, tt.wantH)
+				t.Errorf("getPageDimensions(%q) = (%q, %q), want (%q, %q)", tt.pageSize, w, h, tt.wantW, tt.wantH)
 			}
 		})
 	}
@@ -274,15 +274,15 @@ func TestSanitizeTypstValue(t *testing.T) {
 }
 
 func TestCurrentDate_Format(t *testing.T) {
-	result := CurrentDate()
+	result := currentDate()
 	// Should match YYYY-MM-DD format
 	parts := strings.Split(result, "-")
 	if len(parts) != 3 {
-		t.Errorf("CurrentDate() returned %q, expected YYYY-MM-DD format", result)
+		t.Errorf("currentDate() returned %q, expected YYYY-MM-DD format", result)
 	}
 
 	if len(parts[0]) != 4 || len(parts[1]) != 2 || len(parts[2]) != 2 {
-		t.Errorf("CurrentDate() returned %q, not in proper YYYY-MM-DD format", result)
+		t.Errorf("currentDate() returned %q, not in proper YYYY-MM-DD format", result)
 	}
 }
 
@@ -300,9 +300,9 @@ func TestPrepareTypstContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := PrepareTypstContent(tt.input)
+			got := prepareTypstContent(tt.input)
 			if got != tt.expected {
-				t.Errorf("PrepareTypstContent(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("prepareTypstContent(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}
@@ -322,9 +322,9 @@ func TestMakeTypstFont_Extended(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := MakeTypstFont(tt.input)
+			got := makeTypstFont(tt.input)
 			if got != tt.expected {
-				t.Errorf("MakeTypstFont(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("makeTypstFont(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}
@@ -345,9 +345,9 @@ func TestMakeTypstFontSize_Extended(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := MakeTypstFontSize(tt.input)
+			got := makeTypstFontSize(tt.input)
 			if got != tt.expected {
-				t.Errorf("MakeTypstFontSize(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("makeTypstFontSize(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}
@@ -356,14 +356,14 @@ func TestMakeTypstFontSize_Extended(t *testing.T) {
 func TestCreateTypstDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	result, err := CreateTypstDir(tmpDir)
+	result, err := createTypstDir(tmpDir)
 	if err != nil {
-		t.Fatalf("CreateTypstDir failed: %v", err)
+		t.Fatalf("createTypstDir failed: %v", err)
 	}
 
 	expectedPath := filepath.Join(tmpDir, ".typst")
 	if result != expectedPath {
-		t.Errorf("CreateTypstDir returned %q, want %q", result, expectedPath)
+		t.Errorf("createTypstDir returned %q, want %q", result, expectedPath)
 	}
 
 	// Verify directory was created
@@ -387,13 +387,13 @@ func TestCreateTypstDir_AlreadyExists(t *testing.T) {
 	}
 
 	// Call again
-	result, err := CreateTypstDir(tmpDir)
+	result, err := createTypstDir(tmpDir)
 	if err != nil {
-		t.Fatalf("CreateTypstDir should not fail on existing dir: %v", err)
+		t.Fatalf("createTypstDir should not fail on existing dir: %v", err)
 	}
 
 	if result != typstDir {
-		t.Errorf("CreateTypstDir returned %q, want %q", result, typstDir)
+		t.Errorf("createTypstDir returned %q, want %q", result, typstDir)
 	}
 }
 
@@ -402,7 +402,7 @@ func TestRenderTypstDocument_AllPageSizes(t *testing.T) {
 
 	for _, size := range pageSizes {
 		t.Run(size, func(t *testing.T) {
-			w, h := GetPageDimensions(size)
+			w, h := getPageDimensions(size)
 			data := TypstTemplateData{
 				Title:        "Page Size Test: " + size,
 				Content:      "Testing " + size,
@@ -417,9 +417,9 @@ func TestRenderTypstDocument_AllPageSizes(t *testing.T) {
 				LineHeight:   1.5,
 			}
 
-			result, err := RenderTypstDocument(data)
+			result, err := renderTypstDocument(data)
 			if err != nil {
-				t.Fatalf("RenderTypstDocument failed: %v", err)
+				t.Fatalf("renderTypstDocument failed: %v", err)
 			}
 
 			expectedDimensions := `"` + w + `-x-` + h + `"`
@@ -456,9 +456,9 @@ func TestRenderTypstDocument_LineHeight(t *testing.T) {
 				LineHeight:   tt.lineHeight,
 			}
 
-			result, err := RenderTypstDocument(data)
+			result, err := renderTypstDocument(data)
 			if err != nil {
-				t.Fatalf("RenderTypstDocument failed: %v", err)
+				t.Fatalf("renderTypstDocument failed: %v", err)
 			}
 
 			// Just verify the template renders without error

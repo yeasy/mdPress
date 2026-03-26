@@ -248,6 +248,19 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		<-done
 	}
+
+	// After all goroutines complete, verify the resolver state is consistent.
+	ref, err := r.Resolve("fig_concurrent")
+	if err != nil {
+		t.Fatalf("fig_concurrent should be resolvable after concurrent registration: %v", err)
+	}
+	if ref.Title != "并发图" {
+		t.Errorf("fig_concurrent title = %q, want %q", ref.Title, "并发图")
+	}
+	refs := r.GetAllReferences()
+	if len(refs) < 2 {
+		t.Errorf("expected at least 2 registered references, got %d", len(refs))
+	}
 }
 
 // TestEscapeHTML tests HTML escaping
@@ -280,12 +293,18 @@ func TestSectionNumbering(t *testing.T) {
 	r.RegisterSection("ch2", "第二章", 1)
 	r.RegisterSection("sec2_1", "第2.1节", 2)
 
-	ref, _ := r.Resolve("ch2")
+	ref, err := r.Resolve("ch2")
+	if err != nil {
+		t.Fatalf("failed to resolve ch2: %v", err)
+	}
 	if ref.Number != 2 {
 		t.Errorf("chapter 2 number should be 2, got %d", ref.Number)
 	}
 
-	ref, _ = r.Resolve("sec2_1")
+	ref, err = r.Resolve("sec2_1")
+	if err != nil {
+		t.Fatalf("failed to resolve sec2_1: %v", err)
+	}
 	if ref.Number != 1 {
 		t.Errorf("section 2.1 sibling number should be 1, got %d", ref.Number)
 	}

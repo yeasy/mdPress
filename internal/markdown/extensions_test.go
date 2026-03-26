@@ -41,8 +41,6 @@ func TestNewHeadingIDTransformer_Creation(t *testing.T) {
 		t.Fatal("expected non-nil transformer")
 	}
 
-	// Verify it implements the ASTTransformer interface
-	_ = transformer
 }
 
 func TestHeadingIDTransformer_ProcessHeading_SingleHeading(t *testing.T) {

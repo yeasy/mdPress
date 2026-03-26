@@ -11,7 +11,7 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-const parsedChapterCacheVersion = "v1"
+const parsedChapterCacheVersion = "v2"
 
 type cachedParsedChapter struct {
 	HTML        string                 `json:"html"`

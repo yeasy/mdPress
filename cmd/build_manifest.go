@@ -16,8 +16,8 @@ import (
 const buildManifestVersion = "v1"
 const buildManifestFilename = "build-manifest.json"
 
-// ManifestEntry represents cached metadata for a single chapter.
-type ManifestEntry struct {
+// manifestEntry represents cached metadata for a single chapter.
+type manifestEntry struct {
 	SHA256   string    `json:"sha256"`
 	HTMLPath string    `json:"html_path"`
 	Headings []string  `json:"headings"` // List of heading texts for TOC
@@ -30,7 +30,7 @@ type BuildManifest struct {
 	AppVer   string                   `json:"app_version"`
 	ConfigSH string                   `json:"config_sha256"`
 	CSSHash  string                   `json:"css_hash"`
-	Chapters map[string]ManifestEntry `json:"chapters"`
+	Chapters map[string]manifestEntry `json:"chapters"`
 }
 
 // LoadManifest loads the build manifest from the cache directory.
@@ -135,7 +135,7 @@ func NewBuildManifest(appVer string) *BuildManifest {
 	return &BuildManifest{
 		Version:  buildManifestVersion,
 		AppVer:   appVer,
-		Chapters: make(map[string]ManifestEntry),
+		Chapters: make(map[string]manifestEntry),
 	}
 }
 
@@ -164,7 +164,7 @@ func (m *BuildManifest) IsStale(currentAppVer, currentConfigHash, currentCSSHash
 
 // UpdateEntry updates a manifest entry for a chapter.
 func (m *BuildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingTexts []string, modTime time.Time) {
-	m.Chapters[chapterPath] = ManifestEntry{
+	m.Chapters[chapterPath] = manifestEntry{
 		SHA256:   hash,
 		HTMLPath: htmlPath,
 		Headings: headingTexts,
@@ -173,40 +173,40 @@ func (m *BuildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingT
 }
 
 // GetEntry retrieves a manifest entry for a chapter.
-func (m *BuildManifest) GetEntry(chapterPath string) (ManifestEntry, bool) {
+func (m *BuildManifest) GetEntry(chapterPath string) (manifestEntry, bool) {
 	entry, ok := m.Chapters[chapterPath]
 	return entry, ok
 }
 
-// CacheStatistics tracks cache hit/miss counts.
-type CacheStatistics struct {
+// cacheStatistics tracks cache hit/miss counts.
+type cacheStatistics struct {
 	Total     int
 	Hits      int
 	Misses    int
 	Timestamp time.Time
 }
 
-// NewCacheStatistics creates a new stats tracker.
-func NewCacheStatistics() *CacheStatistics {
-	return &CacheStatistics{
+// newCacheStatistics creates a new stats tracker.
+func newCacheStatistics() *cacheStatistics {
+	return &cacheStatistics{
 		Timestamp: time.Now(),
 	}
 }
 
 // RecordHit increments hit counter.
-func (s *CacheStatistics) RecordHit() {
+func (s *cacheStatistics) RecordHit() {
 	s.Total++
 	s.Hits++
 }
 
 // RecordMiss increments miss counter.
-func (s *CacheStatistics) RecordMiss() {
+func (s *cacheStatistics) RecordMiss() {
 	s.Total++
 	s.Misses++
 }
 
 // String returns a human-readable summary.
-func (s *CacheStatistics) String() string {
+func (s *cacheStatistics) String() string {
 	if s.Total == 0 {
 		return "cache: no chapters processed"
 	}

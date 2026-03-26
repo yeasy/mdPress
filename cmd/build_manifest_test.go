@@ -3,25 +3,19 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestComputeChapterHash(t *testing.T) {
-	// Create a temporary file
-	tmpFile, err := os.CreateTemp("", "test-chapter-*.md")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
+	tmpFile := filepath.Join(t.TempDir(), "test-chapter.md")
 	content := "# Test Chapter\n\nSome content here."
-	if _, err := tmpFile.WriteString(content); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
-	tmpFile.Close()
 
-	hash, err := ComputeChapterHash(tmpFile.Name())
+	hash, err := ComputeChapterHash(tmpFile)
 	if err != nil {
 		t.Fatalf("ComputeChapterHash failed: %v", err)
 	}
@@ -36,7 +30,7 @@ func TestComputeChapterHash(t *testing.T) {
 	}
 
 	// Verify same content produces same hash
-	hash2, err := ComputeChapterHash(tmpFile.Name())
+	hash2, err := ComputeChapterHash(tmpFile)
 	if err != nil {
 		t.Fatalf("second ComputeChapterHash failed: %v", err)
 	}
@@ -46,19 +40,13 @@ func TestComputeChapterHash(t *testing.T) {
 }
 
 func TestComputeConfigHash(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
+	tmpFile := filepath.Join(t.TempDir(), "test-config.yaml")
 	config := "title: Test Book\nauthor: Test Author"
-	if _, err := tmpFile.WriteString(config); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(config), 0644); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
-	tmpFile.Close()
 
-	hash, err := ComputeConfigHash(tmpFile.Name())
+	hash, err := ComputeConfigHash(tmpFile)
 	if err != nil {
 		t.Fatalf("ComputeConfigHash failed: %v", err)
 	}
@@ -98,11 +86,7 @@ func TestComputeCSSHash(t *testing.T) {
 }
 
 func TestManifestLoadSaveRoundTrip(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "test-manifest-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a manifest
 	manifest := NewBuildManifest("1.0.0")
@@ -200,7 +184,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "config hash mismatch",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "old-hash", Chapters: map[string]ManifestEntry{}},
+			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "old-hash", Chapters: map[string]manifestEntry{}},
 			appVer:      "1.0.0",
 			configHash:  "new-hash",
 			cssHash:     "",
@@ -209,7 +193,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "css hash mismatch",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "same-hash", CSSHash: "old-css", Chapters: map[string]ManifestEntry{}},
+			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "same-hash", CSSHash: "old-css", Chapters: map[string]manifestEntry{}},
 			appVer:      "1.0.0",
 			configHash:  "same-hash",
 			cssHash:     "new-css",
@@ -218,7 +202,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "all match",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "hash1", CSSHash: "hash2", Chapters: map[string]ManifestEntry{"ch01.md": {SHA256: "h1"}}},
+			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "hash1", CSSHash: "hash2", Chapters: map[string]manifestEntry{"ch01.md": {SHA256: "h1"}}},
 			appVer:      "1.0.0",
 			configHash:  "hash1",
 			cssHash:     "hash2",
@@ -238,7 +222,7 @@ func TestManifestIsStale(t *testing.T) {
 }
 
 func TestCacheStatistics(t *testing.T) {
-	stats := NewCacheStatistics()
+	stats := newCacheStatistics()
 
 	if stats.Total != 0 {
 		t.Errorf("expected 0 total, got %d", stats.Total)
@@ -259,7 +243,7 @@ func TestCacheStatistics(t *testing.T) {
 	if str == "" {
 		t.Error("expected non-empty stats string")
 	}
-	if !contains(str, "2/3") {
+	if !strings.Contains(str, "2/3") {
 		t.Errorf("expected '2/3' in stats string, got: %s", str)
 	}
 }
@@ -288,11 +272,7 @@ func TestManifestUpdateEntry(t *testing.T) {
 }
 
 func TestManifestFileCreation(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "test-manifest-file-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	manifest := NewBuildManifest("1.0.0")
 	manifest.ConfigSH = "test-config"
@@ -318,35 +298,23 @@ func TestManifestFileCreation(t *testing.T) {
 }
 
 func TestComputeHashDifferentFiles(t *testing.T) {
-	tmpFile1, err := os.CreateTemp("", "test-ch1-*.md")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile1.Name())
+	tmpDir := t.TempDir()
+	tmpFile1 := filepath.Join(tmpDir, "ch1.md")
+	tmpFile2 := filepath.Join(tmpDir, "ch2.md")
 
-	tmpFile2, err := os.CreateTemp("", "test-ch2-*.md")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile2.Name())
-
-	// Write different content
-	if _, err := tmpFile1.WriteString("# Chapter 1\nContent 1"); err != nil {
+	if err := os.WriteFile(tmpFile1, []byte("# Chapter 1\nContent 1"), 0644); err != nil {
 		t.Fatalf("failed to write first temp file: %v", err)
 	}
-	tmpFile1.Close()
-
-	if _, err := tmpFile2.WriteString("# Chapter 2\nContent 2"); err != nil {
+	if err := os.WriteFile(tmpFile2, []byte("# Chapter 2\nContent 2"), 0644); err != nil {
 		t.Fatalf("failed to write second temp file: %v", err)
 	}
-	tmpFile2.Close()
 
-	hash1, err := ComputeChapterHash(tmpFile1.Name())
+	hash1, err := ComputeChapterHash(tmpFile1)
 	if err != nil {
 		t.Fatalf("ComputeChapterHash failed: %v", err)
 	}
 
-	hash2, err := ComputeChapterHash(tmpFile2.Name())
+	hash2, err := ComputeChapterHash(tmpFile2)
 	if err != nil {
 		t.Fatalf("ComputeChapterHash failed: %v", err)
 	}
@@ -371,11 +339,7 @@ func TestManifestEmptyChaptersMap(t *testing.T) {
 }
 
 func TestManifestVersionMismatch(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "test-manifest-version-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	manifest := NewBuildManifest("1.0.0")
 	manifest.Version = "wrong-version"
@@ -397,7 +361,7 @@ func TestManifestVersionMismatch(t *testing.T) {
 }
 
 func TestCacheStatisticsPercentage(t *testing.T) {
-	stats := NewCacheStatistics()
+	stats := newCacheStatistics()
 
 	// Record 7 hits and 3 misses
 	for i := 0; i < 7; i++ {
@@ -418,17 +382,7 @@ func TestCacheStatisticsPercentage(t *testing.T) {
 	}
 
 	str := stats.String()
-	if !contains(str, "70%") {
+	if !strings.Contains(str, "70%") {
 		t.Errorf("expected 70%% in stats, got: %s", str)
 	}
-}
-
-// Helper function
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

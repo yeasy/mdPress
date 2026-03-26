@@ -125,7 +125,7 @@ func executeQuickstart(dir string) error {
 	fmt.Println("  Run the following commands to preview the sample project:")
 	fmt.Println()
 	if colorEnabled := utils.IsColorEnabled(); colorEnabled {
-		fmt.Printf("    %s\n", utils.Cyan(fmt.Sprintf("cd %s", dir)))
+		fmt.Printf("    %s\n", utils.Cyan("cd "+dir))
 		fmt.Printf("    %s\n", utils.Cyan("mdpress build --format html"))
 		fmt.Printf("    %s\n", utils.Cyan("mdpress serve"))
 	} else {

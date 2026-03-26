@@ -146,7 +146,10 @@ func TestExternalPlugin_Execute_EmptyOutput(t *testing.T) {
 func TestExternalPlugin_Execute_ContentReplacement(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
-	resp, _ := json.Marshal(ExternalPluginResponse{Content: "modified"})
+	resp, err := json.Marshal(ExternalPluginResponse{Content: "modified"})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	p := writeScript(t, dir, "replacer", "echo '"+string(resp)+"'")
 	ep, err := NewExternalPlugin("replacer", p, nil)
 	if err != nil {
@@ -171,7 +174,10 @@ func TestExternalPlugin_Execute_ContentReplacement(t *testing.T) {
 func TestExternalPlugin_Execute_StopPropagation(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
-	resp, _ := json.Marshal(ExternalPluginResponse{Stop: true})
+	resp, err := json.Marshal(ExternalPluginResponse{Stop: true})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	p := writeScript(t, dir, "stopper", "echo '"+string(resp)+"'")
 	ep, err := NewExternalPlugin("stopper", p, nil)
 	if err != nil {
@@ -195,7 +201,10 @@ func TestExternalPlugin_Execute_StopPropagation(t *testing.T) {
 func TestExternalPlugin_Execute_ErrorResponse(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
-	resp, _ := json.Marshal(ExternalPluginResponse{Error: "something broke"})
+	resp, err := json.Marshal(ExternalPluginResponse{Error: "something broke"})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	p := writeScript(t, dir, "errplugin", "echo '"+string(resp)+"'")
 	ep, err := NewExternalPlugin("errplugin", p, nil)
 	if err != nil {
@@ -310,7 +319,10 @@ func TestExternalPlugin_Execute_NilMetadata(t *testing.T) {
 	stubMetaQueries(t)
 	dir := t.TempDir()
 	// Plugin reports an error in JSON; Execute should return that as a Go error.
-	resp, _ := json.Marshal(ExternalPluginResponse{Error: "oops"})
+	resp, err := json.Marshal(ExternalPluginResponse{Error: "oops"})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	p := writeScript(t, dir, "nilmeta", "echo '"+string(resp)+"'")
 	ep, err := NewExternalPlugin("nilmeta", p, nil)
 	if err != nil {
@@ -401,7 +413,10 @@ func TestQueryPluginHooks_ValidResponse(t *testing.T) {
 		t.Skip("shell script syntax required; skipping on Windows")
 	}
 	dir := t.TempDir()
-	hooks, _ := json.Marshal([]string{"after_parse", "after_build"})
+	hooks, err := json.Marshal([]string{"after_parse", "after_build"})
+	if err != nil {
+		t.Fatalf("json.Marshal failed: %v", err)
+	}
 	script := `
 if [ "$1" = "--mdpress-hooks" ]; then
     echo '` + string(hooks) + `'

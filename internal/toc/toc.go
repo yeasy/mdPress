@@ -104,7 +104,7 @@ func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, dept
 	for _, entry := range entries {
 		itemIndent := strings.Repeat("  ", depth+2)
 		buf.WriteString(itemIndent + `<li>`)
-		fmt.Fprintf(buf, `<a href="#%s">%s</a>`, utils.EscapeHTML(entry.ID), utils.EscapeHTML(entry.Title))
+		fmt.Fprintf(buf, `<a href="#%s">%s</a>`, utils.EscapeAttr(entry.ID), utils.EscapeHTML(entry.Title))
 
 		// Render child entries recursively when present.
 		if len(entry.Children) > 0 {
@@ -119,21 +119,21 @@ func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, dept
 	buf.WriteString(indent + `</ul>` + "\n")
 }
 
-// GetEntry performs a depth-first lookup by entry ID.
-func GetEntry(entries []TOCEntry, id string) *TOCEntry {
+// getEntry performs a depth-first lookup by entry ID.
+func getEntry(entries []TOCEntry, id string) *TOCEntry {
 	for i := range entries {
 		if entries[i].ID == id {
 			return &entries[i]
 		}
-		if found := GetEntry(entries[i].Children, id); found != nil {
+		if found := getEntry(entries[i].Children, id); found != nil {
 			return found
 		}
 	}
 	return nil
 }
 
-// FlattenToList flattens the TOC tree into a linear list while preserving order.
-func FlattenToList(entries []TOCEntry) []TOCEntry {
+// flattenToList flattens the TOC tree into a linear list while preserving order.
+func flattenToList(entries []TOCEntry) []TOCEntry {
 	var result []TOCEntry
 
 	var flatten func([]TOCEntry)

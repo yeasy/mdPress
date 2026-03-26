@@ -494,9 +494,12 @@ func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
 }
 
 func pdfChapterImageOptions() utils.ImageProcessingOptions {
+	// PDF HTML is served via a local HTTP server for font loading.
+	// Chrome blocks file:// URLs from HTTP pages, so images must be
+	// embedded as base64 data URIs instead of rewritten to file:// URLs.
 	return utils.ImageProcessingOptions{
-		RewriteLocalToFileURL:  true,
-		RewriteRemoteToFileURL: true,
+		EmbedLocalAsBase64:     true,
+		EmbedRemoteAsBase64:    true,
 		DownloadRemote:         true,
 		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
 		MaxConcurrentDownloads: 4,
@@ -531,9 +534,8 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 	return htmlContent
 }
 
-// htmlTagPattern strips HTML tags for plain-text comparison.
-var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
-
+// stripHTMLTags removes HTML tags for plain-text comparison.
+// Delegates to the shared pattern in pkg/utils to avoid duplication.
 func stripHTMLTags(s string) string {
-	return htmlTagPattern.ReplaceAllString(s, "")
+	return utils.StripHTMLTags(s)
 }

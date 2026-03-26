@@ -92,8 +92,8 @@ func (s *sourceIndex) lineCol(offset int) (int, int) {
 	return lineIdx + 1, col
 }
 
-// CollectDiagnostics collects structured warnings from a Markdown document.
-func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
+// collectDiagnostics collects structured warnings from a Markdown document.
+func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	index := newSourceIndex(source)
 	lines := strings.Split(string(source), "\n")
 	diagnostics := collectOrderedListDiagnostics(lines, index)

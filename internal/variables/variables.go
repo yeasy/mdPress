@@ -36,8 +36,8 @@ func Expand(source []byte, cfg *config.BookConfig) []byte {
 	return result
 }
 
-// ExpandString is the string wrapper for Expand.
-func ExpandString(source string, cfg *config.BookConfig) string {
+// expandString is the string wrapper for Expand.
+func expandString(source string, cfg *config.BookConfig) string {
 	return string(Expand([]byte(source), cfg))
 }
 
