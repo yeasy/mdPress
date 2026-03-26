@@ -100,9 +100,3 @@ func (m *mathPreprocessor) postprocess(htmlStr string) string {
 	}
 	return htmlStr
 }
-
-// HasMath reports whether the Markdown source contains any math formula syntax.
-// Used as a quick check to decide whether math processing is needed.
-func HasMath(md string) bool {
-	return strings.Contains(md, "$")
-}

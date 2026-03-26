@@ -11,23 +11,12 @@ import (
 	"github.com/yuin/goldmark/ast"
 )
 
-// Diagnostic 表示构建期间发现的文档问题。
+// Diagnostic represents a document issue found during the build.
 type Diagnostic struct {
 	Rule    string
 	Line    int
 	Column  int
 	Message string
-}
-
-// Position 返回适合日志输出的位置字符串。
-func (d Diagnostic) Position() string {
-	if d.Line <= 0 {
-		return "-"
-	}
-	if d.Column <= 0 {
-		return fmt.Sprintf("%d", d.Line)
-	}
-	return fmt.Sprintf("%d:%d", d.Line, d.Column)
 }
 
 var (
@@ -103,11 +92,12 @@ func (s *sourceIndex) lineCol(offset int) (int, int) {
 	return lineIdx + 1, col
 }
 
-// CollectDiagnostics 收集 Markdown 文档中的结构化 warning。
+// CollectDiagnostics collects structured warnings from a Markdown document.
 func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	index := newSourceIndex(source)
-	diagnostics := collectOrderedListDiagnostics(source, index)
-	diagnostics = append(diagnostics, collectMermaidDiagnostics(source)...)
+	lines := strings.Split(string(source), "\n")
+	diagnostics := collectOrderedListDiagnostics(lines, index)
+	diagnostics = append(diagnostics, collectMermaidDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
 	sort.SliceStable(diagnostics, func(i, j int) bool {
 		if diagnostics[i].Line != diagnostics[j].Line {
@@ -121,11 +111,10 @@ func CollectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	return diagnostics
 }
 
-func collectOrderedListDiagnostics(source []byte, index *sourceIndex) []Diagnostic {
+func collectOrderedListDiagnostics(lines []string, index *sourceIndex) []Diagnostic {
 	diagnostics := make([]Diagnostic, 0)
 
 	lastMarkerByIndent := make(map[int]int)
-	lines := strings.Split(string(source), "\n")
 	for i, rawLine := range lines {
 		lineText := strings.TrimRight(rawLine, "\r")
 		match := orderedListMarkerPattern.FindStringSubmatchIndex(lineText)
@@ -154,7 +143,7 @@ func collectOrderedListDiagnostics(source []byte, index *sourceIndex) []Diagnost
 				Rule:    "ordered-list-sequence",
 				Line:    i + 1,
 				Column:  column,
-				Message: fmt.Sprintf("有序列表编号不连续：期望 %d，实际为 %d", prevMarker+1, actual),
+				Message: fmt.Sprintf("ordered list number out of sequence: expected %d, got %d", prevMarker+1, actual),
 			})
 		}
 		lastMarkerByIndent[indentWidth] = actual
@@ -168,8 +157,7 @@ type mermaidFence struct {
 	content     []string
 }
 
-func collectMermaidDiagnostics(source []byte) []Diagnostic {
-	lines := strings.Split(string(source), "\n")
+func collectMermaidDiagnostics(lines []string) []Diagnostic {
 	diagnostics := make([]Diagnostic, 0)
 
 	var current *mermaidFence
@@ -212,7 +200,7 @@ func collectMermaidDiagnostics(source []byte) []Diagnostic {
 			Rule:    "mermaid-unclosed-fence",
 			Line:    current.startLine,
 			Column:  current.startColumn,
-			Message: "Mermaid 代码块未闭合，缺少结束 fence",
+			Message: "Mermaid code block is unclosed, missing closing fence",
 		})
 	}
 
@@ -275,7 +263,7 @@ func validateMermaidFence(block *mermaidFence) []Diagnostic {
 			Rule:    "mermaid-empty",
 			Line:    block.startLine,
 			Column:  block.startColumn,
-			Message: "Mermaid 图为空，没有可渲染的内容",
+			Message: "Mermaid diagram is empty, nothing to render",
 		})
 		return diagnostics
 	}
@@ -285,7 +273,7 @@ func validateMermaidFence(block *mermaidFence) []Diagnostic {
 			Rule:    "mermaid-unknown-diagram",
 			Line:    firstLine,
 			Column:  firstColumn,
-			Message: fmt.Sprintf("Mermaid 图首个有效语句不是已知图类型：%q", firstContent),
+			Message: fmt.Sprintf("Mermaid diagram first statement is not a known diagram type: %q", firstContent),
 		})
 	}
 
@@ -364,7 +352,7 @@ func findMermaidBracketIssue(block *mermaidFence) (Diagnostic, bool) {
 						Rule:    "mermaid-bracket-mismatch",
 						Line:    lineNo,
 						Column:  utf8.RuneCountInString(line[:byteIdx]) + 1,
-						Message: fmt.Sprintf("Mermaid 图括号不匹配：多余的 %q", string(r)),
+						Message: fmt.Sprintf("Mermaid diagram bracket mismatch: unexpected %q", string(r)),
 					}, true
 				}
 				open := stack[len(stack)-1]
@@ -373,7 +361,7 @@ func findMermaidBracketIssue(block *mermaidFence) (Diagnostic, bool) {
 						Rule:    "mermaid-bracket-mismatch",
 						Line:    lineNo,
 						Column:  utf8.RuneCountInString(line[:byteIdx]) + 1,
-						Message: fmt.Sprintf("Mermaid 图括号不匹配：遇到 %q，但最近的未闭合括号是 %q", string(r), string(open.char)),
+						Message: fmt.Sprintf("Mermaid diagram bracket mismatch: found %q, but nearest unclosed bracket is %q", string(r), string(open.char)),
 					}, true
 				}
 				stack = stack[:len(stack)-1]
@@ -387,7 +375,7 @@ func findMermaidBracketIssue(block *mermaidFence) (Diagnostic, bool) {
 			Rule:    "mermaid-bracket-mismatch",
 			Line:    open.line,
 			Column:  open.column,
-			Message: fmt.Sprintf("Mermaid 图括号未闭合：缺少与 %q 对应的闭合符", string(open.char)),
+			Message: fmt.Sprintf("Mermaid diagram unclosed bracket: missing closing bracket for %q", string(open.char)),
 		}, true
 	}
 
@@ -411,15 +399,15 @@ func runeCountBytes(b []byte) int {
 	return utf8.RuneCount(b)
 }
 
-// longHeadingThreshold 是触发"标题文本过长"警告的字符数阈值。
-// 超过此长度的标题很可能是 Setext 格式意外创建的：
-// 段落后紧跟 `---`（没有空行）会将整段文字变成 h2。
+// longHeadingThreshold is the character count that triggers a "heading too long" warning.
+// Headings exceeding this length are likely created accidentally by Setext syntax:
+// a `---` immediately after a paragraph (without a blank line) turns the paragraph into h2.
 const longHeadingThreshold = 80
 
-// collectLongHeadingDiagnostics 检测异常长的标题文本。
-// 这类标题通常是由 Markdown 中的 Setext 语法意外产生的——
-// 当段落后直接跟 `---` 且中间没有空行时，goldmark 会将段落文本
-// 解析为 h2 标题。对于 TOC 和 PDF 排版会造成严重问题。
+// collectLongHeadingDiagnostics detects abnormally long heading text.
+// Such headings are typically caused by accidental Setext syntax in Markdown --
+// when `---` follows a paragraph without a blank line, goldmark parses the
+// paragraph text as an h2 heading. This causes serious issues for TOC and PDF layout.
 func collectLongHeadingDiagnostics(document ast.Node, source []byte, index *sourceIndex) []Diagnostic {
 	var diagnostics []Diagnostic
 
@@ -452,7 +440,7 @@ func collectLongHeadingDiagnostics(document ast.Node, source []byte, index *sour
 			Line:   line,
 			Column: column,
 			Message: fmt.Sprintf(
-				"标题文本过长（%d 字符）：%q —— 可能是 Setext 标题误判（段落后的 --- 被解析为 h%d），请在 --- 前添加空行",
+				"heading text too long (%d chars): %q -- likely an accidental Setext heading (--- after paragraph parsed as h%d); add a blank line before ---",
 				runeLen, preview, heading.Level),
 		})
 	}
