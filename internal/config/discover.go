@@ -367,7 +367,7 @@ func ExtractReadmeMetadata(ctx context.Context, path string) ReadmeMetadata {
 	content := allText.String()
 
 	// Determine book title: try to find a meaningful title that is NOT just
-	// a generic heading like "前言" or "Preface".
+	// a generic heading like "Preface" or "Introduction".
 	meta.Title = inferBookTitle(h1Title, content, filepath.Dir(path))
 
 	// Detect language from content.

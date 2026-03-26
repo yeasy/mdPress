@@ -53,9 +53,9 @@ type ExternalPluginRequest struct {
 	// OutputFormat is the output format name (valid in AfterBuild phase only).
 	OutputFormat string `json:"output_format"`
 	// Config holds the plugin-specific settings from book.yaml plugins[n].config.
-	Config map[string]interface{} `json:"config"`
+	Config map[string]any `json:"config"`
 	// Metadata is a shared key-value store for inter-plugin and inter-phase communication.
-	Metadata map[string]interface{} `json:"metadata"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // ExternalPluginResponse is the JSON body read from the external plugin process.
@@ -81,7 +81,7 @@ type ExternalPlugin struct {
 	// execPath is the absolute path to the plugin executable.
 	execPath string
 	// pluginConfig holds the configuration values from book.yaml.
-	pluginConfig map[string]interface{}
+	pluginConfig map[string]any
 	// hooks lists the hook phases this plugin handles.
 	hooks []Phase
 	// timeout is the maximum time allowed for a single hook invocation.
@@ -91,14 +91,14 @@ type ExternalPlugin struct {
 // NewExternalPlugin creates a new ExternalPlugin.
 // execPath is resolved to an absolute path; relative paths are based on the
 // current working directory at the time of the call.
-func NewExternalPlugin(name, execPath string, pluginCfg map[string]interface{}) (*ExternalPlugin, error) {
+func NewExternalPlugin(name, execPath string, pluginCfg map[string]any) (*ExternalPlugin, error) {
 	resolvedPath, err := resolvePluginExecutablePath(execPath)
 	if err != nil {
 		return nil, err
 	}
 
 	if pluginCfg == nil {
-		pluginCfg = make(map[string]interface{})
+		pluginCfg = make(map[string]any)
 	}
 
 	// Query the plugin for its metadata and supported hooks.

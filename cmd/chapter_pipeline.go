@@ -412,7 +412,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 			Content:      htmlContent,
 			ChapterIndex: i,
 			ChapterFile:  chDef.File,
-			Metadata:     make(map[string]interface{}),
+			Metadata:     make(map[string]any),
 		}
 		if err := p.PluginManager.RunHook(hookCtx); err != nil {
 			p.Logger.Warn("AfterParse plugin hook failed", slog.String("file", chDef.File), slog.String("error", err.Error()))

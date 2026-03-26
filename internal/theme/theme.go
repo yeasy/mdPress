@@ -89,13 +89,13 @@ func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
 		return nil, fmt.Errorf("theme file not found: %w", err)
 	}
 
-	// 读取文件内容
+	// Read file contents.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read theme file: %w", err)
 	}
 
-	// 解析YAML
+	// Parse YAML.
 	theme := &Theme{}
 	if err := yaml.Unmarshal(data, theme); err != nil {
 		return nil, fmt.Errorf("failed to parse theme file: %w", err)
@@ -228,7 +228,7 @@ func (t *Theme) ToCSS() string {
 	fmt.Fprintf(&css, "  --margin-right: %.2fmm;\n", t.Margins.Right)
 	css.WriteString("}\n\n")
 
-	// 基础样式
+	// Base styles.
 	css.WriteString("body {\n")
 	css.WriteString("  font-family: var(--font-family);\n")
 	css.WriteString("  font-size: var(--font-size);\n")
@@ -238,7 +238,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);\n")
 	css.WriteString("}\n\n")
 
-	// 标题样式
+	// Heading styles.
 	css.WriteString("h1, h2, h3, h4, h5, h6 {\n")
 	css.WriteString("  color: var(--color-heading);\n")
 	css.WriteString("  font-weight: bold;\n")
@@ -246,13 +246,13 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  margin-bottom: 0.5em;\n")
 	css.WriteString("}\n\n")
 
-	// 链接样式
+	// Link styles.
 	css.WriteString("a {\n")
 	css.WriteString("  color: var(--color-link);\n")
 	css.WriteString("  text-decoration: underline;\n")
 	css.WriteString("}\n\n")
 
-	// 代码样式 — 无背景色，专业图书风格
+	// Code styles -- no background color, professional book style.
 	css.WriteString("code, pre {\n")
 	css.WriteString("  background: none;\n")
 	css.WriteString("  color: var(--color-code-text);\n")
@@ -271,7 +271,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  word-break: break-all;\n")
 	css.WriteString("}\n\n")
 
-	// 块引用样式
+	// Blockquote styles.
 	css.WriteString("blockquote {\n")
 	css.WriteString("  border-left: 4px solid var(--color-accent);\n")
 	css.WriteString("  margin-left: 0;\n")
@@ -280,7 +280,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  opacity: 0.8;\n")
 	css.WriteString("}\n\n")
 
-	// 表格样式
+	// Table styles.
 	css.WriteString("table {\n")
 	css.WriteString("  border-collapse: collapse;\n")
 	css.WriteString("  width: 100%;\n")
@@ -303,7 +303,7 @@ func (t *Theme) ToCSS() string {
 	return css.String()
 }
 
-// Clone 创建主题的深拷贝
+// Clone creates a deep copy of the theme.
 func (t *Theme) Clone() *Theme {
 	return &Theme{
 		Name:           t.Name,

@@ -204,11 +204,11 @@ const standaloneJS = `
   }
 
   function initSmoothNav() {
-    // 侧边栏目录链接
+    // Sidebar TOC links.
     document.querySelectorAll('#sidebar-nav .toc-link').forEach(function(link) {
       link.addEventListener('click', handleAnchorClick);
     });
-    // 上一页/下一页章节导航按钮
+    // Previous/next chapter navigation buttons.
     document.querySelectorAll('.chapter-nav-btn').forEach(function(link) {
       link.addEventListener('click', handleAnchorClick);
     });
@@ -812,7 +812,7 @@ const standaloneJS = `
           var e = Math.min(text.length, match.index + query.length + 40);
           var excerpt = (s > 0 ? '…' : '') + text.slice(s, e) + (e < text.length ? '…' : '');
 
-          // 找最近标题作为结果标题
+          // Find the nearest heading as the result title.
           var nearH = node.parentElement ? node.parentElement.closest('h1,h2,h3,h4') : null;
           var itemTitle  = nearH ? nearH.textContent : (chapter.querySelector('.chapter-content h1, .chapter-content h2, .chapter-content h3') || {textContent: chapter.id}).textContent;
           var targetId   = nearH ? nearH.id : chapter.id;

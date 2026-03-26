@@ -1,5 +1,5 @@
-// Package renderer 负责将各个部分组装成最终的 HTML 文档。
-// 使用 html/template 进行安全的 HTML 渲染，支持主题 CSS、封面、目录和章节内容的组合。
+// Package renderer assembles individual parts into the final HTML document.
+// It uses html/template for safe HTML rendering, combining theme CSS, cover, TOC, and chapter content.
 package renderer
 
 import (
@@ -12,38 +12,38 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// HTMLRenderer 用于将各个部分组装成最终的 HTML 文档
+// HTMLRenderer assembles individual parts into the final HTML document.
 type HTMLRenderer struct {
 	config *config.BookConfig
 	theme  *theme.Theme
 	tmpl   *template.Template
 }
 
-// ChapterHTML 表示单个章节的 HTML 内容
+// ChapterHTML represents the HTML content of a single chapter.
 type ChapterHTML struct {
-	Title    string       // 章节标题
-	ID       string       // 章节唯一标识符
-	Content  string       // 章节 HTML 内容
-	Depth    int          // 章节在书籍结构中的层级（从 0 开始）
-	Headings []NavHeading // 章节内标题树，用于导航
+	Title    string       // Chapter title
+	ID       string       // Chapter unique identifier
+	Content  string       // Chapter HTML content
+	Depth    int          // Chapter depth in book structure (0-based)
+	Headings []NavHeading // Heading tree within the chapter, used for navigation
 }
 
-// NavHeading 表示章节内的导航标题树
+// NavHeading represents a navigation heading tree within a chapter.
 type NavHeading struct {
 	Title    string
 	ID       string
 	Children []NavHeading
 }
 
-// RenderParts 包含需要渲染的各个部分
+// RenderParts contains the individual parts to be rendered.
 type RenderParts struct {
-	CoverHTML    string        // 封面 HTML
-	TOCHTML      string        // 目录 HTML
-	ChaptersHTML []ChapterHTML // 所有章节
-	CustomCSS    string        // 自定义 CSS
+	CoverHTML    string        // Cover page HTML
+	TOCHTML      string        // Table of contents HTML
+	ChaptersHTML []ChapterHTML // All chapters
+	CustomCSS    string        // Custom CSS
 }
 
-// 模板数据结构
+// Template data structure.
 type templateData struct {
 	Title            string
 	Author           string
@@ -87,16 +87,16 @@ func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, e
 	}, nil
 }
 
-// Render 将各个部分组装成完整的 HTML 文档
+// Render assembles all parts into a complete HTML document.
 func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	if parts == nil {
 		return "", fmt.Errorf("render parts cannot be nil")
 	}
 
-	// 组装 CSS：主题 CSS + 自定义 CSS + 打印 CSS
+	// Assemble CSS: theme CSS + custom CSS + print CSS.
 	fullCSS := r.buildFullCSS(parts.CustomCSS)
 
-	// 转换章节数据
+	// Convert chapter data.
 	chapters := make([]templateChapter, len(parts.ChaptersHTML))
 	for i, ch := range parts.ChaptersHTML {
 		chapters[i] = templateChapter{
@@ -106,7 +106,7 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 		}
 	}
 
-	// 构建页眉页脚文本
+	// Build header and footer text.
 	headerText := r.config.Style.Header.Left
 	footerText := r.config.Style.Footer.Center
 
@@ -132,29 +132,29 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	return result.String(), nil
 }
 
-// buildFullCSS 组装完整的 CSS
+// buildFullCSS assembles the complete CSS.
 func (r *HTMLRenderer) buildFullCSS(customCSS string) string {
 	var css strings.Builder
 
-	// 主题 CSS
+	// Theme CSS.
 	if r.theme != nil {
 		css.WriteString(r.theme.ToCSS())
 		css.WriteString("\n")
 	}
 
-	// 自定义 CSS
+	// Custom CSS.
 	if customCSS != "" {
 		css.WriteString(customCSS)
 		css.WriteString("\n")
 	}
 
-	// 打印 CSS
+	// Print CSS.
 	css.WriteString(r.buildPrintCSS())
 
 	return css.String()
 }
 
-// buildPrintCSS 生成打印相关的 CSS 规则
+// buildPrintCSS generates print-related CSS rules.
 func (r *HTMLRenderer) buildPrintCSS() string {
 	var css strings.Builder
 

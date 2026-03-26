@@ -29,12 +29,12 @@ import (
 
 // Request mirrors plugin.ExternalPluginRequest.
 type Request struct {
-	Phase        string                 `json:"phase"`
-	Content      string                 `json:"content"`
-	ChapterIndex int                    `json:"chapter_index"`
-	ChapterFile  string                 `json:"chapter_file"`
-	Config       map[string]interface{} `json:"config"`
-	Metadata     map[string]interface{} `json:"metadata"`
+	Phase        string         `json:"phase"`
+	Content      string         `json:"content"`
+	ChapterIndex int            `json:"chapter_index"`
+	ChapterFile  string         `json:"chapter_file"`
+	Config       map[string]any `json:"config"`
+	Metadata     map[string]any `json:"metadata"`
 }
 
 // Response mirrors plugin.ExternalPluginResponse.

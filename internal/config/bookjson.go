@@ -14,14 +14,14 @@ import (
 // bookJSON is the raw structure of a GitBook book.json file.
 // Only fields relevant to mdPress are decoded; unknown fields are silently ignored.
 type bookJSON struct {
-	Title       string                            `json:"title"`
-	Author      jsonStringOrSlice                 `json:"author"`
-	Description string                            `json:"description"`
-	Language    string                            `json:"language"`
-	GitBook     string                            `json:"gitbook"`
-	Plugins     []string                          `json:"plugins"`
-	PluginsCfg  map[string]map[string]interface{} `json:"pluginsConfig"`
-	Structure   bookJSONStructure                 `json:"structure"`
+	Title       string                    `json:"title"`
+	Author      jsonStringOrSlice         `json:"author"`
+	Description string                    `json:"description"`
+	Language    string                    `json:"language"`
+	GitBook     string                    `json:"gitbook"`
+	Plugins     []string                  `json:"plugins"`
+	PluginsCfg  map[string]map[string]any `json:"pluginsConfig"`
+	Structure   bookJSONStructure         `json:"structure"`
 }
 
 // bookJSONStructure holds optional overrides for well-known GitBook file paths.
@@ -208,7 +208,7 @@ func normalizeLanguage(lang string) string {
 
 // convertBookJSONPlugins maps GitBook plugin entries to PluginConfig values.
 // Entries prefixed with "-" are disabled in GitBook and are skipped here.
-func convertBookJSONPlugins(names []string, cfgs map[string]map[string]interface{}) []PluginConfig {
+func convertBookJSONPlugins(names []string, cfgs map[string]map[string]any) []PluginConfig {
 	if len(names) == 0 {
 		return nil
 	}
@@ -221,7 +221,7 @@ func convertBookJSONPlugins(names []string, cfgs map[string]map[string]interface
 		p := PluginConfig{Name: name}
 		if cfgs != nil {
 			if extra, ok := cfgs[name]; ok {
-				p.Config = make(map[string]interface{}, len(extra))
+				p.Config = make(map[string]any, len(extra))
 				for k, v := range extra {
 					p.Config[k] = v
 				}
