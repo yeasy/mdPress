@@ -6,8 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
+)
+
+// Pre-compiled patterns for style validation.
+var (
+	fontFamilyPattern = regexp.MustCompile(`^[a-zA-Z0-9 ,\-'.]+$`)
+	fontSizePattern   = regexp.MustCompile(`^\d+(\.\d+)?(px|pt|em|rem|%)$`)
+	codeThemePattern  = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 )
 
 // BookConfig is the top-level configuration for a book.
@@ -42,7 +50,7 @@ type PluginConfig struct {
 	// Path is the path to the plugin executable, relative to book.yaml.
 	Path string `yaml:"path"`
 	// Config contains arbitrary key-value pairs passed to the plugin.
-	Config map[string]interface{} `yaml:"config"`
+	Config map[string]any `yaml:"config"`
 }
 
 // BookMeta contains book metadata.
@@ -290,6 +298,27 @@ func (c *BookConfig) Validate() error {
 	// Validate PDFTimeout range (5-3600 seconds, or 0 for default).
 	if c.Output.PDFTimeout != 0 && (c.Output.PDFTimeout < 5 || c.Output.PDFTimeout > 3600) {
 		return fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout)
+	}
+
+	// Validate font_family: only allow alphanumeric, spaces, commas, hyphens, single quotes, and periods.
+	if c.Style.FontFamily != "" {
+		if !fontFamilyPattern.MatchString(c.Style.FontFamily) {
+			return fmt.Errorf("font_family contains invalid characters (only alphanumeric, spaces, commas, hyphens, periods, and single quotes are allowed)")
+		}
+	}
+
+	// Validate font_size: must match a simple CSS size pattern (e.g. 14px, 1.2em, 16pt, 100%%).
+	if c.Style.FontSize != "" {
+		if !fontSizePattern.MatchString(c.Style.FontSize) {
+			return fmt.Errorf("font_size %q is not a valid CSS size (expected a number followed by px, pt, em, rem, or %%)", c.Style.FontSize)
+		}
+	}
+
+	// Validate code_theme: only allow alphanumeric, hyphens, and underscores.
+	if c.Style.CodeTheme != "" {
+		if !codeThemePattern.MatchString(c.Style.CodeTheme) {
+			return fmt.Errorf("code_theme %q contains invalid characters (only alphanumeric, hyphens, and underscores are allowed)", c.Style.CodeTheme)
+		}
 	}
 
 	return nil

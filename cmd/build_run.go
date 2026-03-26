@@ -38,6 +38,23 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 		return ""
 	}
 	cssPath := cfg.ResolvePath(cfg.Style.CustomCSS)
+
+	// Limit custom CSS file size to 1MB to prevent excessive memory usage.
+	const maxCustomCSSSize = 1 * 1024 * 1024
+	info, err := os.Stat(cssPath)
+	if err != nil {
+		logger.Warn("Failed to stat custom CSS file, falling back to default theme styles",
+			slog.String("path", cssPath),
+			slog.String("error", err.Error()))
+		return ""
+	}
+	if info.Size() > int64(maxCustomCSSSize) {
+		logger.Warn("Custom CSS file exceeds 1MB size limit, ignoring",
+			slog.String("path", cssPath),
+			slog.Int64("size", info.Size()))
+		return ""
+	}
+
 	cssData, err := utils.ReadFile(cssPath)
 	if err != nil {
 		logger.Warn("Failed to load custom CSS, falling back to default theme styles",
@@ -151,7 +168,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeBuild,
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}, logger)
 
 	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
@@ -252,7 +269,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Config:   cfg,
 		Phase:    plugin.PhaseBeforeRender,
 		Content:  coverHTML,
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}, logger)
 
 	singlePageParts := &renderer.RenderParts{
@@ -278,7 +295,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterRender,
 		Content:  tocHTML,
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}, logger)
 
 	progress.Done()
@@ -313,7 +330,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Context:  ctx,
 		Config:   cfg,
 		Phase:    plugin.PhaseAfterBuild,
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}, logger)
 
 	// Release plugin resources.
@@ -491,7 +508,7 @@ func compatibleTitleStyles(a, b string) bool {
 }
 
 // commonRecurringSectionTitles lists short generic headings that naturally
-// appear in every chapter of a book (e.g. "本章小结", "简介", "总结").
+// appear in every chapter of a book (e.g. "Chapter Summary", "Introduction", "Conclusion").
 // These are excluded from the duplicate-title check because flagging them
 // produces only false positives in multi-chapter books.
 var commonRecurringSectionTitles = map[string]bool{
@@ -541,7 +558,7 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 	}
 
 	// Duplicate title detection: use directory-scoped keys so that
-	// "chapter01/本章小结" and "chapter02/本章小结" are treated as distinct.
+	// "chapter01/Chapter Summary" and "chapter02/Chapter Summary" are treated as distinct.
 	// Also skip common recurring section titles entirely.
 	seenTitles := make(map[string]chapterHeadingRecord)
 	for _, record := range records {
@@ -555,7 +572,7 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 			continue
 		}
 
-		// Scope by the top-level directory so that "ch01/简介" and "ch02/简介"
+		// Scope by the top-level directory so that "ch01/intro" and "ch02/intro"
 		// don't collide.  Files at the root level use "" as their scope.
 		scope := ""
 		if idx := strings.IndexAny(record.File, "/\\"); idx >= 0 {
@@ -857,9 +874,10 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	}
 
 	if defaultTarget != "" {
-		safeTarget := strings.ReplaceAll(strings.ReplaceAll(defaultTarget, `\`, `\\`), `"`, `\"`)
-		safeTarget = strings.ReplaceAll(safeTarget, "</", `<\/`)
-		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = \"%s\"; }, 1200);</script>\n", safeTarget)
+		// Use Go's %q for safe JS string quoting, then prevent </script> tag injection.
+		quoted := fmt.Sprintf("%q", defaultTarget)
+		quoted = strings.ReplaceAll(quoted, "</", `<\/`)
+		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %s; }, 1200);</script>\n", quoted)
 	}
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
 	tmpPath := landingPath + ".tmp"

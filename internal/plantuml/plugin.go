@@ -2,6 +2,8 @@
 package plantuml
 
 import (
+	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -14,9 +16,16 @@ type Plugin struct {
 }
 
 // NewPlugin creates a new PlantUML plugin with default settings.
+// If the default PlantUML server URL cannot be validated (e.g. DNS failure),
+// the renderer is left nil; Init() must succeed before Execute() is called.
 func NewPlugin() *Plugin {
+	r, err := NewRenderer("", false)
+	if err != nil {
+		// DNS may be unavailable; Init() will set renderer from config.
+		return &Plugin{}
+	}
 	return &Plugin{
-		renderer: NewRenderer("", false),
+		renderer: r,
 	}
 }
 
@@ -60,7 +69,11 @@ func (p *Plugin) Init(cfg *config.BookConfig) error {
 		}
 	}
 
-	p.renderer = NewRenderer(serverURL, useLocal)
+	r, err := NewRenderer(serverURL, useLocal)
+	if err != nil {
+		return fmt.Errorf("plantuml plugin init: %w", err)
+	}
+	p.renderer = r
 	return nil
 }
 
@@ -76,12 +89,17 @@ func (p *Plugin) Execute(hookCtx *plugin.HookContext) (*plugin.HookResult, error
 		return nil, nil
 	}
 
+	if p.renderer == nil {
+		slog.Warn("plantuml renderer unavailable, diagrams will not be rendered")
+		return &plugin.HookResult{Content: hookCtx.Content}, nil
+	}
+
 	// Process the HTML content
 	result, err := p.renderer.RenderHTML(hookCtx.Context, hookCtx.Content)
 	if err != nil {
 		// Log the error but don't fail the build
 		if hookCtx.Metadata == nil {
-			hookCtx.Metadata = make(map[string]interface{})
+			hookCtx.Metadata = make(map[string]any)
 		}
 		hookCtx.Metadata["plantuml.error"] = err.Error()
 		return &plugin.HookResult{Content: hookCtx.Content}, nil

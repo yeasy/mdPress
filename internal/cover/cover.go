@@ -97,8 +97,14 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`    }` + "\n\n")
 
 	// Cover content layout.
-	// Text color adapts: dark text on light/no background, white text on custom dark backgrounds.
-	hasDarkBg := cg.meta.Cover.Background != "" || cg.meta.Cover.Image != ""
+	// Text color adapts: dark text on light/no background, white text on dark backgrounds.
+	// For hex colors we compute luminance; images and non-hex colors assume dark.
+	hasDarkBg := false
+	if cg.meta.Cover.Image != "" {
+		hasDarkBg = true
+	} else if cg.meta.Cover.Background != "" {
+		hasDarkBg = !isLightColor(cg.meta.Cover.Background)
+	}
 	textColor := "#1A5490" // Deep blue on white (default).
 	if hasDarkBg {
 		textColor = "white"
@@ -248,4 +254,46 @@ var urlReplacer = strings.NewReplacer(
 // escapeURL escapes URL-sensitive characters for CSS url() context.
 func escapeURL(u string) string {
 	return urlReplacer.Replace(u)
+}
+
+// isLightColor returns true if the given CSS color is perceptually light.
+// Only hex colors (#rgb, #rgba, #rrggbb, #rrggbbaa) are analyzed; all other
+// formats (named, rgb(), hsl(), etc.) are assumed dark so that white text is
+// the safer default.  Alpha channels are ignored.
+func isLightColor(color string) bool {
+	color = strings.TrimSpace(color)
+	if !strings.HasPrefix(color, "#") {
+		return false
+	}
+	hex := color[1:]
+	// Expand shorthand (#rgb -> #rrggbb, #rgba -> #rrggbb).
+	if len(hex) == 3 || len(hex) == 4 {
+		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	}
+	// Strip alpha channel from #rrggbbaa.
+	if len(hex) == 8 {
+		hex = hex[:6]
+	}
+	if len(hex) < 6 {
+		return false
+	}
+	r := hexVal(hex[0])*16 + hexVal(hex[1])
+	g := hexVal(hex[2])*16 + hexVal(hex[3])
+	b := hexVal(hex[4])*16 + hexVal(hex[5])
+	// Perceived luminance (ITU-R BT.601): Y = 0.299R + 0.587G + 0.114B.
+	luminance := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
+	return luminance > 186 // threshold: colors brighter than ~73% are "light"
+}
+
+func hexVal(c byte) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	default:
+		return 0
+	}
 }

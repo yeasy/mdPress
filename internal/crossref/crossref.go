@@ -1,5 +1,5 @@
-// Package crossref 提供交叉引用和自动编号功能。
-// 支持对图表、表格和章节的编号和引用，可以在 HTML 中替换占位符为实际的编号。
+// Package crossref provides cross-reference and auto-numbering functionality.
+// It supports numbering and referencing figures, tables, and sections, replacing placeholders in HTML with actual numbers.
 package crossref
 
 import (
@@ -19,37 +19,37 @@ var (
 	tableCaptionRegexp   = regexp.MustCompile(`(?s)<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
 )
 
-// ReferenceType 定义引用类型的常量
+// ReferenceType defines reference type constants.
 type ReferenceType string
 
 const (
-	TypeFigure  ReferenceType = "figure"  // 图片
-	TypeTable   ReferenceType = "table"   // 表格
-	TypeSection ReferenceType = "section" // 章节
+	TypeFigure  ReferenceType = "figure"  // Figure
+	TypeTable   ReferenceType = "table"   // Table
+	TypeSection ReferenceType = "section" // Section
 )
 
-// Reference 表示一个被追踪的引用对象
+// Reference represents a tracked reference object.
 type Reference struct {
-	Type      ReferenceType // 引用类型（图、表或章节）
-	ID        string        // 唯一标识符
-	Number    int           // 自动分配的编号
-	Title     string        // 标题或描述
-	Level     int           // 对于章节，表示标题级别；其他类型默认为 0
-	NumberStr string        // 分层编号字符串，如 "1.2.3"（仅章节类型使用）
+	Type      ReferenceType // Reference type (figure, table, or section)
+	ID        string        // Unique identifier
+	Number    int           // Auto-assigned number
+	Title     string        // Title or description
+	Level     int           // Heading level for sections; 0 for other types
+	NumberStr string        // Hierarchical number string, e.g. "1.2.3" (sections only)
 }
 
-// Resolver 管理所有的交叉引用和自动编号
+// Resolver manages all cross-references and auto-numbering.
 type Resolver struct {
-	mu            sync.RWMutex          // 并发访问锁
-	figures       map[string]*Reference // 图片的ID到引用的映射
-	tables        map[string]*Reference // 表格的ID到引用的映射
-	sections      map[string]*Reference // 章节的ID到引用的映射
-	figCount      int                   // 图片计数器
-	tabCount      int                   // 表格计数器
-	sectionCounts map[int]int           // 按级别的章节计数器
+	mu            sync.RWMutex          // Mutex for concurrent access
+	figures       map[string]*Reference // Figure ID to reference mapping
+	tables        map[string]*Reference // Table ID to reference mapping
+	sections      map[string]*Reference // Section ID to reference mapping
+	figCount      int                   // Figure counter
+	tabCount      int                   // Table counter
+	sectionCounts map[int]int           // Section counters by heading level
 }
 
-// NewResolver 创建一个新的交叉引用解析器实例
+// NewResolver creates a new cross-reference resolver instance.
 func NewResolver() *Resolver {
 	return &Resolver{
 		figures:       make(map[string]*Reference),
@@ -59,15 +59,14 @@ func NewResolver() *Resolver {
 	}
 }
 
-// RegisterFigure 注册一个图片并返回自动分配的编号
-// 参数 id 是图片的唯一标识符（通常用于生成 HTML 锚点）
-// 参数 title 是图片的标题或说明
-// 返回值是自动分配的图片编号
+// RegisterFigure registers a figure and returns its auto-assigned number.
+// The id parameter is the figure's unique identifier (typically used for HTML anchors).
+// The title parameter is the figure's caption or description.
 func (r *Resolver) RegisterFigure(id, title string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// 检查是否已存在
+	// Check if already registered.
 	if ref, exists := r.figures[id]; exists {
 		return ref.Number
 	}
@@ -85,15 +84,14 @@ func (r *Resolver) RegisterFigure(id, title string) int {
 	return r.figCount
 }
 
-// RegisterTable 注册一个表格并返回自动分配的编号
-// 参数 id 是表格的唯一标识符
-// 参数 title 是表格的标题或说明
-// 返回值是自动分配的表格编号
+// RegisterTable registers a table and returns its auto-assigned number.
+// The id parameter is the table's unique identifier.
+// The title parameter is the table's caption or description.
 func (r *Resolver) RegisterTable(id, title string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// 检查是否已存在
+	// Check if already registered.
 	if ref, exists := r.tables[id]; exists {
 		return ref.Number
 	}
@@ -111,12 +109,12 @@ func (r *Resolver) RegisterTable(id, title string) int {
 	return r.tabCount
 }
 
-// RegisterSection 注册一个章节
-// 参数 id 是章节的唯一标识符
-// 参数 title 是章节标题
-// 参数 level 是标题级别（1-6），用于生成分层编号
+// RegisterSection registers a section.
+// The id parameter is the section's unique identifier.
+// The title parameter is the section heading text.
+// The level parameter is the heading level (1-6), used for hierarchical numbering.
 //
-// 对于分层编号的示例：
+// Hierarchical numbering example:
 // Level 1: 1. 2. 3. ...
 // Level 2: 1.1. 1.2. 2.1. ...
 // Level 3: 1.1.1. 1.1.2. ...
@@ -124,20 +122,20 @@ func (r *Resolver) RegisterSection(id, title string, level int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// 检查是否已存在
+	// Check if already registered.
 	if _, exists := r.sections[id]; exists {
 		return
 	}
 
-	// 重置更深层级的计数器
+	// Reset counters for deeper levels.
 	for lv := level + 1; lv <= 6; lv++ {
 		delete(r.sectionCounts, lv)
 	}
 
-	// 增加当前级别的计数
+	// Increment the counter for the current level.
 	r.sectionCounts[level]++
 
-	// 构建分层编号
+	// Build hierarchical number.
 	var numbers []string
 	for lv := 1; lv <= level; lv++ {
 		if count, ok := r.sectionCounts[lv]; ok {
@@ -147,7 +145,7 @@ func (r *Resolver) RegisterSection(id, title string, level int) {
 		}
 	}
 
-	// 生成编号字符串（如 "1.2.3"）用于显示
+	// Generate number string (e.g. "1.2.3") for display.
 	numberStr := strings.Join(numbers, ".")
 
 	ref := &Reference{
@@ -162,14 +160,13 @@ func (r *Resolver) RegisterSection(id, title string, level int) {
 	r.sections[id] = ref
 }
 
-// Resolve 根据 ID 查找引用信息
-// 参数 id 是引用的唯一标识符
-// 返回值是找到的 Reference 指针，如果未找到返回 error
+// Resolve looks up reference information by ID.
+// Returns the found Reference pointer, or an error if not found.
 func (r *Resolver) Resolve(id string) (*Reference, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	// 按优先级查找（图 > 表 > 章）
+	// Look up by priority: figure > table > section.
 	if ref, ok := r.figures[id]; ok {
 		return ref, nil
 	}
@@ -183,18 +180,18 @@ func (r *Resolver) Resolve(id string) (*Reference, error) {
 	return nil, fmt.Errorf("reference not found: %s", id)
 }
 
-// ProcessHTML 处理 HTML 内容，替换 {{ref:id}} 占位符为实际的引用
-// 支持的占位符格式：
-// - {{ref:fig_1}} 替换为 "图1"
-// - {{ref:table_1}} 替换为 "表1"
-// - {{ref:section_intro}} 替换为 "1.2.3"（章节编号）
+// ProcessHTML processes HTML content, replacing {{ref:id}} placeholders with actual references.
+// Supported placeholder formats:
+// - {{ref:fig_1}} replaced with "Figure 1"
+// - {{ref:table_1}} replaced with "Table 1"
+// - {{ref:section_intro}} replaced with "1.2.3" (section number)
 //
-// 示例：
-// 输入: "如图 {{ref:fig_demo}} 所示，..."
-// 输出: "如图 图1 所示，..."
+// Example:
+// Input: "As shown in {{ref:fig_demo}}, ..."
+// Output: "As shown in Figure 1, ..."
 func (r *Resolver) ProcessHTML(html string) string {
 	return refPlaceholderRegexp.ReplaceAllStringFunc(html, func(match string) string {
-		// 提取 ID
+		// Extract the ID.
 		parts := refPlaceholderRegexp.FindStringSubmatch(match)
 		if len(parts) < 2 {
 			return match
@@ -203,11 +200,11 @@ func (r *Resolver) ProcessHTML(html string) string {
 		id := parts[1]
 		ref, err := r.Resolve(id)
 		if err != nil {
-			// 如果找不到引用，返回原占位符
+			// If reference not found, return the original placeholder.
 			return match
 		}
 
-		// 根据类型生成引用文本
+		// Generate reference text based on type.
 		switch ref.Type {
 		case TypeFigure:
 			return fmt.Sprintf(`<a href="#%s" class="ref-figure">图%d</a>`, utils.EscapeAttr(ref.ID), ref.Number)
@@ -225,13 +222,13 @@ func (r *Resolver) ProcessHTML(html string) string {
 	})
 }
 
-// AddCaptions 为图表添加编号标题
-// 处理形如 <figure id="fig_1"><img ...></figure> 的 HTML
-// 为其添加 <figcaption>图1: 标题</figcaption>
+// AddCaptions adds numbered captions to figures and tables.
+// Processes HTML like <figure id="fig_1"><img ...></figure>
+// and adds <figcaption>Figure 1: Title</figcaption>.
 //
-// 示例：
-// 输入: <figure id="fig_demo"><img src="demo.png"></figure>
-// 输出: <figure id="fig_demo"><img src="demo.png"><figcaption>图1: 演示图</figcaption></figure>
+// Example:
+// Input: <figure id="fig_demo"><img src="demo.png"></figure>
+// Output: <figure id="fig_demo"><img src="demo.png"><figcaption>Figure 1: Demo</figcaption></figure>
 func (r *Resolver) AddCaptions(html string) string {
 	// Copy both maps in a single atomic snapshot
 	r.mu.RLock()
@@ -245,16 +242,16 @@ func (r *Resolver) AddCaptions(html string) string {
 	}
 	r.mu.RUnlock()
 
-	// 为图片添加标题
+	// Add captions to figures.
 	html = r.addFigureCaptions(html, figuresCopy)
 
-	// 为表格添加标题
+	// Add captions to tables.
 	html = r.addTableCaptions(html, tablesCopy)
 
 	return html
 }
 
-// addFigureCaptions 为 figure 元素添加标题
+// addFigureCaptions adds captions to figure elements.
 func (r *Resolver) addFigureCaptions(html string, figures map[string]*Reference) string {
 	return figureCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		parts := figureCaptionRegexp.FindStringSubmatch(match)
@@ -266,18 +263,18 @@ func (r *Resolver) addFigureCaptions(html string, figures map[string]*Reference)
 		attrs := parts[2]
 		content := parts[3]
 
-		// 查找该 ID 对应的引用
+		// Look up the reference for this ID.
 		ref, ok := figures[id]
 		if !ok {
 			return match
 		}
 
-		// 检查是否已有 figcaption（避免重复）
+		// Skip if a figcaption already exists (avoid duplicates).
 		if strings.Contains(content, "<figcaption") {
 			return match
 		}
 
-		// 构建新的 figure 元素，包含标题
+		// Build the new figure element with caption.
 		caption := fmt.Sprintf(`<figcaption>图%d: %s</figcaption>`,
 			ref.Number, utils.EscapeHTML(ref.Title))
 
@@ -286,7 +283,7 @@ func (r *Resolver) addFigureCaptions(html string, figures map[string]*Reference)
 	})
 }
 
-// addTableCaptions 为 table 元素添加标题
+// addTableCaptions adds captions to table elements.
 func (r *Resolver) addTableCaptions(html string, tables map[string]*Reference) string {
 	return tableCaptionRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		parts := tableCaptionRegexp.FindStringSubmatch(match)
@@ -298,18 +295,18 @@ func (r *Resolver) addTableCaptions(html string, tables map[string]*Reference) s
 		attrs := parts[2]
 		content := parts[3]
 
-		// 查找该 ID 对应的引用
+		// Look up the reference for this ID.
 		ref, ok := tables[id]
 		if !ok {
 			return match
 		}
 
-		// 检查是否已有 caption（避免重复）
+		// Skip if a caption already exists (avoid duplicates).
 		if strings.Contains(content, "<caption") {
 			return match
 		}
 
-		// 构建新的 table 元素，在开头添加 caption
+		// Build the new table element with caption prepended.
 		caption := fmt.Sprintf(`<caption>表%d: %s</caption>`,
 			ref.Number, utils.EscapeHTML(ref.Title))
 
@@ -318,30 +315,31 @@ func (r *Resolver) addTableCaptions(html string, tables map[string]*Reference) s
 	})
 }
 
-// GetAllReferences 返回所有已注册的引用（用于调试或构建参考列表）
-// 返回的映射包含所有类型的引用
+// GetAllReferences returns all registered references (for debugging or building reference lists).
+// Priority matches Resolve: figures > tables > sections. If the same ID exists in
+// multiple categories, only the highest-priority entry is returned.
 func (r *Resolver) GetAllReferences() map[string]*Reference {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	result := make(map[string]*Reference)
 
-	// 复制所有引用
-	for id, ref := range r.figures {
+	// Insert in reverse priority order so higher-priority entries overwrite lower ones.
+	for id, ref := range r.sections {
 		result[id] = ref
 	}
 	for id, ref := range r.tables {
 		result[id] = ref
 	}
-	for id, ref := range r.sections {
+	for id, ref := range r.figures {
 		result[id] = ref
 	}
 
 	return result
 }
 
-// Reset 清空所有引用信息，重新初始化解析器
-// 用于处理多个独立的文档时
+// Reset clears all references and reinitializes the resolver.
+// Used when processing multiple independent documents.
 func (r *Resolver) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()

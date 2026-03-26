@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -88,7 +89,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	}
 
 	// SSRF prevention: block requests to private/internal network addresses.
-	if ssrfCheckEnabled {
+	if ssrfCheckEnabled.Load() {
 		if err := checkURLNotPrivate(parsedURL); err != nil {
 			return "", fmt.Errorf("blocked image download from %q: %w", urlStr, err)
 		}
@@ -231,6 +232,18 @@ func ImageToBase64(path string) (string, error) {
 	return dataURI, nil
 }
 
+// mimeTypesByExt maps image file extensions to their MIME types.
+var mimeTypesByExt = map[string]string{
+	".jpg":  "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".svg":  "image/svg+xml",
+	".bmp":  "image/bmp",
+	".tiff": "image/tiff",
+	".ico":  "image/x-icon",
+}
+
 // GetImageMIME returns a MIME type from the file extension.
 func GetImageMIME(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
@@ -238,18 +251,6 @@ func GetImageMIME(path string) string {
 	// Handle .jpeg as an alias for .jpg
 	if ext == ".jpeg" {
 		return "image/jpeg"
-	}
-
-	// Map extension to MIME type
-	mimeTypesByExt := map[string]string{
-		".jpg":  "image/jpeg",
-		".png":  "image/png",
-		".gif":  "image/gif",
-		".webp": "image/webp",
-		".svg":  "image/svg+xml",
-		".bmp":  "image/bmp",
-		".tiff": "image/tiff",
-		".ico":  "image/x-icon",
 	}
 
 	if mimeType, ok := mimeTypesByExt[ext]; ok {
@@ -330,7 +331,7 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 
 	result := imgSrcRegex.ReplaceAllStringFunc(htmlContent, func(match string) string {
 		submatches := imgSrcRegex.FindStringSubmatch(match)
-		if len(submatches) < 3 {
+		if len(submatches) < 4 {
 			return match
 		}
 
@@ -420,6 +421,11 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 		wg.Add(1)
 		go func(src string) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in image prefetch goroutine", slog.String("src", src), slog.Any("panic", r))
+				}
+			}()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
@@ -499,13 +505,16 @@ func StableHash(parts ...string) string {
 
 // ssrfCheckEnabled controls whether DownloadImage blocks private/internal IPs.
 // Tests that use local HTTP servers should set this to false via DisableSSRFCheck.
-var ssrfCheckEnabled = true
+// Uses atomic operations for thread-safety during parallel tests.
+var ssrfCheckEnabled atomic.Bool
+
+func init() { ssrfCheckEnabled.Store(true) }
 
 // DisableSSRFCheck disables the SSRF prevention check. Intended for testing only.
-func DisableSSRFCheck() { ssrfCheckEnabled = false }
+func DisableSSRFCheck() { ssrfCheckEnabled.Store(false) }
 
 // EnableSSRFCheck re-enables the SSRF prevention check.
-func EnableSSRFCheck() { ssrfCheckEnabled = true }
+func EnableSSRFCheck() { ssrfCheckEnabled.Store(true) }
 
 // checkURLNotPrivate checks that a URL's hostname does not resolve to a
 // private, loopback, or link-local IP address (SSRF prevention).

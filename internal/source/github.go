@@ -57,9 +57,13 @@ func (s *GitHubSource) Prepare() (string, error) {
 
 	// Validate owner and repo names to avoid command injection.
 	if !safeNameRegex.MatchString(s.owner) {
+		os.RemoveAll(s.tempDir)
+		s.tempDir = ""
 		return "", fmt.Errorf("invalid repository owner: %q", s.owner)
 	}
 	if !safeNameRegex.MatchString(s.repo) {
+		os.RemoveAll(s.tempDir)
+		s.tempDir = ""
 		return "", fmt.Errorf("invalid repository name: %q", s.repo)
 	}
 

@@ -138,7 +138,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB max for error body
 		if err != nil {
 			return nil, fmt.Errorf("GitHub API returned %d and failed to read error body: %w", resp.StatusCode, err)
 		}
@@ -146,7 +146,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 	}
 
 	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&release); err != nil { // 10 MB max
 		return nil, fmt.Errorf("failed to parse release JSON: %w", err)
 	}
 
@@ -460,6 +460,11 @@ func extractBinaryFromTarGz(data []byte) ([]byte, error) {
 			return nil, fmt.Errorf("invalid tar archive: %w", err)
 		}
 		if header.FileInfo().IsDir() {
+			continue
+		}
+		// Defense-in-depth: skip entries with path traversal components.
+		cleaned := filepath.Clean(header.Name)
+		if strings.HasPrefix(cleaned, "..") || filepath.IsAbs(cleaned) {
 			continue
 		}
 		if isExpectedBinaryEntry(header.Name) {

@@ -87,7 +87,7 @@ type HookContext struct {
 	// between consecutive plugins.
 	// No sync protection is needed: each HookContext instance gets its own map,
 	// and RunHook is always called sequentially from the build pipeline.
-	Metadata map[string]interface{}
+	Metadata map[string]any
 }
 
 // HookResult is returned by a plugin's Execute method.
@@ -204,7 +204,9 @@ func (m *Manager) CleanupAll() error {
 
 // Plugins returns a snapshot of the registered plugin list.
 func (m *Manager) Plugins() []Plugin {
-	return m.plugins
+	out := make([]Plugin, len(m.plugins))
+	copy(out, m.plugins)
+	return out
 }
 
 // pluginHandlesPhase reports whether p listed phase in its Hooks list.

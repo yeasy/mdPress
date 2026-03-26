@@ -315,7 +315,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 		return
 	}
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 5 * time.Second}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -326,7 +326,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 		report.Warnings = append(report.Warnings, "Cannot reach github.com (network connectivity issue)")
 		return
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	report.NetworkAvailable = true
 	utils.Success("Network connectivity to github.com available")
@@ -341,7 +341,9 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 		if !filepath.IsAbs(outPath) {
 			outPath = filepath.Join(targetDir, outPath)
 		}
-		outputDir, _ = filepath.Abs(outPath)
+		if absPath, err := filepath.Abs(outPath); err == nil {
+			outputDir = absPath
+		}
 	}
 
 	// Check output directory without creating it (doctor is read-only)
@@ -358,7 +360,9 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 
 	// Get disk space using the df command (works on macOS, Linux, and most Unix systems).
 	// On Windows this will fail gracefully and we skip the check.
-	out, err := exec.CommandContext(context.Background(), "df", "-k", outputDir).Output()
+	dfCtx, dfCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer dfCancel()
+	out, err := exec.CommandContext(dfCtx, "df", "-k", outputDir).Output()
 	if err != nil {
 		if doctorVerbose {
 			utils.Warning("Could not determine disk space: %v", err)

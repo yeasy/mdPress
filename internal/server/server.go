@@ -51,7 +51,7 @@ func (c *wsClient) writeMessage(msgType int, data []byte) error {
 
 // buildWSMessage constructs a WebSocket JSON message with timestamp.
 func buildWSMessage(msgType string) []byte {
-	return []byte(`{"type":"` + msgType + `","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
+	return []byte(fmt.Sprintf(`{"type":"%s","timestamp":%d}`, msgType, time.Now().UnixMilli()))
 }
 
 // buildWSErrorMessage constructs a build-error WebSocket message with escaped error text.
@@ -782,6 +782,9 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			// else: keep the previous non-CSS ext so a full reload is triggered
 			capturedExt := lastTriggeredExt
 			debounceTimer = time.AfterFunc(debounceInterval, func() {
+				if ctx.Err() != nil {
+					return
+				}
 				s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
 				s.notifyBuildStart()
 				if s.BuildFunc != nil {
@@ -846,6 +849,9 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 					debounceTimer.Stop()
 				}
 				debounceTimer = time.AfterFunc(debounceInterval, func() {
+					if ctx.Err() != nil {
+						return
+					}
 					s.logger.Info("File change detected, rebuilding...")
 					s.notifyBuildStart()
 					if s.BuildFunc != nil {
@@ -935,21 +941,26 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) bool {
 	return changed
 }
 
-// openBrowser opens the default browser.
-func openBrowser(url string) {
+// openBrowser opens the default browser. Only http/https URLs are allowed.
+func openBrowser(rawURL string) {
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return
+	}
+
 	var cmd string
 	var args []string
 
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = "open"
-		args = []string{url}
+		args = []string{rawURL}
 	case "linux":
 		cmd = "xdg-open"
-		args = []string{url}
+		args = []string{rawURL}
 	case "windows":
 		cmd = "rundll32"
-		args = []string{"url.dll,FileProtocolHandler", url}
+		args = []string{"url.dll,FileProtocolHandler", rawURL}
 	default:
 		return
 	}

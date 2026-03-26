@@ -1,14 +1,14 @@
 // Package glossary parses glossary definitions and highlights terms in HTML.
 //
-// GLOSSARY.md 格式：
+// GLOSSARY.md format:
 //
 //	# Glossary
 //
 //	## API
-//	Application Programming Interface，应用程序编程接口。
+//	Application Programming Interface.
 //
 //	## Markdown
-//	一种轻量级标记语言。
+//	A lightweight markup language.
 package glossary
 
 import (
@@ -21,6 +21,9 @@ import (
 
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// maxGlossaryLineSize is the maximum line size (in bytes) for the glossary scanner.
+const maxGlossaryLineSize = 1024 * 1024
 
 // Package-level compiled regexps to avoid recompilation in hot paths.
 var (
@@ -52,6 +55,7 @@ func ParseFile(path string) (*Glossary, error) {
 	var currentDef strings.Builder
 
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxGlossaryLineSize)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
@@ -62,7 +66,7 @@ func ParseFile(path string) (*Glossary, error) {
 		}
 
 		// A second-level heading starts a new term.
-		if strings.HasPrefix(trimmed, "## ") {
+		if term, ok := strings.CutPrefix(trimmed, "## "); ok {
 			// Flush the previous term.
 			if currentTerm != "" {
 				g.Terms = append(g.Terms, Term{
@@ -70,7 +74,7 @@ func ParseFile(path string) (*Glossary, error) {
 					Definition: strings.TrimSpace(currentDef.String()),
 				})
 			}
-			currentTerm = strings.TrimSpace(strings.TrimPrefix(trimmed, "## "))
+			currentTerm = strings.TrimSpace(term)
 			currentDef.Reset()
 			continue
 		}

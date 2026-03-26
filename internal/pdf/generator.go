@@ -601,7 +601,7 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 			slog.String("error", err.Error()))
 		return g.generateFromString(htmlContent, outputPath)
 	}
-	defer srv.Close()
+	defer srv.Close() //nolint:errcheck
 
 	return g.generateFromURL(srv.baseURL, outputPath)
 }
@@ -677,7 +677,7 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 				WithAwaitPromise(true).
 				Do(ctx)
 			if exp != nil {
-				_ = exp
+				slog.Warn("font loading exception", slog.String("text", exp.Text))
 			}
 			return err
 		}),
@@ -834,8 +834,8 @@ func chromiumAllocatorOptions(execPath string, runtime chromiumRuntimeDirs, outp
 	return opts
 }
 
-func parseChromiumFlags(raw string) map[string]interface{} {
-	flags := make(map[string]interface{})
+func parseChromiumFlags(raw string) map[string]any {
+	flags := make(map[string]any)
 	for _, item := range strings.Fields(raw) {
 		if !strings.HasPrefix(item, "--") {
 			continue

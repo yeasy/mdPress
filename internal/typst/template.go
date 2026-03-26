@@ -94,21 +94,33 @@ const typstTemplateStr = `#set page(
 __MDPRESS_CONTENT_PLACEHOLDER__
 `
 
-// sanitizeTypstText escapes Typst control characters in user-supplied metadata
+// typstTextReplacer escapes Typst control characters in user-supplied metadata
 // to prevent code injection via fields like Title or Author.
+// It also strips Go template delimiters to prevent text/template injection.
+var typstTextReplacer = strings.NewReplacer(
+	"\\", "\\\\",
+	"#", "\\#",
+	"$", "\\$",
+	"=", "\\=",
+	"@", "\\@",
+	"<", "\\<",
+	">", "\\>",
+	"_", "\\_",
+	"*", "\\*",
+	"{{", "",
+	"}}", "",
+)
+
 func sanitizeTypstText(s string) string {
-	replacer := strings.NewReplacer(
-		"\\", "\\\\",
-		"#", "\\#",
-		"$", "\\$",
-		"=", "\\=",
-		"@", "\\@",
-		"<", "\\<",
-		">", "\\>",
-		"_", "\\_",
-		"*", "\\*",
-	)
-	return replacer.Replace(s)
+	return typstTextReplacer.Replace(s)
+}
+
+// sanitizeTemplateValue strips Go template delimiters from dimension/font values
+// that are interpolated into the text/template but don't need Typst escaping.
+func sanitizeTemplateValue(s string) string {
+	s = strings.ReplaceAll(s, "{{", "")
+	s = strings.ReplaceAll(s, "}}", "")
+	return s
 }
 
 // contentPlaceholder is used instead of a Go template action for Content
@@ -125,6 +137,16 @@ func RenderTypstDocument(data TypstTemplateData) (string, error) {
 	data.Version = sanitizeTypstText(data.Version)
 	data.Date = sanitizeTypstText(data.Date)
 	data.Language = sanitizeTypstText(data.Language)
+
+	// Sanitize dimension/font fields against template injection.
+	data.PageWidth = sanitizeTemplateValue(data.PageWidth)
+	data.PageHeight = sanitizeTemplateValue(data.PageHeight)
+	data.MarginTop = sanitizeTemplateValue(data.MarginTop)
+	data.MarginRight = sanitizeTemplateValue(data.MarginRight)
+	data.MarginBottom = sanitizeTemplateValue(data.MarginBottom)
+	data.MarginLeft = sanitizeTemplateValue(data.MarginLeft)
+	data.FontFamily = sanitizeTemplateValue(data.FontFamily)
+	data.FontSize = sanitizeTemplateValue(data.FontSize)
 
 	// Save content before template execution — it is injected via string
 	// replacement afterwards to avoid text/template interpreting any
