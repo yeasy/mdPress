@@ -77,7 +77,7 @@ func TestParseCodeHighlight(t *testing.T) {
 	if !strings.Contains(html, "<pre") {
 		t.Error("code block should contain pre tag")
 	}
-	// Chroma inline style on <pre> is stripped by PostProcess;
+	// Chroma inline style on <pre> is stripped by postProcess;
 	// token-level <span style="color:..."> should still be present.
 	if strings.Contains(html, `<pre style="`) {
 		t.Error("chroma inline style on <pre> should be stripped")

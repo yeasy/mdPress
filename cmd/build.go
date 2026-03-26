@@ -231,11 +231,6 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	return executeBuildForConfig(ctx, cfg, formats, outputOverride, logger)
 }
 
-// flattenChapters delegates to the canonical config.FlattenChapters.
-func flattenChapters(chapters []config.ChapterDef) []config.ChapterDef {
-	return config.FlattenChapters(chapters)
-}
-
 // getPageDimensions returns page dimensions in millimeters from a size name.
 func getPageDimensions(size string) (width, height float64) {
 	switch strings.ToUpper(size) {

@@ -222,20 +222,20 @@ func TestTheme_Structure(t *testing.T) {
 	}
 }
 
-// TestThemeColors_Structure tests that themes have all required color fields
-func TestThemeColors_Structure(t *testing.T) {
+// TestThemeColorsStructure tests that themes have all required color fields
+func TestThemeColorsStructure(t *testing.T) {
 	themes := getAvailableThemes()
 
 	colorFields := []struct {
 		name string
-		get  func(*ThemeColors) string
+		get  func(*themeColors) string
 	}{
-		{"primary", func(tc *ThemeColors) string { return tc.Primary }},
-		{"secondary", func(tc *ThemeColors) string { return tc.Secondary }},
-		{"accent", func(tc *ThemeColors) string { return tc.Accent }},
-		{"text", func(tc *ThemeColors) string { return tc.Text }},
-		{"background", func(tc *ThemeColors) string { return tc.Background }},
-		{"code background", func(tc *ThemeColors) string { return tc.CodeBg }},
+		{"primary", func(tc *themeColors) string { return tc.Primary }},
+		{"secondary", func(tc *themeColors) string { return tc.Secondary }},
+		{"accent", func(tc *themeColors) string { return tc.Accent }},
+		{"text", func(tc *themeColors) string { return tc.Text }},
+		{"background", func(tc *themeColors) string { return tc.Background }},
+		{"code background", func(tc *themeColors) string { return tc.CodeBg }},
 	}
 
 	for _, theme := range themes {
@@ -399,14 +399,7 @@ func TestExecuteThemesPreview(t *testing.T) {
 				} else {
 					outputPath = filepath.Join(tmpDir, tt.outputPath)
 				}
-				originalDir, err := os.Getwd()
-				if err != nil {
-					t.Fatalf("failed to get current directory: %v", err)
-				}
-				if err := os.Chdir(tmpDir); err != nil {
-					t.Fatalf("failed to change directory: %v", err)
-				}
-				defer func() { _ = os.Chdir(originalDir) }()
+				t.Chdir(tmpDir)
 			}
 
 			err := executeThemesPreview(outputPath)
@@ -417,19 +410,23 @@ func TestExecuteThemesPreview(t *testing.T) {
 	}
 }
 
-// TestThemesCmd_WithoutSubcommand tests themes command without subcommand shows help
+// TestThemesCmd_WithoutSubcommand verifies the themes command without
+// a subcommand does not panic and either returns an error or produces
+// help output.
 func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 	defer suppressOutput(t)()
 	themesCmd.SetArgs([]string{})
 	var out bytes.Buffer
 	themesCmd.SetOut(&out)
+	themesCmd.SetErr(&out)
 
-	// themes without subcommand should trigger help
+	// Should not panic; verify it either succeeds or returns a known error.
 	err := themesCmd.Execute()
-	// Cobra is expected to return an error for missing subcommand (e.g., "accepts 1 arg(s)").
-	// This test verifies the command handles no-subcommand gracefully without panicking.
-	if err != nil {
-		t.Logf("themes command without subcommand (expected): %v", err)
+	// The command may succeed (printing help) or error -- both are acceptable.
+	// The key assertion is that it doesn't panic.
+	if err != nil && !strings.Contains(err.Error(), "required") {
+		// Only flag truly unexpected errors, not missing-subcommand errors.
+		t.Logf("themes command returned: %v", err)
 	}
 }
 
@@ -477,7 +474,10 @@ func BenchmarkExecuteThemesList(b *testing.B) {
 	origStdout := os.Stdout
 	origStderr := os.Stderr
 	origHandler := slog.Default().Handler()
-	devNull, _ := os.Open(os.DevNull)
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		b.Fatalf("failed to open %s: %v", os.DevNull, err)
+	}
 	os.Stdout = devNull
 	os.Stderr = devNull
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -497,7 +497,10 @@ func BenchmarkExecuteThemesShow(b *testing.B) {
 	origStdout := os.Stdout
 	origStderr := os.Stderr
 	origHandler := slog.Default().Handler()
-	devNull, _ := os.Open(os.DevNull)
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		b.Fatalf("failed to open %s: %v", os.DevNull, err)
+	}
 	os.Stdout = devNull
 	os.Stderr = devNull
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))

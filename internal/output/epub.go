@@ -160,6 +160,10 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		}
 	}
 	for _, asset := range chapterAssets {
+		// Reject asset filenames that could escape the OEBPS directory.
+		if strings.Contains(asset.Filename, "..") || filepath.IsAbs(asset.Filename) {
+			return fmt.Errorf("invalid asset filename: %s", asset.Filename)
+		}
 		if err := writeZipBinaryFile(w, "OEBPS/"+asset.Filename, asset.Data); err != nil {
 			return fmt.Errorf("failed to write asset %s: %w", asset.Filename, err)
 		}
@@ -174,6 +178,10 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 9. Chapter XHTML documents.
 	for _, ch := range chapters {
+		// Reject chapter filenames that could escape the OEBPS directory.
+		if strings.Contains(ch.Filename, "..") || filepath.IsAbs(ch.Filename) {
+			return fmt.Errorf("invalid chapter filename: %s", ch.Filename)
+		}
 		xhtml := g.wrapXHTML(ch.Title, ch.HTML)
 		if err := writeZipFile(w, "OEBPS/"+ch.Filename, xhtml); err != nil {
 			return fmt.Errorf("failed to write chapter %s: %w", ch.Filename, err)
@@ -186,10 +194,11 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to finalize epub archive: %w", err)
 	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close epub file: %w", err)
+	closeErr := f.Close()
+	fileClosed = true // prevent double-close in deferred cleanup
+	if closeErr != nil {
+		return fmt.Errorf("failed to close epub file: %w", closeErr)
 	}
-	fileClosed = true
 
 	success = true
 	return nil
@@ -246,7 +255,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 			i, utils.EscapeXML(ch.Filename))
 	}
 
-	b.WriteString("  </manifest>\n  <spine>\n")
+	b.WriteString("  </manifest>\n  <spine toc=\"ncx\">\n")
 	if g.meta.IncludeCover {
 		b.WriteString("    <itemref idref=\"cover\"/>\n")
 	}
@@ -481,6 +490,14 @@ func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
 	}
 
 	coverPath := g.meta.CoverImagePath
+	// Check file size before reading to prevent OOM on very large files.
+	fi, err := os.Stat(coverPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat EPUB cover image %q: %w", coverPath, err)
+	}
+	if fi.Size() > utils.MaxImageSize {
+		return nil, fmt.Errorf("EPUB cover image %q exceeds maximum size (%d bytes)", coverPath, utils.MaxImageSize)
+	}
 	data, err := os.ReadFile(coverPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read EPUB cover image %q: %w", coverPath, err)
@@ -577,7 +594,8 @@ func normalizeHTMLForXHTML(html string) string {
 	return html
 }
 
-var epubImageSrcPattern = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>`)
+// epubImageSrcPattern reuses the shared img-src regex from pkg/utils.
+var epubImageSrcPattern = utils.ImgSrcRegex
 var dataURIImagePattern = regexp.MustCompile(`^data:([^;,]+);base64,(.+)$`)
 
 func (g *EpubGenerator) collectChapterAssets() ([]EpubChapter, []*epubAsset, error) {
@@ -691,10 +709,17 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 	matches := dataURIImagePattern.FindStringSubmatch(src)
 	if len(matches) != 3 {
-		return nil, fmt.Errorf("unsupported data URI image format")
+		return nil, fmt.Errorf("unsupported data URI image format: %s", src)
 	}
 
 	mediaType := strings.TrimSpace(matches[1])
+
+	// Estimate decoded size before allocating to prevent OOM from huge data URIs.
+	// Base64 encodes 3 bytes into 4 characters, so decoded ≈ len * 3/4.
+	if estimatedSize := len(matches[2]) * 3 / 4; estimatedSize > int(utils.MaxImageSize) {
+		return nil, fmt.Errorf("data URI image exceeds maximum size (%d bytes)", utils.MaxImageSize)
+	}
+
 	data, err := base64.StdEncoding.DecodeString(matches[2])
 	if err != nil {
 		return nil, fmt.Errorf("decode data URI image: %w", err)
@@ -714,6 +739,14 @@ func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 }
 
 func buildFileImageAsset(src string, index int) (*epubAsset, error) {
+	// Check file size before reading to prevent OOM on very large files.
+	fi, err := os.Stat(src)
+	if err != nil {
+		return nil, fmt.Errorf("stat image file %q: %w", src, err)
+	}
+	if fi.Size() > utils.MaxImageSize {
+		return nil, fmt.Errorf("image file %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
+	}
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return nil, fmt.Errorf("read image file %q: %w", src, err)
@@ -731,6 +764,13 @@ func buildRemoteImageAsset(src string, remoteTempDir string, index int) (*epubAs
 	localPath, err := utils.DownloadImage(src, remoteTempDir)
 	if err != nil {
 		return nil, fmt.Errorf("download remote image %q: %w", src, err)
+	}
+	fi, err := os.Stat(localPath)
+	if err != nil {
+		return nil, fmt.Errorf("stat downloaded remote image %q: %w", src, err)
+	}
+	if fi.Size() > utils.MaxImageSize {
+		return nil, fmt.Errorf("remote image %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
 	}
 	data, err := os.ReadFile(localPath)
 	if err != nil {

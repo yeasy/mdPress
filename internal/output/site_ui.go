@@ -3,6 +3,8 @@ package output
 import (
 	"regexp"
 	"strings"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // uiStrings holds localized UI labels keyed by language prefix.
@@ -99,7 +101,8 @@ var uiStrings = map[string]map[string]string{
 }
 
 // htmlTagPattern strips HTML tags for plain-text extraction.
-var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
+// Uses the shared pattern from pkg/utils to avoid duplication.
+var htmlTagPattern = utils.HTMLTagPattern
 
 // uiString returns the localized UI string for the given key and language.
 func uiString(lang, key string) string {

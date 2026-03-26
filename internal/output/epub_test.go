@@ -136,9 +136,15 @@ func TestGenerateBasicEpub(t *testing.T) {
 
 	// Verify mimetype content
 	if mimeFile, ok := fileMap["mimetype"]; ok {
-		rc, _ := mimeFile.Open()
-		mimeData, _ := io.ReadAll(rc)
+		rc, err := mimeFile.Open()
+		if err != nil {
+			t.Fatalf("failed to open mimetype entry: %v", err)
+		}
+		mimeData, err := io.ReadAll(rc)
 		rc.Close()
+		if err != nil {
+			t.Fatalf("failed to read mimetype entry: %v", err)
+		}
 		if string(mimeData) != "application/epub+zip" {
 			t.Errorf("expected mimetype content %q, got %q", "application/epub+zip", string(mimeData))
 		}
@@ -506,7 +512,10 @@ func TestGenerateWithMetadata(t *testing.T) {
 	}
 	defer opfFile.Close()
 
-	opfData, _ := io.ReadAll(opfFile)
+	opfData, err := io.ReadAll(opfFile)
+	if err != nil {
+		t.Fatalf("failed to read content.opf: %v", err)
+	}
 	opfContent := string(opfData)
 
 	// Verify metadata in OPF
@@ -567,7 +576,10 @@ func TestGenerateNavDocument(t *testing.T) {
 	}
 	defer navFile.Close()
 
-	navData, _ := io.ReadAll(navFile)
+	navData, err := io.ReadAll(navFile)
+	if err != nil {
+		t.Fatalf("failed to read nav.xhtml: %v", err)
+	}
 	navContent := string(navData)
 
 	// Verify navigation structure
@@ -624,7 +636,10 @@ func TestGenerateNCXDocument(t *testing.T) {
 	}
 	defer ncxFile.Close()
 
-	ncxData, _ := io.ReadAll(ncxFile)
+	ncxData, err := io.ReadAll(ncxFile)
+	if err != nil {
+		t.Fatalf("failed to read toc.ncx: %v", err)
+	}
 	ncxContent := string(ncxData)
 
 	// Verify NCX structure
@@ -765,8 +780,14 @@ func TestGenerateMultipleChapters(t *testing.T) {
 	}
 
 	// Verify OPF manifest and spine
-	opfFile, _ := r.Open("OEBPS/content.opf")
-	opfData, _ := io.ReadAll(opfFile)
+	opfFile, err := r.Open("OEBPS/content.opf")
+	if err != nil {
+		t.Fatalf("content.opf not found: %v", err)
+	}
+	opfData, err := io.ReadAll(opfFile)
+	if err != nil {
+		t.Fatalf("failed to read content.opf: %v", err)
+	}
 	opfFile.Close()
 	opfContent := string(opfData)
 
@@ -842,7 +863,10 @@ func TestContainerXMLContent(t *testing.T) {
 	}
 	defer containerFile.Close()
 
-	containerData, _ := io.ReadAll(containerFile)
+	containerData, err := io.ReadAll(containerFile)
+	if err != nil {
+		t.Fatalf("failed to read container.xml: %v", err)
+	}
 	containerContent := string(containerData)
 
 	// Verify container structure
@@ -885,7 +909,10 @@ func TestGenerateChapterContentInclusion(t *testing.T) {
 	}
 	defer chapterFile.Close()
 
-	chapterData, _ := io.ReadAll(chapterFile)
+	chapterData, err := io.ReadAll(chapterFile)
+	if err != nil {
+		t.Fatalf("failed to read chapter.xhtml: %v", err)
+	}
 	chapterContent := string(chapterData)
 
 	if !strings.Contains(chapterContent, expectedContent) {
@@ -915,6 +942,8 @@ func BenchmarkGenerateSimpleEpub(b *testing.B) {
 			})
 		}
 
-		_ = gen.Generate(outputPath)
+		if err := gen.Generate(outputPath); err != nil {
+			b.Fatalf("epub generation failed: %v", err)
+		}
 	}
 }

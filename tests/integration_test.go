@@ -758,7 +758,6 @@ output:
 // TestSiteOutputStructure tests site output structure: verify correct directory layout and index.html
 func TestSiteOutputStructure(t *testing.T) {
 	tempDir := t.TempDir()
-	_ = filepath.Join(tempDir, "output") // reserved for future site output verification
 
 	// Create project
 	bookYAML := `book:
@@ -870,7 +869,7 @@ func TestConfigValidation(t *testing.T) {
 			// Verify it should fail
 			err = cfg.Validate()
 			if err == nil {
-				t.Error("expected config validation to fail")
+				t.Fatal("expected config validation to fail")
 			}
 			if !strings.Contains(err.Error(), tc.expectedErr) {
 				t.Errorf("expected error to contain '%s', got: %v", tc.expectedErr, err)

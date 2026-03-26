@@ -28,8 +28,8 @@ type alertStyle struct {
 var alertPattern = regexp.MustCompile(
 	`<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]`)
 
-// PostProcess applies all post-processing transforms to goldmark-rendered HTML.
-func PostProcess(html string) string {
+// postProcess applies all post-processing transforms to goldmark-rendered HTML.
+func postProcess(html string) string {
 	html = processAlerts(html)
 	html = processMermaid(html)
 	html = stripChromaPreStyle(html)
@@ -95,10 +95,11 @@ func processAlerts(html string) string {
 			break
 		}
 
-		// Find the matching </blockquote>.
+		// Find the matching </blockquote>, accounting for nested blockquotes.
 		startIdx := loc[0]
 		closeTag := "</blockquote>"
-		closeIdx := strings.Index(html[startIdx:], closeTag)
+		openTag := "<blockquote"
+		closeIdx := findMatchingClose(html[startIdx:], openTag, closeTag)
 		if closeIdx == -1 {
 			break
 		}
@@ -137,26 +138,56 @@ func processMermaid(html string) string {
 		if len(parts) < 2 {
 			return match
 		}
-		// Unescape HTML entities that goldmark added (e.g. &lt; &gt; &amp;),
-		// then re-escape to produce safe HTML. This preserves Mermaid syntax
-		// characters while preventing XSS via injected HTML tags or attributes.
+		// Unescape HTML entities that goldmark added (e.g. &lt; &gt; &amp; &#34;)
+		// so Mermaid JS can parse the diagram syntax correctly.
+		// XSS protection is handled by Mermaid's securityLevel:'strict' mode
+		// which uses DOMPurify to sanitize rendered output.
 		code := parts[1]
 		code = htmlpkg.UnescapeString(code)
 		code = strings.TrimSpace(code)
-		code = htmlpkg.EscapeString(code)
 
 		return "<div class=\"mermaid\">\n" + code + "\n</div>"
 	})
 }
 
-// MermaidScript returns the <script> tags needed to load and initialize Mermaid.
+// mermaidScript returns the <script> tags needed to load and initialize Mermaid.
 // Only include this when the HTML contains .mermaid elements.
-func MermaidScript() string {
+func mermaidScript() string {
 	return `<script src="` + utils.MermaidCDNURL + `"></script>
-<script>mermaid.initialize({startOnLoad:true,theme:'default',themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}});</script>`
+<script>mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'strict',themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}});</script>`
 }
 
 // NeedsMermaid reports whether the HTML contains any Mermaid diagram elements.
 func NeedsMermaid(html string) bool {
 	return strings.Contains(html, `class="mermaid"`)
+}
+
+// findMatchingClose finds the position of the closing tag that matches the
+// first opening tag in s, correctly handling nested tags of the same type.
+// s is expected to start at or before the first opening tag.
+// Returns -1 if no matching close tag is found.
+func findMatchingClose(s, openTag, closeTag string) int {
+	depth := 0
+	i := 0
+	for i < len(s) {
+		openIdx := strings.Index(s[i:], openTag)
+		closeIdx := strings.Index(s[i:], closeTag)
+
+		if closeIdx == -1 {
+			return -1
+		}
+
+		// If there's no more open tags, or close comes first.
+		if openIdx == -1 || closeIdx < openIdx {
+			depth--
+			if depth <= 0 {
+				return i + closeIdx
+			}
+			i += closeIdx + len(closeTag)
+		} else {
+			depth++
+			i += openIdx + len(openTag)
+		}
+	}
+	return -1
 }

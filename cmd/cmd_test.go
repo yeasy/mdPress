@@ -378,9 +378,9 @@ func TestFlattenChapters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := flattenChapters(tt.input)
+			result := config.FlattenChapters(tt.input)
 			if len(result) != tt.wantLen {
-				t.Errorf("flattenChapters returned %d, expected %d", len(result), tt.wantLen)
+				t.Errorf("config.FlattenChapters returned %d, expected %d", len(result), tt.wantLen)
 			}
 		})
 	}
@@ -470,7 +470,7 @@ func TestExecuteThemesShow_InvalidTheme(t *testing.T) {
 	defer suppressOutput(t)()
 	err := executeThemesShow("nonexistent_theme")
 	if err == nil {
-		t.Error("showing a non-existent theme should error")
+		t.Fatal("showing a non-existent theme should error")
 	}
 	if !strings.Contains(err.Error(), "theme not found") {
 		t.Errorf("error message should contain 'theme not found', got: %q", err.Error())

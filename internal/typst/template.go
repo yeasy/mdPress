@@ -128,8 +128,8 @@ func sanitizeTemplateValue(s string) string {
 // interpreted as template directives (which could panic or inject code).
 const contentPlaceholder = "__MDPRESS_CONTENT_PLACEHOLDER__"
 
-// RenderTypstDocument renders the template with the provided data.
-func RenderTypstDocument(data TypstTemplateData) (string, error) {
+// renderTypstDocument renders the template with the provided data.
+func renderTypstDocument(data TypstTemplateData) (string, error) {
 	// Sanitize user-supplied metadata to prevent Typst injection.
 	data.Title = sanitizeTypstText(data.Title)
 	data.Subtitle = sanitizeTypstText(data.Subtitle)
@@ -169,16 +169,16 @@ func RenderTypstDocument(data TypstTemplateData) (string, error) {
 	return result, nil
 }
 
-// WriteTypstFile writes Typst content to a file.
-func WriteTypstFile(filePath string, content string) error {
+// writeTypstFile writes Typst content to a file.
+func writeTypstFile(filePath string, content string) error {
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write Typst file: %w", err)
 	}
 	return nil
 }
 
-// GetPageDimensions returns page width and height in mm as Typst format strings.
-func GetPageDimensions(pageSize string) (width, height string) {
+// getPageDimensions returns page width and height in mm as Typst format strings.
+func getPageDimensions(pageSize string) (width, height string) {
 	switch pageSize {
 	case "A4":
 		return "210mm", "297mm"
@@ -219,31 +219,31 @@ func sanitizeTypstValue(val string) string {
 	return result.String()
 }
 
-// CurrentDate returns the current date as a formatted string.
-func CurrentDate() string {
+// currentDate returns the current date as a formatted string.
+func currentDate() string {
 	return time.Now().Format("2006-01-02")
 }
 
-// PrepareTypstContent prepares the Typst content by escaping special characters if needed.
+// prepareTypstContent prepares the Typst content by escaping special characters if needed.
 // This is a placeholder for future enhancements (e.g., escaping Typst-specific syntax).
-func PrepareTypstContent(content string) string {
+func prepareTypstContent(content string) string {
 	// For now, return as-is. In the future, we might need to escape certain
 	// Typst syntax characters.
 	return content
 }
 
-// MakeTypstFont converts a CSS font family string to a Typst font list.
+// makeTypstFont converts a CSS font family string to a Typst font list.
 // The input is sanitized to prevent Typst code injection.
-func MakeTypstFont(cssFontFamily string) string {
+func makeTypstFont(cssFontFamily string) string {
 	if cssFontFamily == "" {
 		return `"Segoe UI", "Helvetica", sans-serif`
 	}
 	return sanitizeTypstValue(cssFontFamily)
 }
 
-// MakeTypstFontSize converts a CSS font size (e.g., "12pt", "14px") to Typst format.
+// makeTypstFontSize converts a CSS font size (e.g., "12pt", "14px") to Typst format.
 // The output is sanitized to prevent Typst code injection.
-func MakeTypstFontSize(cssFontSize string) string {
+func makeTypstFontSize(cssFontSize string) string {
 	if cssFontSize == "" {
 		return "12pt"
 	}
@@ -261,8 +261,8 @@ func MakeTypstFontSize(cssFontSize string) string {
 	return sanitizeTypstValue(cssFontSize)
 }
 
-// CreateTypstDir ensures the Typst working directory exists.
-func CreateTypstDir(baseDir string) (string, error) {
+// createTypstDir ensures the Typst working directory exists.
+func createTypstDir(baseDir string) (string, error) {
 	typstDir := filepath.Join(baseDir, ".typst")
 	if err := os.MkdirAll(typstDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create Typst directory: %w", err)

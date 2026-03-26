@@ -13,26 +13,41 @@ import (
 // TestDetect_InvalidGitHubURLs tests error handling for invalid GitHub URLs.
 func TestDetect_InvalidGitHubURLs(t *testing.T) {
 	tests := []struct {
-		name  string
-		input string
+		name      string
+		input     string
+		wantLocal bool // true if URL should fall through to LocalSource
+		wantError bool // true if URL should produce an error
 	}{
-		{"domain only", "https://github.com"},
-		{"owner only", "https://github.com/owner"},
-		{"with query params", "https://github.com/owner/repo?tab=readme"},
-		{"with anchor", "https://github.com/owner/repo#readme"},
+		// These GitHub-like URLs are not matched by the regex pattern and
+		// fall through to LocalSource rather than returning an error.
+		{"domain only", "https://github.com", true, false},
+		{"owner only", "https://github.com/owner", true, false},
+		{"with query params", "https://github.com/owner/repo?tab=readme", true, false},
+		{"with anchor", "https://github.com/owner/repo#readme", true, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src, err := Detect(tt.input, Options{})
-			// If recognized as GitHub URL but parsing fails, should return error
-			// If not recognized as GitHub URL, should return local type
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("Detect(%q) should return an error, got source %T", tt.input, src)
+				}
+				return
+			}
 			if err != nil {
-				// Invalid GitHub URL correctly returns error.
+				t.Errorf("Detect(%q) returned unexpected error: %v", tt.input, err)
 				return
 			}
 			if src == nil {
-				t.Errorf("Detect(%q) returned nil source with no error", tt.input)
+				t.Fatalf("Detect(%q) returned nil source with no error", tt.input)
+			}
+			_, isLocal := src.(*LocalSource)
+			if tt.wantLocal && !isLocal {
+				t.Errorf("Detect(%q) should fall through to LocalSource, got %T", tt.input, src)
+			}
+			if !tt.wantLocal && isLocal {
+				t.Errorf("Detect(%q) should be recognized as GitHub URL, got LocalSource", tt.input)
 			}
 		})
 	}
@@ -203,7 +218,7 @@ func TestGitHubSource_InvalidOwnerRepo(t *testing.T) {
 			src := NewGitHubSource(tt.owner, tt.repo, Options{})
 			// Creation should not fail (validation deferred to Prepare)
 			if src == nil {
-				t.Error("NewGitHubSource should not return nil")
+				t.Fatal("NewGitHubSource should not return nil")
 			}
 			if src.Type() != "github" {
 				t.Error("type should be github")
@@ -294,8 +309,14 @@ func TestLocalSource_PathTraversal(t *testing.T) {
 	result, err := src.Prepare()
 	if err == nil && result != "" {
 		// If Prepare succeeded, verify the resolved path stays within tempDir.
-		absTemp, _ := filepath.Abs(tempDir)
-		absResult, _ := filepath.Abs(result)
+		absTemp, absErr := filepath.Abs(tempDir)
+		if absErr != nil {
+			t.Fatalf("filepath.Abs(tempDir) failed: %v", absErr)
+		}
+		absResult, absErr := filepath.Abs(result)
+		if absErr != nil {
+			t.Fatalf("filepath.Abs(result) failed: %v", absErr)
+		}
 		if !strings.HasPrefix(absResult, absTemp+string(filepath.Separator)) && absResult != absTemp {
 			t.Errorf("path traversal not blocked: SubDir=%q resolved to %q (outside %q)", "../../../etc", absResult, absTemp)
 		}

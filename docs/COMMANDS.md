@@ -61,7 +61,6 @@ These flags appear in `--help` output for most commands.
 | `--config <path>` | `book.yaml` | Config file path. Mainly relevant for commands that load project config, such as `build`, `serve`, and `validate`. |
 | `--cache-dir <path>` | OS default | Override mdPress runtime cache directory. |
 | `--no-cache` | off | Disable mdPress runtime caches for this command. Forces a full rebuild. |
-| `--summary <path>` | — | Path to SUMMARY.md file. Used by `build` and `serve` to override auto-discovery of chapter structure. |
 | `-v, --verbose` | off | Print more detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -69,7 +68,6 @@ Notes:
 
 - If `--quiet` and `--verbose` are both set, the current implementation gives precedence to `--quiet`.
 - `--config` is a global flag, but not every command actually uses it. `doctor`, `themes`, and `completion` currently ignore it.
-- `--summary` is a global flag, but only `build` and `serve` actually use it. Other commands ignore it.
 
 ## Input Source Rules
 
@@ -81,8 +79,14 @@ mdPress mainly supports two kinds of input:
 For local directories, config discovery usually follows this order:
 
 1. `book.yaml`
-2. `SUMMARY.md`
-3. Automatic `.md` file discovery
+2. `book.json` (GitBook compatibility)
+3. `SUMMARY.md`
+4. Automatic `.md` file discovery
+
+You can override the SUMMARY.md path with `--summary`:
+
+    mdpress build --summary path/to/SUMMARY.md
+    mdpress serve --summary path/to/SUMMARY.md
 
 ## GitHub Authentication
 
@@ -121,10 +125,10 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `output.margin_top` | — | Top page margin. Examples: `"20mm"`, `"0.8in"`, `"2cm"`. |
-| `output.margin_bottom` | — | Bottom page margin. |
-| `output.margin_left` | — | Left page margin. |
-| `output.margin_right` | — | Right page margin. |
+| `output.margin_top` | `15mm` | Top page margin. Examples: `"20mm"`, `"0.8in"`, `"2cm"`. |
+| `output.margin_bottom` | `15mm` | Bottom page margin. |
+| `output.margin_left` | `20mm` | Left page margin. |
+| `output.margin_right` | `20mm` | Right page margin. |
 
 ### PDF Bookmarks
 

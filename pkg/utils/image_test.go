@@ -713,7 +713,7 @@ func TestDownloadImageSizeExceeded(t *testing.T) {
 
 	_, err := DownloadImage(server.URL+"/huge", t.TempDir())
 	if err == nil {
-		t.Error("oversized image should cause error")
+		t.Fatal("oversized image should cause error")
 	}
 	// The error may be "exceeds maximum" (size limit reached) or context/timeout
 	// related (the 30s download timeout fires before the full body is read).

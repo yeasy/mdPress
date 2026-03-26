@@ -8,7 +8,26 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-## [0.6.3] - 2026-03-26
+## [0.6.4] - 2026-03-26
+
+### Fixed
+
+- **PDF images not rendering**: Strip `loading="lazy"` from images before PDF generation, as Chrome's PrintToPDF skips lazy-loaded off-viewport images
+- **Mermaid diagrams missing text**: Remove HTML re-escaping in `processMermaid` that broke arrows (`-->`), quotes, and `<br/>` tags; rely on Mermaid's `securityLevel:'strict'` (DOMPurify) for XSS protection
+- **Mermaid digits/Latin chars missing in PDF**: Add Latin fonts (`-apple-system`, `Helvetica`, `Arial`) before CJK fonts in Mermaid SVG CSS rules for PDF rendering
+- **SVG badge CJK text missing in PDF**: Inline CJK-containing SVGs into HTML (instead of `<img src="data:...">`), inject `CJK-Embedded` @font-face via `<style>` inside SVG, and remove `textLength` constraints
+- **Badge images stacked vertically**: Change `img` CSS from unconditional `display:block` to only apply block display for standalone images (sole child of paragraph)
+- **mdPress docs injected into PDF**: Filter `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE.md` from auto-discovery and init scanning
+- **Cover version defaults to 1.0.0**: Read `version` field from `book.json`, add `git describe --tags` as fallback
+- **Duplicate "Built with mdPress" on cover**: Remove inline brand footer from cover HTML template; fix typo "Build with" → "Built with" in PDF footer
+
+### Changed
+
+- Bump parsed chapter cache version to v2 (invalidates stale caches with old Mermaid escaping)
+
+---
+
+## [0.6.3] - 2026-03-25
 
 ### Security
 
@@ -296,7 +315,7 @@ All notable changes to this project will be documented in this file. The format 
 
 - **COMMANDS.md**: Added missing `completion` command to English command hierarchy and matrix
 - **COMMANDS_zh.md**: Added missing `--cache-dir` and `--no-cache` global flags to Chinese docs
-- **COMMANDS.md + COMMANDS_zh.md**: Added `--summary` global flag documentation to both languages
+- **COMMANDS.md + COMMANDS_zh.md**: Added `--summary` build/serve flag documentation to both languages
 
 ---
 

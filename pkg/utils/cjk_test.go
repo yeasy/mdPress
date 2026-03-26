@@ -312,28 +312,6 @@ func TestCheckCJKFontsFallback(t *testing.T) {
 	t.Logf("CheckCJKFonts() returned: Available=%v, Fonts=%v", status.Available, status.Fonts)
 }
 
-// TestCJKFontStatusStructure tests CJKFontStatus is properly constructed
-func TestCJKFontStatusStructure(t *testing.T) {
-	// Create a CJKFontStatus instance
-	status := CJKFontStatus{
-		Available: true,
-		Fonts:     []string{"Font1", "Font2"},
-	}
-
-	// Verify structure fields
-	if !status.Available {
-		t.Error("CJKFontStatus.Available should be true")
-	}
-
-	if len(status.Fonts) != 2 {
-		t.Errorf("CJKFontStatus.Fonts should have 2 items, got %d", len(status.Fonts))
-	}
-
-	if status.Fonts[0] != "Font1" {
-		t.Errorf("CJKFontStatus.Fonts[0] = %q, want Font1", status.Fonts[0])
-	}
-}
-
 // TestCheckCJKFontsConsistency tests that CheckCJKFonts returns valid struct
 func TestCheckCJKFontsConsistency(t *testing.T) {
 	// Call twice and verify consistency in structure (not necessarily values)

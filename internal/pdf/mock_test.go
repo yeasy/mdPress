@@ -79,7 +79,7 @@ func TestMockGeneratorSimulatesError(t *testing.T) {
 
 	err := mock.Generate("<html></html>", outputPath)
 	if err == nil {
-		t.Error("Expected error, but got nil")
+		t.Fatal("Expected error, but got nil")
 	}
 
 	if err.Error() != testError {

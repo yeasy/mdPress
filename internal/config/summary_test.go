@@ -90,7 +90,10 @@ func TestParseSummarySkipAnchors(t *testing.T) {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
-	chapters, _ := ParseSummary(path)
+	chapters, err := ParseSummary(path)
+	if err != nil {
+		t.Fatalf("ParseSummary failed: %v", err)
+	}
 	if len(chapters) != 1 {
 		t.Errorf("anchor links should be skipped, got %d chapters", len(chapters))
 	}

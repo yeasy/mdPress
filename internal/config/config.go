@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
+	"github.com/yeasy/mdpress/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -295,6 +297,16 @@ func (c *BookConfig) Validate() error {
 		return fmt.Errorf("watermark_opacity must be between 0.0 and 1.0 (got %f)", c.Output.WatermarkOpacity)
 	}
 
+	// Validate Watermark text: reject template injection markers and enforce length.
+	if c.Output.Watermark != "" {
+		if len(c.Output.Watermark) > 200 {
+			return fmt.Errorf("watermark text is too long (%d characters; max 200)", len(c.Output.Watermark))
+		}
+		if strings.Contains(c.Output.Watermark, "{{") || strings.Contains(c.Output.Watermark, "}}") {
+			return fmt.Errorf("watermark text must not contain template markers ({{ or }})")
+		}
+	}
+
 	// Validate PDFTimeout range (5-3600 seconds, or 0 for default).
 	if c.Output.PDFTimeout != 0 && (c.Output.PDFTimeout < 5 || c.Output.PDFTimeout > 3600) {
 		return fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout)
@@ -321,6 +333,33 @@ func (c *BookConfig) Validate() error {
 		}
 	}
 
+	// Validate line_height: must be a positive value in a reasonable range.
+	if c.Style.LineHeight != 0 && (c.Style.LineHeight < 0.5 || c.Style.LineHeight > 5.0) {
+		return fmt.Errorf("line_height must be between 0.5 and 5.0 (got %g)", c.Style.LineHeight)
+	}
+
+	// Validate output filename: strip directory components to prevent path traversal.
+	if c.Output.Filename != "" {
+		base := filepath.Base(c.Output.Filename)
+		if base != c.Output.Filename {
+			return fmt.Errorf("output filename %q must not contain directory components", c.Output.Filename)
+		}
+	}
+
+	// Validate that custom_css does not escape the project directory.
+	if c.Style.CustomCSS != "" {
+		if _, err := utils.SafeJoin(c.baseDir, c.Style.CustomCSS); err != nil {
+			return fmt.Errorf("custom_css: %w", err)
+		}
+	}
+
+	// Validate that cover image does not escape the project directory.
+	if c.Book.Cover.Image != "" {
+		if _, err := utils.SafeJoin(c.baseDir, c.Book.Cover.Image); err != nil {
+			return fmt.Errorf("cover.image: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -340,8 +379,23 @@ func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string,
 		if ch.File == "" {
 			return fmt.Errorf("chapter %s is missing a file path", label)
 		}
-		// Check whether the referenced chapter file exists.
+		// Reject absolute paths and paths that escape the project directory.
+		if filepath.IsAbs(ch.File) {
+			return fmt.Errorf("chapter %s: absolute path not allowed: %s", label, ch.File)
+		}
 		resolvedPath := c.ResolvePath(ch.File)
+		absResolved, err := filepath.Abs(resolvedPath)
+		if err != nil {
+			return fmt.Errorf("chapter %s: invalid path: %w", label, err)
+		}
+		absBase, err := filepath.Abs(c.baseDir)
+		if err != nil {
+			return fmt.Errorf("chapter %s: cannot resolve base dir: %w", label, err)
+		}
+		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
+			return fmt.Errorf("chapter %s: path escapes project directory: %s", label, ch.File)
+		}
+		// Check whether the referenced chapter file exists.
 		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 			return fmt.Errorf("chapter %s references a missing file: %s (paths are relative to book.yaml)", label, ch.File)
 		}

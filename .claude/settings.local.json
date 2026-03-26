@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(go build:*)",
+      "Bash(make check:*)",
+      "Bash(grep -E '_test\\\\.go$')",
+      "Bash(grep -vE '_test\\\\.go$|^docs/|^CHANGELOG|^\\\\.agent|^\\\\.claude')",
+      "Bash(git -c user.name=\"yeasy\" -c user.email=\"yangbaohua@gmail.com\" add internal/plantuml/plantuml.go internal/plantuml/plugin.go internal/markdown/postprocess.go internal/output/epub.go cmd/upgrade.go internal/server/server.go internal/typst/template.go pkg/utils/image.go internal/config/config.go cmd/build_run.go internal/source/github.go internal/cover/cover.go internal/plugin/plugin.go internal/pdf/generator.go cmd/doctor.go internal/glossary/glossary.go internal/crossref/crossref.go cmd/migrate.go)",
+      "Bash(git -c:*)",
+      "Bash(git push:*)",
+      "Bash(gh run:*)",
+      "Bash(gh release:*)"
+    ]
+  }
+}

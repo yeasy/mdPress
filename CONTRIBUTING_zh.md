@@ -54,16 +54,13 @@
 git clone https://github.com/yeasy/mdpress.git
 cd mdpress
 
-# 2. 下载依赖
-make deps
-
-# 3. 编译
+# 2. 编译
 make build
 
-# 4. 运行测试
+# 3. 运行测试
 make test
 
-# 5. 运行示例，验证构建结果
+# 4. 运行示例，验证构建结果
 make example
 ```
 

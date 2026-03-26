@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,8 +20,10 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// maxPlantUMLScanSize caps how much of each Markdown file is read when scanning for PlantUML blocks.
+const maxPlantUMLScanSize = 1024 * 1024
+
 var doctorReportPath string
-var doctorVerbose bool
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor [directory]",
@@ -50,7 +53,6 @@ var doctorCmd = &cobra.Command{
 
 func init() {
 	doctorCmd.Flags().StringVar(&doctorReportPath, "report", "", "Write doctor report to .json or .md")
-	doctorCmd.Flags().BoolVar(&doctorVerbose, "verbose", false, "Show detailed output for each check")
 }
 
 type doctorReport struct {
@@ -183,17 +185,17 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		utils.Warning("LANGS.md not found")
 	}
 
-	if _, err := os.Stat(bookPath); err == nil {
-		cfg, loadErr := config.Load(bookPath)
-		if loadErr != nil {
+	if doctorCfg != nil {
+		report.ProjectLoadable = true
+		report.ProjectTitle = doctorCfg.Book.Title
+		report.TopLevelChapters = len(doctorCfg.Chapters)
+		utils.Success("Config loads successfully: %s (%d top-level chapters)", doctorCfg.Book.Title, len(doctorCfg.Chapters))
+		reportDoctorMarkdownLinks(doctorCfg, &report)
+	} else if _, err := os.Stat(bookPath); err == nil {
+		// book.yaml exists but failed to load — report the error.
+		if _, loadErr := config.Load(bookPath); loadErr != nil {
 			utils.Error("Failed to load book.yaml: %v", loadErr)
 			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
-		} else {
-			report.ProjectLoadable = true
-			report.ProjectTitle = cfg.Book.Title
-			report.TopLevelChapters = len(cfg.Chapters)
-			utils.Success("Config loads successfully: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters))
-			reportDoctorMarkdownLinks(cfg, &report)
 		}
 	} else if _, err := os.Stat(summaryPath); err == nil {
 		cfg, discoverErr := config.Discover(ctx, absDir)
@@ -267,7 +269,7 @@ func checkGoVersion(report *doctorReport) {
 	// Check if major.minor >= 1.25
 	major, minorErr := utils.ParseVersionPart(parts[0])
 	if minorErr != nil {
-		if doctorVerbose {
+		if verbose {
 			utils.Warning("Could not parse Go major version: %v", minorErr)
 		}
 		return
@@ -275,7 +277,7 @@ func checkGoVersion(report *doctorReport) {
 
 	minor, patchErr := utils.ParseVersionPart(parts[1])
 	if patchErr != nil {
-		if doctorVerbose {
+		if verbose {
 			utils.Warning("Could not parse Go minor version: %v", patchErr)
 		}
 		return
@@ -308,7 +310,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 	req, err := http.NewRequestWithContext(ctx, "HEAD", "https://github.com", nil)
 	if err != nil {
 		utils.Warning("Network connectivity check failed")
-		if doctorVerbose {
+		if verbose {
 			fmt.Printf("    Error: %v\n", err)
 		}
 		report.Warnings = append(report.Warnings, "Cannot reach github.com (network connectivity issue)")
@@ -320,7 +322,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 	resp, err := client.Do(req)
 	if err != nil {
 		utils.Warning("Network connectivity check failed (cannot reach github.com)")
-		if doctorVerbose {
+		if verbose {
 			fmt.Printf("    Error: %v\n", err)
 		}
 		report.Warnings = append(report.Warnings, "Cannot reach github.com (network connectivity issue)")
@@ -351,7 +353,7 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 		// Fall back to parent directory for disk space check
 		outputDir = filepath.Dir(outputDir)
 		if _, err := os.Stat(outputDir); err != nil {
-			if doctorVerbose {
+			if verbose {
 				utils.Warning("Could not access output directory: %v", err)
 			}
 			return
@@ -364,7 +366,7 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 	defer dfCancel()
 	out, err := exec.CommandContext(dfCtx, "df", "-k", outputDir).Output()
 	if err != nil {
-		if doctorVerbose {
+		if verbose {
 			utils.Warning("Could not determine disk space: %v", err)
 		}
 		return
@@ -394,7 +396,7 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 	}
 
 	report.DiskSpaceOK = true
-	if doctorVerbose {
+	if verbose {
 		utils.Success("Disk space available: %.2f GB", availableGB)
 	} else {
 		utils.Success("Disk space available")
@@ -419,7 +421,7 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 	for _, plugin := range cfg.Plugins {
 		if plugin.Path == "" {
 			allValid = false
-			if doctorVerbose {
+			if verbose {
 				utils.Error("Plugin %q has empty path", plugin.Name)
 			} else {
 				utils.Warning("Plugin %q has empty path", plugin.Name)
@@ -436,7 +438,7 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 		info, err := os.Stat(pluginPath)
 		if err != nil {
 			allValid = false
-			if doctorVerbose {
+			if verbose {
 				utils.Error("Plugin %q not found at %s", plugin.Name, pluginPath)
 			} else {
 				utils.Warning("Plugin %q not found", plugin.Name)
@@ -447,7 +449,7 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 		// Check if it's executable
 		if !isPluginExecutable(pluginPath, info.Mode()) {
 			allValid = false
-			if doctorVerbose {
+			if verbose {
 				utils.Warning("Plugin %q is not executable", plugin.Name)
 			}
 		}
@@ -571,7 +573,13 @@ func searchPlantUMLInDir(dir string) bool {
 				return true
 			}
 		} else if strings.HasSuffix(entry.Name(), ".md") {
-			content, err := os.ReadFile(path)
+			// Limit read to 1 MB to prevent OOM on very large files.
+			f, err := os.Open(path)
+			if err != nil {
+				continue
+			}
+			content, err := io.ReadAll(io.LimitReader(f, maxPlantUMLScanSize))
+			f.Close() //nolint:errcheck
 			if err != nil {
 				continue
 			}
@@ -587,17 +595,17 @@ func searchPlantUMLInDir(dir string) bool {
 func writeDoctorReport(path string, report doctorReport) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve report path: %w", err)
 	}
 	if err := utils.EnsureDir(filepath.Dir(absPath)); err != nil {
-		return err
+		return fmt.Errorf("create report directory: %w", err)
 	}
 
 	switch strings.ToLower(filepath.Ext(absPath)) {
 	case ".json":
 		data, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal report: %w", err)
 		}
 		return os.WriteFile(absPath, data, 0644)
 	case ".md":

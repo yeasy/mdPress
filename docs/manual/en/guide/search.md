@@ -45,9 +45,9 @@ The index is only loaded when needed and cached in the browser.
 
 Users can access search in several ways depending on the output format.
 
-### Opening the Search Dialog
+### Opening the Search Panel
 
-Press the keyboard shortcut to open the search dialog:
+Press the keyboard shortcut to open the search panel:
 
 - **Mac**: Cmd+K
 - **Windows/Linux**: Ctrl+K
@@ -56,11 +56,11 @@ Alternatively, click the search button in the documentation interface (if visibl
 
 ### Performing a Search
 
-1. Open the search dialog with Cmd/Ctrl+K
+1. Open the search panel with Cmd/Ctrl+K
 2. Type your search query
 3. Results appear in real-time as you type
 4. Click a result to jump to that section
-5. Press Escape to close the search dialog
+5. Press Escape to close the search panel
 
 ### Search Query Syntax
 
@@ -152,27 +152,6 @@ API 文档 authentication
 
 Finds results containing English and CJK terms.
 
-## Search Configuration
-
-Configure search behavior in your `book.yaml`:
-
-```yaml
-search:
-  enabled: true
-  languages: ["en", "zh", "ja", "ko"]
-  maxResults: 10
-  highlightResults: true
-  indexPrivatePages: false
-```
-
-### Search Options
-
-- `enabled`: Enable/disable search functionality (default: true)
-- `languages`: Languages to support for tokenization
-- `maxResults`: Maximum search results to display (default: 10)
-- `highlightResults`: Highlight search terms in content (default: true)
-- `indexPrivatePages`: Whether to index pages marked as private (default: false)
-
 ## Search in Different Output Formats
 
 ### Site Format
@@ -180,7 +159,7 @@ search:
 Full search functionality with:
 - Real-time search as you type
 - Multiple result highlighting
-- Full-featured search dialog
+- Full-featured search panel
 - Keyboard shortcuts
 
 ### Single-File HTML
@@ -207,20 +186,6 @@ Search depends on the e-reader application:
 
 ## Performance and Optimization
 
-### Index Size Management
-
-For very large documentation, the search index can be optimized:
-
-```yaml
-search:
-  maxResults: 20
-  excludePatterns:
-    - "*.draft.md"
-    - "appendix/**"
-```
-
-Excluding large sections reduces index size.
-
 ### Lazy Loading the Index
 
 The search index is lazy-loaded, meaning:
@@ -237,35 +202,6 @@ Typical search response times:
 - Subsequent searches (warm): 10-50ms
 - Displaying results: <100ms
 
-## Advanced Search Features
-
-### Proximity Search
-
-Some search implementations support proximity:
-```
-"API" within 5 words of "authentication"
-```
-
-(Availability depends on mdPress version and configuration.)
-
-### Wildcard Search
-
-Search with wildcards:
-```
-auth*
-```
-
-Matches "authentication", "authorize", "authtoken", etc.
-
-### Boolean Search
-
-Combine search terms with AND/OR:
-```
-API AND authentication
-```
-
-Returns results containing both terms.
-
 ## Troubleshooting
 
 ### Search Not Working
@@ -273,7 +209,7 @@ Returns results containing both terms.
 Verify that:
 1. JavaScript is enabled in your browser
 2. The search index file is present (check in browser DevTools Network tab)
-3. The search dialog opens (try Cmd/Ctrl+K)
+3. The search panel opens (try Cmd/Ctrl+K)
 4. Try in a different browser
 
 If search still doesn't work, rebuild your documentation:
@@ -295,28 +231,14 @@ If search results seem wrong:
 1. Verify the search index was regenerated in the latest build
 2. Check that content is properly formatted in your Markdown
 3. Search for different keywords
-4. Rebuild with `--force` flag if available
+4. Rebuild with `--no-cache` flag to force a full rebuild
 
 ### CJK Search Issues
 
 If CJK search doesn't work:
-1. Verify CJK languages are listed in `book.yaml` search configuration
-2. Ensure content is encoded in UTF-8
-3. Check browser console for errors
-4. Try searching in the original language, not translated text
-
-### Search Index Too Large
-
-To reduce search index size:
-
-```yaml
-search:
-  maxResults: 5
-  excludePatterns:
-    - "api-reference/**"  # Very large section
-    - "appendix/**"
-  indexLevel: 2  # Index only H1 and H2
-```
+1. Ensure content is encoded in UTF-8
+2. Check browser console for errors
+3. Try searching in the original language, not translated text
 
 ## SEO and Search Engines
 
@@ -330,18 +252,6 @@ To help external search engines like Google index your documentation:
 2. Add proper meta tags in your `book.yaml` configuration
 3. Submit your sitemap to Google Search Console
 4. Ensure your hosting allows search engine crawling
-
-### Robots and Crawling
-
-Control how search engines index your site:
-
-```yaml
-site:
-  robots: "index, follow"
-  canonical: "https://docs.example.com"
-```
-
-This helps search engines understand your documentation structure.
 
 ## Best Practices
 
@@ -385,12 +295,14 @@ This helps search find your content even when users search for synonyms.
 
 ### Add Search-Friendly Metadata
 
-Use your glossary and structured content to improve search:
+Use a `GLOSSARY.md` file to define terms and their descriptions. Each term is a level-2 heading followed by its definition:
 
-```yaml
-glossary:
-  - term: "API Key"
-    aliases: ["API token", "access key"]
+```markdown
+## API Key
+A unique token used to authenticate requests to an API.
+
+## Rate Limit
+The maximum number of API calls allowed per time period.
 ```
 
-This helps search find content even when using different terminology.
+Glossary terms are automatically highlighted and linked in your content, which also improves search discoverability.

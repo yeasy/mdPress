@@ -15,7 +15,7 @@ import (
 func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 	mgr := NewManager()
 
-	if len(cfg.Plugins) == 0 {
+	if cfg == nil || len(cfg.Plugins) == 0 {
 		return mgr, nil
 	}
 

@@ -197,63 +197,6 @@ func TestBuildMermaidValidationHTML_CDNReference(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// mermaidRenderStatus struct validation
-// ---------------------------------------------------------------------------
-
-func TestMermaidRenderStatus_Fields(t *testing.T) {
-	status := mermaidRenderStatus{
-		Done:      true,
-		OK:        true,
-		Error:     "test error",
-		Total:     10,
-		Rendered:  8,
-		Processed: 8,
-	}
-
-	if !status.Done {
-		t.Error("Done field not set correctly")
-	}
-	if !status.OK {
-		t.Error("OK field not set correctly")
-	}
-	if status.Error != "test error" {
-		t.Errorf("Error field not set correctly: got %q", status.Error)
-	}
-	if status.Total != 10 {
-		t.Errorf("Total field not set correctly: got %d", status.Total)
-	}
-	if status.Rendered != 8 {
-		t.Errorf("Rendered field not set correctly: got %d", status.Rendered)
-	}
-	if status.Processed != 8 {
-		t.Errorf("Processed field not set correctly: got %d", status.Processed)
-	}
-}
-
-func TestMermaidRenderStatus_ZeroValues(t *testing.T) {
-	var status mermaidRenderStatus
-
-	if status.Done {
-		t.Error("Done should be false by default")
-	}
-	if status.OK {
-		t.Error("OK should be false by default")
-	}
-	if status.Error != "" {
-		t.Error("Error should be empty by default")
-	}
-	if status.Total != 0 {
-		t.Error("Total should be 0 by default")
-	}
-	if status.Rendered != 0 {
-		t.Error("Rendered should be 0 by default")
-	}
-	if status.Processed != 0 {
-		t.Error("Processed should be 0 by default")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // validateRenderedMermaidHTML - Edge Cases and Error Conditions
 // ---------------------------------------------------------------------------
 

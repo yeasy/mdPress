@@ -77,6 +77,12 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 			if meta.Version != "" {
 				cfg.Book.Version = meta.Version
 			}
+			// Fallback: try git tag when version is still the default.
+			if cfg.Book.Version == DefaultConfig().Book.Version {
+				if tag := gitLatestTag(ctx, absDir); tag != "" {
+					cfg.Book.Version = tag
+				}
+			}
 			if meta.Language != "" {
 				cfg.Book.Language = meta.Language
 			}
@@ -98,6 +104,9 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 				cfg.LangsFile = langsPath
 			}
 
+			if err := cfg.Validate(); err != nil {
+				return nil, fmt.Errorf("SUMMARY.md config validation failed: %w", err)
+			}
 			return cfg, nil
 		}
 		// If book.json doesn't exist and SUMMARY.md has no chapters, return error
@@ -146,8 +155,10 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		if baseName == "readme.md" && filepath.Dir(relPath) == "." {
 			readmeFile = relPath
 		} else {
-			// Skip special project files.
-			if baseName == "summary.md" || baseName == "glossary.md" || baseName == "langs.md" {
+			// Skip special project files and common documentation files
+			// that should not appear as book chapters.
+			if baseName == "summary.md" || baseName == "glossary.md" || baseName == "langs.md" ||
+				baseName == "changelog.md" || baseName == "contributing.md" || baseName == "license.md" {
 				continue
 			}
 			otherFiles = append(otherFiles, relPath)
@@ -199,6 +210,9 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		cfg.GlossaryFile = glossaryPath
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("auto-discovered config validation failed: %w", err)
+	}
 	return cfg, nil
 }
 
@@ -235,10 +249,7 @@ func fileNameToTitle(path string) string {
 	name := strings.TrimSuffix(base, filepath.Ext(base))
 
 	// Replace common separators with spaces.
-	name = strings.NewReplacer(
-		"_", " ",
-		"-", " ",
-	).Replace(name)
+	name = fileNameReplacer.Replace(name)
 
 	// Uppercase the first rune (safe for multi-byte UTF-8).
 	runes := []rune(name)
@@ -248,6 +259,18 @@ func fileNameToTitle(path string) string {
 	}
 
 	return name
+}
+
+// gitLatestTag returns the latest semver-like git tag (e.g. "v1.7.0" → "1.7.0"),
+// or an empty string when git is unavailable or no tags exist.
+func gitLatestTag(ctx context.Context, dir string) string {
+	// Use describe to find the most recent tag reachable from HEAD.
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "describe", "--tags", "--abbrev=0").Output()
+	if err != nil {
+		return ""
+	}
+	tag := strings.TrimSpace(string(out))
+	return strings.TrimPrefix(tag, "v")
 }
 
 // gitConfigAuthor returns the git user.name configured in the given directory,
@@ -296,6 +319,9 @@ var (
 	authorPattern = regexp.MustCompile(`(?:作者|[Aa]uthor)[：:]\s*(.+)`)
 	// badgeTitlePattern extracts titles from badge URLs (e.g. badge/([^-\]]+?)[-\]]).
 	badgeTitlePattern = regexp.MustCompile(`badge/([^-\]]+?)[-\]]`)
+
+	// fileNameReplacer converts underscores and hyphens to spaces.
+	fileNameReplacer = strings.NewReplacer("_", " ", "-", " ")
 )
 
 // ExtractReadmeMetadata reads a README.md and extracts book metadata.

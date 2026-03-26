@@ -20,6 +20,9 @@ import (
 )
 
 // linkPattern matches Markdown links: [title](path).
+// NOTE: intentionally duplicated in internal/i18n/langs.go.
+// Consolidating would add an unnatural dependency between config and i18n
+// (neither package imports the other or pkg/utils for regex patterns).
 var linkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 
 // ParseSummary parses chapter definitions from SUMMARY.md.

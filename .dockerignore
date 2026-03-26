@@ -26,3 +26,7 @@ docker-compose.yml
 # Docs and non-essential files
 docs/promotion/
 report.md
+tests/
+.claude/
+.agent/
+*.md

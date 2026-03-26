@@ -83,12 +83,7 @@ func WriteFile(path string, data []byte) error {
 
 // CopyFile copies a file from src to dst.
 func CopyFile(src, dst string) error {
-	// Ensure the source file exists.
-	if !FileExists(src) {
-		return fmt.Errorf("source file does not exist: %q", src)
-	}
-
-	// Open the source file.
+	// Open the source file directly (avoids TOCTOU race from a separate stat check).
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %q: %w", src, err)
@@ -117,17 +112,28 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
 	}
-	defer dstFile.Close() //nolint:errcheck
+
+	// cleanup removes the partial destination file on any write-path error.
+	cleanup := func() {
+		dstFile.Close() //nolint:errcheck
+		os.Remove(dst)  //nolint:errcheck
+	}
 
 	// Copy file content.
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		dstFile.Close() //nolint:errcheck
-		os.Remove(dst)  //nolint:errcheck
+		cleanup()
 		return fmt.Errorf("failed to copy file content: %w", err)
+	}
+
+	// Close explicitly to catch flush errors (e.g. NFS write-back failures).
+	if err := dstFile.Close(); err != nil {
+		os.Remove(dst) //nolint:errcheck
+		return fmt.Errorf("failed to close destination file %q: %w", dst, err)
 	}
 
 	// Preserve file permissions.
 	if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
+		os.Remove(dst) //nolint:errcheck
 		return fmt.Errorf("failed to set destination file mode: %w", err)
 	}
 
@@ -188,6 +194,28 @@ func ExtractTitleFromFile(path string) string {
 		slog.Debug("scanner error during title extraction", slog.String("error", err.Error()))
 	}
 	return ""
+}
+
+// SafeJoin joins a base directory with an untrusted relative path and verifies
+// the result stays within the base directory. It returns an error if the
+// resolved path escapes the base via ".." or absolute-path tricks.
+func SafeJoin(baseDir, untrusted string) (string, error) {
+	// Clean the base directory.
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base directory: %w", err)
+	}
+	// Join and resolve.
+	joined := filepath.Join(absBase, untrusted)
+	absJoined, err := filepath.Abs(joined)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve joined path: %w", err)
+	}
+	// Ensure the result is inside baseDir.
+	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
+		return "", fmt.Errorf("path %q escapes base directory %q", untrusted, absBase)
+	}
+	return absJoined, nil
 }
 
 // ParseVersionPart parses a version number component (e.g., "25" from "1.25.0").

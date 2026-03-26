@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.6.2
+> 版本: v0.6.3
 > 更新日期: 2026-03-25
 
 ## 1. 系统架构总览
@@ -449,7 +449,7 @@ chapter.md (原始 Markdown)
 
 ## 5. 已实现与计划中的架构扩展
 
-> 5.1 至 5.4 描述的架构已在 **v0.2.0 中实现**。5.5 描述为 v0.3.0 预留的扩展点。
+> 5.1 至 5.4 描述的架构已**实现**。5.5 描述已可用的插件扩展点。
 
 ### 5.1 Source 抽象层（已实现）
 
@@ -582,24 +582,12 @@ type Discoverer interface {
 **接口定义：** 见 `internal/output/output.go`
 
 ```go
-// OutputFormat 定义输出格式的统一接口
-type OutputFormat interface {
-    // Name 返回格式名称（如 "pdf", "html", "epub"）
+// FormatBuilder 定义输出格式的统一接口
+type FormatBuilder interface {
+    // Name 返回格式名称（如 "pdf", "html", "site", "epub"）
     Name() string
-
-    // Generate 根据渲染内容生成输出文件
-    Generate(ctx context.Context, req *RenderRequest, outputPath string) error
-
-    // Validate 验证输出配置是否合法
-    Validate(cfg *config.OutputConfig) error
-}
-
-// RenderRequest 统一的渲染请求
-type RenderRequest struct {
-    FullHTML     string                // 完整的 HTML 文档（PDF/HTML 使用）
-    Chapters     []ChapterContent      // 各章节内容（ePub 使用）
-    CSS          string                // 主题 + 自定义 CSS
-    Meta         DocumentMeta          // 文档元数据
+    // Build 在给定基础路径生成输出文件
+    Build(ctx *BuildContext, baseName string) error
 }
 ```
 
@@ -615,15 +603,10 @@ type RenderRequest struct {
 **注册机制：**
 
 ```go
-// Registry 输出格式注册表
-type Registry struct {
-    formats map[string]OutputFormat
+// FormatBuilderRegistry 输出格式注册表
+type FormatBuilderRegistry struct {
+    builders map[string]FormatBuilder
 }
-
-func NewRegistry() *Registry { ... }
-func (r *Registry) Register(f OutputFormat) { ... }
-func (r *Registry) Get(name string) (OutputFormat, error) { ... }
-func (r *Registry) List() []string { ... }
 ```
 
 ### 5.4 Server 模块（已实现）
@@ -687,7 +670,7 @@ type IncrementalBuilder struct {
 
 ### 5.5 插件系统预留
 
-**目标：** 设计 Plugin 接口和生命周期 Hook 点，v0.2 不实现但预留扩展点。
+**目标：** 提供 Plugin 接口和生命周期 Hook 点，使外部插件可接入构建流水线。
 
 **接口定义：** 见 `internal/plugin/plugin.go`
 
@@ -786,5 +769,4 @@ func (o *BuildOrchestrator) LoadCustomCSS() string
 
 ### 6.3 剩余的重构机会
 
-- CI：添加 Windows 到测试矩阵
 - `source/github.go`：添加 `GitLabSource` 以支持更广泛的 Git 托管平台

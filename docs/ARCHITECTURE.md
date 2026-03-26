@@ -2,7 +2,7 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.6.2
+> Version: v0.6.3
 > Updated: 2026-03-25
 
 ## 1. System Overview
@@ -160,7 +160,10 @@ graph TB
 | File | Responsibility |
 | --- | --- |
 | `root.go` | Cobra root command and global flags such as `--config` and `--verbose` |
-| `build.go` | Build pipeline orchestration: load config -> parse -> render -> output |
+| `build.go` | Build command: source resolution, config loading, format dispatch |
+| `build_run.go` | Core build execution: rendering pipeline, output generation |
+| `build_orchestrator.go` | `BuildOrchestrator` for concurrent chapter processing |
+| `format_builders.go` | `FormatBuilderRegistry` for output format dispatch |
 | `serve.go` | Build the preview site and start the HTTP server |
 | `init_cmd.go` | Scan a directory and generate a `book.yaml` skeleton |
 | `quickstart.go` | Create a sample project and make it previewable immediately |
@@ -169,9 +172,10 @@ graph TB
 
 Key functions:
 
-- `executeBuild()` as the main build orchestrator
+- `executeBuild()` dispatches to `executeBuildForConfig()` per language
+- `executeBuildForConfig()` runs the full render-and-output pipeline
+- `BuildOrchestrator.ProcessChapters()` for concurrent chapter parsing
 - `executeServe()` as build-plus-server orchestration
-- `flattenChapters()` for recursively flattening nested chapter definitions
 
 ### 3.2 `internal/config` - Config Management
 
@@ -475,7 +479,7 @@ Cache is stored in the project cache directory and survives across builds unless
 
 ## 5. Implemented And Planned Architecture Extensions
 
-> Sections 5.1 through 5.4 describe architecture that has been **implemented in v0.2.0**. Section 5.5 describes extension points reserved for v0.3.0.
+> Sections 5.1 through 5.4 describe architecture that has been **implemented**. Section 5.5 describes plugin extension points that are now available.
 
 ### 5.1 Source Abstraction (Implemented)
 
@@ -484,24 +488,11 @@ The `Source` interface abstracts "where content comes from" so mdPress can read 
 Interface:
 
 ```go
-// Source defines a unified abstraction for content sources
+// Source defines a unified abstraction for content sources.
+// Prepare returns a local directory path containing the content.
 type Source interface {
-    // Open opens and prepares the content source (e.g., clone repo, download files)
-    Open(ctx context.Context) error
-
-    // ReadFile reads the file content at the specified path
-    ReadFile(path string) ([]byte, error)
-
-    // ListFiles lists all files matching the pattern
-    ListFiles(pattern string) ([]string, error)
-
-    // Resolve resolves a relative path to an absolute path within the source
-    Resolve(base, rel string) string
-
-    // Close closes the source and cleans up temporary resources
-    Close() error
-
-    // Type returns the source type identifier
+    Prepare() (string, error)
+    Cleanup() error
     Type() string
 }
 ```
@@ -512,45 +503,31 @@ Class diagram:
 classDiagram
     class Source {
         <<interface>>
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
-        +ListFiles(pattern) ([]string, error)
-        +Resolve(base, rel) string
-        +Close() error
+        +Prepare() (string, error)
+        +Cleanup() error
         +Type() string
     }
 
     class LocalSource {
         -rootDir string
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
+        -opts SourceOptions
+        +Prepare() (string, error)
+        +Cleanup() error
+        +Type() string
     }
 
     class GitHubSource {
         -owner string
         -repo string
-        -ref string
-        -localDir string
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
-    }
-
-    class GitLabSource {
-        -projectID string
-        -ref string
-        +Open(ctx) error
-    }
-
-    class URLSource {
-        -baseURL string
-        -cacheDir string
-        +Open(ctx) error
+        -tempDir string
+        -opts SourceOptions
+        +Prepare() (string, error)
+        +Cleanup() error
+        +Type() string
     }
 
     Source <|.. LocalSource
     Source <|.. GitHubSource
-    Source <|.. GitLabSource : future extension
-    Source <|.. URLSource : future extension
 ```
 
 Current implementations:
@@ -571,15 +548,19 @@ Integration:
 Priority:
 
 ```
-1. Chapters explicitly defined in book.yaml      ← Highest priority
+1. book.yaml with explicit chapters              ← Highest priority
    │ (if chapters is empty)
    ▼
-2. SUMMARY.md in the same directory              ← GitBook compatible
+2. book.json (GitBook compatibility)             ← Converted to book.yaml format
+   │ (if book.json does not exist)
+   ▼
+3. SUMMARY.md in the same directory              ← GitBook compatible
    │ (if SUMMARY.md does not exist)
    ▼
-3. Automatic scanning of *.md files              ← Zero-config experience
+4. Automatic scanning of *.md files              ← Zero-config experience
    by directory structure + filename order
-   excludes: README.md, SUMMARY.md, GLOSSARY.md, LANGS.md
+   uses README.md as first chapter if present
+   excludes: SUMMARY.md, GLOSSARY.md, LANGS.md
 ```
 
 Design:
@@ -613,17 +594,9 @@ All output formats are normalized behind the `FormatBuilder` interface (in `cmd/
 Interface:
 
 ```go
-type OutputFormat interface {
+type FormatBuilder interface {
     Name() string
-    Generate(ctx context.Context, req *RenderRequest, outputPath string) error
-    Validate(cfg *config.OutputConfig) error
-}
-
-type RenderRequest struct {
-    FullHTML string
-    Chapters []ChapterContent
-    CSS      string
-    Meta     DocumentMeta
+    Build(ctx *BuildContext, baseName string) error
 }
 ```
 
@@ -706,7 +679,7 @@ Expansion from current behavior:
 
 ### 5.5 Plugin Extension Points
 
-Goal: reserve plugin lifecycle hooks in v0.2 even if the full plugin system ships later.
+Goal: provide plugin lifecycle hooks so external plugins can tap into the build pipeline.
 
 Lifecycle hooks:
 
@@ -803,5 +776,4 @@ func (o *BuildOrchestrator) LoadCustomCSS() string
 
 ### 6.3 Remaining Refactoring Opportunities
 
-- CI: add Windows to the test matrix
 - `source/github.go`: add `GitLabSource` for broader Git hosting support

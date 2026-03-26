@@ -25,6 +25,9 @@ type LangDef struct {
 }
 
 // linkPattern matches Markdown links.
+// NOTE: intentionally duplicated in internal/config/summary.go.
+// Consolidating would add an unnatural dependency between i18n and config
+// (neither package imports the other or pkg/utils for regex patterns).
 var linkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 
 // ParseLangsFile parses language definitions from LANGS.md.
@@ -50,10 +53,14 @@ func ParseLangsFile(path string) ([]LangDef, error) {
 
 		name := strings.TrimSpace(matches[1])
 		dir := strings.TrimSpace(matches[2])
-		// Trim any trailing slash from the directory.
-		dir = strings.TrimRight(dir, "/")
+		// Trim any trailing path separator (both forward and back slash for Windows).
+		dir = strings.TrimRight(dir, "/\\")
 
 		if name != "" && dir != "" {
+			// Reject absolute paths and path traversal attempts.
+			if filepath.IsAbs(dir) || strings.Contains(dir, "..") {
+				return nil, fmt.Errorf("LANGS.md: directory %q contains path traversal or absolute path", dir)
+			}
 			langs = append(langs, LangDef{Name: name, Dir: dir})
 		}
 	}
@@ -69,8 +76,8 @@ func ParseLangsFile(path string) ([]LangDef, error) {
 	return langs, nil
 }
 
-// HasLangsFile reports whether LANGS.md exists in a directory.
-func HasLangsFile(dir string) bool {
+// hasLangsFile reports whether LANGS.md exists in a directory.
+func hasLangsFile(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "LANGS.md"))
 	return err == nil
 }

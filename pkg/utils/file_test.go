@@ -138,7 +138,10 @@ func TestWriteFileOverwrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, _ := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("failed to read file after overwrite: %v", err)
+	}
 	if string(data) != "second" {
 		t.Errorf("overwrite failed: got %q", string(data))
 	}

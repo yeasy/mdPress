@@ -177,6 +177,7 @@ chapters:
 	// Test JSON report generation
 	reportPath := filepath.Join(tmpDir, "report.json")
 	doctorReportPath = reportPath
+	t.Cleanup(func() { doctorReportPath = "" })
 
 	err := executeDoctor(context.Background(), tmpDir)
 	if err != nil {
@@ -188,8 +189,6 @@ chapters:
 		t.Fatalf("report file should exist: %v", err)
 	}
 
-	// Reset doctorReportPath after test
-	doctorReportPath = ""
 }
 
 func TestDoctorReportsCacheStatus(t *testing.T) {
@@ -198,12 +197,16 @@ func TestDoctorReportsCacheStatus(t *testing.T) {
 	t.Setenv("MDPRESS_DISABLE_CACHE", "1")
 
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
+	defer func() { os.Stdout = oldStdout }()
 
-	err := executeDoctor(context.Background(), tmpDir)
+	err = executeDoctor(context.Background(), tmpDir)
 
-	_ = w.Close()
+	w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -211,10 +214,12 @@ func TestDoctorReportsCacheStatus(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
+	if _, readErr := buf.ReadFrom(r); readErr != nil {
+		t.Fatalf("failed to read captured output: %v", readErr)
+	}
 	output := buf.String()
 	if !strings.Contains(output, "Runtime cache is disabled") {
-		t.Fatalf("doctor 输出应包含 cache 状态，实际: %s", output)
+		t.Fatalf("doctor output should contain cache status, got: %s", output)
 	}
 }
 
@@ -632,11 +637,7 @@ func TestDoctorPathResolution(t *testing.T) {
 	}
 
 	// Test with relative path (current working directory changes during test)
-	origCwd, _ := os.Getwd()
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origCwd) }()
+	t.Chdir(tmpDir)
 
 	// Should not error on current directory
 	err := executeDoctor(context.Background(), ".")

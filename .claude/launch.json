@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mdpress-serve",
+      "runtimeExecutable": "go",
+      "runtimeArgs": ["run", ".", "serve", "examples", "--port", "9006"],
+      "port": 9006
+    }
+  ]
+}

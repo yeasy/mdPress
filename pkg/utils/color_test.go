@@ -471,14 +471,20 @@ func TestSuccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Need to recapture stdout for each test
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
 			os.Stdout = w
 
 			SetColorEnabled(tt.colorEnabled)
 			Success(tt.format, tt.args...)
 
 			w.Close()
-			output, _ := io.ReadAll(r)
+			output, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("failed to read pipe: %v", err)
+			}
 			os.Stdout = oldStdout
 
 			outputStr := string(output)
@@ -532,14 +538,20 @@ func TestWarning(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
 			os.Stdout = w
 
 			SetColorEnabled(tt.colorEnabled)
 			Warning(tt.format, tt.args...)
 
 			w.Close()
-			output, _ := io.ReadAll(r)
+			output, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("failed to read pipe: %v", err)
+			}
 			os.Stdout = oldStdout
 
 			outputStr := string(output)
@@ -589,14 +601,20 @@ func TestError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Capture stderr
 			oldStderr := os.Stderr
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
 			os.Stderr = w
 
 			SetColorEnabled(tt.colorEnabled)
 			Error(tt.format, tt.args...)
 
 			w.Close()
-			output, _ := io.ReadAll(r)
+			output, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("failed to read pipe: %v", err)
+			}
 			os.Stderr = oldStderr
 
 			outputStr := string(output)
@@ -650,14 +668,20 @@ func TestInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
 			os.Stdout = w
 
 			SetColorEnabled(tt.colorEnabled)
 			Info(tt.format, tt.args...)
 
 			w.Close()
-			output, _ := io.ReadAll(r)
+			output, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("failed to read pipe: %v", err)
+			}
 			os.Stdout = oldStdout
 
 			outputStr := string(output)
@@ -703,14 +727,20 @@ func TestHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
 			os.Stdout = w
 
 			SetColorEnabled(tt.colorEnabled)
 			Header(tt.title)
 
 			w.Close()
-			output, _ := io.ReadAll(r)
+			output, err := io.ReadAll(r)
+			if err != nil {
+				t.Fatalf("failed to read pipe: %v", err)
+			}
 			os.Stdout = oldStdout
 
 			outputStr := string(output)
@@ -894,7 +924,10 @@ func TestDetectColorSupportDumbTerminal(t *testing.T) {
 // TestSuccessWithMultipleArgs tests Success with multiple format args.
 func TestSuccessWithMultipleArgs(t *testing.T) {
 	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stdout = w
 
 	originalState := colorEnabled
@@ -904,7 +937,10 @@ func TestSuccessWithMultipleArgs(t *testing.T) {
 	Success("test %s with %d args", "string", 42)
 
 	w.Close()
-	output, _ := io.ReadAll(r)
+	output, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed to read pipe: %v", err)
+	}
 	outputStr := string(output)
 
 	if !strings.Contains(outputStr, "test string with 42 args") {
@@ -915,7 +951,10 @@ func TestSuccessWithMultipleArgs(t *testing.T) {
 // TestErrorWithMultipleArgs tests Error with multiple format args.
 func TestErrorWithMultipleArgs(t *testing.T) {
 	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Stderr = w
 
 	originalState := colorEnabled
@@ -925,7 +964,10 @@ func TestErrorWithMultipleArgs(t *testing.T) {
 	Error("error %d: %s", 500, "server error")
 
 	w.Close()
-	output, _ := io.ReadAll(r)
+	output, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed to read pipe: %v", err)
+	}
 	outputStr := string(output)
 
 	if !strings.Contains(outputStr, "error 500: server error") {

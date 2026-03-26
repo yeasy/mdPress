@@ -260,7 +260,7 @@ func TestPageDimensions(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		width, height := GetPageDimensions(test.size)
+		width, height := getPageDimensions(test.size)
 		if width != test.expectedWidth || height != test.expectedHeight {
 			t.Errorf("size %q: expected %s x %s, got %s x %s",
 				test.size, test.expectedWidth, test.expectedHeight, width, height)
@@ -288,7 +288,7 @@ func TestTemplateRendering(t *testing.T) {
 		LineHeight:   1.6,
 	}
 
-	result, err := RenderTypstDocument(data)
+	result, err := renderTypstDocument(data)
 	if err != nil {
 		t.Fatalf("failed to render template: %v", err)
 	}
@@ -336,9 +336,9 @@ func TestGeneratorCreation(t *testing.T) {
 	}
 }
 
-// TestCurrentDate tests that CurrentDate returns a reasonable date.
+// TestCurrentDate tests that currentDate returns a reasonable date.
 func TestCurrentDate(t *testing.T) {
-	date := CurrentDate()
+	date := currentDate()
 	if len(date) == 0 {
 		t.Error("expected non-empty date")
 	}
@@ -350,7 +350,7 @@ func TestCurrentDate(t *testing.T) {
 
 // TestMakeTypstFont tests font family conversion.
 func TestMakeTypstFont(t *testing.T) {
-	result := MakeTypstFont("Arial, sans-serif")
+	result := makeTypstFont("Arial, sans-serif")
 	if result == "" {
 		t.Error("expected non-empty font result")
 	}
@@ -371,7 +371,7 @@ func TestMakeTypstFontSize(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := MakeTypstFontSize(test.input)
+		result := makeTypstFontSize(test.input)
 		if result != test.expected {
 			t.Errorf("input %q: expected %q, got %q", test.input, test.expected, result)
 		}
@@ -852,7 +852,7 @@ func TestConvertCodeBlocksComprehensive(t *testing.T) {
 func TestCheckTypstAvailable(t *testing.T) {
 	// This test verifies the function does not panic and returns appropriate result
 	// In environments where typst is not installed, it should return an error
-	err := CheckTypstAvailable()
+	err := checkTypstAvailable()
 	if err != nil {
 		// It's acceptable for typst to not be installed in test environment
 		// Just verify the error message is informative
