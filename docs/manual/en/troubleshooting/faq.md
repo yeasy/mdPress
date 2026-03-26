@@ -11,7 +11,7 @@
 - Homebrew (macOS): `brew install mdpress`
 - Manually: Extract binary and add to PATH
 
-If you want to build from source, you'll need Go 1.21+.
+If you want to build from source, you'll need Go 1.25+.
 
 ### Does mdPress need internet?
 
@@ -39,7 +39,7 @@ mdpress build --format pdf
 **A:** Use the official Docker image or create your own:
 
 ```dockerfile
-FROM golang:1.21-alpine
+FROM golang:1.25-alpine
 RUN apk add --no-cache chromium font-noto-cjk
 RUN go install github.com/yeasy/mdpress@latest
 WORKDIR /workspace

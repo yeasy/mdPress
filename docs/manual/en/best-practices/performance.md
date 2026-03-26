@@ -345,7 +345,7 @@ jobs:
       # Install mdPress
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: '1.25'
       - run: go install github.com/yeasy/mdpress@latest
 
       # Build book

@@ -10,7 +10,7 @@ mdpress doctor
 # 示例输出：
 # Checking environment...
 # ✓ Platform: Linux
-# ✓ Go: 1.21.0
+# ✓ Go: 1.25.0
 # ✓ Chrome/Chromium: /usr/bin/chromium
 # ✓ CJK fonts: Noto Sans CJK SC
 # ✓ PlantUML: not installed (optional)
@@ -34,7 +34,7 @@ mdpress doctor
 
 **Go 安装：**
 ```
-✓ Go: 1.21.0 installed
+✓ Go: 1.25.0 installed
 ✓ go binary: /usr/local/go/bin/go
 ```
 
@@ -171,7 +171,7 @@ mdpress doctor --report markdown > DOCTOR_REPORT.md
 
 ```
 ✓ Platform: Linux
-✓ Go: 1.21.0
+✓ Go: 1.25.0
 ✓ Chrome: /usr/bin/chromium
 ```
 
@@ -404,7 +404,7 @@ mdpress build --format pdf
   "osVersion": "6.8.0",
   "go": {
     "installed": true,
-    "version": "1.21.0",
+    "version": "1.25.0",
     "path": "/usr/local/go/bin/go"
   },
   "chrome": {
