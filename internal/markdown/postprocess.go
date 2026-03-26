@@ -80,22 +80,22 @@ func stripChromaPreStyle(html string) string {
 //	<p>This is a note.</p>
 //	</div>
 func processAlerts(html string) string {
-	// 找到所有 alert blockquote 的起始位置
+	// Find all alert blockquote start positions.
 	for {
 		loc := alertPattern.FindStringSubmatchIndex(html)
 		if loc == nil {
 			break
 		}
 
-		// loc[0]:loc[1] = 整个匹配
-		// loc[2]:loc[3] = 类型名（NOTE/TIP/...）
+		// loc[0]:loc[1] = full match
+		// loc[2]:loc[3] = alert type name (NOTE/TIP/...)
 		alertType := html[loc[2]:loc[3]]
 		style, ok := alertTypes[alertType]
 		if !ok {
 			break
 		}
 
-		// 找到对应的 </blockquote>
+		// Find the matching </blockquote>.
 		startIdx := loc[0]
 		closeTag := "</blockquote>"
 		closeIdx := strings.Index(html[startIdx:], closeTag)
@@ -104,13 +104,13 @@ func processAlerts(html string) string {
 		}
 		closeIdx += startIdx
 
-		// 提取 blockquote 内部内容
+		// Extract inner content of the blockquote.
 		inner := html[loc[1]:closeIdx]
 
-		// 移除 [!TYPE] 后可能紧跟的换行/空白和 </p><p> 等
+		// Strip any leading newline/whitespace after the [!TYPE] marker.
 		inner = strings.TrimPrefix(inner, "\n")
 
-		// 构建 alert div
+		// Build the alert div.
 		alertHTML := "<div class=\"alert alert-" + strings.ToLower(alertType) + "\" " +
 			"style=\"border-left:4px solid " + style.border + ";background:" + style.bg +
 			";padding:12px 16px;margin:1em 0;border-radius:0 6px 6px 0;\">\n" +
@@ -137,10 +137,13 @@ func processMermaid(html string) string {
 		if len(parts) < 2 {
 			return match
 		}
-		// 还原 HTML 实体（goldmark 会转义 < > 等）
+		// Unescape HTML entities that goldmark added (e.g. &lt; &gt; &amp;),
+		// then re-escape to produce safe HTML. This preserves Mermaid syntax
+		// characters while preventing XSS via injected HTML tags or attributes.
 		code := parts[1]
 		code = htmlpkg.UnescapeString(code)
 		code = strings.TrimSpace(code)
+		code = htmlpkg.EscapeString(code)
 
 		return "<div class=\"mermaid\">\n" + code + "\n</div>"
 	})
@@ -156,43 +159,4 @@ func MermaidScript() string {
 // NeedsMermaid reports whether the HTML contains any Mermaid diagram elements.
 func NeedsMermaid(html string) bool {
 	return strings.Contains(html, `class="mermaid"`)
-}
-
-// NeedsKaTeX reports whether the HTML contains any math formula elements
-// produced by the math preprocessor.
-func NeedsKaTeX(html string) bool {
-	return strings.Contains(html, `class="math `)
-}
-
-// KaTeXScript returns the HTML tags (link + scripts) needed to load KaTeX and
-// its auto-render extension. The auto-render extension scans the document for
-// $...$ and $$...$$ delimiters and renders them with KaTeX.
-// Only include this when the HTML contains math elements (see NeedsKaTeX).
-func KaTeXScript() string {
-	return `<link rel="stylesheet" href="` + utils.KaTeXCSSURL + `">` +
-		`<script defer src="` + utils.KaTeXJSURL + `"></script>` +
-		`<script defer src="` + utils.KaTeXAutoRenderURL + `"` +
-		` onload="renderMathInElement(document.body,{` +
-		`delimiters:[` +
-		`{left:'$$',right:'$$',display:true},` +
-		`{left:'$',right:'$',display:false}` +
-		`],throwOnError:false});"></script>`
-}
-
-// KaTeXScriptForEpub returns XHTML-compatible KaTeX script tags for use inside
-// EPUB XHTML documents. Some EPUB readers (e.g. Apple Books) support JavaScript,
-// so KaTeX can render math formulas in those readers.
-func KaTeXScriptForEpub() string {
-	return "\n" +
-		`<link rel="stylesheet" href="` + utils.KaTeXCSSURL + `"/>` + "\n" +
-		`<script src="` + utils.KaTeXJSURL + `"></script>` + "\n" +
-		`<script src="` + utils.KaTeXAutoRenderURL + `"></script>` + "\n" +
-		`<script>` + "\n" +
-		`if(typeof renderMathInElement==='function'){` + "\n" +
-		`  renderMathInElement(document.body,{` + "\n" +
-		`    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],` + "\n" +
-		`    throwOnError:false` + "\n" +
-		`  });` + "\n" +
-		`}` + "\n" +
-		`</script>`
 }

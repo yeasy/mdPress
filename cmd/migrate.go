@@ -8,6 +8,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,16 +59,16 @@ func init() {
 
 // gitBookConfig represents the structure of a GitBook book.json file.
 type gitBookConfig struct {
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	Author      string                 `json:"author"`
-	Language    string                 `json:"language"`
-	Plugins     []string               `json:"plugins"`
-	GitBook     string                 `json:"gitbook"`
-	Structure   map[string]interface{} `json:"structure"`
-	Links       map[string]interface{} `json:"links"`
-	Styles      map[string]interface{} `json:"styles"`
-	Variables   map[string]interface{} `json:"variables"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Author      string         `json:"author"`
+	Language    string         `json:"language"`
+	Plugins     []string       `json:"plugins"`
+	GitBook     string         `json:"gitbook"`
+	Structure   map[string]any `json:"structure"`
+	Links       map[string]any `json:"links"`
+	Styles      map[string]any `json:"styles"`
+	Variables   map[string]any `json:"variables"`
 }
 
 // ---- Migration report ----
@@ -187,17 +188,17 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun bool, report *migra
 
 	// Build the mdpress book.yaml structure using only the basic Go types that
 	// yaml.v3 can marshal correctly.
-	bookYAML := map[string]interface{}{
-		"book": map[string]interface{}{
+	bookYAML := map[string]any{
+		"book": map[string]any{
 			"title":       nonEmpty(gb.Title, "Untitled Book"),
 			"author":      nonEmpty(gb.Author, "Unknown"),
 			"language":    nonEmpty(gb.Language, "en"),
 			"description": gb.Description,
 		},
-		"style": map[string]interface{}{
+		"style": map[string]any{
 			"theme": "technical",
 		},
-		"output": map[string]interface{}{
+		"output": map[string]any{
 			"filename": "output",
 			"toc":      true,
 			"cover":    false,
@@ -217,6 +218,10 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun bool, report *migra
 		fmt.Printf("[dry-run] Would write %s\n", outPath)
 		report.addCreated("book.yaml (dry-run)")
 		return &gb, nil
+	}
+
+	if utils.FileExists(outPath) {
+		slog.Warn("overwriting existing book.yaml", slog.String("path", outPath))
 	}
 
 	if err := os.WriteFile(outPath, []byte(header+string(yamlBytes)), 0644); err != nil {

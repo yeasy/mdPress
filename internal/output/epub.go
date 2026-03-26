@@ -616,7 +616,7 @@ func collectImageAssetsFromHTML(html string, sourceDir string, remoteTempDir str
 		}
 
 		matches := epubImageSrcPattern.FindStringSubmatch(match)
-		if len(matches) < 3 {
+		if len(matches) < 4 {
 			return match
 		}
 
@@ -668,11 +668,20 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 		return "remote:" + src, asset, err
 	}
 	if filepath.IsAbs(src) {
-		asset, err := buildFileImageAsset(src, index)
-		return "file:" + filepath.Clean(src), asset, err
+		// Reject absolute paths to prevent reading arbitrary files.
+		return "", nil, nil
 	}
 	if sourceDir != "" && src != "" && !strings.HasPrefix(src, "#") {
 		resolved := filepath.Clean(filepath.Join(sourceDir, filepath.FromSlash(src)))
+		// Ensure the resolved path stays within the source directory.
+		absBase, err1 := filepath.Abs(sourceDir)
+		absResolved, err2 := filepath.Abs(resolved)
+		if err1 != nil || err2 != nil {
+			return "", nil, nil
+		}
+		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
+			return "", nil, nil
+		}
 		asset, err := buildFileImageAsset(resolved, index)
 		return "file:" + resolved, asset, err
 	}

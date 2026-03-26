@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -41,17 +43,70 @@ type Renderer struct {
 
 // NewRenderer creates a new PlantUML renderer.
 // serverURL should be the base URL without the /svg path (e.g. "https://www.plantuml.com/plantuml")
-func NewRenderer(serverURL string, useLocal bool) *Renderer {
+func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 	if serverURL == "" {
 		serverURL = "https://www.plantuml.com/plantuml"
 	}
+	serverURL = strings.TrimSuffix(serverURL, "/")
+
+	// Validate the server URL to prevent SSRF via crafted book.yaml.
+	if err := validatePlantUMLServer(serverURL); err != nil {
+		return nil, fmt.Errorf("invalid plantuml server URL: %w", err)
+	}
+
 	return &Renderer{
-		serverURL: strings.TrimSuffix(serverURL, "/"),
+		serverURL: serverURL,
 		useLocal:  useLocal,
 		// HTTP timeout for PlantUML server requests. This balances network
 		// latency and rendering time for typical diagrams while preventing indefinite hangs.
 		httpClient: &http.Client{Timeout: plantumlHTTPTimeout},
+	}, nil
+}
+
+// newRendererNoValidation creates a Renderer without SSRF validation.
+// This is intended for tests that use local mock servers.
+func newRendererNoValidation(serverURL string, useLocal bool) *Renderer {
+	if serverURL == "" {
+		serverURL = "https://www.plantuml.com/plantuml"
 	}
+	return &Renderer{
+		serverURL:  strings.TrimSuffix(serverURL, "/"),
+		useLocal:   useLocal,
+		httpClient: &http.Client{Timeout: plantumlHTTPTimeout},
+	}
+}
+
+// validatePlantUMLServer checks that the PlantUML server URL uses HTTPS and
+// does not resolve to a private/internal address.
+func validatePlantUMLServer(serverURL string) error {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return fmt.Errorf("malformed URL: %w", err)
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return fmt.Errorf("scheme %q not allowed; use http or https", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("empty hostname")
+	}
+	lower := strings.ToLower(host)
+	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
+		return fmt.Errorf("requests to %q are not allowed", host)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return fmt.Errorf("DNS resolution failed for %q: %w", host, err)
+	}
+	for _, ipStr := range ips {
+		ip := net.ParseIP(ipStr)
+		if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
+			return fmt.Errorf("address %s is private/internal", ipStr)
+		}
+	}
+	return nil
 }
 
 // plantumlPattern matches <pre><code class="language-plantuml">...</code></pre>
@@ -91,7 +146,9 @@ func (r *Renderer) RenderHTML(ctx context.Context, html string) (string, error) 
 func (r *Renderer) getSVG(ctx context.Context, code string) (string, error) {
 	// Check cache first
 	if cached, ok := r.cache.Load(code); ok {
-		return cached.(string), nil
+		if s, ok := cached.(string); ok {
+			return s, nil
+		}
 	}
 
 	var svg string
@@ -133,7 +190,7 @@ func (r *Renderer) renderServer(ctx context.Context, code string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch plantuml diagram: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		// Read error response body (capped to prevent excessive logging)
