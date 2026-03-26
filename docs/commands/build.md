@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Build publishable outputs from a local directory or a GitHub repository. `build` supports `pdf`, `html`, `site`, and `epub`, and it can generate multiple formats in a single run.
+Build publishable outputs from a local directory or a GitHub repository. `build` supports `pdf`, `html`, `site`, `epub`, and `typst`, and it can generate multiple formats in a single run.
 
 ## Syntax
 
@@ -55,6 +55,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - When `--format` is provided, the CLI value overrides `output.formats` in config.
 - When `--format` is omitted, `output.formats` is used first.
 - If neither is set, the default output is `pdf`.
+- `--format all` expands to `pdf,html,site,epub` and does **not** include `typst`. To include Typst output, specify it explicitly (e.g., `--format all,typst` or `--format pdf,html,site,epub,typst`).
 
 ### `--output`
 
@@ -114,10 +115,12 @@ mdpress build --config ./configs/book.yaml --verbose
 | `html` | A self-contained single-page HTML file |
 | `site` | A multi-page static site directory |
 | `epub` | A single ePub file |
+| `typst` | A PDF file generated via the Typst CLI (experimental, Chromium-free) |
 
 ## Notes
 
 - PDF generation requires Chrome or Chromium. If neither is available, PDF builds will fail.
+- Typst output requires the Typst CLI. If it is not installed, `--format typst` builds will fail.
 - During the build, mdpress checks heading numbering, Markdown links, and Mermaid diagnostics. Many of these are warnings and do not necessarily stop the build.
 - When `LANGS.md` exists at the project root, `build` generates one output set per language and also creates a language landing page.
 - For remote GitHub inputs, the current implementation prefers the remote repository's `book.yaml`. A local `--config` path does not override the remote project's config location.

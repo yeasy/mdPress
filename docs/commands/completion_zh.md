@@ -41,7 +41,7 @@ source <(mdpress completion zsh)
 
 ## 子命令参数
 
-`bash` 和 `zsh` 等补全子命令当前支持：
+`bash` 和 `fish` 补全子命令当前支持：
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ source <(mdpress completion zsh)
 
 ## 注意事项
 
-- 补全脚本输出到标准输出，通常需要重定向到文件，或通过 `source <(...)>` 立即载入。
+- 补全脚本输出到标准输出，通常需要重定向到文件，或通过 `source <(...)` 立即载入。
 - `bash` 的帮助信息明确要求系统安装 `bash-completion`。
 - `zsh` 如果还没有启用补全，需要先在环境里执行 `autoload -U compinit; compinit`。
 - `--config` 虽然是全局参数，但当前 `completion` 不会使用它。

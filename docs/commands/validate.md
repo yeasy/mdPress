@@ -20,7 +20,11 @@ mdpress validate [directory] [flags]
 
 ## Flags
 
-`validate` currently has no dedicated flags and mainly uses global flags:
+| Flag | Short | Default | Description |
+| --- | --- | --- | --- |
+| `--report` | | (none) | Write validation report to `.json` or `.md` file |
+
+`validate` also uses global flags:
 
 | Flag | Default | Description |
 | --- | --- | --- |

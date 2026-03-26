@@ -4,7 +4,7 @@
 
 ## 作用
 
-从本地目录或 GitHub 仓库构建发布产物。支持 `pdf`、`html`、`site`、`epub` 四种输出格式，也支持一次构建多种格式。
+从本地目录或 GitHub 仓库构建发布产物。支持 `pdf`、`html`、`site`、`epub`、`typst` 五种输出格式，也支持一次构建多种格式。
 
 ## 语法
 
@@ -55,6 +55,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - 传入 `--format` 时，命令行值会覆盖配置文件中的 `output.formats`
 - 不传 `--format` 时，优先使用 `output.formats`
 - 如果两者都没有设置，默认构建 `pdf`
+- `--format all` 展开为 `pdf,html,site,epub`，**不**包含 `typst`。如需 Typst 输出，请显式指定（例如 `--format all,typst` 或 `--format pdf,html,site,epub,typst`）。
 
 ### `--output` 的行为
 
@@ -114,10 +115,12 @@ mdpress build --config ./configs/book.yaml --verbose
 | `html` | 自包含单页 HTML 文件 |
 | `site` | 多页静态站点目录 |
 | `epub` | 单个 ePub 文件 |
+| `typst` | 通过 Typst CLI 生成的 PDF 文件（实验性，无需 Chromium） |
 
 ## 注意事项
 
 - 生成 PDF 依赖 Chrome 或 Chromium；如果系统没有浏览器，PDF 构建会失败。
+- Typst 输出依赖 Typst CLI；如果未安装，`--format typst` 构建会失败。
 - 构建过程中会检查章节标题编号、Markdown 链接和 Mermaid 诊断，但很多问题是警告，不一定直接终止构建。
 - 当项目根目录存在 `LANGS.md` 时，`build` 会按语言分别构建，并额外生成语言入口页。
 - 对远程 GitHub 仓库输入，当前实现优先使用远程仓库中的 `book.yaml`。本地传入的 `--config` 不会覆盖远程项目内的配置文件路径。
