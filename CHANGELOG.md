@@ -8,6 +8,62 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.3] - 2026-03-26
+
+### Security
+
+- **SSRF prevention for PlantUML**: Validates PlantUML server URLs against private/loopback IPs via DNS resolution
+- **Mermaid XSS fix**: Re-escapes HTML entities after unescaping in Mermaid code blocks
+- **EPUB path traversal prevention**: Rejects absolute image paths and validates relative paths stay within source directory
+- **Tar path traversal prevention**: Skips tar entries containing `..` during upgrade extraction
+- **Template injection prevention**: Strips `{{` and `}}` from Typst metadata and dimension fields
+- **Config field validation**: Validates `font_family`, `font_size`, and `code_theme` against injection patterns
+- **Custom CSS size limit**: Limits custom CSS file reads to 1 MB to prevent memory exhaustion
+- **URL scheme validation**: `openBrowser` only allows `http` and `https` schemes
+
+### Fixed
+
+- **Search broken on subpages**: Search index was fetched with relative path, causing 404 on pages in subdirectories
+- **Search result links wrong**: Search result hrefs were relative, causing incorrect navigation from subpages
+- **Off-by-one bounds check**: Fixed `len(matches) < 3` to `< 4` in EPUB and image regex submatch access
+- **Unchecked type assertion**: PlantUML cache `sync.Map` load now uses comma-ok pattern
+- **Ignored JS exception**: PDF font loading exception is now logged instead of silently discarded
+- **Ignored filepath.Abs error**: Doctor command now handles `filepath.Abs` failure gracefully
+- **GitHub tempdir leak**: `Prepare()` now cleans up temp directory on validation failure
+- **CrossRef priority mismatch**: `GetAllReferences` now matches `Resolve` priority order
+
+### Changed
+
+- **Search redesigned as right-side panel**: Search opens as a GitBook-style right panel instead of a modal overlay
+- **Search auto-close on mouse leave**: Panel closes when mouse leaves (unless input is focused)
+- **Defensive slice copy**: `Plugins()` now returns a copy to prevent external mutation
+- **Goroutine panic recovery**: Image prefetch goroutines now recover from panics
+- **Debounce context check**: File watcher callbacks check context cancellation before rebuilding
+- **HTTP client timeout**: Doctor network check now has a 5-second timeout
+- **Hex color support**: `isLightColor` now handles 4-char and 8-char hex codes
+
+### Performance
+
+- **Package-level MIME map**: Image MIME type map allocated once instead of per-call
+- **strings.Builder**: Theme preview HTML generation uses Builder instead of concatenation
+- **Shared line splitting**: Diagnostics splits source lines once instead of twice
+- **Pre-compiled regexes**: Config validation regexes compiled at package level
+
+### Documentation
+
+- Updated ROADMAP and ARCHITECTURE for v0.6.2 release
+- Added missing `upgrade`, `completion`, `version` commands to architecture diagram
+- Fixed ePub version from "2.0" to "3" in Chinese architecture doc
+- Normalized CHANGELOG heading from `Docs` to `Documentation`
+
+### Tests
+
+- Converted `t.Logf` to `t.Errorf`/`t.Fatalf` across 42 test files
+- Added real assertions to previously assertion-less tests
+- Replaced `t.Logf` + `return` with `t.Skipf` for proper skip reporting
+
+---
+
 ## [0.6.2] - 2026-03-25
 
 ### Security
@@ -461,7 +517,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/yeasy/mdpress/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/yeasy/mdpress/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/yeasy/mdpress/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/yeasy/mdpress/compare/v0.5.4...v0.6.0
