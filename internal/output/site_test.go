@@ -49,7 +49,7 @@ func TestSiteGeneratorIndexPage(t *testing.T) {
 		t.Error("index.html should contain the first chapter content")
 	}
 	// The SPA router should recognize ch1.html as the active file.
-	if !strings.Contains(indexHTML, `class="sidebar-home-link" href="index.html"`) {
+	if !strings.Contains(indexHTML, `class="sidebar-home-link" href="/index.html"`) {
 		t.Error("index.html should point the sidebar title to index.html")
 	}
 	if strings.Contains(indexHTML, `<span class="bc-sep">›</span>`) {
@@ -100,7 +100,7 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 		t.Error("first page should not have a previous link")
 	}
 	// But should have a next link
-	if !strings.Contains(ch1HTML, `href="ch2.html"`) {
+	if !strings.Contains(ch1HTML, `href="/ch2.html"`) {
 		t.Error("first page should link to next page (ch2.html)")
 	}
 	if !strings.Contains(ch1HTML, "Chapter 2") {
@@ -114,13 +114,13 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	}
 	ch2HTML := string(ch2Data)
 
-	if !strings.Contains(ch2HTML, `href="ch1.html"`) {
+	if !strings.Contains(ch2HTML, `href="/ch1.html"`) {
 		t.Error("middle page should have a previous link to ch1.html")
 	}
 	if !strings.Contains(ch2HTML, "Chapter 1") {
 		t.Error("middle page should show previous page title (Chapter 1)")
 	}
-	if !strings.Contains(ch2HTML, `href="ch3.html"`) {
+	if !strings.Contains(ch2HTML, `href="/ch3.html"`) {
 		t.Error("middle page should have a next link to ch3.html")
 	}
 	if !strings.Contains(ch2HTML, "Chapter 3") {
@@ -134,7 +134,7 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	}
 	ch3HTML := string(ch3Data)
 
-	if !strings.Contains(ch3HTML, `href="ch2.html"`) {
+	if !strings.Contains(ch3HTML, `href="/ch2.html"`) {
 		t.Error("last page should have a previous link to ch2.html")
 	}
 	if !strings.Contains(ch3HTML, "Chapter 2") {
@@ -287,7 +287,7 @@ func TestSiteGeneratorAutoFilenames(t *testing.T) {
 	}
 	page0HTML := string(page0Data)
 
-	if !strings.Contains(page0HTML, `href="page_1.html"`) {
+	if !strings.Contains(page0HTML, `href="/page_1.html"`) {
 		t.Error("page_0.html should link to page_1.html")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -85,9 +86,9 @@ func TestE2E_QuickstartBuildVerify(t *testing.T) {
 		htmlContent = resolver.ProcessHTML(htmlContent)
 		htmlContent = resolver.AddCaptions(htmlContent)
 
-		chapterID := headings[0].ID
-		if len(headings) == 0 {
-			chapterID = "chapter-" + string(rune('0'+i))
+		chapterID := "chapter-" + strconv.Itoa(i)
+		if len(headings) > 0 {
+			chapterID = headings[0].ID
 		}
 
 		chaptersHTML = append(chaptersHTML, renderer.ChapterHTML{

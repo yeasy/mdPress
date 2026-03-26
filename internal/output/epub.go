@@ -110,7 +110,6 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	}()
 
 	w := zip.NewWriter(f)
-	defer w.Close()
 
 	// 1. mimetype must be the first file and must not be compressed.
 	mimeWriter, err := w.CreateHeader(&zip.FileHeader{
@@ -181,11 +180,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		}
 	}
 
-	// The defer statement handles closing the zip.Writer. However, we still need
-	// to check that it closed successfully, as the close operation writes the central
-	// directory — if this fails the .epub is corrupt. We do this by explicitly calling
-	// Close one more time and checking the error (redundant Close calls on zip.Writer
-	// return nil after the first successful Close).
+	// Close the zip.Writer explicitly so we can check the error — the close
+	// operation writes the central directory, and if it fails the .epub is
+	// corrupt. On error paths the safety-net defer above removes the file.
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to finalize epub archive: %w", err)
 	}
@@ -246,7 +243,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 
 	for i, ch := range chapters {
 		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n",
-			i, ch.Filename)
+			i, utils.EscapeXML(ch.Filename))
 	}
 
 	b.WriteString("  </manifest>\n  <spine>\n")
@@ -285,7 +282,7 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	for i, ch := range chapters {
 		fmt.Fprintf(&b, "    <navPoint id=\"nav%d\" playOrder=\"%d\">\n", i, playOrder)
 		fmt.Fprintf(&b, "      <navLabel><text>%s</text></navLabel>\n", utils.EscapeXML(ch.Title))
-		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", ch.Filename)
+		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", utils.EscapeXML(ch.Filename))
 		b.WriteString("    </navPoint>\n")
 		playOrder++
 	}
@@ -500,7 +497,7 @@ func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
 
 	return &epubAsset{
 		ID:        "cover-image",
-		Filename:  filepath.ToSlash(filepath.Join("assets", "cover"+ext)),
+		Filename:  "assets/cover" + ext,
 		MediaType: mediaType,
 		Data:      data,
 	}, nil

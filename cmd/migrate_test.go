@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // ---- rewriteGitBookSyntax tests ----
@@ -658,14 +660,14 @@ func TestNonEmpty(t *testing.T) {
 	}
 }
 
-// TestFileExists tests the fileExists helper function.
+// TestFileExists tests the utils.FileExists helper function.
 func TestFileExists(t *testing.T) {
 	dir := t.TempDir()
 	nonExistent := filepath.Join(dir, "does-not-exist.txt")
 
 	// Test non-existent file
-	if fileExists(nonExistent) {
-		t.Error("expected fileExists to return false for non-existent file")
+	if utils.FileExists(nonExistent) {
+		t.Error("expected FileExists to return false for non-existent file")
 	}
 
 	// Create a file and test
@@ -673,12 +675,12 @@ func TestFileExists(t *testing.T) {
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if !fileExists(testFile) {
-		t.Error("expected fileExists to return true for existing file")
+	if !utils.FileExists(testFile) {
+		t.Error("expected FileExists to return true for existing file")
 	}
 
 	// Test with directory
-	if !fileExists(dir) {
-		t.Error("expected fileExists to return true for existing directory")
+	if !utils.FileExists(dir) {
+		t.Error("expected FileExists to return true for existing directory")
 	}
 }

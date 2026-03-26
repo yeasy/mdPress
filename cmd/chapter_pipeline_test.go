@@ -148,9 +148,9 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 		t.Error("Expected nil result when no chapters are processed")
 	}
 
-	// Check error message
-	if !strings.Contains(err.Error(), "no chapters were processed") {
-		t.Errorf("Expected error about no chapters processed, got: %v", err)
+	// Check error message — now fails with a read error for the missing file.
+	if !strings.Contains(err.Error(), "failed to read chapter") && !strings.Contains(err.Error(), "no chapters were processed") {
+		t.Errorf("Expected error about missing chapter or no chapters processed, got: %v", err)
 	}
 }
 
@@ -241,22 +241,14 @@ This is the second chapter.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.Process(context.Background())
+	_, err := pipeline.Process(context.Background())
 
-	// Should succeed because at least one chapter was processed
-	if err != nil {
-		t.Fatalf("Pipeline process failed: %v", err)
+	// Should fail because one chapter file is missing.
+	if err == nil {
+		t.Fatal("Expected error when a chapter file is missing")
 	}
-
-	// Should have exactly 1 chapter (the missing one is skipped)
-	if len(result.Chapters) != 1 {
-		t.Errorf("Expected 1 chapter (missing one skipped), got %d", len(result.Chapters))
-	}
-
-	if len(result.Chapters) > 0 {
-		if result.Chapters[0].Title != "Chapter Two" {
-			t.Errorf("Expected remaining chapter to be 'Chapter Two', got %q", result.Chapters[0].Title)
-		}
+	if !strings.Contains(err.Error(), "failed to read chapter") {
+		t.Errorf("Expected error about failed chapter read, got: %v", err)
 	}
 }
 
@@ -779,16 +771,14 @@ func TestParallelChapterParsingErrorHandling(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	result, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+	_, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
 
-	// The missing chapter is skipped (doesn't cause failure), so we should get at least the valid chapters
-	if err != nil {
-		t.Fatalf("Parallel pipeline failed: %v", err)
+	// The missing chapter should now cause the pipeline to fail.
+	if err == nil {
+		t.Fatal("Expected error when a chapter file is missing")
 	}
-
-	// We should have at least the 2 valid chapters
-	if len(result.Chapters) < 2 {
-		t.Errorf("Expected at least 2 chapters, got %d", len(result.Chapters))
+	if !strings.Contains(err.Error(), "failed to read chapter") {
+		t.Errorf("Expected error about failed chapter read, got: %v", err)
 	}
 }
 

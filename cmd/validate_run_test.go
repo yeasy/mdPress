@@ -177,8 +177,8 @@ func TestFinalizeValidate_NoError(t *testing.T) {
 	defer withValidateReportPath(t, "")()
 
 	results := []validateResult{
-		{ok: true, message: "check 1 passed"},
-		{ok: true, message: "check 2 passed"},
+		{OK: true, Message: "check 1 passed"},
+		{OK: true, Message: "check 2 passed"},
 	}
 	if err := finalizeValidate(results, false); err != nil {
 		t.Errorf("finalizeValidate with no error should return nil: %v", err)
@@ -189,8 +189,8 @@ func TestFinalizeValidate_WithError(t *testing.T) {
 	defer withValidateReportPath(t, "")()
 
 	results := []validateResult{
-		{ok: true, message: "check passed"},
-		{ok: false, message: "check failed"},
+		{OK: true, Message: "check passed"},
+		{OK: false, Message: "check failed"},
 	}
 	err := finalizeValidate(results, true)
 	if err == nil {
@@ -206,7 +206,7 @@ func TestFinalizeValidate_WritesJSONReport(t *testing.T) {
 	reportPath := filepath.Join(tmpDir, "report.json")
 	defer withValidateReportPath(t, reportPath)()
 
-	results := []validateResult{{ok: true, message: "all good"}}
+	results := []validateResult{{OK: true, Message: "all good"}}
 	if err := finalizeValidate(results, false); err != nil {
 		t.Errorf("finalizeValidate should succeed: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestFinalizeValidate_QuietMode(t *testing.T) {
 	quiet = true
 	defer func() { quiet = oldQuiet }()
 
-	results := []validateResult{{ok: false, message: "failed check"}}
+	results := []validateResult{{OK: false, Message: "failed check"}}
 	err := finalizeValidate(results, true)
 	if err == nil {
 		t.Error("should still return error even in quiet mode")
@@ -230,8 +230,8 @@ func TestFinalizeValidate_QuietMode(t *testing.T) {
 
 func TestPrintResults_Normal(t *testing.T) {
 	results := []validateResult{
-		{ok: true, message: "passed"},
-		{ok: false, message: "failed"},
+		{OK: true, Message: "passed"},
+		{OK: false, Message: "failed"},
 	}
 	// Just verify no panic
 	printResults(results)
@@ -243,8 +243,8 @@ func TestPrintResults_QuietMode(t *testing.T) {
 	defer func() { quiet = oldQuiet }()
 
 	results := []validateResult{
-		{ok: true, message: "passed"},
-		{ok: false, message: "failed"},
+		{OK: true, Message: "passed"},
+		{OK: false, Message: "failed"},
 	}
 	// Should return immediately without printing
 	printResults(results)

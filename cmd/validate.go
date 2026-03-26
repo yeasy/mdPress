@@ -55,8 +55,8 @@ func init() {
 
 // validateResult represents a single validation result.
 type validateResult struct {
-	ok      bool   // Whether the check passed.
-	message string // Human-readable description.
+	OK      bool   `json:"ok"`      // Whether the check passed.
+	Message string `json:"message"` // Human-readable description.
 }
 
 // executeValidate runs the full validation flow.
@@ -80,34 +80,34 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	var err error
 	if utils.FileExists(configPath) {
 		results = append(results, validateResult{
-			ok:      true,
-			message: fmt.Sprintf("Config file found: %s", configPath),
+			OK:      true,
+			Message: fmt.Sprintf("Config file found: %s", configPath),
 		})
 
 		cfg, err = config.Load(configPath)
 		if err != nil {
 			results = append(results, validateResult{
-				ok:      false,
-				message: fmt.Sprintf("Invalid config syntax: %v", err),
+				OK:      false,
+				Message: fmt.Sprintf("Invalid config syntax: %v", err),
 			})
 			return finalizeValidate(results, true)
 		}
 		results = append(results, validateResult{
-			ok:      true,
-			message: "Config syntax is valid",
+			OK:      true,
+			Message: "Config syntax is valid",
 		})
 	} else {
 		cfg, err = config.Discover(ctx, absTargetDir)
 		if err != nil {
 			results = append(results, validateResult{
-				ok:      false,
-				message: fmt.Sprintf("No buildable project found: %v", err),
+				OK:      false,
+				Message: fmt.Sprintf("No buildable project found: %v", err),
 			})
 			return finalizeValidate(results, true)
 		}
 		results = append(results, validateResult{
-			ok:      true,
-			message: fmt.Sprintf("No book.yaml found, using auto-discovery from: %s", cfg.BaseDir()),
+			OK:      true,
+			Message: fmt.Sprintf("No book.yaml found, using auto-discovery from: %s", cfg.BaseDir()),
 		})
 		configPath = filepath.Join(cfg.BaseDir(), "book.yaml")
 	}
@@ -115,26 +115,26 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	// ========== 3. Check required fields ==========
 	// Title
 	if cfg.Book.Title == "" {
-		results = append(results, validateResult{ok: false, message: "Missing book title (book.title)"})
+		results = append(results, validateResult{OK: false, Message: "Missing book title (book.title)"})
 		hasError = true
 	} else {
-		results = append(results, validateResult{ok: true, message: fmt.Sprintf("Title: %s", cfg.Book.Title)})
+		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Title: %s", cfg.Book.Title)})
 	}
 
 	// Author
 	if cfg.Book.Author == "" {
-		results = append(results, validateResult{ok: false, message: "Missing author (book.author) (recommended)"})
+		results = append(results, validateResult{OK: false, Message: "Missing author (book.author) (recommended)"})
 		// Missing author is a warning, not a hard error.
 	} else {
-		results = append(results, validateResult{ok: true, message: fmt.Sprintf("Author: %s", cfg.Book.Author)})
+		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Author: %s", cfg.Book.Author)})
 	}
 
 	// Chapter list
 	if len(cfg.Chapters) == 0 {
-		results = append(results, validateResult{ok: false, message: "No chapters defined (chapters)"})
+		results = append(results, validateResult{OK: false, Message: "No chapters defined (chapters)"})
 		hasError = true
 	} else {
-		results = append(results, validateResult{ok: true, message: fmt.Sprintf("Chapter count: %d", countChapterDefs(cfg.Chapters))})
+		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Chapter count: %d", countChapterDefs(cfg.Chapters))})
 	}
 
 	// ========== 4. Check referenced Markdown files ==========
@@ -144,13 +144,13 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		filePath := cfg.ResolvePath(ch.File)
 		if utils.FileExists(filePath) {
 			results = append(results, validateResult{
-				ok:      true,
-				message: fmt.Sprintf("Chapter file found: %s", ch.File),
+				OK:      true,
+				Message: fmt.Sprintf("Chapter file found: %s", ch.File),
 			})
 		} else {
 			results = append(results, validateResult{
-				ok:      false,
-				message: fmt.Sprintf("Chapter file not found: %s", ch.File),
+				OK:      false,
+				Message: fmt.Sprintf("Chapter file not found: %s", ch.File),
 			})
 			missingFiles++
 			hasError = true
@@ -162,13 +162,13 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		coverPath := cfg.ResolvePath(cfg.Book.Cover.Image)
 		if utils.FileExists(coverPath) {
 			results = append(results, validateResult{
-				ok:      true,
-				message: fmt.Sprintf("Cover image found: %s", cfg.Book.Cover.Image),
+				OK:      true,
+				Message: fmt.Sprintf("Cover image found: %s", cfg.Book.Cover.Image),
 			})
 		} else {
 			results = append(results, validateResult{
-				ok:      false,
-				message: fmt.Sprintf("Cover image not found: %s", cfg.Book.Cover.Image),
+				OK:      false,
+				Message: fmt.Sprintf("Cover image not found: %s", cfg.Book.Cover.Image),
 			})
 			hasError = true
 		}
@@ -178,9 +178,9 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	if cfg.Style.CustomCSS != "" {
 		cssPath := cfg.ResolvePath(cfg.Style.CustomCSS)
 		if utils.FileExists(cssPath) {
-			results = append(results, validateResult{ok: true, message: fmt.Sprintf("Custom CSS found: %s", cfg.Style.CustomCSS)})
+			results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Custom CSS found: %s", cfg.Style.CustomCSS)})
 		} else {
-			results = append(results, validateResult{ok: false, message: fmt.Sprintf("Custom CSS not found: %s", cfg.Style.CustomCSS)})
+			results = append(results, validateResult{OK: false, Message: fmt.Sprintf("Custom CSS not found: %s", cfg.Style.CustomCSS)})
 			hasError = true
 		}
 	}
@@ -212,8 +212,8 @@ func executeValidate(ctx context.Context, targetDir string) error {
 			}
 			if !utils.FileExists(imgPath) {
 				results = append(results, validateResult{
-					ok:      false,
-					message: fmt.Sprintf("Image not found: %s (referenced from %s)", img, ch.File),
+					OK:      false,
+					Message: fmt.Sprintf("Image not found: %s (referenced from %s)", img, ch.File),
 				})
 				imageErrors++
 				hasError = true
@@ -222,8 +222,8 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	}
 	if imageChecked > 0 && imageErrors == 0 {
 		results = append(results, validateResult{
-			ok:      true,
-			message: fmt.Sprintf("Image reference check passed (%d images)", imageChecked),
+			OK:      true,
+			Message: fmt.Sprintf("Image reference check passed (%d images)", imageChecked),
 		})
 	}
 
@@ -231,20 +231,20 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	contentIssues, contentErr := validateChapterContentAndSequence(cfg)
 	if contentErr != nil {
 		results = append(results, validateResult{
-			ok:      false,
-			message: fmt.Sprintf("Content validation failed: %v", contentErr),
+			OK:      false,
+			Message: fmt.Sprintf("Content validation failed: %v", contentErr),
 		})
 		hasError = true
 	} else if len(contentIssues) == 0 {
 		results = append(results, validateResult{
-			ok:      true,
-			message: "Chapter numbering and Mermaid checks passed",
+			OK:      true,
+			Message: "Chapter numbering and Mermaid checks passed",
 		})
 	} else {
 		for _, issue := range contentIssues {
 			results = append(results, validateResult{
-				ok:      false,
-				message: issue,
+				OK:      false,
+				Message: issue,
 			})
 		}
 		hasError = true
@@ -254,20 +254,20 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	unresolvedLinks, linkErr := findUnresolvedMarkdownLinks(cfg)
 	if linkErr != nil {
 		results = append(results, validateResult{
-			ok:      false,
-			message: fmt.Sprintf("Markdown link check failed: %v", linkErr),
+			OK:      false,
+			Message: fmt.Sprintf("Markdown link check failed: %v", linkErr),
 		})
 		hasError = true
 	} else if len(unresolvedLinks) == 0 {
 		results = append(results, validateResult{
-			ok:      true,
-			message: "Markdown chapter link check passed",
+			OK:      true,
+			Message: "Markdown chapter link check passed",
 		})
 	} else {
 		for _, item := range unresolvedLinks {
 			results = append(results, validateResult{
-				ok:      false,
-				message: fmt.Sprintf("Markdown link target is outside the build graph: %s (referenced from %s)", item.Target, item.Source),
+				OK:      false,
+				Message: fmt.Sprintf("Markdown link target is outside the build graph: %s (referenced from %s)", item.Target, item.Source),
 			})
 		}
 		hasError = true
@@ -287,7 +287,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	for file, desc := range specialFiles {
 		path := filepath.Join(configDir, file)
 		if utils.FileExists(path) {
-			results = append(results, validateResult{ok: true, message: fmt.Sprintf("Detected %s (%s)", file, desc)})
+			results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Detected %s (%s)", file, desc)})
 		}
 	}
 
@@ -301,10 +301,10 @@ func printResults(results []validateResult) {
 	}
 	fmt.Println()
 	for _, r := range results {
-		if r.ok {
-			utils.Success("%s", r.message)
+		if r.OK {
+			utils.Success("%s", r.Message)
 		} else {
-			utils.Error("%s", r.message)
+			utils.Error("%s", r.Message)
 		}
 	}
 }
@@ -323,9 +323,9 @@ func extractImagePaths(filePath string) ([]string, error) {
 	defer f.Close() //nolint:errcheck
 
 	// Match Markdown image syntax: ![alt](path)
-	imgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	imgRegex := mdImagePattern
 	// Match HTML img tags: <img src="path">
-	htmlImgRegex := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
+	htmlImgRegex := htmlImgSrcPattern
 
 	var images []string
 	scanner := bufio.NewScanner(f)
@@ -403,8 +403,8 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 	}
 	defer f.Close() //nolint:errcheck
 
-	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	htmlLinkRegex := regexp.MustCompile(`<a[^>]+href=["']([^"']+\.md(?:#[^"']*)?)["']`)
+	linkRegex := mdLinkPattern
+	htmlLinkRegex := htmlLinkHrefPattern
 
 	var links []string
 	scanner := bufio.NewScanner(f)
@@ -471,11 +471,7 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) ([]string, error)
 			return issues, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, err)
 		}
 
-		_, headings, diagnostics, err := parser.ParseWithDiagnostics(content)
-		if err != nil {
-			return issues, fmt.Errorf("failed to parse chapter %s with diagnostics: %w", flat.Def.File, err)
-		}
-		htmlContent, _, err := parser.Parse(content)
+		htmlContent, headings, diagnostics, err := parser.ParseWithDiagnostics(content)
 		if err != nil {
 			return issues, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, err)
 		}
@@ -532,7 +528,14 @@ func validateChapterSequence(chapters []config.ChapterDef) []string {
 	return issues
 }
 
-var relaxedChineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)(?:\s*([章节篇部卷]))?(?:\s+|$)`)
+// Pre-compiled regexps for content validation.
+var (
+	relaxedChineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)(?:\s*([章节篇部卷]))?(?:\s+|$)`)
+	mdImagePattern                     = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	htmlImgSrcPattern                  = regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
+	mdLinkPattern                      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	htmlLinkHrefPattern                = regexp.MustCompile(`<a[^>]+href=["']([^"']+\.md(?:#[^"']*)?)["']`)
+)
 
 func parseSequenceParts(title string) ([]int, bool) {
 	if matches := decimalTitleSequencePattern.FindStringSubmatch(title); len(matches) >= 2 {
@@ -642,7 +645,7 @@ func finalizeValidate(results []validateResult, hasError bool) error {
 
 func summarizeValidationResults(results []validateResult) (passed int, failed int) {
 	for _, r := range results {
-		if r.ok {
+		if r.OK {
 			passed++
 		} else {
 			failed++
@@ -691,10 +694,10 @@ func renderValidationMarkdown(report validationReport) string {
 	b.WriteString("## Results\n\n")
 	for _, result := range report.Results {
 		status := "PASS"
-		if !result.ok {
+		if !result.OK {
 			status = "FAIL"
 		}
-		fmt.Fprintf(&b, "- [%s] %s\n", status, result.message)
+		fmt.Fprintf(&b, "- [%s] %s\n", status, result.Message)
 	}
 	return b.String()
 }
