@@ -2,9 +2,9 @@ package plantuml
 
 import (
 	"bytes"
-	"compress/zlib"
+	"compress/flate"
 	"context"
-	"encoding/base64"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,36 +66,55 @@ func TestEncodeForServerRoundtrip(t *testing.T) {
 		t.Fatalf("encoding failed: %v", err)
 	}
 
-	// Decode it back
-	// Add back the padding that was removed
+	// Decode using the PlantUML custom base64 alphabet.
+	// Add back padding that was stripped.
 	padding := (4 - len(encoded)%4) % 4
-	paddedEncoded := encoded + strings.Repeat("=", padding)
+	padded := encoded + strings.Repeat("=", padding)
 
-	// Reverse the character replacements
-	reversedEncoded := strings.NewReplacer(
-		"-", "+",
-		"_", "/",
-	).Replace(paddedEncoded)
-
-	decoded, err := base64.StdEncoding.DecodeString(reversedEncoded)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
+	raw := make([]byte, 0, len(padded)*3/4)
+	for i := 0; i+3 < len(padded); i += 4 {
+		b0 := plantumlDecode6bit(padded[i])
+		b1 := plantumlDecode6bit(padded[i+1])
+		b2 := plantumlDecode6bit(padded[i+2])
+		b3 := plantumlDecode6bit(padded[i+3])
+		raw = append(raw, (b0<<2)|(b1>>4))
+		if padded[i+2] != '=' {
+			raw = append(raw, (b1<<4)|(b2>>2))
+		}
+		if padded[i+3] != '=' {
+			raw = append(raw, (b2<<6)|b3)
+		}
 	}
 
-	// Decompress with zlib
-	r, err := zlib.NewReader(bytes.NewReader(decoded))
-	if err != nil {
-		t.Fatalf("zlib reader creation failed: %v", err)
-	}
+	// Decompress with raw deflate.
+	r := flate.NewReader(bytes.NewReader(raw))
 	defer r.Close()
 
-	var decompressed bytes.Buffer
-	if _, err := decompressed.ReadFrom(r); err != nil {
-		t.Fatalf("zlib decompression failed: %v", err)
+	decompressed, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("deflate decompression failed: %v", err)
 	}
 
-	if decompressed.String() != original {
-		t.Fatalf("roundtrip failed: got %q, want %q", decompressed.String(), original)
+	if string(decompressed) != original {
+		t.Fatalf("roundtrip failed: got %q, want %q", string(decompressed), original)
+	}
+}
+
+// plantumlDecode6bit reverses plantumlEncode6bit for testing.
+func plantumlDecode6bit(c byte) byte {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0'
+	case c >= 'A' && c <= 'Z':
+		return c - 'A' + 10
+	case c >= 'a' && c <= 'z':
+		return c - 'a' + 36
+	case c == '-':
+		return 62
+	case c == '_':
+		return 63
+	default:
+		return 0
 	}
 }
 

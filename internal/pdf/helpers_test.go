@@ -61,11 +61,14 @@ func TestInjectCJKFontFacePrependFallback(t *testing.T) {
 	// Either no CSS (no fonts), or CSS is prepended
 	switch {
 	case strings.HasPrefix(result, "<style data-cjk-fonts"):
-		t.Log("CSS was prepended (fonts available)")
+		// Fonts available: result should be non-empty and start with the style tag
+		if result == "" {
+			t.Error("result should be non-empty when CJK fonts are available")
+		}
 	case result == html:
-		t.Log("No CSS injected (no fonts found)")
+		t.Skip("No CJK fonts found on this system, skipping prepend fallback test")
 	default:
-		t.Log("HTML was modified but not by prepending style")
+		t.Errorf("unexpected result: should either prepend <style data-cjk-fonts or return original HTML, got %q", result)
 	}
 }
 
@@ -136,6 +139,6 @@ func TestPageSizeAndMarginConstants(t *testing.T) {
 	}
 
 	if defaultTimeout.String() != "1m0s" {
-		t.Logf("Default timeout is %v", defaultTimeout)
+		t.Errorf("Default timeout should be 1m0s, got %v", defaultTimeout)
 	}
 }

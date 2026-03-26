@@ -233,13 +233,6 @@ func TestStandaloneMultipleChapters(t *testing.T) {
 		t.Fatalf("Render failed: %v", err)
 	}
 
-	for i := 1; i <= 3; i++ {
-		if !strings.Contains(html, "Content "+strings.Repeat("", 0)) {
-			// Use placeholder to check content existence
-			_ = i
-		}
-	}
-
 	if !strings.Contains(html, "Content 1") {
 		t.Error("HTML should contain Content 1")
 	}

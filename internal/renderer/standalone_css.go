@@ -134,10 +134,12 @@ const standaloneCSS = `    /* ==================================================
       position: fixed;
       top: 0;
       left: 0;
+      width: 100%;
       height: 2px;
       background: var(--color-progress);
       z-index: 999;
-      transition: width 0.1s ease;
+      transition: transform 0.1s ease;
+      transform-origin: 0 50%;
     }
 
     /* ============================================================
@@ -311,12 +313,12 @@ const standaloneCSS = `    /* ==================================================
       color: var(--color-text-muted);
       cursor: pointer;
       padding: 0;
-      transition: transform 0.2s;
     }
 
     .toc-toggle::after {
       content: '▶';
       font-size: 12px;
+      transition: transform 0.2s;
     }
 
     .toc-toggle[aria-expanded="true"]::after {
@@ -375,6 +377,8 @@ const standaloneCSS = `    /* ==================================================
 
     .toc-children {
       padding-left: 16px;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
     }
 
     .toc-children[hidden] {
@@ -612,7 +616,6 @@ const standaloneCSS = `    /* ==================================================
        ============================================================ */
     blockquote {
       margin: 1rem 0;
-      padding-left: 1.5rem;
       border-left: 3px solid var(--color-border);
       background-color: transparent;
       padding: 0.5rem 1rem;
@@ -706,7 +709,7 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-note {
       border-color: var(--callout-note-border);
-      background-color: rgba(219, 234, 254, 0.4);
+      background-color: var(--callout-note-bg);
       color: var(--callout-note-color);
     }
 
@@ -720,7 +723,7 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-warning {
       border-color: var(--callout-warning-border);
-      background-color: rgba(254, 243, 199, 0.4);
+      background-color: var(--callout-warning-bg);
       color: var(--callout-warning-color);
     }
 
@@ -734,7 +737,7 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-tip {
       border-color: var(--callout-tip-border);
-      background-color: rgba(220, 252, 231, 0.4);
+      background-color: var(--callout-tip-bg);
       color: var(--callout-tip-color);
     }
 
@@ -748,7 +751,7 @@ const standaloneCSS = `    /* ==================================================
 
     .callout-important {
       border-color: var(--callout-important-border);
-      background-color: rgba(254, 226, 226, 0.4);
+      background-color: var(--callout-important-bg);
       color: var(--callout-important-color);
     }
 

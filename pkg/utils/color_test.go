@@ -875,17 +875,7 @@ func TestColorCodesFormat(t *testing.T) {
 
 // TestDetectColorSupportNoColorEnv tests NO_COLOR environment variable.
 func TestDetectColorSupportNoColorEnv(t *testing.T) {
-	// Save and defer restore
-	oldNOCOLOR, isSetNOCOLOR := os.LookupEnv("NO_COLOR")
-	defer func() {
-		if isSetNOCOLOR {
-			os.Setenv("NO_COLOR", oldNOCOLOR)
-		} else {
-			os.Unsetenv("NO_COLOR")
-		}
-	}()
-
-	os.Setenv("NO_COLOR", "1")
+	t.Setenv("NO_COLOR", "1")
 	result := detectColorSupport()
 	if result {
 		t.Error("detectColorSupport should return false when NO_COLOR is set")
@@ -894,17 +884,7 @@ func TestDetectColorSupportNoColorEnv(t *testing.T) {
 
 // TestDetectColorSupportDumbTerminal tests TERM=dumb.
 func TestDetectColorSupportDumbTerminal(t *testing.T) {
-	// Save and defer restore
-	oldTERM, isSetTERM := os.LookupEnv("TERM")
-	defer func() {
-		if isSetTERM {
-			os.Setenv("TERM", oldTERM)
-		} else {
-			os.Unsetenv("TERM")
-		}
-	}()
-
-	os.Setenv("TERM", "dumb")
+	t.Setenv("TERM", "dumb")
 	result := detectColorSupport()
 	if result {
 		t.Error("detectColorSupport should return false for dumb terminal")

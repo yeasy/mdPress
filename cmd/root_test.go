@@ -64,9 +64,9 @@ func TestCacheDirFlagParsing(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset environment before each test
-			os.Unsetenv("MDPRESS_CACHE_DIR")
-			os.Unsetenv("MDPRESS_DISABLE_CACHE")
+			// Reset environment before each test (t.Setenv auto-restores)
+			t.Setenv("MDPRESS_CACHE_DIR", "")
+			t.Setenv("MDPRESS_DISABLE_CACHE", "")
 
 			// Create a test command to verify flag parsing
 			testCmd := &cobra.Command{Use: "test", RunE: func(cmd *cobra.Command, args []string) error {
@@ -107,8 +107,8 @@ func TestCacheDirFlagParsing(t *testing.T) {
 
 // TestNoCacheDisablesBothFlags tests that --no-cache properly disables caching
 func TestNoCacheDisablesFlagCaching(t *testing.T) {
-	os.Unsetenv("MDPRESS_CACHE_DIR")
-	os.Unsetenv("MDPRESS_DISABLE_CACHE")
+	t.Setenv("MDPRESS_CACHE_DIR", "")
+	t.Setenv("MDPRESS_DISABLE_CACHE", "")
 
 	// Simulate flag parsing and configuration
 	noCache = true
@@ -123,8 +123,8 @@ func TestNoCacheDisablesFlagCaching(t *testing.T) {
 
 // TestCacheDirOverrideWorks tests that --cache-dir properly overrides default
 func TestCacheDirOverrideWorks(t *testing.T) {
-	os.Unsetenv("MDPRESS_CACHE_DIR")
-	os.Unsetenv("MDPRESS_DISABLE_CACHE")
+	t.Setenv("MDPRESS_CACHE_DIR", "")
+	t.Setenv("MDPRESS_DISABLE_CACHE", "")
 
 	customPath := "/custom/cache/path"
 	cacheDir = customPath
@@ -158,8 +158,8 @@ func TestFlagDefaults(t *testing.T) {
 
 // TestConfigureRuntimeCacheEnvDoesNotPanicOnEmpty tests robustness
 func TestConfigureRuntimeCacheEnvRobustness(t *testing.T) {
-	os.Unsetenv("MDPRESS_CACHE_DIR")
-	os.Unsetenv("MDPRESS_DISABLE_CACHE")
+	t.Setenv("MDPRESS_CACHE_DIR", "")
+	t.Setenv("MDPRESS_DISABLE_CACHE", "")
 
 	cacheDir = ""
 	noCache = false

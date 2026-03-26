@@ -34,13 +34,10 @@ func TestNewHTMLRenderer_Success(t *testing.T) {
 func TestNewHTMLRenderer_NilConfig(t *testing.T) {
 	thm := newTestTheme()
 
-	// Should still create renderer with nil config
-	r, err := NewHTMLRenderer(nil, thm)
-	if err != nil {
-		t.Fatalf("NewHTMLRenderer with nil config failed: %v", err)
-	}
-	if r == nil {
-		t.Fatal("NewHTMLRenderer should not return nil for nil config")
+	// Nil config should return an error, not panic.
+	_, err := NewHTMLRenderer(nil, thm)
+	if err == nil {
+		t.Fatal("NewHTMLRenderer with nil config should return error")
 	}
 }
 

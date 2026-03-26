@@ -1314,42 +1314,6 @@ func TestConvertCodeBlockMethod(t *testing.T) {
 	}
 }
 
-// TestConvertCodeSpansMethod tests the convertCodeSpans method directly.
-func TestConvertCodeSpansMethod(t *testing.T) {
-	converter := &MarkdownToTypstConverter{}
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "code span unchanged",
-			input:    "Use `code` here",
-			expected: "Use `code` here",
-		},
-		{
-			name:     "multiple code spans",
-			input:    "`first` and `second`",
-			expected: "`first` and `second`",
-		},
-		{
-			name:     "no code spans",
-			input:    "just plain text",
-			expected: "just plain text",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := converter.convertCodeSpans(tt.input)
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
-			}
-		})
-	}
-}
-
 // TestConvertBoldMethod tests the convertBold method directly.
 func TestConvertBoldMethod(t *testing.T) {
 	converter := &MarkdownToTypstConverter{}

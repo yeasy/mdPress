@@ -345,15 +345,6 @@ func TestRewriteMarkdownLinksInHTML_ValidTargets(t *testing.T) {
 	}
 }
 
-// TestBuildVariables_Initialization tests that build variables are initialized
-func TestBuildVariables_Initialization(t *testing.T) {
-	_ = buildFormat
-	_ = buildBranch
-	_ = buildSubDir
-	_ = buildOutput
-	_ = buildSummary
-}
-
 // TestBuildCommand_ExamplesInHelp tests that build help contains examples
 func TestBuildCommand_ExamplesInHelp(t *testing.T) {
 	if !strings.Contains(buildCmd.Long, "mdpress build") {

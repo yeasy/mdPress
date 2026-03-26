@@ -18,6 +18,12 @@ const (
 	gitCloneTimeout = 5 * time.Minute
 )
 
+// Pre-compiled regexps for input validation.
+var (
+	safeNameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	branchRegex   = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/-]*$`)
+)
+
 // GitHubSource clones content from a GitHub repository.
 type GitHubSource struct {
 	owner   string // Repository owner.
@@ -50,7 +56,6 @@ func (s *GitHubSource) Prepare() (string, error) {
 	s.tempDir = tempDir
 
 	// Validate owner and repo names to avoid command injection.
-	safeNameRegex := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 	if !safeNameRegex.MatchString(s.owner) {
 		return "", fmt.Errorf("invalid repository owner: %q", s.owner)
 	}
@@ -74,7 +79,6 @@ func (s *GitHubSource) Prepare() (string, error) {
 	args := []string{"clone", "--depth", "1"}
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
-		branchRegex := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/-]*$`)
 		if !branchRegex.MatchString(s.opts.Branch) {
 			return "", fmt.Errorf("invalid branch name: %q", s.opts.Branch)
 		}

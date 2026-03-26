@@ -4,6 +4,7 @@ package markdown
 
 import (
 	"bytes"
+	"sync"
 	"testing"
 
 	"github.com/yuin/goldmark/ast"
@@ -45,12 +46,11 @@ func TestNewHeadingIDTransformer_Creation(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_ProcessHeading_SingleHeading(t *testing.T) {
-	transformer := newHeadingIDTransformer()
 	source := []byte("# Test Heading")
 	heading := createHeadingNode(1, "Test Heading", source)
 
-	ht := transformer.(*headingIDTransformer)
-	ht.processHeading(heading, source)
+	usedIDs := make(map[string]int)
+	processHeading(heading, source, usedIDs)
 
 	id, ok := heading.AttributeString("id")
 	if !ok {
@@ -63,12 +63,11 @@ func TestHeadingIDTransformer_ProcessHeading_SingleHeading(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_ProcessHeading_EmptyHeading(t *testing.T) {
-	transformer := newHeadingIDTransformer()
 	heading := ast.NewHeading(1)
 	source := []byte("")
 
-	ht := transformer.(*headingIDTransformer)
-	ht.processHeading(heading, source)
+	usedIDs := make(map[string]int)
+	processHeading(heading, source, usedIDs)
 
 	// Empty heading should not set ID (no text to extract)
 	// This is handled by extractNodeText returning empty string
@@ -82,13 +81,12 @@ func TestHeadingIDTransformer_ProcessHeading_EmptyHeading(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_ProcessHeading_PreexistingID(t *testing.T) {
-	transformer := newHeadingIDTransformer()
 	source := []byte("# Test Heading")
 	heading := createHeadingNode(1, "Test Heading", source)
 	heading.SetAttributeString("id", []byte("custom-id"))
 
-	ht := transformer.(*headingIDTransformer)
-	ht.processHeading(heading, source)
+	usedIDs := make(map[string]int)
+	processHeading(heading, source, usedIDs)
 
 	id, ok := heading.AttributeString("id")
 	if !ok {
@@ -105,19 +103,19 @@ func TestHeadingIDTransformer_ProcessHeading_PreexistingID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHeadingIDTransformer_GenerateUniqueID_FirstOccurrence(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("Introduction")
+	id := generateUniqueID("Introduction", usedIDs)
 	if id != "introduction" {
 		t.Errorf("expected 'introduction', got %q", id)
 	}
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_Duplicate(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id1 := transformer.generateUniqueID("Introduction")
-	id2 := transformer.generateUniqueID("Introduction")
+	id1 := generateUniqueID("Introduction", usedIDs)
+	id2 := generateUniqueID("Introduction", usedIDs)
 
 	if id1 == id2 {
 		t.Errorf("expected different IDs for duplicates, both got %q", id1)
@@ -131,11 +129,11 @@ func TestHeadingIDTransformer_GenerateUniqueID_Duplicate(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_MultipleDuplicates(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
 	ids := make([]string, 5)
 	for i := 0; i < 5; i++ {
-		ids[i] = transformer.generateUniqueID("Chapter")
+		ids[i] = generateUniqueID("Chapter", usedIDs)
 	}
 
 	expectedIDs := []string{"chapter", "chapter-2", "chapter-3", "chapter-4", "chapter-5"}
@@ -147,9 +145,9 @@ func TestHeadingIDTransformer_GenerateUniqueID_MultipleDuplicates(t *testing.T) 
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_EmptyText(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("")
+	id := generateUniqueID("", usedIDs)
 	if id == "" {
 		t.Errorf("expected non-empty id for empty text, got %q", id)
 	}
@@ -174,8 +172,8 @@ func TestHeadingIDTransformer_GenerateUniqueID_SpecialCharacters(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		transformer := newHeadingIDTransformer().(*headingIDTransformer)
-		id := transformer.generateUniqueID(tt.text)
+		usedIDs := make(map[string]int)
+		id := generateUniqueID(tt.text, usedIDs)
 		if id != tt.expected {
 			t.Errorf("text %q: expected %q, got %q", tt.text, tt.expected, id)
 		}
@@ -183,10 +181,10 @@ func TestHeadingIDTransformer_GenerateUniqueID_SpecialCharacters(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_CaseInsensitive(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id1 := transformer.generateUniqueID("HelloWorld")
-	id2 := transformer.generateUniqueID("helloworld")
+	id1 := generateUniqueID("HelloWorld", usedIDs)
+	id2 := generateUniqueID("helloworld", usedIDs)
 
 	if id1 != "helloworld" {
 		t.Errorf("expected 'helloworld', got %q", id1)
@@ -197,9 +195,9 @@ func TestHeadingIDTransformer_GenerateUniqueID_CaseInsensitive(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_ChineseCharacters(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("你好世界")
+	id := generateUniqueID("你好世界", usedIDs)
 	if id == "" {
 		t.Error("expected non-empty id for Chinese characters")
 	}
@@ -210,27 +208,27 @@ func TestHeadingIDTransformer_GenerateUniqueID_ChineseCharacters(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_MixedLanguages(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("Hello 世界")
+	id := generateUniqueID("Hello 世界", usedIDs)
 	if id == "" {
 		t.Error("expected non-empty id for mixed languages")
 	}
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_Numbers(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("123 Numbers")
+	id := generateUniqueID("123 Numbers", usedIDs)
 	if id != "123-numbers" {
 		t.Errorf("expected '123-numbers', got %q", id)
 	}
 }
 
 func TestHeadingIDTransformer_GenerateUniqueID_OnlySpecialChars(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
-	id := transformer.generateUniqueID("!@#$%^&*()")
+	id := generateUniqueID("!@#$%^&*()", usedIDs)
 	if id != "heading" {
 		t.Errorf("expected 'heading' for special-char-only text, got %q", id)
 	}
@@ -297,16 +295,15 @@ func TestExtractNodeText_CodeSpanContent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHeadingIDTransformer_Transform_Integration(t *testing.T) {
-	// This test verifies the Transform method works in context
-	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
+	// This test verifies processHeading works across multiple headings.
+	usedIDs := make(map[string]int)
 
 	// Simulate document with headings
 	source := []byte("First Heading\nSecond Heading")
 	heading1 := createHeadingNode(1, "First Heading", source)
 	heading2 := createHeadingNode(2, "Second Heading", source)
-	ht.processHeading(heading1, source)
-	ht.processHeading(heading2, source)
+	processHeading(heading1, source, usedIDs)
+	processHeading(heading2, source, usedIDs)
 
 	// Verify both got IDs
 	id1, ok1 := heading1.AttributeString("id")
@@ -332,10 +329,10 @@ func TestHeadingIDTransformer_Transform_Integration(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHeadingIDTransformer_LongHeadingText(t *testing.T) {
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
+	usedIDs := make(map[string]int)
 
 	longText := "This is a very long heading with many words that should still generate a valid ID"
-	id := transformer.generateUniqueID(longText)
+	id := generateUniqueID(longText, usedIDs)
 
 	if id == "" {
 		t.Error("expected non-empty id for long text")
@@ -362,8 +359,8 @@ func TestHeadingIDTransformer_WhitespaceHandling(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		transformer := newHeadingIDTransformer().(*headingIDTransformer)
-		id := transformer.generateUniqueID(tt.text)
+		usedIDs := make(map[string]int)
+		id := generateUniqueID(tt.text, usedIDs)
 		if id != tt.expected {
 			t.Errorf("text %q: expected %q, got %q", tt.text, tt.expected, id)
 		}
@@ -371,29 +368,30 @@ func TestHeadingIDTransformer_WhitespaceHandling(t *testing.T) {
 }
 
 func TestHeadingIDTransformer_ThreadSafety(t *testing.T) {
-	// Test that the mutex protects concurrent access
-	transformer := newHeadingIDTransformer().(*headingIDTransformer)
-
-	// Generate IDs concurrently
-	done := make(chan string, 10)
+	// generateUniqueID is not thread-safe by design; callers must synchronize.
+	// Production code creates a fresh map per Transform call, so each document
+	// is processed without contention.
+	// This test verifies that concurrent Transform calls (each with their own
+	// map) do not interfere with each other.
+	var wg sync.WaitGroup
+	results := make([]string, 10)
 	for i := 0; i < 10; i++ {
-		go func() {
-			id := transformer.generateUniqueID("Concurrent")
-			done <- id
-		}()
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			// Each goroutine uses its own map, mimicking production usage
+			localIDs := make(map[string]int)
+			id := generateUniqueID("Concurrent", localIDs)
+			results[idx] = id
+		}(i)
 	}
+	wg.Wait()
 
-	ids := make(map[string]bool)
-	for i := 0; i < 10; i++ {
-		id := <-done
-		if ids[id] {
-			t.Errorf("duplicate id generated: %q", id)
+	// All goroutines should produce the same base ID since each has a fresh map
+	for i, id := range results {
+		if id != "concurrent" {
+			t.Errorf("goroutine %d: expected %q, got %q", i, "concurrent", id)
 		}
-		ids[id] = true
-	}
-
-	if len(ids) != 10 {
-		t.Errorf("expected 10 unique ids, got %d", len(ids))
 	}
 }
 
@@ -410,8 +408,8 @@ func TestHeadingIDTransformer_HyphenTrimming(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		transformer := newHeadingIDTransformer().(*headingIDTransformer)
-		id := transformer.generateUniqueID(tt.text)
+		usedIDs := make(map[string]int)
+		id := generateUniqueID(tt.text, usedIDs)
 		if id != tt.expected {
 			t.Errorf("text %q: expected %q, got %q", tt.text, tt.expected, id)
 		}
@@ -424,7 +422,6 @@ func TestHeadingIDTransformer_HyphenTrimming(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_EmptyDocument(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create an empty document
 	doc := ast.NewDocument()
@@ -433,17 +430,11 @@ func TestHeadingIDTransformer_Transform_EmptyDocument(t *testing.T) {
 	pc := parser.NewContext()
 
 	// Should not panic or error
-	ht.Transform(doc, reader, pc)
-
-	// No headings, so no IDs should be added
-	if len(ht.usedIDs) != 0 {
-		t.Errorf("expected empty usedIDs map for empty document, got %d entries", len(ht.usedIDs))
-	}
+	transformer.Transform(doc, reader, pc)
 }
 
 func TestHeadingIDTransformer_Transform_SingleHeading(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with a single heading
 	doc := ast.NewDocument()
@@ -457,7 +448,7 @@ func TestHeadingIDTransformer_Transform_SingleHeading(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// Heading should have an ID
 	id, ok := heading.AttributeString("id")
@@ -469,16 +460,10 @@ func TestHeadingIDTransformer_Transform_SingleHeading(t *testing.T) {
 	if string(idBytes) == "" {
 		t.Error("expected non-empty id")
 	}
-
-	// Check that the ID was tracked in usedIDs
-	if len(ht.usedIDs) == 0 {
-		t.Error("expected usedIDs map to be populated")
-	}
 }
 
 func TestHeadingIDTransformer_Transform_MultipleHeadings(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with multiple headings at different levels
 	doc := ast.NewDocument()
@@ -508,7 +493,7 @@ func TestHeadingIDTransformer_Transform_MultipleHeadings(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// All headings should have IDs
 	id1, ok1 := heading1.AttributeString("id")
@@ -532,7 +517,6 @@ func TestHeadingIDTransformer_Transform_MultipleHeadings(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_DuplicateHeadings(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with duplicate heading text
 	doc := ast.NewDocument()
@@ -555,7 +539,7 @@ func TestHeadingIDTransformer_Transform_DuplicateHeadings(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// Both headings should have IDs
 	id1, ok1 := heading1.AttributeString("id")
@@ -579,7 +563,6 @@ func TestHeadingIDTransformer_Transform_DuplicateHeadings(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_PreexistingIDs(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with one heading that already has an ID
 	doc := ast.NewDocument()
@@ -603,7 +586,7 @@ func TestHeadingIDTransformer_Transform_PreexistingIDs(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// First heading should keep its custom ID
 	id1, _ := heading1.AttributeString("id")
@@ -625,7 +608,6 @@ func TestHeadingIDTransformer_Transform_PreexistingIDs(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_NestedStructure(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with nested paragraph and heading structure
 	doc := ast.NewDocument()
@@ -655,7 +637,7 @@ func TestHeadingIDTransformer_Transform_NestedStructure(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// Both headings should have IDs
 	id1, ok1 := heading1.AttributeString("id")
@@ -675,7 +657,6 @@ func TestHeadingIDTransformer_Transform_NestedStructure(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_ComplexContent(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with mixed content including code spans
 	doc := ast.NewDocument()
@@ -700,7 +681,7 @@ func TestHeadingIDTransformer_Transform_ComplexContent(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	ht.Transform(doc, reader, pc)
+	transformer.Transform(doc, reader, pc)
 
 	// Heading should have an ID that includes both text and code content
 	id, ok := heading.AttributeString("id")
@@ -722,7 +703,6 @@ func TestHeadingIDTransformer_Transform_ComplexContent(t *testing.T) {
 
 func TestHeadingIDTransformer_Transform_NonHeadingNodes(t *testing.T) {
 	transformer := newHeadingIDTransformer()
-	ht := transformer.(*headingIDTransformer)
 
 	// Create a document with non-heading nodes
 	doc := ast.NewDocument()
@@ -748,10 +728,5 @@ func TestHeadingIDTransformer_Transform_NonHeadingNodes(t *testing.T) {
 	pc := parser.NewContext()
 
 	// Should not panic with non-heading nodes
-	ht.Transform(doc, reader, pc)
-
-	// No headings, so usedIDs should be empty
-	if len(ht.usedIDs) != 0 {
-		t.Errorf("expected empty usedIDs for document with no headings, got %d entries", len(ht.usedIDs))
-	}
+	transformer.Transform(doc, reader, pc)
 }

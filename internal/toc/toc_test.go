@@ -428,7 +428,7 @@ func TestRenderHTMLDeepNesting(t *testing.T) {
 	// 检查嵌套的 ul 标签
 	ulCount := strings.Count(html, "<ul>")
 	if ulCount < 4 {
-		t.Logf("4 层嵌套应有至少 4 个 ul 标签: got %d", ulCount)
+		t.Errorf("4 层嵌套应有至少 4 个 ul 标签: got %d", ulCount)
 	}
 
 	// 检查所有锚点链接存在
