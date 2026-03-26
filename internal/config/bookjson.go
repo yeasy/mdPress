@@ -60,14 +60,13 @@ func (v *jsonStringOrSlice) UnmarshalJSON(data []byte) error {
 // The context is used for potentially long-running operations like git commands.
 func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	const maxSize = 10 * 1024 * 1024 // 10 MB
-	fi, err := os.Stat(path)
+	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read book.json: %w", err)
+		return nil, fmt.Errorf("failed to stat book.json: %w", err)
 	}
-	if fi.Size() > maxSize {
-		return nil, fmt.Errorf("book.json is too large (%d bytes; max %d bytes)", fi.Size(), maxSize)
+	if info.Size() > maxSize {
+		return nil, fmt.Errorf("book.json is too large (%d bytes; max %d bytes)", info.Size(), maxSize)
 	}
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read book.json: %w", err)
@@ -113,7 +112,10 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Readme != "" {
 		readmeName = raw.Structure.Readme
 	}
-	readmePath := filepath.Join(dir, readmeName)
+	readmePath, err := safeJoin(dir, readmeName)
+	if err != nil {
+		return nil, fmt.Errorf("invalid structure.readme: %w", err)
+	}
 	meta := ExtractReadmeMetadata(ctx, readmePath)
 	if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
 		cfg.Book.Version = meta.Version
@@ -127,7 +129,10 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Glossary != "" {
 		glossaryName = raw.Structure.Glossary
 	}
-	glossaryPath := filepath.Join(dir, glossaryName)
+	glossaryPath, err := safeJoin(dir, glossaryName)
+	if err != nil {
+		return nil, fmt.Errorf("invalid structure.glossary: %w", err)
+	}
 	if _, err := os.Stat(glossaryPath); err == nil {
 		cfg.GlossaryFile = glossaryPath
 	}
@@ -137,12 +142,36 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Langs != "" {
 		langsName = raw.Structure.Langs
 	}
-	langsPath := filepath.Join(dir, langsName)
+	langsPath, err := safeJoin(dir, langsName)
+	if err != nil {
+		return nil, fmt.Errorf("invalid structure.languages: %w", err)
+	}
 	if _, err := os.Stat(langsPath); err == nil {
 		cfg.LangsFile = langsPath
 	}
 
 	return cfg, nil
+}
+
+// safeJoin joins a base directory and a relative name, rejecting paths that
+// escape the base via ".." traversal or absolute paths.
+func safeJoin(base, name string) (string, error) {
+	if filepath.IsAbs(name) {
+		return "", fmt.Errorf("absolute path not allowed: %q", name)
+	}
+	joined := filepath.Join(base, name)
+	absJoined, err := filepath.Abs(joined)
+	if err != nil {
+		return "", err
+	}
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return "", err
+	}
+	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
+		return "", fmt.Errorf("path escapes project directory: %q", name)
+	}
+	return joined, nil
 }
 
 // normalizeLanguage converts a GitBook short language code to a BCP 47 tag

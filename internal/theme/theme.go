@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// cssValueSafe rejects CSS values containing characters that could break out
+// of a CSS property declaration (semicolons, braces, backslashes, angle brackets).
+var cssValueSafe = regexp.MustCompile(`^[^;{}<>\\]*$`)
 
 const defaultCJKMonoFontFamily = "ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace"
 
@@ -96,14 +101,14 @@ func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
 		return nil, fmt.Errorf("failed to parse theme file: %w", err)
 	}
 
-	// 验证主题
-	if err := theme.Validate(); err != nil {
-		return nil, fmt.Errorf("theme validation failed: %w", err)
-	}
-
-	// Register theme in the manager
+	// Auto-derive name from filename before validation (so nameless
+	// YAML files don't fail the required-name check).
 	if theme.Name == "" {
 		theme.Name = strings.TrimSuffix(filepath.Base(path), ".yaml")
+	}
+
+	if err := theme.Validate(); err != nil {
+		return nil, fmt.Errorf("theme validation failed: %w", err)
 	}
 	tm.themes[theme.Name] = theme
 
@@ -145,6 +150,23 @@ func (t *Theme) Validate() error {
 		return fmt.Errorf("background color must not be empty")
 	}
 
+	// Reject color/font values containing CSS injection characters.
+	for _, cv := range []struct{ name, value string }{
+		{"text color", t.Colors.Text},
+		{"background color", t.Colors.Background},
+		{"heading color", t.Colors.Heading},
+		{"link color", t.Colors.Link},
+		{"code background", t.Colors.CodeBg},
+		{"code text", t.Colors.CodeText},
+		{"accent color", t.Colors.Accent},
+		{"border color", t.Colors.Border},
+		{"font family", t.FontFamily},
+	} {
+		if cv.value != "" && !cssValueSafe.MatchString(cv.value) {
+			return fmt.Errorf("%s contains unsafe characters", cv.name)
+		}
+	}
+
 	return nil
 }
 
@@ -164,23 +186,22 @@ func quoteFontFamily(family string) string {
 		// Already quoted.
 		if (strings.HasPrefix(trimmed, "'") && strings.HasSuffix(trimmed, "'")) ||
 			(strings.HasPrefix(trimmed, "\"") && strings.HasSuffix(trimmed, "\"")) {
-			parts[i] = " " + trimmed
+			parts[i] = trimmed
 			continue
 		}
 		// CSS generic family or vendor-prefixed value (starts with -).
 		if genericFamilies[strings.ToLower(trimmed)] || strings.HasPrefix(trimmed, "-") {
-			parts[i] = " " + trimmed
+			parts[i] = trimmed
 			continue
 		}
 		// Contains spaces but not quoted — wrap in single quotes.
 		if strings.Contains(trimmed, " ") {
-			parts[i] = " '" + trimmed + "'"
+			parts[i] = "'" + trimmed + "'"
 		} else {
-			parts[i] = " " + trimmed
+			parts[i] = trimmed
 		}
 	}
-	result := strings.Join(parts, ",")
-	return strings.TrimSpace(result)
+	return strings.Join(parts, ", ")
 }
 
 // ToCSS converts theme settings to CSS code.

@@ -474,7 +474,11 @@ func TestFindAssetForPlatformExtended(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create release with assets
+			// Override platform variables so the test works on any OS.
+			oldOS, oldArch := platformOS, platformArch
+			platformOS, platformArch = tt.goos, tt.goarch
+			t.Cleanup(func() { platformOS, platformArch = oldOS, oldArch })
+
 			release := &GitHubRelease{
 				TagName: "v1.0.0",
 				Assets: make([]struct {
@@ -488,28 +492,16 @@ func TestFindAssetForPlatformExtended(t *testing.T) {
 				release.Assets[i].URL = fmt.Sprintf("https://example.com/%s", name)
 			}
 
-			// Temporarily override runtime.GOOS and runtime.GOARCH by testing behavior
-			// We can't actually override them, so we test the logic is correct
 			_, name := findAssetForPlatform(release)
 
-			// For this test we verify the current platform behavior
-			// In reality, this would need dependency injection for full platform testing
-			if len(tt.assetNames) > 0 {
-				// Just verify that matching logic works with current platform
-				if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
-					// Test linux amd64 scenarios
-					if tt.goos == "linux" && tt.goarch == "amd64" {
-						if tt.shouldFind && name == "" {
-							t.Errorf("findAssetForPlatform() expected to find an asset but got empty")
-						}
-						if !tt.shouldFind && name != "" {
-							t.Errorf("findAssetForPlatform() expected not to find an asset but got %q", name)
-						}
-						if tt.shouldFind && tt.expectedNameMatch != "" && name != tt.expectedNameMatch {
-							t.Logf("Got %q, expected %q (may differ if platform doesn't match test)", name, tt.expectedNameMatch)
-						}
-					}
-				}
+			if tt.shouldFind && name == "" {
+				t.Errorf("findAssetForPlatform() expected to find an asset but got empty")
+			}
+			if !tt.shouldFind && name != "" {
+				t.Errorf("findAssetForPlatform() expected not to find an asset but got %q", name)
+			}
+			if tt.shouldFind && tt.expectedNameMatch != "" && name != tt.expectedNameMatch {
+				t.Errorf("findAssetForPlatform() = %q, want %q", name, tt.expectedNameMatch)
 			}
 		})
 	}
@@ -664,6 +656,10 @@ func TestInstallNewVersionFlow(t *testing.T) {
 
 	// Test successful installation
 	t.Run("successful installation", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows does not use Unix executable permission bits")
+		}
+
 		err := writeBinaryFile(currentBinary, newData)
 		if err != nil {
 			t.Errorf("writeBinaryFile() failed: %v", err)

@@ -350,9 +350,7 @@ func parseMarginString(s string, defaultMM float64) float64 {
 		return defaultMM
 	}
 	s = strings.TrimSpace(s)
-	// Match number with optional unit (mm, cm, in, pt, px) - case insensitive
-	re := regexp.MustCompile(`(?i)^([-+]?[\d.]+)\s*(mm|cm|in|pt|px)?$`)
-	matches := re.FindStringSubmatch(s)
+	matches := marginRe.FindStringSubmatch(s)
 	if matches == nil {
 		return defaultMM
 	}
@@ -380,6 +378,8 @@ func parseMarginString(s string, defaultMM float64) float64 {
 		return defaultMM
 	}
 }
+
+var marginRe = regexp.MustCompile(`(?i)^(\d+\.?\d*)\s*(mm|cm|in|pt|px)?$`)
 
 var (
 	chromiumExecutableCandidates = []string{
@@ -986,6 +986,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		os.Remove(tmpOutput) // clean up temp file on failure
 		details := strings.TrimSpace(string(output))
 		if details != "" {
 			return fmt.Errorf("chrome CLI fallback failed: %w\nchrome output:\n%s", err, details)
@@ -994,6 +995,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	}
 	info, err := os.Stat(tmpOutput)
 	if err != nil || info.Size() == 0 {
+		os.Remove(tmpOutput) // clean up empty/missing temp file
 		return fmt.Errorf("chrome CLI fallback did not produce a PDF")
 	}
 	if err := os.Rename(tmpOutput, outputPath); err != nil {

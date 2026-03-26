@@ -11,6 +11,14 @@ import (
 	"testing"
 )
 
+// disableSSRF disables the SSRF check for tests using local HTTP servers
+// and re-enables it on cleanup.
+func disableSSRF(t *testing.T) {
+	t.Helper()
+	DisableSSRFCheck()
+	t.Cleanup(EnableSSRFCheck)
+}
+
 // TestIsRemoteURL 测试远程 URL 判断
 func TestIsRemoteURL(t *testing.T) {
 	tests := []struct {
@@ -265,7 +273,7 @@ func TestProcessImagesNoImages(t *testing.T) {
 	}
 }
 
-// TestProcessImagesAbsolutePath 测试绝对路径
+// TestProcessImagesAbsolutePath tests that absolute paths are rejected for security.
 func TestProcessImagesAbsolutePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "abs.png")
@@ -276,11 +284,12 @@ func TestProcessImagesAbsolutePath(t *testing.T) {
 	html := `<img src="` + imgPath + `">`
 	result, err := ProcessImages(html, "/other/dir", true)
 	if err != nil {
-		t.Fatalf("ProcessImages 失败: %v", err)
+		t.Fatalf("ProcessImages failed: %v", err)
 	}
 
-	if !strings.Contains(result, "data:image") {
-		t.Error("绝对路径的图片也应被嵌入")
+	// Absolute paths should NOT be embedded (security: prevent reading arbitrary files).
+	if strings.Contains(result, "data:image") {
+		t.Error("absolute image paths should be rejected, not embedded")
 	}
 }
 
@@ -293,6 +302,7 @@ func TestDownloadImageInvalidURL(t *testing.T) {
 }
 
 func TestDownloadImageUsesCacheOnRepeatedRequests(t *testing.T) {
+	disableSSRF(t)
 	var hits int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&hits, 1)
@@ -320,6 +330,7 @@ func TestDownloadImageUsesCacheOnRepeatedRequests(t *testing.T) {
 }
 
 func TestProcessImagesWithOptionsUsesFileURLsAndDedupesRemoteDownloads(t *testing.T) {
+	disableSSRF(t)
 	localDir := t.TempDir()
 	cacheDir := t.TempDir()
 
@@ -554,6 +565,7 @@ func TestGetImageMIMETableDriven(t *testing.T) {
 
 // TestProcessImagesWithMultipleConcurrentDownloads tests concurrent download semaphore
 func TestProcessImagesWithMultipleConcurrentDownloads(t *testing.T) {
+	disableSSRF(t)
 	localDir := t.TempDir()
 	cacheDir := t.TempDir()
 
@@ -594,6 +606,7 @@ func TestProcessImagesWithMultipleConcurrentDownloads(t *testing.T) {
 
 // TestDownloadImageErrorHandling tests error handling for failed downloads
 func TestDownloadImageErrorHandling(t *testing.T) {
+	disableSSRF(t)
 	tests := []struct {
 		name        string
 		setupServer func() (string, func())
@@ -687,6 +700,7 @@ func TestProcessImagesWithOptionsEmptyList(t *testing.T) {
 
 // TestDownloadImageSizeExceeded tests that oversized images are rejected
 func TestDownloadImageSizeExceeded(t *testing.T) {
+	disableSSRF(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/png")
 		// Write data larger than MaxImageSize

@@ -198,7 +198,9 @@ func TestEscapeURL(t *testing.T) {
 		want  string
 	}{
 		{"normal.png", "normal.png"},
-		{"it's.png", "it\\'s.png"},
+		{"it's.png", "it%27s.png"},
+		{"file with).png", "file with%29.png"},
+		{`path"quote.png`, `path%22quote.png`},
 	}
 
 	for _, tt := range tests {
