@@ -41,7 +41,7 @@ source <(mdpress completion zsh)
 
 ## Subcommand Flags
 
-Completion subcommands such as `bash` and `zsh` currently support:
+Completion subcommands `bash` and `fish` currently support:
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ Completion subcommands such as `bash` and `zsh` currently support:
 
 ## Notes
 
-- Completion scripts are written to stdout, so they are usually redirected into a file or loaded immediately with `source <(...)>`.
+- Completion scripts are written to stdout, so they are usually redirected into a file or loaded immediately with `source <(...)`.
 - The `bash` help output explicitly requires the system package `bash-completion`.
 - If zsh completion is not enabled yet, run `autoload -U compinit; compinit` first.
 - `--config` appears in global flags, but `completion` does not use it.

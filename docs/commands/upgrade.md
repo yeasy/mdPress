@@ -81,15 +81,6 @@ The `upgrade` command respects standard HTTP environment variables:
 | `HTTPS_PROXY` | HTTPS proxy URL for release downloads |
 | `NO_PROXY` | Comma-separated domains to bypass proxy |
 
-## Exit Codes
-
-| Code | Meaning |
-| --- | --- |
-| 0 | Success (either updated or already latest version) |
-| 1 | Network error or failed to fetch release information |
-| 2 | Version comparison or parsing error |
-| 3 | Download or installation failed |
-
 ## Notes
 
 - **Backup Creation**: Before replacing the binary, a backup is created with the `.backup` extension. On successful installation, this backup is automatically removed.
