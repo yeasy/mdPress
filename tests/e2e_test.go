@@ -207,7 +207,10 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 
 	// Initialize theme and parser
 	tm := theme.NewThemeManager()
-	thm, _ := tm.Get("technical")
+	thm, err := tm.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	parser := markdown.NewParser()
 
 	// Parse all discovered chapters
@@ -272,7 +275,10 @@ func TestE2E_HTMLOutput(t *testing.T) {
 	}
 
 	tm := theme.NewThemeManager()
-	thm, _ := tm.Get("technical")
+	thm, err := tm.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	parser := markdown.NewParser()
 
 	// Parse chapters
@@ -375,7 +381,10 @@ func TestE2E_EPubOutput(t *testing.T) {
 	}
 
 	tm := theme.NewThemeManager()
-	thm, _ := tm.Get("technical")
+	thm, err := tm.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	parser := markdown.NewParser()
 
 	chaptersHTML := make([]renderer.ChapterHTML, 0)
@@ -582,7 +591,10 @@ func TestE2E_SiteOutput(t *testing.T) {
 	}
 
 	tm := theme.NewThemeManager()
-	thm, _ := tm.Get("technical")
+	thm, err := tm.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	parser := markdown.NewParser()
 
 	// Create site generator
@@ -628,7 +640,10 @@ func TestE2E_SiteOutput(t *testing.T) {
 		t.Error("site should generate index.html")
 	}
 
-	indexContent, _ := os.ReadFile(indexPath)
+	indexContent, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatalf("failed to read index.html: %v", err)
+	}
 	if len(indexContent) == 0 {
 		t.Error("index.html should not be empty")
 	}

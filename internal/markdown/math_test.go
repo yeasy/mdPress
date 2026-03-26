@@ -58,7 +58,7 @@ func TestMathPreprocessorNoMath(t *testing.T) {
 	// Currency amounts should not be replaced (single $ with space or digit context).
 	// The inline regex requires content without leading/trailing spaces.
 	// "$5" → single char → matched by single-char variant; "$10" → two chars → matched.
-	// This is acceptable for v0.3.0: false positives with currency are a known trade-off.
+	// This is acceptable: false positives with currency are a known trade-off.
 	// Just ensure roundtrip is lossless.
 	restored := m.postprocess(processed)
 	// All original text must survive the round-trip (possibly wrapped in spans).

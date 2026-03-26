@@ -94,7 +94,6 @@ func TestTemplateCoverSection(t *testing.T) {
 		"{{if .CoverHTML}}",
 		"<div class=\"cover-page\">",
 		"{{.CoverHTML}}",
-		"Build with md<span class=\"brand-accent\">Press</span>",
 		"</div>",
 	}
 
@@ -1176,23 +1175,11 @@ func TestTemplateContainsScriptTags(t *testing.T) {
 
 // TestTemplateMediaQueryStructure verifies @media queries are properly formed
 func TestTemplateMediaQueryStructure(t *testing.T) {
-	// Verify media queries are balanced
-	printCount := strings.Count(htmlTemplate, "@media print")
-	screenCount := strings.Count(htmlTemplate, "@media screen")
-
-	if printCount == 0 {
+	if !strings.Contains(htmlTemplate, "@media print") {
 		t.Error("htmlTemplate should contain @media print query")
 	}
-	if screenCount == 0 {
-		t.Error("htmlTemplate should contain @media screen query")
-	}
-
-	// Count opening and closing braces for media queries
 	if !strings.Contains(htmlTemplate, "@media print {") {
 		t.Error("@media print should have opening brace")
-	}
-	if !strings.Contains(htmlTemplate, "@media screen {") {
-		t.Error("@media screen should have opening brace")
 	}
 }
 

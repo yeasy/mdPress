@@ -1205,7 +1205,7 @@ func TestThemeColorValidation(t *testing.T) {
 
 				// Check if it's a valid hex color format
 				if !isValidColorHex(colorValue) && !isValidColorRGB(colorValue) && !isValidColorName(colorValue) {
-					t.Logf("warning: color %s may have non-standard format: %q (but may be valid)", colorName, colorValue)
+					t.Errorf("color %s has non-standard format: %q", colorName, colorValue)
 				}
 			}
 		})

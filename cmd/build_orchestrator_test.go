@@ -115,11 +115,7 @@ func TestNewBuildOrchestrator_WithGlossary(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	// Create temporary glossary file
-	tmpDir, err := os.MkdirTemp("", "glossary-test-")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	glossaryPath := filepath.Join(tmpDir, "GLOSSARY.md")
 	glossaryContent := "# Glossary\n\n## API\nApplication Programming Interface\n"
@@ -232,11 +228,7 @@ func TestProcessChapters_EmptyChapters(t *testing.T) {
 func TestProcessChapters_WithRealChapter(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	tmpDir, err := os.MkdirTemp("", "chapters-test-")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	chapterPath := filepath.Join(tmpDir, "ch1.md")
 	if err := os.WriteFile(chapterPath, []byte("# Chapter 1\n\nHello world.\n"), 0644); err != nil {
@@ -332,11 +324,7 @@ func TestProcessChaptersWithOptions_EmptyChapters(t *testing.T) {
 func TestProcessChaptersWithOptions_WithConcurrencyOption(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	tmpDir, err := os.MkdirTemp("", "concurrency-test-")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	chapterPath := filepath.Join(tmpDir, "ch1.md")
 	if err := os.WriteFile(chapterPath, []byte("# Hello\n"), 0644); err != nil {
@@ -437,11 +425,7 @@ func TestLoadCustomCSS_WithValidFile(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	// Create temporary CSS file
-	tmpDir, err := os.MkdirTemp("", "css-test-")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	cssPath := filepath.Join(tmpDir, "custom.css")
 	cssContent := "body { color: #333; font-family: Arial, sans-serif; }"
@@ -507,11 +491,7 @@ func TestLoadCustomCSS_MultipleInvocations(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	// Create temporary CSS file
-	tmpDir, err := os.MkdirTemp("", "css-test-")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	cssPath := filepath.Join(tmpDir, "custom.css")
 	cssContent := "body { margin: 0; padding: 0; }"

@@ -28,6 +28,10 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 
 	for _, size := range sizes {
 		content := generateMarkdown(size.lines)
+		// Verify parsing succeeds before benchmarking.
+		if _, _, err := parser.Parse(content); err != nil {
+			b.Fatalf("parse failed for %s: %v", size.name, err)
+		}
 		b.Run(size.name, func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -40,11 +44,7 @@ func BenchmarkMarkdownParsing(b *testing.B) {
 // BenchmarkConfigDiscovery benchmarks zero-config auto-discovery.
 func BenchmarkConfigDiscovery(b *testing.B) {
 	// Create a temporary directory with sample Markdown files.
-	tmpDir, err := os.MkdirTemp("", "mdpress-bench-*")
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := b.TempDir()
 
 	// Create 50 sample Markdown files.
 	for i := 0; i < 50; i++ {

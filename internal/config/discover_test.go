@@ -278,9 +278,12 @@ func TestDiscoverSkipsSpecialFiles(t *testing.T) {
 	// plus one regular chapter. Note: SUMMARY.md is omitted because its
 	// presence triggers summary-based discovery instead of auto-discovery.
 	files := map[string]string{
-		"GLOSSARY.md": "## Term\nDefinition\n",
-		"LANGS.md":    "* [English](en/)\n",
-		"regular.md":  "# Regular Chapter\nContent",
+		"GLOSSARY.md":     "## Term\nDefinition\n",
+		"LANGS.md":        "* [English](en/)\n",
+		"CHANGELOG.md":    "# Changelog\n## v1.0.0\n- Initial release\n",
+		"CONTRIBUTING.md": "# Contributing\nPR welcome\n",
+		"LICENSE.md":      "MIT License\n",
+		"regular.md":      "# Regular Chapter\nContent",
 	}
 
 	for name, content := range files {

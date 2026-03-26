@@ -118,7 +118,7 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	// Parse the pre-processed source into an AST.
 	reader := text.NewReader(processedSource)
 	document := p.md.Parser().Parse(reader)
-	diagnostics := CollectDiagnostics(document, processedSource)
+	diagnostics := collectDiagnostics(document, processedSource)
 
 	// Walk the AST to collect heading information.
 	p.collectHeadings(document, processedSource, newSourceIndex(processedSource))
@@ -130,7 +130,7 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	}
 
 	// Post-process: GFM Alerts, Mermaid code blocks, etc.
-	htmlResult := PostProcess(buf.String())
+	htmlResult := postProcess(buf.String())
 
 	// Restore math placeholders to KaTeX-recognizable HTML span elements.
 	htmlResult = mathProc.postprocess(htmlResult)

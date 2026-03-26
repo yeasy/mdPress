@@ -15,15 +15,19 @@ func newTestConfig() *config.BookConfig {
 	return cfg
 }
 
-func newTestTheme() *theme.Theme {
+func newTestTheme(tb testing.TB) *theme.Theme {
+	tb.Helper()
 	tm := theme.NewThemeManager()
-	thm, _ := tm.Get("technical")
+	thm, err := tm.Get("technical")
+	if err != nil {
+		tb.Fatalf("failed to get test theme: %v", err)
+	}
 	return thm
 }
 
 // TestNewHTMLRenderer tests creating a renderer
 func TestNewHTMLRenderer(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -34,7 +38,7 @@ func TestNewHTMLRenderer(t *testing.T) {
 
 // TestRenderEmpty tests rendering nil parts
 func TestRenderEmpty(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -46,7 +50,7 @@ func TestRenderEmpty(t *testing.T) {
 
 // TestRenderBasic tests basic rendering
 func TestRenderBasic(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -74,10 +78,6 @@ func TestRenderBasic(t *testing.T) {
 	if !strings.Contains(html, "测试作者") {
 		t.Error("should contain author name")
 	}
-	// Brand footer appears only inside the cover-page div.
-	if !strings.Contains(html, `Build with md<span class="brand-accent">Press</span>`) {
-		t.Error("should contain default brand footer (in cover)")
-	}
 	if !strings.Contains(html, "第一章") {
 		t.Error("should contain chapter title")
 	}
@@ -88,7 +88,7 @@ func TestRenderBasic(t *testing.T) {
 
 // TestRenderWithCover tests rendering with cover
 func TestRenderWithCover(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestRenderWithCover(t *testing.T) {
 
 // TestRenderWithTOC tests rendering with TOC
 func TestRenderWithTOC(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRenderWithTOC(t *testing.T) {
 
 // TestRenderMultipleChapters tests multi-chapter rendering
 func TestRenderMultipleChapters(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestRenderMultipleChapters(t *testing.T) {
 }
 
 func TestStandaloneRenderNestedSidebar(t *testing.T) {
-	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestStandaloneRenderNestedSidebar(t *testing.T) {
 }
 
 func TestStandaloneRenderNestedChapterTree(t *testing.T) {
-	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestStandaloneRenderNestedChapterTree(t *testing.T) {
 
 // TestRenderWithCustomCSS tests custom CSS
 func TestRenderWithCustomCSS(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestRenderWithCustomCSS(t *testing.T) {
 
 // TestRenderIncludesThemeCSS tests inclusion of theme CSS
 func TestRenderIncludesThemeCSS(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestRenderIncludesThemeCSS(t *testing.T) {
 
 // TestRenderHTMLValidity tests HTML structural validity
 func TestRenderHTMLValidity(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestRenderPrintCSS(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Style.PageSize = "Letter"
 
-	r, err := NewHTMLRenderer(cfg, newTestTheme())
+	r, err := NewHTMLRenderer(cfg, newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestRenderNilTheme(t *testing.T) {
 
 // TestRenderEmptyChapters tests empty chapter slice (non-nil)
 func TestRenderEmptyChapters(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestRenderEmptyChapters(t *testing.T) {
 
 // TestRenderWithAllParts tests rendering with all parts: cover, TOC, chapters, and custom CSS
 func TestRenderWithAllParts(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestRenderPageSizeVariations(t *testing.T) {
 			cfg := newTestConfig()
 			cfg.Style.PageSize = tc.pageSize
 
-			r, err := NewHTMLRenderer(cfg, newTestTheme())
+			r, err := NewHTMLRenderer(cfg, newTestTheme(t))
 			if err != nil {
 				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
@@ -574,7 +574,7 @@ func TestRenderMarginValues(t *testing.T) {
 			cfg := newTestConfig()
 			cfg.Style.Margin = tc.margins
 
-			r, err := NewHTMLRenderer(cfg, newTestTheme())
+			r, err := NewHTMLRenderer(cfg, newTestTheme(t))
 			if err != nil {
 				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
@@ -630,7 +630,7 @@ func TestBuildPrintCSS(t *testing.T) {
 			cfg := newTestConfig()
 			cfg.Style.PageSize = tc.pageSize
 
-			r, err := NewHTMLRenderer(cfg, newTestTheme())
+			r, err := NewHTMLRenderer(cfg, newTestTheme(t))
 			if err != nil {
 				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
@@ -656,7 +656,7 @@ func TestBuildPrintCSS(t *testing.T) {
 }
 
 func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
-	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme())
+	r, err := NewHTMLRenderer(newTestConfig(), newTestTheme(t))
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}

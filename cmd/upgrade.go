@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +32,9 @@ import (
 var (
 	errChecksumMismatch = errors.New("checksum mismatch")
 	errNoChecksumEntry  = errors.New("no matching checksum entry")
+
+	// mdpressUserAgent is the User-Agent header sent with upgrade HTTP requests.
+	mdpressUserAgent = "mdpress/" + Version
 )
 
 // upgradeHTTPClient is a shared HTTP client with sensible timeouts for upgrade operations.
@@ -67,8 +71,8 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "Only check for updates, do not install")
 }
 
-// GitHubRelease represents a GitHub release from the API.
-type GitHubRelease struct {
+// gitHubRelease represents a GitHub release from the API.
+type gitHubRelease struct {
 	TagName string `json:"tag_name"`
 	Assets  []struct {
 		Name string `json:"name"`
@@ -113,7 +117,6 @@ func executeUpgrade(ctx context.Context, checkOnly bool) error {
 	// Download and install the new version.
 	fmt.Println()
 	if err := installNewVersion(ctx, latestRelease, latestVersion); err != nil {
-		slog.Error("upgrade failed", slog.String("error", err.Error()))
 		return fmt.Errorf("failed to install upgrade: %w", err)
 	}
 
@@ -121,7 +124,7 @@ func executeUpgrade(ctx context.Context, checkOnly bool) error {
 }
 
 // fetchLatestRelease fetches the latest release from GitHub.
-func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
+func fetchLatestRelease(ctx context.Context) (*gitHubRelease, error) {
 	url := "https://api.github.com/repos/yeasy/mdpress/releases/latest"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -129,7 +132,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
+	req.Header.Set("User-Agent", mdpressUserAgent)
 
 	resp, err := upgradeHTTPClient.Do(req)
 	if err != nil {
@@ -145,7 +148,7 @@ func fetchLatestRelease(ctx context.Context) (*GitHubRelease, error) {
 		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	var release GitHubRelease
+	var release gitHubRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&release); err != nil { // 10 MB max
 		return nil, fmt.Errorf("failed to parse release JSON: %w", err)
 	}
@@ -207,10 +210,8 @@ func parseVersion(version string) []int {
 		}
 		numStr := sb.String()
 		if numStr != "" {
-			var num int
-			_, err := fmt.Sscanf(numStr, "%d", &num)
+			num, err := strconv.Atoi(numStr)
 			if err != nil {
-				// Skip this part if it fails to parse (shouldn't happen with digit-only string)
 				continue
 			}
 			parts = append(parts, num)
@@ -222,7 +223,7 @@ func parseVersion(version string) []int {
 
 // installNewVersion downloads and installs the new binary.
 // Uses atomic file replacement to prevent corruption if the process crashes mid-write.
-func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion string) error {
+func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion string) error {
 	// Find the appropriate asset for this OS/arch.
 	assetURL, assetName := findAssetForPlatform(release)
 	if assetURL == "" {
@@ -273,7 +274,7 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	tempPath := tempFile.Name()
-	tempFile.Close()
+	tempFile.Close() //nolint:errcheck
 
 	// Write the new binary to a temporary file.
 	if err := writeBinaryFile(tempPath, binaryData); err != nil {
@@ -297,7 +298,7 @@ func installNewVersion(ctx context.Context, release *GitHubRelease, newVersion s
 	if err := os.Rename(tempPath, currentPath); err != nil {
 		// Try to restore from backup on error.
 		if restoreErr := os.Rename(backupPath, currentPath); restoreErr != nil {
-			return fmt.Errorf("failed to install binary, and restore failed: %v; backup at %s", err, backupPath)
+			return fmt.Errorf("failed to install binary (%w), and restore failed (%v); backup at %s", err, restoreErr, backupPath)
 		}
 		return fmt.Errorf("failed to install binary (backup restored): %w", err)
 	}
@@ -323,7 +324,7 @@ var platformArch = runtime.GOARCH
 
 // findAssetForPlatform finds the appropriate release asset for the current OS/arch.
 // Returns empty strings if no suitable asset is found.
-func findAssetForPlatform(release *GitHubRelease) (url string, name string) {
+func findAssetForPlatform(release *gitHubRelease) (url string, name string) {
 	goos := strings.ToLower(platformOS)
 	archAliases := platformArchAliases(platformArch)
 
@@ -401,7 +402,7 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("User-Agent", fmt.Sprintf("mdpress/%s", Version))
+	req.Header.Set("User-Agent", mdpressUserAgent)
 
 	resp, err := upgradeHTTPClient.Do(req)
 	if err != nil {
@@ -469,7 +470,14 @@ func extractBinaryFromTarGz(data []byte) ([]byte, error) {
 		}
 		if isExpectedBinaryEntry(header.Name) {
 			const maxBinarySize = 500 << 20 // 500 MB
-			return io.ReadAll(io.LimitReader(tr, maxBinarySize))
+			data, err := io.ReadAll(io.LimitReader(tr, maxBinarySize+1))
+			if err != nil {
+				return nil, fmt.Errorf("failed to read tar entry: %w", err)
+			}
+			if int64(len(data)) > maxBinarySize {
+				return nil, fmt.Errorf("binary in archive exceeds maximum size (%d bytes)", maxBinarySize)
+			}
+			return data, nil
 		}
 	}
 
@@ -486,18 +494,26 @@ func extractBinaryFromZip(data []byte) ([]byte, error) {
 		if file.FileInfo().IsDir() || !isExpectedBinaryEntry(file.Name) {
 			continue
 		}
+		// Defense-in-depth: skip entries with path traversal components.
+		cleaned := filepath.Clean(file.Name)
+		if strings.HasPrefix(cleaned, "..") || filepath.IsAbs(cleaned) {
+			continue
+		}
 		reader, err := file.Open()
 		if err != nil {
 			return nil, fmt.Errorf("failed to open zip entry: %w", err)
 		}
 		const maxBinarySize = 500 << 20 // 500 MB
-		content, readErr := io.ReadAll(io.LimitReader(reader, maxBinarySize))
+		content, readErr := io.ReadAll(io.LimitReader(reader, maxBinarySize+1))
 		closeErr := reader.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read zip entry: %w", readErr)
 		}
 		if closeErr != nil {
 			return nil, fmt.Errorf("failed to close zip entry: %w", closeErr)
+		}
+		if int64(len(content)) > maxBinarySize {
+			return nil, fmt.Errorf("binary in archive exceeds maximum size (%d bytes)", maxBinarySize)
 		}
 		return content, nil
 	}
@@ -518,7 +534,7 @@ func isExpectedBinaryEntry(name string) bool {
 // verifyChecksum verifies the downloaded binary against a checksum file in the release assets.
 // It looks for a file named "checksums.txt" or similar in the release.
 // Returns nil if verification passes, or a warning error if checksum file not found.
-func verifyChecksum(ctx context.Context, release *GitHubRelease, assetName string, binaryData []byte) error {
+func verifyChecksum(ctx context.Context, release *gitHubRelease, assetName string, binaryData []byte) error {
 	// Look for a checksum file in the release assets.
 	var checksumURL string
 	var checksumFileName string
@@ -536,6 +552,11 @@ func verifyChecksum(ctx context.Context, release *GitHubRelease, assetName strin
 	}
 
 	slog.Info("found checksum file", slog.String("file", checksumFileName))
+
+	// Validate the checksum URL points to a known GitHub domain.
+	if !isGitHubDownloadURL(checksumURL) {
+		return fmt.Errorf("checksum URL has unexpected host (expected github.com or *.githubusercontent.com)")
+	}
 
 	// Download the checksum file.
 	checksumData, err := downloadBinary(ctx, checksumURL)

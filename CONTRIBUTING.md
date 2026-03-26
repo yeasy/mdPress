@@ -54,16 +54,13 @@ Feature suggestions are welcome. Please describe in the issue:
 git clone https://github.com/yeasy/mdpress.git
 cd mdpress
 
-# 2. Download dependencies
-make deps
-
-# 3. Build
+# 2. Build
 make build
 
-# 4. Run tests
+# 3. Run tests
 make test
 
-# 5. Run example to verify build
+# 4. Run example to verify build
 make example
 ```
 

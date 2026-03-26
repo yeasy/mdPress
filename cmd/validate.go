@@ -138,7 +138,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	}
 
 	// ========== 4. Check referenced Markdown files ==========
-	flatChapters := flattenChapterDefs(cfg.Chapters)
+	flatChapters := config.FlattenChapters(cfg.Chapters)
 	missingFiles := 0
 	for _, ch := range flatChapters {
 		filePath := cfg.ResolvePath(ch.File)
@@ -309,11 +309,6 @@ func printResults(results []validateResult) {
 	}
 }
 
-// flattenChapterDefs delegates to the canonical config.FlattenChapters.
-func flattenChapterDefs(chapters []config.ChapterDef) []config.ChapterDef {
-	return config.FlattenChapters(chapters)
-}
-
 // extractImagePaths extracts image references from a Markdown file.
 func extractImagePaths(filePath string) ([]string, error) {
 	f, err := os.Open(filePath)
@@ -363,7 +358,7 @@ type unresolvedMarkdownLink struct {
 }
 
 func findUnresolvedMarkdownLinks(cfg *config.BookConfig) ([]unresolvedMarkdownLink, error) {
-	flatChapters := flattenChapterDefs(cfg.Chapters)
+	flatChapters := config.FlattenChapters(cfg.Chapters)
 	if len(flatChapters) == 0 {
 		return nil, nil
 	}
@@ -664,17 +659,17 @@ func validationStatus(hasError bool) string {
 func writeValidationReport(path string, report validationReport) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve report path: %w", err)
 	}
 	if err := utils.EnsureDir(filepath.Dir(absPath)); err != nil {
-		return err
+		return fmt.Errorf("create report directory: %w", err)
 	}
 
 	switch strings.ToLower(filepath.Ext(absPath)) {
 	case ".json":
 		data, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal report: %w", err)
 		}
 		return os.WriteFile(absPath, data, 0644)
 	case ".md":

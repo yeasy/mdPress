@@ -22,6 +22,9 @@ import (
 // initInteractive controls whether interactive mode is enabled.
 var initInteractive bool
 
+// scanSkipDirs lists directories that scanMarkdownFiles should skip.
+var scanSkipDirs = map[string]bool{"node_modules": true, "vendor": true, ".git": true}
+
 var initCmd = &cobra.Command{
 	Use:   "init [directory]",
 	Short: "Initialize a book project by scanning Markdown files",
@@ -353,8 +356,7 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 		}
 		// Skip common dependency directories.
 		if info.IsDir() {
-			skip := map[string]bool{"node_modules": true, "vendor": true, ".git": true}
-			if skip[info.Name()] {
+			if scanSkipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
@@ -372,10 +374,14 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 		// Normalize to forward slashes.
 		relPath = filepath.ToSlash(relPath)
 
-		// Skip the top-level README.md, which is usually project documentation.
+		// Skip top-level documentation files that are not book content.
 		// Keep README.md files inside subdirectories as chapter entry files.
-		if relPath == "README.md" {
-			return nil
+		if filepath.Dir(relPath) == "." {
+			baseLower := strings.ToLower(info.Name())
+			if baseLower == "readme.md" || baseLower == "changelog.md" ||
+				baseLower == "contributing.md" || baseLower == "license.md" {
+				return nil
+			}
 		}
 
 		title := utils.ExtractTitleFromFile(path)
@@ -517,9 +523,11 @@ func inferTitleFromPath(relPath string) string {
 	// Replace path separators with readable delimiters.
 	name = strings.ReplaceAll(name, "/", " - ")
 
-	// Uppercase the first letter.
-	if len(name) > 0 {
-		name = strings.ToUpper(name[:1]) + name[1:]
+	// Uppercase the first rune (safe for multi-byte UTF-8 characters).
+	runes := []rune(name)
+	if len(runes) > 0 {
+		runes[0] = []rune(strings.ToUpper(string(runes[0])))[0]
+		name = string(runes)
 	}
 
 	return name

@@ -16,7 +16,7 @@ func TestGeneratePreviewHTML_Basic(t *testing.T) {
 			Description: "A test theme",
 			Author:      "Test Author",
 			Version:     "1.0.0",
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#FF0000",
 				Secondary:  "#00FF00",
 				Accent:     "#0000FF",
@@ -77,7 +77,7 @@ func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
 			Description: "Technical theme",
 			Author:      "Author1",
 			Version:     "1.0.0",
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#1A5490",
 				Secondary:  "#0066CC",
 				Accent:     "#0066CC",
@@ -92,7 +92,7 @@ func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
 			Description: "Elegant theme",
 			Author:      "Author2",
 			Version:     "1.0.0",
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#34495e",
 				Secondary:  "#16a085",
 				Accent:     "#d35400",
@@ -147,7 +147,7 @@ func TestGeneratePreviewHTML_ValidHTML(t *testing.T) {
 			Description: "Desc",
 			Author:      "Auth",
 			Version:     "1.0",
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#111111",
 				Secondary:  "#222222",
 				Accent:     "#333333",
@@ -188,7 +188,7 @@ func TestGenerateThemePreviewSection_Basic(t *testing.T) {
 		Description: "Test Description",
 		Author:      "Test Author",
 		Version:     "1.0.0",
-		Colors: ThemeColors{
+		Colors: themeColors{
 			Primary:    "#FF0000",
 			Secondary:  "#00FF00",
 			Accent:     "#0000FF",
@@ -220,7 +220,7 @@ func TestGenerateThemePreviewSection_ContainsColors(t *testing.T) {
 		Description: "Testing colors",
 		Author:      "Tester",
 		Version:     "1.0.0",
-		Colors: ThemeColors{
+		Colors: themeColors{
 			Primary:    "#123456",
 			Secondary:  "#ABCDEF",
 			Accent:     "#FEDCBA",
@@ -261,7 +261,7 @@ func TestGenerateThemePreviewSection_ContainsSampleContent(t *testing.T) {
 		Description: "Testing content",
 		Author:      "Tester",
 		Version:     "1.0.0",
-		Colors: ThemeColors{
+		Colors: themeColors{
 			Primary:    "#000000",
 			Secondary:  "#111111",
 			Accent:     "#222222",
@@ -303,7 +303,7 @@ func TestGenerateThemePreviewSection_MetadataDisplay(t *testing.T) {
 		Description: "For testing metadata",
 		Author:      "John Doe",
 		Version:     "2.5.3",
-		Colors: ThemeColors{
+		Colors: themeColors{
 			Primary:    "#000000",
 			Secondary:  "#111111",
 			Accent:     "#222222",
@@ -330,17 +330,9 @@ func TestGenerateThemePreviewSection_MetadataDisplay(t *testing.T) {
 // TestExecuteThemesPreview_DefaultPath tests preview generation with default path
 func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
+	t.Chdir(tmpDir)
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(originalDir) }()
-
-	err = executeThemesPreview("")
+	err := executeThemesPreview("")
 	if err != nil {
 		t.Fatalf("executeThemesPreview(\"\") returned error: %v", err)
 	}
@@ -443,18 +435,10 @@ func TestExecuteThemesPreview_AbsolutePath(t *testing.T) {
 // TestExecuteThemesPreview_RelativePath tests with relative path
 func TestExecuteThemesPreview_RelativePath(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get current directory: %v", err)
-	}
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to change directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(originalDir) }()
+	t.Chdir(tmpDir)
 
 	relPath := "relative-preview.html"
-	err = executeThemesPreview(relPath)
+	err := executeThemesPreview(relPath)
 	if err != nil {
 		t.Fatalf("executeThemesPreview with relative path returned error: %v", err)
 	}
@@ -517,7 +501,7 @@ func TestGenerateThemePreviewSection_GradientHeader(t *testing.T) {
 		Description: "Testing gradient",
 		Author:      "Tester",
 		Version:     "1.0.0",
-		Colors: ThemeColors{
+		Colors: themeColors{
 			Primary:    "#667eea",
 			Secondary:  "#764ba2",
 			Accent:     "#999999",
@@ -544,7 +528,7 @@ func TestGeneratePreviewHTML_ThemeInformation(t *testing.T) {
 			Description: "Description for info test",
 			Author:      "Info Author",
 			Version:     "1.2.3",
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#000000",
 				Secondary:  "#111111",
 				Accent:     "#222222",

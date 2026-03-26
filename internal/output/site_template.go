@@ -1572,7 +1572,7 @@ body {
     function runMermaid() {
       if (!window.mermaid) return;
       try {
-        window.mermaid.initialize({ startOnLoad: true, theme: 'default', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
+        window.mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'strict', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
         if (window.mermaid.run) {
           window.mermaid.run({ nodes: nodes });
         } else if (window.mermaid.init) {

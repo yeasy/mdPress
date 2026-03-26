@@ -63,16 +63,15 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 	)
 	allocOpts = append(allocOpts,
 		chromedp.Flag("no-sandbox", true),
-		chromedp.Flag("allow-file-access-from-files", true),
 	)
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), allocOpts...)
 	defer allocCancel()
 
-	ctx, cancel := chromedp.NewContext(allocCtx)
-	defer cancel()
+	ctx, ctxCancel := chromedp.NewContext(allocCtx)
+	defer ctxCancel()
 
-	ctx, cancel = context.WithTimeout(ctx, mermaidRenderTimeout)
-	defer cancel()
+	ctx, timeoutCancel := context.WithTimeout(ctx, mermaidRenderTimeout)
+	defer timeoutCancel()
 
 	fileURL := "file://" + tmpPath
 	var status mermaidRenderStatus
@@ -151,7 +150,7 @@ window.addEventListener('error', function(event) {
     if (!window.mermaid) {
       throw new Error('Mermaid library failed to load');
     }
-    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
+    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'strict', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
     await mermaid.run({ querySelector: '.mermaid' });
     var processed = 0;
     nodes.forEach(function(node) {

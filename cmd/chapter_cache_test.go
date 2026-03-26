@@ -24,15 +24,15 @@ func TestParsedChapterCacheRoundTrip(t *testing.T) {
 	}
 
 	if err := storeParsedChapterCache(chapterPath, content, codeTheme, want); err != nil {
-		t.Fatalf("storeParsedChapterCache 失败: %v", err)
+		t.Fatalf("storeParsedChapterCache failed: %v", err)
 	}
 
 	got, ok, err := loadParsedChapterCache(chapterPath, content, codeTheme)
 	if err != nil {
-		t.Fatalf("loadParsedChapterCache 失败: %v", err)
+		t.Fatalf("loadParsedChapterCache failed: %v", err)
 	}
 	if !ok {
-		t.Fatal("应命中缓存")
+		t.Fatal("expected cache hit")
 	}
 	if got.HTML != want.HTML {
 		t.Fatalf("HTML = %q, want %q", got.HTML, want.HTML)
@@ -55,15 +55,15 @@ func TestParsedChapterCacheDisabled(t *testing.T) {
 	payload := &cachedParsedChapter{HTML: "<h1>Title</h1>"}
 
 	if err := storeParsedChapterCache(chapterPath, content, codeTheme, payload); err != nil {
-		t.Fatalf("storeParsedChapterCache 在 no-cache 模式下不应报错: %v", err)
+		t.Fatalf("storeParsedChapterCache should not error in no-cache mode: %v", err)
 	}
 
 	got, ok, err := loadParsedChapterCache(chapterPath, content, codeTheme)
 	if err != nil {
-		t.Fatalf("loadParsedChapterCache 在 no-cache 模式下不应报错: %v", err)
+		t.Fatalf("loadParsedChapterCache should not error in no-cache mode: %v", err)
 	}
 	if ok || got != nil {
-		t.Fatal("禁用缓存时不应命中解析缓存")
+		t.Fatal("cache should not be hit when disabled")
 	}
 }
 

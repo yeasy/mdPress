@@ -147,7 +147,7 @@ func TestFindAssetForPlatform(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			release := &GitHubRelease{
+			release := &gitHubRelease{
 				TagName: "v1.0.0",
 				Assets: make([]struct {
 					Name string `json:"name"`
@@ -178,7 +178,7 @@ func TestFindAssetForPlatform(t *testing.T) {
 // TestFetchLatestReleaseMockServer tests GitHub API response parsing.
 func TestFetchLatestReleaseMockServer(t *testing.T) {
 	// Create a mock HTTP server.
-	mockRelease := GitHubRelease{
+	mockRelease := gitHubRelease{
 		TagName: "v1.2.3",
 		Assets: []struct {
 			Name string `json:"name"`
@@ -201,10 +201,6 @@ func TestFetchLatestReleaseMockServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Test by mocking the GitHub API URL (this is a simplified test).
-	// In real scenarios, you'd want to intercept the actual HTTP client.
-	ctx := context.Background()
-
 	// We can't easily test the real function without mocking the HTTP client,
 	// but we've verified the JSON parsing structure works.
 	data, err := json.Marshal(mockRelease)
@@ -212,7 +208,7 @@ func TestFetchLatestReleaseMockServer(t *testing.T) {
 		t.Fatalf("failed to marshal mock release: %v", err)
 	}
 
-	var parsed GitHubRelease
+	var parsed gitHubRelease
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -224,12 +220,11 @@ func TestFetchLatestReleaseMockServer(t *testing.T) {
 		t.Errorf("parsed asset count = %d, want 2", len(parsed.Assets))
 	}
 
-	_ = ctx // Suppress unused variable warning.
 }
 
 // TestFetchLatestReleaseHTTP tests the full fetch flow with a mock server.
 func TestFetchLatestReleaseHTTP(t *testing.T) {
-	mockRelease := GitHubRelease{
+	mockRelease := gitHubRelease{
 		TagName: "v1.2.3",
 		Assets: []struct {
 			Name string `json:"name"`
@@ -261,7 +256,7 @@ func TestFetchLatestReleaseHTTP(t *testing.T) {
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
-	var release GitHubRelease
+	var release gitHubRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -479,7 +474,7 @@ func TestFindAssetForPlatformExtended(t *testing.T) {
 			platformOS, platformArch = tt.goos, tt.goarch
 			t.Cleanup(func() { platformOS, platformArch = oldOS, oldArch })
 
-			release := &GitHubRelease{
+			release := &gitHubRelease{
 				TagName: "v1.0.0",
 				Assets: make([]struct {
 					Name string `json:"name"`
@@ -614,7 +609,7 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 			}
 
 			// For 200 responses, verify JSON parsing
-			var release GitHubRelease
+			var release gitHubRelease
 			err = json.NewDecoder(resp.Body).Decode(&release)
 			if tt.expectJSONErr && err == nil {
 				t.Errorf("expected JSON parsing error but got none")

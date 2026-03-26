@@ -133,7 +133,10 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -141,7 +144,7 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 
 	// Should return an error about no chapters processed
 	if err == nil {
-		t.Error("Expected an error when no chapters are processed")
+		t.Fatal("Expected an error when no chapters are processed")
 	}
 
 	if result != nil {
@@ -183,7 +186,10 @@ Just some regular paragraph text.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -237,11 +243,14 @@ This is the second chapter.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	_, err := pipeline.Process(context.Background())
+	_, err = pipeline.Process(context.Background())
 
 	// Should fail because one chapter file is missing.
 	if err == nil {
@@ -283,7 +292,10 @@ This chapter mentions a term that should be glossarized.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Run pipeline with nil glossary (most tests will use nil)
@@ -359,7 +371,10 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -429,7 +444,10 @@ Final section.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -492,7 +510,10 @@ Details here.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -553,7 +574,10 @@ Section content.
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
@@ -601,14 +625,17 @@ func TestChapterPipelineCanceledContext(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := pipeline.Process(ctx)
+	_, err = pipeline.Process(ctx)
 	if err == nil {
 		t.Fatal("Expected context cancellation error")
 	}
@@ -672,7 +699,10 @@ func TestParallelChapterParsingProducesSameResults(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Run sequential parsing
@@ -767,11 +797,14 @@ func TestParallelChapterParsingErrorHandling(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	_, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+	_, err = pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
 
 	// The missing chapter should now cause the pipeline to fail.
 	if err == nil {
@@ -814,7 +847,10 @@ func TestParallelChapterParsingWithDifferentConcurrency(t *testing.T) {
 
 	parser := markdown.NewParser()
 	themeManager := theme.NewThemeManager()
-	thm, _ := themeManager.Get("technical")
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Test different concurrency levels

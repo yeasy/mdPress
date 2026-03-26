@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // bookJSON is the raw structure of a GitBook book.json file.
@@ -18,6 +20,7 @@ type bookJSON struct {
 	Author      jsonStringOrSlice         `json:"author"`
 	Description string                    `json:"description"`
 	Language    string                    `json:"language"`
+	Version     string                    `json:"version"`
 	GitBook     string                    `json:"gitbook"`
 	Plugins     []string                  `json:"plugins"`
 	PluginsCfg  map[string]map[string]any `json:"pluginsConfig"`
@@ -99,6 +102,9 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Language != "" {
 		cfg.Book.Language = normalizeLanguage(raw.Language)
 	}
+	if raw.Version != "" {
+		cfg.Book.Version = strings.TrimPrefix(raw.Version, "v")
+	}
 
 	// Convert plugins: skip entries prefixed with "-" (GitBook disables them).
 	cfg.Plugins = convertBookJSONPlugins(raw.Plugins, raw.PluginsCfg)
@@ -112,13 +118,19 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Readme != "" {
 		readmeName = raw.Structure.Readme
 	}
-	readmePath, err := safeJoin(dir, readmeName)
+	readmePath, err := utils.SafeJoin(dir, readmeName)
 	if err != nil {
 		return nil, fmt.Errorf("invalid structure.readme: %w", err)
 	}
 	meta := ExtractReadmeMetadata(ctx, readmePath)
 	if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
 		cfg.Book.Version = meta.Version
+	}
+	// Fallback: try git tag when version is still the default.
+	if cfg.Book.Version == DefaultConfig().Book.Version {
+		if tag := gitLatestTag(ctx, dir); tag != "" {
+			cfg.Book.Version = tag
+		}
 	}
 	if cfg.Book.Author == "" && meta.Author != "" {
 		cfg.Book.Author = meta.Author
@@ -129,7 +141,7 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Glossary != "" {
 		glossaryName = raw.Structure.Glossary
 	}
-	glossaryPath, err := safeJoin(dir, glossaryName)
+	glossaryPath, err := utils.SafeJoin(dir, glossaryName)
 	if err != nil {
 		return nil, fmt.Errorf("invalid structure.glossary: %w", err)
 	}
@@ -142,7 +154,7 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if raw.Structure.Langs != "" {
 		langsName = raw.Structure.Langs
 	}
-	langsPath, err := safeJoin(dir, langsName)
+	langsPath, err := utils.SafeJoin(dir, langsName)
 	if err != nil {
 		return nil, fmt.Errorf("invalid structure.languages: %w", err)
 	}
@@ -151,27 +163,6 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	}
 
 	return cfg, nil
-}
-
-// safeJoin joins a base directory and a relative name, rejecting paths that
-// escape the base via ".." traversal or absolute paths.
-func safeJoin(base, name string) (string, error) {
-	if filepath.IsAbs(name) {
-		return "", fmt.Errorf("absolute path not allowed: %q", name)
-	}
-	joined := filepath.Join(base, name)
-	absJoined, err := filepath.Abs(joined)
-	if err != nil {
-		return "", err
-	}
-	absBase, err := filepath.Abs(base)
-	if err != nil {
-		return "", err
-	}
-	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
-		return "", fmt.Errorf("path escapes project directory: %q", name)
-	}
-	return joined, nil
 }
 
 // normalizeLanguage converts a GitBook short language code to a BCP 47 tag

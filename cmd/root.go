@@ -13,7 +13,7 @@ import (
 
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.6.2"
+	Version = "0.6.4"
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// rootCmd is the root command for the mdpress application.
@@ -36,10 +36,10 @@ func init() {
 		Use:   "mdpress",
 		Short: "mdpress - Markdown book publishing tool",
 		Long: `mdpress is a Markdown publishing tool for building high-quality
-PDF, HTML, and ePub output from book-style content.
+site, PDF, HTML, and ePub output from book-style content.
 
 Features:
-  - Generate PDF, HTML, and ePub from Markdown sources
+  - Generate site, PDF, HTML, and ePub from Markdown sources
   - Auto-generate a table of contents and cover page
   - Support SUMMARY.md (GitBook compatible) and GLOSSARY.md
   - Support custom themes, cross references, and template variables

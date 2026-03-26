@@ -257,7 +257,7 @@ func TestGitHubSourceEdgeCases(t *testing.T) {
 			// (validation happens in Prepare, not during creation)
 			src := NewGitHubSource(tt.owner, tt.repo, Options{})
 			if src == nil {
-				t.Error("NewGitHubSource should not return nil for any input")
+				t.Fatal("NewGitHubSource should not return nil for any input")
 			}
 
 			repoName := src.RepoName()

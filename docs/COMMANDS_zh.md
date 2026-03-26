@@ -61,7 +61,6 @@ flowchart TD
 | `--config <path>` | `book.yaml` | 配置文件路径。主要对会加载配置的命令有效，例如 `build`、`serve`、`validate`。 |
 | `--cache-dir <path>` | 系统默认 | 覆盖 mdPress 运行时缓存目录。 |
 | `--no-cache` | 关闭 | 禁用当前命令的 mdPress 运行时缓存。强制全量重建。 |
-| `--summary <path>` | — | SUMMARY.md 文件路径。供 `build` 和 `serve` 命令使用，用来覆盖自动发现的章节结构。 |
 | `-v, --verbose` | 关闭 | 输出更详细的日志和逐条警告。 |
 | `-q, --quiet` | 关闭 | 只输出错误信息。 |
 
@@ -69,7 +68,6 @@ flowchart TD
 
 - 如果同时传入 `--quiet` 和 `--verbose`，当前实现以 `--quiet` 为准。
 - `--config` 虽然是全局参数，但并不是每个命令都会真正使用它。`doctor`、`themes`、`completion` 等命令当前不会按这个参数切换配置文件。
-- `--summary` 是全局参数，但只有 `build` 和 `serve` 命令会真正使用它。其他命令会忽略此参数。
 
 ## 输入源规则
 
@@ -81,8 +79,14 @@ mdPress 主要支持两类输入源：
 对于本地目录，配置解析优先级通常是：
 
 1. `book.yaml`
-2. `SUMMARY.md`
-3. 自动扫描 `.md` 文件
+2. `book.json`（GitBook 兼容）
+3. `SUMMARY.md`
+4. 自动扫描 `.md` 文件
+
+可通过 `--summary` 指定 SUMMARY.md 路径：
+
+    mdpress build --summary path/to/SUMMARY.md
+    mdpress serve --summary path/to/SUMMARY.md
 
 ## GitHub 认证
 
@@ -121,10 +125,10 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `output.margin_top` | — | 页面上边距。示例：`"20mm"`、`"0.8in"`、`"2cm"`。 |
-| `output.margin_bottom` | — | 页面下边距。 |
-| `output.margin_left` | — | 页面左边距。 |
-| `output.margin_right` | — | 页面右边距。 |
+| `output.margin_top` | `15mm` | 页面上边距。示例：`"20mm"`、`"0.8in"`、`"2cm"`。 |
+| `output.margin_bottom` | `15mm` | 页面下边距。 |
+| `output.margin_left` | `20mm` | 页面左边距。 |
+| `output.margin_right` | `20mm` | 页面右边距。 |
 
 ### PDF 书签
 

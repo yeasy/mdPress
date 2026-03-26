@@ -33,6 +33,9 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 	// Write chapter pages when provided.
 	for name, html := range chapterHTMLs {
 		pageName := slugify(name) + ".html"
+		if err := validateFilename(outputDir, pageName); err != nil {
+			return fmt.Errorf("invalid chapter name %q: %w", name, err)
+		}
 		pagePath := filepath.Join(outputDir, pageName)
 		if err := os.WriteFile(pagePath, []byte(html), 0644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", pageName, err)

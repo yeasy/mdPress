@@ -6,7 +6,7 @@ GitBook projects are organized around Markdown files plus `SUMMARY.md`. mdPress 
 
 ```mermaid
 flowchart LR
-    A["GitBook project"] --> B["SUMMARY.md stays in place"]
+    A["GitBook project"] --> B["mdpress migrate"]
     B --> C["mdpress build"]
     B --> D["mdpress serve"]
     B --> E["Optional: mdpress init for book.yaml"]
@@ -21,7 +21,17 @@ go install github.com/yeasy/mdpress@latest
 # or download from https://github.com/yeasy/mdpress/releases
 ```
 
-### 2. Run mdPress in Your GitBook Directory
+### 2. Run the Automated Migration
+
+The `migrate` command converts `book.json` to `book.yaml` and rewrites GitBook-specific template tags (`{% hint %}`, `{% code %}`, `{% tabs %}`):
+
+```bash
+mdpress migrate
+```
+
+Use `--dry-run` to preview changes without modifying files.
+
+### 3. Build and Preview
 
 Navigate to your existing GitBook project and run:
 
@@ -39,7 +49,7 @@ mdpress build --summary path/to/SUMMARY.md
 mdpress serve --summary path/to/SUMMARY.md
 ```
 
-### 3. (Optional) Initialize Configuration
+### 4. (Optional) Initialize Configuration
 
 For more control over themes, styling, or metadata, create a `book.yaml` configuration file:
 
@@ -79,12 +89,12 @@ Edit `book.yaml` and run `mdpress build` again.
 3. **Live Preview**: mdPress has its own `serve` command for local preview and auto reload.
 4. **Theme System**: mdPress includes fewer built-in themes than GitBook-style ecosystems. Custom CSS is the recommended path when you need brand-specific appearance.
 5. **Internationalization**: mdPress supports language metadata, but auto-translation features are not built-in.
-6. **Variable Substitution**: GitBook's templating variables (e.g., `{% include %}`) are not supported; use pure Markdown instead.
+6. **Variable Substitution**: `mdpress migrate` rewrites common GitBook tags (`{% hint %}`, `{% code %}`, `{% tabs %}`). General Jinja/Nunjucks templating (e.g., `{% include %}`, variables) is not supported; use pure Markdown instead.
 
 ## Example Commands
 
 ```bash
-# Build all formats
+# Build PDF (default format)
 mdpress build
 
 # Generate only PDF

@@ -84,6 +84,8 @@ func (s *GitHubSource) Prepare() (string, error) {
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
 		if !branchRegex.MatchString(s.opts.Branch) {
+			os.RemoveAll(s.tempDir)
+			s.tempDir = ""
 			return "", fmt.Errorf("invalid branch name: %q", s.opts.Branch)
 		}
 		args = append(args, "--branch", s.opts.Branch)

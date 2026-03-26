@@ -198,7 +198,7 @@ func TestFinalizeValidate_WithError(t *testing.T) {
 	}
 	err := finalizeValidate(results, true)
 	if err == nil {
-		t.Error("finalizeValidate with error should return non-nil error")
+		t.Fatal("finalizeValidate with error should return non-nil error")
 	}
 	if !strings.Contains(err.Error(), "validation failed") {
 		t.Errorf("error should mention 'validation failed', got: %v", err)

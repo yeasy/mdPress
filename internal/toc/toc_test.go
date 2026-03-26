@@ -218,7 +218,7 @@ func TestGetEntry(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		entry := GetEntry(entries, tt.id)
+		entry := getEntry(entries, tt.id)
 		if tt.found {
 			if entry == nil {
 				t.Errorf("should find entry with ID=%q", tt.id)
@@ -246,7 +246,7 @@ func TestFlattenToList(t *testing.T) {
 		{Level: 1, Title: "B", ID: "b", Children: []TOCEntry{}},
 	}
 
-	flat := FlattenToList(entries)
+	flat := flattenToList(entries)
 	if len(flat) != 4 {
 		t.Fatalf("should have 4 entries after flattening: got %d", len(flat))
 	}
@@ -468,7 +468,7 @@ func TestFlattenToListEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FlattenToList(tt.input)
+			result := flattenToList(tt.input)
 			if len(result) != tt.expect {
 				t.Errorf("should have %d entries: got %d", tt.expect, len(result))
 			}
@@ -494,7 +494,7 @@ func TestGetEntryFirstMatch(t *testing.T) {
 	}
 
 	// Query an ID that may appear multiple times
-	entry := GetEntry(entries, "duplicate-id")
+	entry := getEntry(entries, "duplicate-id")
 	if entry == nil {
 		t.Fatal("should find entry with ID 'duplicate-id'")
 		return

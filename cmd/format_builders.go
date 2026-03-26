@@ -93,6 +93,9 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to assemble HTML: %w", err)
 	}
+	// Chrome's PrintToPDF does not trigger lazy loading for off-screen images,
+	// so strip loading="lazy" to ensure all images render in the PDF.
+	fullHTML = strings.ReplaceAll(fullHTML, " loading=\"lazy\"", "")
 	outputPath := baseName + ".pdf"
 	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -113,7 +116,7 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
 		pdf.WithPrintBackground(true),
-		pdf.WithFooterTemplate(`<div style="width:100%;text-align:center;font-size:8px;color:#c0c0c0;font-family:Arial,sans-serif;">Build with <a href="https://github.com/yeasy/mdpress" style="color:#8ab4f8;text-decoration:none;">md<span style="color:#8ab4f8;">Press</span></a></div>`),
+		pdf.WithFooterTemplate(`<div style="width:100%;text-align:center;font-size:8px;color:#c0c0c0;font-family:Arial,sans-serif;">Built with <a href="https://github.com/yeasy/mdpress" style="color:#8ab4f8;text-decoration:none;">md<span style="color:#8ab4f8;">Press</span></a></div>`),
 	}
 
 	// Add custom margins if provided in config, otherwise use defaults

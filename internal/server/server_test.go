@@ -498,7 +498,7 @@ func TestCheckForChanges(t *testing.T) {
 	srv.scanModTimes(modTimes)
 
 	// Should return false when no changes
-	changed := srv.checkForChanges(modTimes)
+	changed, _ := srv.checkForChanges(modTimes)
 	if changed {
 		t.Error("should return false when no files changed")
 	}
@@ -517,13 +517,13 @@ func TestCheckForChanges(t *testing.T) {
 	}
 
 	// Detect change
-	changed = srv.checkForChanges(modTimes)
+	changed, _ = srv.checkForChanges(modTimes)
 	if !changed {
 		t.Error("should return true after file modification")
 	}
 
 	// Check again (modTimes updated) should return false
-	changed = srv.checkForChanges(modTimes)
+	changed, _ = srv.checkForChanges(modTimes)
 	if changed {
 		t.Error("should return false after modTimes updated")
 	}
@@ -545,7 +545,7 @@ func TestCheckForChanges_NewFile(t *testing.T) {
 		t.Fatalf("write new_file.md failed: %v", err)
 	}
 
-	changed := srv.checkForChanges(modTimes)
+	changed, _ := srv.checkForChanges(modTimes)
 	if !changed {
 		t.Error("should return true after new file added")
 	}
@@ -568,7 +568,7 @@ func TestCheckForChanges_DeleteFile(t *testing.T) {
 		t.Fatalf("remove file failed: %v", err)
 	}
 
-	changed := srv.checkForChanges(modTimes)
+	changed, _ := srv.checkForChanges(modTimes)
 	if !changed {
 		t.Error("should return true after file deleted")
 	}
@@ -704,7 +704,7 @@ func TestBuildFuncIntegration(t *testing.T) {
 
 	// BuildFunc should not be nil
 	if srv.BuildFunc == nil {
-		t.Error("BuildFunc should be set")
+		t.Fatal("BuildFunc should be set")
 	}
 
 	// Manual invocation
@@ -1532,57 +1532,6 @@ func TestWebSocketClientRegistration(t *testing.T) {
 	}
 }
 
-// TestNotifyClientsMessageFormat tests that notification messages are properly formatted
-func TestNotifyClientsMessageFormat(t *testing.T) {
-	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
-
-	// Create a mock client that records messages
-	messages := make([]string, 0)
-	msgMu := sync.Mutex{}
-
-	// Replace writeMessage with a mock
-	originalWriteMessage := func(msg []byte) {
-		msgMu.Lock()
-		defer msgMu.Unlock()
-		messages = append(messages, string(msg))
-	}
-
-	// Create test clients that record messages
-	testClients := make([]*wsClient, 3)
-	srv.clientsMu.Lock()
-	for i := 0; i < 3; i++ {
-		client := &wsClient{}
-		testClients[i] = client
-		srv.clients[client] = struct{}{}
-	}
-	srv.clientsMu.Unlock()
-
-	// Test notifyClients message format
-	msg := []byte(`{"type":"reload","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
-	if !strings.Contains(string(msg), `"type":"reload"`) {
-		t.Error("reload message should contain type:reload")
-	}
-	if !strings.Contains(string(msg), `"timestamp":`) {
-		t.Error("reload message should contain timestamp")
-	}
-
-	// Test notifyCSSUpdate message format
-	cssMsg := []byte(`{"type":"css-update","timestamp":` + fmt.Sprintf("%d", time.Now().UnixMilli()) + `}`)
-	if !strings.Contains(string(cssMsg), `"type":"css-update"`) {
-		t.Error("css-update message should contain type:css-update")
-	}
-
-	// Test notifyBuildError message format
-	errMsg := "test error message"
-	buildErrMsg := []byte(fmt.Sprintf(`{"type":"build-error","timestamp":%d,"error":"%s"}`, time.Now().UnixMilli(), errMsg))
-	if !strings.Contains(string(buildErrMsg), `"type":"build-error"`) {
-		t.Error("build-error message should contain type:build-error")
-	}
-
-	// Verify originalWriteMessage was not called (we're not actually testing write behavior here)
-	_ = originalWriteMessage
-}
-
 // TestListenWithDynamicPortSelection tests port assignment from listener
 func TestListenWithDynamicPortSelection(t *testing.T) {
 	srv := NewServer("127.0.0.1", 0, "/tmp", "/tmp", slog.Default())
@@ -1777,13 +1726,13 @@ func TestCheckForChanges_NoChanges(t *testing.T) {
 	srv.scanModTimes(modTimes)
 
 	// Check for changes immediately - should be false
-	changed := srv.checkForChanges(modTimes)
+	changed, _ := srv.checkForChanges(modTimes)
 	if changed {
 		t.Error("Should detect no changes immediately after scan")
 	}
 
 	// Check again - still should be false
-	changed = srv.checkForChanges(modTimes)
+	changed, _ = srv.checkForChanges(modTimes)
 	if changed {
 		t.Error("Should detect no changes on subsequent check")
 	}

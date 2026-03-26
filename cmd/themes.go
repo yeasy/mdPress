@@ -98,11 +98,11 @@ type Theme struct {
 	Version     string
 	License     string
 	Features    []string
-	Colors      ThemeColors
+	Colors      themeColors
 }
 
-// ThemeColors stores theme color values.
-type ThemeColors struct {
+// themeColors stores theme color values.
+type themeColors struct {
 	Primary    string
 	Secondary  string
 	Accent     string
@@ -127,7 +127,7 @@ func getAvailableThemes() []Theme {
 				"Responsive layout",
 				"Professional font pairing",
 			},
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#1A5490",
 				Secondary:  "#0066CC",
 				Accent:     "#0066CC",
@@ -149,7 +149,7 @@ func getAvailableThemes() []Theme {
 				"Careful spacing",
 				"Chapter dividers",
 			},
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#34495e",
 				Secondary:  "#16a085",
 				Accent:     "#d35400",
@@ -171,7 +171,7 @@ func getAvailableThemes() []Theme {
 				"Fast loading",
 				"Print-friendly",
 			},
-			Colors: ThemeColors{
+			Colors: themeColors{
 				Primary:    "#000000",
 				Secondary:  "#555555",
 				Accent:     "#0066cc",

@@ -774,7 +774,7 @@ const standaloneCSS = `    /* ==================================================
       max-width: 100%;
       height: auto;
       display: block;
-      margin: 1rem 0;
+      margin: 1rem auto;
       border-radius: 6px;
       cursor: pointer;
       transition: opacity 0.2s;

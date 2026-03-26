@@ -51,7 +51,7 @@ func NewGenerator(opts ...GeneratorOption) *Generator {
 		fontSize:     defaultFontSize,
 		lineHeight:   defaultLineHeight,
 		language:     "en",
-		date:         CurrentDate(),
+		date:         currentDate(),
 	}
 	for _, opt := range opts {
 		opt(g)
@@ -133,7 +133,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	typstContent := converter.Convert(markdownContent)
 
 	// Get page dimensions in Typst format
-	width, height := GetPageDimensions(g.pageSize)
+	width, height := getPageDimensions(g.pageSize)
 
 	// Prepare template data
 	templateData := TypstTemplateData{
@@ -155,7 +155,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	}
 
 	// Render the Typst document
-	typstDocument, err := RenderTypstDocument(templateData)
+	typstDocument, err := renderTypstDocument(templateData)
 	if err != nil {
 		return fmt.Errorf("failed to render Typst document: %w", err)
 	}
@@ -173,7 +173,9 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 		f.Close() //nolint:errcheck
 		return fmt.Errorf("failed to write temporary Typst file: %w", err)
 	}
-	f.Close() //nolint:errcheck
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary Typst file: %w", err)
+	}
 
 	// Compile the Typst file to PDF using 'typst compile'
 	if err := g.compileToPDF(tmpTypFile, outputPath); err != nil {
@@ -251,7 +253,7 @@ func (g *Generator) checkTypstAvailable() error {
 	return nil
 }
 
-// CheckTypstAvailable is a public function to check Typst availability.
-func CheckTypstAvailable() error {
+// checkTypstAvailable checks Typst availability.
+func checkTypstAvailable() error {
 	return NewGenerator().checkTypstAvailable()
 }

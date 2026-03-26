@@ -84,9 +84,13 @@ func (tm *ThemeManager) Get(name string) (*Theme, error) {
 
 // LoadFromFile loads a theme from a YAML file.
 func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
-	// Check file exists
-	if _, err := os.Stat(path); err != nil {
+	const maxThemeSize = 1 * 1024 * 1024 // 1 MB
+	info, err := os.Stat(path)
+	if err != nil {
 		return nil, fmt.Errorf("theme file not found: %w", err)
+	}
+	if info.Size() > int64(maxThemeSize) {
+		return nil, fmt.Errorf("theme file is too large (%d bytes; max %d bytes)", info.Size(), maxThemeSize)
 	}
 
 	// Read file contents.

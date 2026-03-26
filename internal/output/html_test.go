@@ -51,7 +51,10 @@ func TestHTMLGeneratorWithChapters(t *testing.T) {
 	}
 
 	// Check chapter files exist
-	entries, _ := os.ReadDir(outDir)
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatalf("failed to read output dir: %v", err)
+	}
 	if len(entries) < 3 { // index.html + 2 chapters
 		t.Errorf("expected at least 3 files, got %d", len(entries))
 	}

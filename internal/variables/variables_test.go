@@ -39,7 +39,7 @@ func TestExpandNoSpaces(t *testing.T) {
 func TestExpandMultipleVars(t *testing.T) {
 	cfg := newTestConfig()
 	input := "{{ book.title }} by {{ book.author }} v{{ book.version }}"
-	result := ExpandString(input, cfg)
+	result := expandString(input, cfg)
 	if result != "测试书名 by 张三 v2.0.0" {
 		t.Errorf("got %q", result)
 	}
@@ -58,7 +58,7 @@ func TestExpandAllVars(t *testing.T) {
 		"output.filename":  "test.pdf",
 	}
 	for key, expected := range vars {
-		result := ExpandString("{{ "+key+" }}", cfg)
+		result := expandString("{{ "+key+" }}", cfg)
 		if result != expected {
 			t.Errorf("%s: got %q, want %q", key, result, expected)
 		}
@@ -68,7 +68,7 @@ func TestExpandAllVars(t *testing.T) {
 func TestExpandUnknownVar(t *testing.T) {
 	cfg := newTestConfig()
 	input := "{{ unknown.var }}"
-	result := ExpandString(input, cfg)
+	result := expandString(input, cfg)
 	if result != input {
 		t.Errorf("unknown var should stay: got %q", result)
 	}
@@ -85,7 +85,7 @@ func TestExpandNilConfig(t *testing.T) {
 func TestExpandNoVars(t *testing.T) {
 	cfg := newTestConfig()
 	input := "No variables here."
-	result := ExpandString(input, cfg)
+	result := expandString(input, cfg)
 	if result != input {
 		t.Error("no vars should not modify input")
 	}
@@ -94,7 +94,7 @@ func TestExpandNoVars(t *testing.T) {
 func TestExpandInMarkdown(t *testing.T) {
 	cfg := newTestConfig()
 	input := "# {{ book.title }}\n\n作者: {{ book.author }}\n\n版本 {{ book.version }}"
-	result := ExpandString(input, cfg)
+	result := expandString(input, cfg)
 	if !strings.Contains(result, "# 测试书名") {
 		t.Error("should expand in heading")
 	}
@@ -107,7 +107,7 @@ func TestExpandMixedContent(t *testing.T) {
 	cfg := newTestConfig()
 	// {{ ref:fig1 }} is not a valid variable name (contains colon), should not be processed
 	input := "{{ book.title }} and {{ref:fig1}}"
-	result := ExpandString(input, cfg)
+	result := expandString(input, cfg)
 	if !strings.Contains(result, "测试书名") {
 		t.Error("should expand book.title")
 	}

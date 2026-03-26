@@ -133,7 +133,7 @@ func TestBuildCommand_HasRunE(t *testing.T) {
 
 // TestFlattenChapters_EmptyList tests flattening of empty chapter list
 func TestFlattenChapters_EmptyList(t *testing.T) {
-	result := flattenChapters(nil)
+	result := config.FlattenChapters(nil)
 	if len(result) != 0 {
 		t.Errorf("flattening empty list should return empty, got %d", len(result))
 	}
@@ -146,7 +146,7 @@ func TestFlattenChapters_SingleLevel(t *testing.T) {
 		{Title: "Chapter 2", File: "ch2.md"},
 	}
 
-	result := flattenChapters(chapters)
+	result := config.FlattenChapters(chapters)
 	if len(result) != 2 {
 		t.Errorf("flattening 2 chapters should return 2, got %d", len(result))
 	}
@@ -166,7 +166,7 @@ func TestFlattenChapters_WithSections(t *testing.T) {
 		{Title: "Part 2", File: "part2.md"},
 	}
 
-	result := flattenChapters(chapters)
+	result := config.FlattenChapters(chapters)
 	if len(result) < 4 {
 		t.Errorf("flattening with sections should return at least 4 items, got %d", len(result))
 	}

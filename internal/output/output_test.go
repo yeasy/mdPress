@@ -95,7 +95,10 @@ func TestRegistry_Register_Replace(t *testing.T) {
 	format1 := &mockFormat{name: "pdf", description: "PDF v1"}
 	reg.Register(format1)
 
-	f, _ := reg.Get("pdf")
+	f, err := reg.Get("pdf")
+	if err != nil {
+		t.Fatalf("expected no error getting initial format, got: %v", err)
+	}
 	if f.Description() != "PDF v1" {
 		t.Error("expected initial description")
 	}
@@ -104,7 +107,10 @@ func TestRegistry_Register_Replace(t *testing.T) {
 	format2 := &mockFormat{name: "pdf", description: "PDF v2"}
 	reg.Register(format2)
 
-	f, _ = reg.Get("pdf")
+	f, err = reg.Get("pdf")
+	if err != nil {
+		t.Fatalf("expected no error getting replaced format, got: %v", err)
+	}
 	if f.Description() != "PDF v2" {
 		t.Error("expected format to be replaced with new description")
 	}
@@ -242,12 +248,15 @@ func TestRegistry_List_ReturnsCopy(t *testing.T) {
 	list1 := reg.List()
 	list2 := reg.List()
 
-	// Modify first list
-	_ = append(list1, "modified")
+	// Modify first list element in place
+	if len(list1) == 0 {
+		t.Fatal("expected non-empty list")
+	}
+	list1[0] = "modified"
 
 	// Check that second list is not affected
-	if len(list2) != 1 {
-		t.Error("modifying returned list should not affect registry")
+	if list2[0] == "modified" {
+		t.Error("modifying returned list should not affect other callers")
 	}
 }
 

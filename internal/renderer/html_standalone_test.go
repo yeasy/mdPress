@@ -8,7 +8,7 @@ import (
 // TestNewStandaloneHTMLRendererSuccess tests successful creation of StandaloneHTMLRenderer.
 func TestNewStandaloneHTMLRendererSuccess(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
@@ -30,7 +30,7 @@ func TestNewStandaloneHTMLRendererSuccess(t *testing.T) {
 
 // TestNewStandaloneHTMLRendererNilConfig tests error handling with nil config.
 func TestNewStandaloneHTMLRendererNilConfig(t *testing.T) {
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, _ := NewStandaloneHTMLRenderer(nil, thm)
 	// Should create renderer even with nil config (panic happens on Render)
 	if r == nil {
@@ -53,7 +53,7 @@ func TestNewStandaloneHTMLRendererNilTheme(t *testing.T) {
 // TestStandaloneRenderBasic tests basic standalone HTML rendering.
 func TestStandaloneRenderBasic(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -87,7 +87,7 @@ func TestStandaloneRenderBasic(t *testing.T) {
 // TestStandaloneRenderNilParts tests error handling with nil parts.
 func TestStandaloneRenderNilParts(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -132,7 +132,7 @@ func TestStandaloneLanguageAttribute(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newTestConfig()
 			cfg.Book.Language = tc.language
-			thm := newTestTheme()
+			thm := newTestTheme(t)
 
 			r, err := NewStandaloneHTMLRenderer(cfg, thm)
 			if err != nil {
@@ -162,7 +162,7 @@ func TestStandaloneMetadataRendering(t *testing.T) {
 	cfg := newTestConfig()
 	cfg.Book.Title = "Test Book Title"
 	cfg.Book.Author = "Test Author Name"
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
@@ -191,7 +191,7 @@ func TestStandaloneMetadataRendering(t *testing.T) {
 // TestStandaloneEmptyChapters tests rendering with empty chapters list.
 func TestStandaloneEmptyChapters(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -214,7 +214,7 @@ func TestStandaloneEmptyChapters(t *testing.T) {
 // TestStandaloneMultipleChapters tests rendering with multiple chapters.
 func TestStandaloneMultipleChapters(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -247,7 +247,7 @@ func TestStandaloneMultipleChapters(t *testing.T) {
 // TestStandaloneChapterIDGeneration tests automatic ID generation for chapters.
 func TestStandaloneChapterIDGeneration(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -279,7 +279,7 @@ func TestStandaloneChapterIDGeneration(t *testing.T) {
 // TestStandaloneChapterNavigation tests prev/next chapter navigation.
 func TestStandaloneChapterNavigation(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -312,7 +312,7 @@ func TestStandaloneChapterNavigation(t *testing.T) {
 // TestStandaloneCustomCSS tests custom CSS inclusion.
 func TestStandaloneCustomCSS(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -341,7 +341,7 @@ func TestStandaloneCustomCSS(t *testing.T) {
 // TestStandaloneThemeCSS tests that theme CSS is included.
 func TestStandaloneThemeCSS(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -500,7 +500,7 @@ func TestBuildStandaloneSidebarTreeSkipInvalidDepth(t *testing.T) {
 // TestStandaloneSidebarRendering tests sidebar HTML generation.
 func TestStandaloneSidebarRendering(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -533,7 +533,7 @@ func TestStandaloneSidebarRendering(t *testing.T) {
 // TestStandaloneHeadingsNavigation tests nested heading structure in sidebar.
 func TestStandaloneHeadingsNavigation(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -578,7 +578,7 @@ func TestStandaloneDataPopulation(t *testing.T) {
 	cfg.Book.Author = "Test Author"
 	cfg.Book.Language = "zh-CN"
 
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -621,7 +621,7 @@ func TestStandaloneSpecialCharactersEscape(t *testing.T) {
 	cfg.Book.Title = "Title with <script>"
 	cfg.Book.Author = "Author & Co."
 
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -653,7 +653,7 @@ func TestStandaloneSpecialCharactersEscape(t *testing.T) {
 // TestStandaloneHTMLStructure tests overall HTML document structure.
 func TestStandaloneHTMLStructure(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -694,7 +694,7 @@ func TestStandaloneHTMLStructure(t *testing.T) {
 // TestStandaloneCDNURLSubstitution tests that CDN URLs are substituted in template.
 func TestStandaloneCDNURLSubstitution(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -731,7 +731,7 @@ func TestStandaloneRenderWithAllComponentsCombined(t *testing.T) {
 	cfg.Book.Author = "Complete Author"
 	cfg.Book.Language = "en"
 
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
@@ -793,7 +793,7 @@ func TestStandaloneRenderWithAllComponentsCombined(t *testing.T) {
 // TestStandaloneChapterIDsInContent tests chapter IDs are accessible in rendered HTML.
 func TestStandaloneChapterIDsInContent(t *testing.T) {
 	cfg := newTestConfig()
-	thm := newTestTheme()
+	thm := newTestTheme(t)
 	r, err := NewStandaloneHTMLRenderer(cfg, thm)
 	if err != nil {
 		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
