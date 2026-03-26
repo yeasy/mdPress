@@ -8,6 +8,49 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.2] - 2026-03-25
+
+### Security
+
+- **WebSocket origin validation**: Preview server now validates the `Origin` header against the request `Host`, preventing cross-origin WebSocket hijacking
+- **Upgrade URL domain validation**: Binary downloads now verify the URL points to `github.com` or `*.githubusercontent.com` before fetching
+- **Absolute image path rejection**: `resolveLocalImagePath` rejects absolute paths to prevent reading arbitrary local files
+- **Theme CSS injection prevention**: Theme color and font values from user YAML are validated against unsafe characters before CSS output
+- **CSS color pattern tightened**: `rgb()`/`hsl()` patterns now restrict parenthesized content to digits, commas, spaces, dots, and percent signs
+- **Security headers**: Preview server now sets `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`
+
+### Fixed
+
+- **Chapter cache key mismatch**: Cache key computation now uses the same fallback logic as the parser, preventing stale cache hits when the code theme defaults to "github"
+- **PlantUML encoding**: Replaced zlib with raw deflate and implemented the correct PlantUML custom 6-bit encoding alphabet
+- **Heading ID race condition**: Eliminated shared mutable state in `headingIDTransformer`; each `Transform` call now uses a local `usedIDs` map
+- **Path traversal via book.json**: Added `safeJoin()` helper that rejects absolute paths and paths escaping the project directory
+- **Typst font size fallback**: `fmt.Sscanf` parse failures now fall back to `12pt` instead of producing invisible `0.0pt` text
+- **Glossary double-wrapping**: Overlapping terms no longer create nested `<span>` tags
+- **UTF-8 title capitalization**: `fileNameToTitle` and `inferBookTitle` now use `[]rune` + `unicode.ToUpper` for multi-byte first characters
+- **Double-parse in validate**: `validateChapterContentAndSequence` now captures HTML from `ParseWithDiagnostics` instead of discarding it and re-parsing
+- **Panic on empty headings**: Fixed index-before-bounds-check in e2e test that would panic when `headings` slice was empty
+- **Sidebar title matching**: Changed case-sensitive `==` to `strings.EqualFold` for sidebar chapter deduplication
+- **404 redirect method**: Changed from 307 (preserves POST) to 302 (converts to GET) for non-existent page redirects
+- **Typst template injection**: User content with `{{ }}` no longer panics or injects code via `text/template`
+
+### Changed
+
+- **Triple config load eliminated**: `doctor` command now loads `config.Load()` once and passes the result to `checkDiskSpace` and `checkPlugins`
+- **Dead code removed**: Unused `CacheStatistics`, no-op `convertCodeSpans`, and duplicate `fileExists` in migrate.go removed
+- **Glossary regex hoisted**: `skipPattern` compiled once at package level instead of per-call
+- **Search index optimization**: Replaced `len([]rune(...))` with `utf8.RuneCountInString()` for search snippet slicing
+- **Font family formatting**: Fixed double-space issue in `quoteFontFamily` CSS output
+
+### Docs
+
+- **validate command**: Documented the `--report` flag (was listed as "no dedicated flags")
+- **completion command**: Corrected `--no-descriptions` support from `bash`/`zsh` to `bash`/`fish`
+- **build command**: Noted that `--format all` expands to `pdf,html,site,epub` and excludes `typst`
+- **upgrade command**: Removed fabricated exit codes section
+
+---
+
 ## [0.6.1] - 2026-03-24
 
 ### Changed
@@ -418,7 +461,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/yeasy/mdpress/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/yeasy/mdpress/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/yeasy/mdpress/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/yeasy/mdpress/compare/v0.5.3...v0.5.4
