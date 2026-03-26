@@ -566,6 +566,8 @@ body.sidebar-open::before {
   .nav-chapter {
     font-size: 0.88rem;
   }
+  .search-inline { width: 100%; }
+  .search-backdrop.open { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -595,17 +597,27 @@ select:focus-visible {
 }
 .skip-link:focus { top: 12px; }
 
-/* ===== Search Modal ===== */
+/* ===== Search Panel (right-aligned dropdown) ===== */
 .search-inline {
   display: none;
-  margin: 14px 50px 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.96);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 460px;
+  max-width: 100vw;
+  z-index: 200;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.10);
 }
-.search-inline.open { display: block; }
+.search-inline.open { display: flex; }
+.search-backdrop {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 460px; bottom: 0;
+  z-index: 199;
+}
+.search-backdrop.open { display: block; }
 .search-header {
   display: flex;
   align-items: center;
@@ -636,6 +648,7 @@ select:focus-visible {
   overflow-y: auto;
   padding: 8px;
   flex: 1;
+  min-height: 0;
 }
 .search-status {
   padding: 6px 16px 0;
@@ -780,7 +793,7 @@ html.dark .page-toc-header { color: #a6adc8; }
 html.dark .page-toc-nav a { color: #6c7086; }
 html.dark .page-toc-nav a:hover { color: #cdd6f4; }
 html.dark .page-toc-nav a.toc-active { color: #89b4fa; border-left-color: #89b4fa; }
-html.dark .search-inline { background: rgba(30,30,46,0.96); border-color: #313244; box-shadow: 0 16px 48px rgba(0,0,0,.28); }
+html.dark .search-inline { background: #1e1e2e; border-left-color: #313244; box-shadow: -4px 0 24px rgba(0,0,0,.3); }
 html.dark .search-header { border-bottom-color: #313244; }
 html.dark .search-input { color: #cdd6f4; }
 html.dark .search-input::placeholder { color: #6c7086; }
@@ -904,21 +917,22 @@ body {
 <body>
   <a href="#main-content" class="skip-link">Skip to content</a>
 
+  <div class="search-backdrop" id="search-backdrop"></div>
   <div class="search-inline" id="search-overlay" role="search" aria-label="{{.UIsearchButton}}">
-      <div class="search-header">
-        <span class="search-icon">&#128269;</span>
-        <input type="text" class="search-input" id="search-input" placeholder="{{.UIsearchPlaceholder}}" autocomplete="off" spellcheck="false">
-        <span class="search-esc">ESC</span>
-      </div>
-      <div class="search-status" id="search-status" aria-live="polite"></div>
-      <div class="search-results" id="search-results">
-        <div class="search-empty">{{.UIsearchPlaceholder}}</div>
-      </div>
-      <div class="search-footer">
-        <span><kbd>↑</kbd><kbd>↓</kbd> {{.UIsearchNavigate}}</span>
-        <span><kbd>↵</kbd> {{.UIsearchOpen}}</span>
-        <span><kbd>esc</kbd> {{.UIsearchClose}}</span>
-      </div>
+    <div class="search-header">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" class="search-input" id="search-input" placeholder="{{.UIsearchPlaceholder}}" autocomplete="off" spellcheck="false">
+      <span class="search-esc">ESC</span>
+    </div>
+    <div class="search-status" id="search-status" aria-live="polite"></div>
+    <div class="search-results" id="search-results">
+      <div class="search-empty">{{.UIsearchPlaceholder}}</div>
+    </div>
+    <div class="search-footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> {{.UIsearchNavigate}}</span>
+      <span><kbd>↵</kbd> {{.UIsearchOpen}}</span>
+      <span><kbd>esc</kbd> {{.UIsearchClose}}</span>
+    </div>
   </div>
 
   <div class="route-progress" id="route-progress" aria-hidden="true">
@@ -2017,10 +2031,12 @@ body {
     var searchIndex = null;
     var activeIdx = -1;
     var debounceTimer = null;
+    var homeLink = document.querySelector('.sidebar-home-link');
+    var basePath = (homeLink ? homeLink.getAttribute('href') : '/').replace(/[^/]*$/, '');
 
     function loadIndex() {
       if (searchIndex) return Promise.resolve(searchIndex);
-      return fetch('search-index.json').then(function(r) {
+      return fetch(basePath + 'search-index.json').then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }).then(function(data) {
@@ -2120,8 +2136,11 @@ body {
       });
     }
 
+    var backdrop = document.getElementById('search-backdrop');
+
     window.openSearch = function(initialQuery) {
       overlay.classList.add('open');
+      backdrop.classList.add('open');
       modalInput.value = initialQuery || '';
       activeIdx = -1;
       loadIndex().catch(function() {});
@@ -2135,14 +2154,21 @@ body {
 
     function closeSearch() {
       overlay.classList.remove('open');
+      backdrop.classList.remove('open');
       activeIdx = -1;
     }
 
-    document.addEventListener('click', function(e) {
-      if (!overlay.classList.contains('open')) return;
-      if (overlay.contains(e.target)) return;
-      if (headerSearchBtn && headerSearchBtn.contains(e.target)) return;
+    backdrop.addEventListener('click', function() {
       closeSearch();
+    });
+
+    var leaveTimer = null;
+    overlay.addEventListener('mouseleave', function() {
+      if (document.activeElement === modalInput) return;
+      leaveTimer = setTimeout(closeSearch, 500);
+    });
+    overlay.addEventListener('mouseenter', function() {
+      if (leaveTimer) { clearTimeout(leaveTimer); leaveTimer = null; }
     });
 
     modalInput.addEventListener('keydown', function(e) {
@@ -2238,7 +2264,7 @@ body {
           if (m.titleMatch) badges.push(__ui.searchMatchTitle);
           if (m.pathMatch) badges.push(__ui.searchMatchPath);
           if (!m.titleMatch && !m.pathMatch) badges.push(__ui.searchMatchText);
-          html += '<a class="search-result" href="' + escapeHTML(m.filename) + '">';
+          html += '<a class="search-result" href="' + escapeHTML(basePath + m.filename) + '">';
           if (badges.length) {
             html += '<div class="search-result-meta">';
             for (var k = 0; k < badges.length; k++) {
