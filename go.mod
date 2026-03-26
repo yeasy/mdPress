@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.8.1
-	github.com/yuin/goldmark v1.7.4
+	github.com/yuin/goldmark v1.8.2
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	golang.org/x/sync v0.20.0
 	gopkg.in/yaml.v3 v3.0.1
