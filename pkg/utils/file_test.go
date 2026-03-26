@@ -7,180 +7,180 @@ import (
 	"testing"
 )
 
-// TestFileExists 测试文件存在检查
+// TestFileExists tests file existence check
 func TestFileExists(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 存在的文件
+	// Existing file
 	tmpFile := filepath.Join(tmpDir, "test.txt")
 	if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if !FileExists(tmpFile) {
-		t.Error("文件应存在")
+		t.Error("file should exist")
 	}
 
-	// 不存在的文件
+	// Non-existent file
 	if FileExists(filepath.Join(tmpDir, "nonexistent.txt")) {
-		t.Error("文件不应存在")
+		t.Error("file should not exist")
 	}
 
-	// 存在的目录
+	// Existing directory
 	if !FileExists(tmpDir) {
-		t.Error("目录应存在")
+		t.Error("directory should exist")
 	}
 }
 
-// TestEnsureDir 测试目录创建
+// TestEnsureDir tests directory creation
 func TestEnsureDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 创建新目录
+	// Create new directory
 	newDir := filepath.Join(tmpDir, "a", "b", "c")
 	if err := EnsureDir(newDir); err != nil {
-		t.Fatalf("创建目录失败: %v", err)
+		t.Fatalf("failed to create directory: %v", err)
 	}
 	if !FileExists(newDir) {
-		t.Error("目录应已创建")
+		t.Error("directory should have been created")
 	}
 
-	// 已存在的目录不应报错
+	// Existing directory should not error
 	if err := EnsureDir(newDir); err != nil {
-		t.Errorf("已存在的目录不应报错: %v", err)
+		t.Errorf("existing directory should not cause error: %v", err)
 	}
 }
 
-// TestReadFile 测试文件读取
+// TestReadFile tests file reading
 func TestReadFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 写入测试文件
+	// Write test file
 	content := "测试内容 hello world"
 	tmpFile := filepath.Join(tmpDir, "test.txt")
 	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// 正常读取
+	// Normal read
 	data, err := ReadFile(tmpFile)
 	if err != nil {
-		t.Fatalf("读取文件失败: %v", err)
+		t.Fatalf("failed to read file: %v", err)
 	}
 	if string(data) != content {
-		t.Errorf("文件内容错误: got %q, want %q", string(data), content)
+		t.Errorf("file content mismatch: got %q, want %q", string(data), content)
 	}
 }
 
-// TestReadFileNotExist 测试读取不存在的文件
+// TestReadFileNotExist tests reading a non-existent file
 func TestReadFileNotExist(t *testing.T) {
 	_, err := ReadFile("/nonexistent/file.txt")
 	if err == nil {
-		t.Error("读取不存在的文件应返回错误")
+		t.Error("reading non-existent file should return an error")
 	}
 }
 
-// TestReadFileIsDir 测试读取目录
+// TestReadFileIsDir tests reading a directory
 func TestReadFileIsDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	_, err := ReadFile(tmpDir)
 	if err == nil {
-		t.Error("读取目录应返回错误")
+		t.Error("reading a directory should return an error")
 	}
 }
 
-// TestWriteFile 测试文件写入
+// TestWriteFile tests file writing
 func TestWriteFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 写入文件
+	// Write file
 	filePath := filepath.Join(tmpDir, "output.txt")
 	content := "写入的内容"
 	if err := WriteFile(filePath, []byte(content)); err != nil {
-		t.Fatalf("写入文件失败: %v", err)
+		t.Fatalf("failed to write file: %v", err)
 	}
 
-	// 验证内容
+	// Verify content
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		t.Fatalf("读取验证失败: %v", err)
+		t.Fatalf("failed to read for verification: %v", err)
 	}
 	if string(data) != content {
-		t.Errorf("文件内容错误: got %q", string(data))
+		t.Errorf("file content mismatch: got %q", string(data))
 	}
 }
 
-// TestWriteFileAutoCreateDir 测试写入时自动创建父目录
+// TestWriteFileAutoCreateDir tests auto-creating parent directories on write
 func TestWriteFileAutoCreateDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	filePath := filepath.Join(tmpDir, "sub", "dir", "output.txt")
 	if err := WriteFile(filePath, []byte("test")); err != nil {
-		t.Fatalf("写入文件失败: %v", err)
+		t.Fatalf("failed to write file: %v", err)
 	}
 
 	if !FileExists(filePath) {
-		t.Error("文件应已创建")
+		t.Error("file should have been created")
 	}
 }
 
-// TestWriteFileOverwrite 测试覆盖写入
+// TestWriteFileOverwrite tests overwriting an existing file
 func TestWriteFileOverwrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "test.txt")
 
-	// 第一次写入
+	// First write
 	if err := WriteFile(filePath, []byte("first")); err != nil {
 		t.Fatal(err)
 	}
 
-	// 覆盖写入
+	// Overwrite
 	if err := WriteFile(filePath, []byte("second")); err != nil {
 		t.Fatal(err)
 	}
 
 	data, _ := os.ReadFile(filePath)
 	if string(data) != "second" {
-		t.Errorf("覆盖写入失败: got %q", string(data))
+		t.Errorf("overwrite failed: got %q", string(data))
 	}
 }
 
-// TestCopyFile 测试文件复制
+// TestCopyFile tests file copying
 func TestCopyFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// 创建源文件
+	// Create source file
 	srcPath := filepath.Join(tmpDir, "source.txt")
 	content := "source content 源文件"
 	if err := os.WriteFile(srcPath, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// 复制
+	// Copy
 	dstPath := filepath.Join(tmpDir, "dest.txt")
 	if err := CopyFile(srcPath, dstPath); err != nil {
-		t.Fatalf("复制文件失败: %v", err)
+		t.Fatalf("failed to copy file: %v", err)
 	}
 
-	// 验证
+	// Verify
 	data, err := os.ReadFile(dstPath)
 	if err != nil {
-		t.Fatalf("读取目标文件失败: %v", err)
+		t.Fatalf("failed to read destination file: %v", err)
 	}
 	if string(data) != content {
-		t.Errorf("复制内容错误: got %q", string(data))
+		t.Errorf("copied content mismatch: got %q", string(data))
 	}
 }
 
-// TestCopyFileNonExistent 测试复制不存在的文件
+// TestCopyFileNonExistent tests copying a non-existent file
 func TestCopyFileNonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := CopyFile("/nonexistent/file", filepath.Join(tmpDir, "dst"))
 	if err == nil {
-		t.Error("复制不存在的文件应返回错误")
+		t.Error("copying non-existent file should return an error")
 	}
 }
 
-// TestCopyFileIsDir 测试复制目录（应失败）
+// TestCopyFileIsDir tests copying a directory (should fail)
 func TestCopyFileIsDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	srcDir := filepath.Join(tmpDir, "srcdir")
@@ -190,11 +190,11 @@ func TestCopyFileIsDir(t *testing.T) {
 
 	err := CopyFile(srcDir, filepath.Join(tmpDir, "dst"))
 	if err == nil {
-		t.Error("复制目录应返回错误")
+		t.Error("copying a directory should return an error")
 	}
 }
 
-// TestCopyFileAutoCreateDstDir 测试复制时自动创建目标目录
+// TestCopyFileAutoCreateDstDir tests auto-creating destination directory on copy
 func TestCopyFileAutoCreateDstDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -206,14 +206,14 @@ func TestCopyFileAutoCreateDstDir(t *testing.T) {
 	dstPath := filepath.Join(tmpDir, "new", "dir", "dst.txt")
 	err := CopyFile(srcPath, dstPath)
 	if err != nil {
-		t.Fatalf("复制文件失败: %v", err)
+		t.Fatalf("failed to copy file: %v", err)
 	}
 	if !FileExists(dstPath) {
-		t.Error("目标文件应已创建")
+		t.Error("destination file should have been created")
 	}
 }
 
-// TestRelPath 测试相对路径计算
+// TestRelPath tests relative path computation
 func TestRelPath(t *testing.T) {
 	tests := []struct {
 		base   string
@@ -234,35 +234,35 @@ func TestRelPath(t *testing.T) {
 	}
 }
 
-// TestReadWriteRoundTrip 测试读写往返
+// TestReadWriteRoundTrip tests read-write round trip
 func TestReadWriteRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "roundtrip.txt")
 
-	// 各种内容
+	// Various content types
 	contents := []string{
 		"简单文本",
 		"包含\n换行符\n的文本",
 		"包含 Unicode: 中文 日本語 한국어 emoji: 🎉",
-		"", // 空文件
-		"very long " + string(make([]byte, 10000)), // 大文件
+		"", // empty file
+		"very long " + string(make([]byte, 10000)), // large file
 	}
 
 	for i, content := range contents {
 		if err := WriteFile(filePath, []byte(content)); err != nil {
-			t.Fatalf("case %d: 写入失败: %v", i, err)
+			t.Fatalf("case %d: write failed: %v", i, err)
 		}
 		data, err := ReadFile(filePath)
 		if err != nil {
-			t.Fatalf("case %d: 读取失败: %v", i, err)
+			t.Fatalf("case %d: read failed: %v", i, err)
 		}
 		if string(data) != content {
-			t.Errorf("case %d: 读写不一致", i)
+			t.Errorf("case %d: read-write mismatch", i)
 		}
 	}
 }
 
-// TestCacheRootDir 测试缓存根目录
+// TestCacheRootDir tests cache root directory
 func TestCacheRootDir(t *testing.T) {
 	// Test 1: Default behavior (no env var)
 	t.Run("default without env var", func(t *testing.T) {
@@ -299,7 +299,7 @@ func TestCacheRootDir(t *testing.T) {
 	})
 }
 
-// TestCacheDisabled 测试缓存禁用检查
+// TestCacheDisabled tests cache disabled check
 func TestCacheDisabled(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -337,7 +337,7 @@ func TestCacheDisabled(t *testing.T) {
 	}
 }
 
-// TestExtractTitleFromFile 测试从文件提取标题
+// TestExtractTitleFromFile tests extracting title from file
 func TestExtractTitleFromFile(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -412,7 +412,7 @@ func TestExtractTitleFromFile(t *testing.T) {
 	}
 }
 
-// TestExtractTitleFromFileNonExistent 测试从不存在的文件提取标题
+// TestExtractTitleFromFileNonExistent tests extracting title from non-existent file
 func TestExtractTitleFromFileNonExistent(t *testing.T) {
 	title := ExtractTitleFromFile("/nonexistent/file.md")
 	if title != "" {
@@ -420,7 +420,7 @@ func TestExtractTitleFromFileNonExistent(t *testing.T) {
 	}
 }
 
-// TestExtractTitleFrom50LineLimit 测试50行限制
+// TestExtractTitleFrom50LineLimit tests the 50-line limit
 func TestExtractTitleFrom50LineLimit(t *testing.T) {
 	// Create a file where H1 is beyond the 50-line limit
 	tmpDir := t.TempDir()

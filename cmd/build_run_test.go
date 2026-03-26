@@ -147,7 +147,7 @@ func TestValidateBookTitleConsistencyDiffScopeNoDuplicate(t *testing.T) {
 }
 
 func TestValidateBookTitleConsistencyDockerPractice(t *testing.T) {
-	// Simulate the docker_practice pattern: "第X章" + "X.Y" numbering + "本章小结" in every chapter.
+	// Simulate the docker_practice pattern: Chinese chapter prefix + "X.Y" numbering + chapter summary in every chapter.
 	records := []chapterHeadingRecord{
 		{File: "01_introduction/README.md", Heading: markdown.HeadingInfo{Text: "第一章 介绍", Line: 1}},
 		{File: "01_introduction/summary.md", Heading: markdown.HeadingInfo{Text: "本章小结", Line: 1}},

@@ -512,7 +512,7 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 	tests := []struct {
 		name           string
 		statusCode     int
-		responseBody   interface{}
+		responseBody   any
 		expectJSONErr  bool
 		expectValidErr bool
 	}{
@@ -538,8 +538,8 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 		{
 			name:       "missing tag_name",
 			statusCode: http.StatusOK,
-			responseBody: map[string]interface{}{
-				"assets": []interface{}{},
+			responseBody: map[string]any{
+				"assets": []any{},
 			},
 			expectJSONErr:  false,
 			expectValidErr: true,
@@ -547,9 +547,9 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 		{
 			name:       "no assets",
 			statusCode: http.StatusOK,
-			responseBody: map[string]interface{}{
+			responseBody: map[string]any{
 				"tag_name": "v1.0.0",
-				"assets":   []interface{}{},
+				"assets":   []any{},
 			},
 			expectJSONErr:  false,
 			expectValidErr: true,
@@ -557,9 +557,9 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 		{
 			name:       "valid response",
 			statusCode: http.StatusOK,
-			responseBody: map[string]interface{}{
+			responseBody: map[string]any{
 				"tag_name": "v1.0.0",
-				"assets": []map[string]interface{}{
+				"assets": []map[string]any{
 					{
 						"name":                 "mdpress-linux-x86_64",
 						"browser_download_url": "https://example.com/mdpress",
@@ -581,7 +581,7 @@ func TestFetchLatestReleaseHTTPErrors(t *testing.T) {
 					switch body := tt.responseBody.(type) {
 					case string:
 						w.Write([]byte(body)) //nolint:errcheck
-					case map[string]interface{}:
+					case map[string]any:
 						json.NewEncoder(w).Encode(body) //nolint:errcheck
 					}
 				}

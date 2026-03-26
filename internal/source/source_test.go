@@ -5,121 +5,121 @@ import (
 	"testing"
 )
 
-// TestIsGitHubURL 测试 GitHub URL 识别（表驱动测试）
+// TestIsGitHubURL tests GitHub URL detection (table-driven)
 func TestIsGitHubURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
 		wantRes bool
 	}{
-		// 标准格式
+		// Standard formats
 		{
-			name:    "标准 HTTPS URL",
+			name:    "standard HTTPS URL",
 			input:   "https://github.com/owner/repo",
 			wantRes: true,
 		},
 		{
-			name:    "标准 HTTP URL",
+			name:    "standard HTTP URL",
 			input:   "http://github.com/owner/repo",
 			wantRes: true,
 		},
 		{
-			name:    "无协议的 GitHub URL",
+			name:    "GitHub URL without protocol",
 			input:   "github.com/owner/repo",
 			wantRes: true,
 		},
-		// .git 后缀
+		// .git suffix
 		{
-			name:    "带 .git 后缀",
+			name:    "with .git suffix",
 			input:   "https://github.com/owner/repo.git",
 			wantRes: true,
 		},
 		{
-			name:    "带 .git 后缀（无协议）",
+			name:    "with .git suffix (no protocol)",
 			input:   "github.com/owner/repo.git",
 			wantRes: true,
 		},
-		// www 前缀
+		// www prefix
 		{
-			name:    "带 www 前缀",
+			name:    "with www prefix",
 			input:   "https://www.github.com/owner/repo",
 			wantRes: true,
 		},
 		{
-			name:    "www 无协议",
+			name:    "www without protocol",
 			input:   "www.github.com/owner/repo",
 			wantRes: true,
 		},
-		// 带路径的 URL
+		// URL with path
 		{
-			name:    "带路径的 URL",
+			name:    "URL with path",
 			input:   "https://github.com/owner/repo/tree/main",
 			wantRes: true,
 		},
 		{
-			name:    "带 issues 路径",
+			name:    "with issues path",
 			input:   "https://github.com/owner/repo/issues/123",
 			wantRes: true,
 		},
-		// 无效或非 GitHub URL
+		// Invalid or non-GitHub URLs
 		{
-			name:    "非 GitHub 域名",
+			name:    "non-GitHub domain",
 			input:   "https://gitlab.com/owner/repo",
 			wantRes: false,
 		},
 		{
-			name:    "局部路径",
+			name:    "local path",
 			input:   "/home/user/project",
 			wantRes: false,
 		},
 		{
-			name:    "相对路径",
+			name:    "relative path",
 			input:   "./project",
 			wantRes: false,
 		},
 		{
-			name:    "纯文本名称",
+			name:    "plain text name",
 			input:   "owner/repo",
 			wantRes: false,
 		},
 		{
-			name:    "空字符串",
+			name:    "empty string",
 			input:   "",
 			wantRes: false,
 		},
 		{
-			name:    "仅有 owner 无 repo",
+			name:    "owner only without repo",
 			input:   "https://github.com/owner",
 			wantRes: false,
 		},
 		{
-			name:    "Windows 路径",
+			name:    "Windows path",
 			input:   "C:\\Users\\project",
 			wantRes: false,
 		},
-		// 特殊字符测试
+		// Special character tests
 		{
-			name:    "URL 带查询参数",
+			name:    "URL with query params",
 			input:   "https://github.com/owner/repo?tab=readme",
 			wantRes: false,
 		},
 		{
-			name:    "URL 带哈希锚点",
+			name:    "URL with hash anchor",
 			input:   "https://github.com/owner/repo#readme",
 			wantRes: false,
 		},
 		{
-			name:    "带连字符的仓库名",
+			name:    "repo name with hyphens",
 			input:   "https://github.com/owner/my-cool-repo",
 			wantRes: true,
 		},
 		{
-			name:    "带下划线的仓库名",
+			name:    "repo name with underscores",
 			input:   "https://github.com/owner/my_repo",
 			wantRes: true,
 		},
 		{
-			name:    "带数字的仓库名",
+			name:    "repo name with numbers",
 			input:   "https://github.com/owner/repo123",
 			wantRes: true,
 		},
@@ -135,7 +135,7 @@ func TestIsGitHubURL(t *testing.T) {
 	}
 }
 
-// TestParseGitHubURL 测试从 GitHub URL 提取 owner 和 repo
+// TestParseGitHubURL tests extracting owner and repo from GitHub URL
 func TestParseGitHubURL(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -144,7 +144,7 @@ func TestParseGitHubURL(t *testing.T) {
 		wantRepo  string
 	}{
 		{
-			name:      "标准 HTTPS URL",
+			name:      "standard HTTPS URL",
 			input:     "https://github.com/golang/go",
 			wantOwner: "golang",
 			wantRepo:  "go",
@@ -156,61 +156,61 @@ func TestParseGitHubURL(t *testing.T) {
 			wantRepo:  "kubernetes",
 		},
 		{
-			name:      "无协议 URL",
+			name:      "URL without protocol",
 			input:     "github.com/rust-lang/rust",
 			wantOwner: "rust-lang",
 			wantRepo:  "rust",
 		},
 		{
-			name:      "带 .git 后缀",
+			name:      "with .git suffix",
 			input:     "https://github.com/torvalds/linux.git",
 			wantOwner: "torvalds",
 			wantRepo:  "linux",
 		},
 		{
-			name:      "www 前缀",
+			name:      "www prefix",
 			input:     "https://www.github.com/python/cpython",
 			wantOwner: "python",
 			wantRepo:  "cpython",
 		},
 		{
-			name:      "带路径",
+			name:      "with path",
 			input:     "https://github.com/nodejs/node/tree/main",
 			wantOwner: "nodejs",
 			wantRepo:  "node",
 		},
 		{
-			name:      "带查询参数",
+			name:      "with query params",
 			input:     "https://github.com/django/django?tab=readme",
 			wantOwner: "",
 			wantRepo:  "",
 		},
 		{
-			name:      "带哈希锚点",
+			name:      "with hash anchor",
 			input:     "https://github.com/vuejs/vue#readme",
 			wantOwner: "",
 			wantRepo:  "",
 		},
 		{
-			name:      "带连字符和下划线",
+			name:      "with hyphens and underscores",
 			input:     "https://github.com/my-org/my_repo-v2",
 			wantOwner: "my-org",
 			wantRepo:  "my_repo-v2",
 		},
 		{
-			name:      "非 GitHub URL",
+			name:      "non-GitHub URL",
 			input:     "https://gitlab.com/owner/repo",
 			wantOwner: "",
 			wantRepo:  "",
 		},
 		{
-			name:      "无效格式",
+			name:      "invalid format",
 			input:     "https://github.com/onlyowner",
 			wantOwner: "",
 			wantRepo:  "",
 		},
 		{
-			name:      "空字符串",
+			name:      "empty string",
 			input:     "",
 			wantOwner: "",
 			wantRepo:  "",
@@ -228,7 +228,7 @@ func TestParseGitHubURL(t *testing.T) {
 	}
 }
 
-// TestDetect 测试源类型自动检测
+// TestDetect tests automatic source type detection
 func TestDetect(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -237,7 +237,7 @@ func TestDetect(t *testing.T) {
 		wantType string
 		wantErr  bool
 	}{
-		// GitHub URL 检测
+		// GitHub URL detection
 		{
 			name:     "GitHub HTTPS URL",
 			input:    "https://github.com/golang/go",
@@ -246,72 +246,72 @@ func TestDetect(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "GitHub URL 无协议",
+			name:     "GitHub URL without protocol",
 			input:    "github.com/python/cpython",
 			opts:     Options{},
 			wantType: "github",
 			wantErr:  false,
 		},
 		{
-			name:     "GitHub URL 带 .git",
+			name:     "GitHub URL with .git",
 			input:    "https://github.com/torvalds/linux.git",
 			opts:     Options{},
 			wantType: "github",
 			wantErr:  false,
 		},
 		{
-			name:     "GitHub URL 带分支选项",
+			name:     "GitHub URL with branch option",
 			input:    "https://github.com/nodejs/node",
 			opts:     Options{Branch: "main"},
 			wantType: "github",
 			wantErr:  false,
 		},
-		// 本地路径检测
+		// Local path detection
 		{
-			name:     "本地绝对路径",
+			name:     "local absolute path",
 			input:    "/home/user/project",
 			opts:     Options{},
 			wantType: "local",
 			wantErr:  false,
 		},
 		{
-			name:     "本地相对路径",
+			name:     "local relative path",
 			input:    "./project",
 			opts:     Options{},
 			wantType: "local",
 			wantErr:  false,
 		},
 		{
-			name:     "本地路径（当前目录）",
+			name:     "local path (current directory)",
 			input:    ".",
 			opts:     Options{},
 			wantType: "local",
 			wantErr:  false,
 		},
 		{
-			name:     "本地路径 with SubDir",
+			name:     "local path with SubDir",
 			input:    "/home/user/project",
 			opts:     Options{SubDir: "docs"},
 			wantType: "local",
 			wantErr:  false,
 		},
-		// 错误情况
+		// Error cases
 		{
-			name:     "空字符串",
+			name:     "empty string",
 			input:    "",
 			opts:     Options{},
 			wantType: "",
 			wantErr:  true,
 		},
 		{
-			name:     "仅空格",
+			name:     "spaces only",
 			input:    "   ",
 			opts:     Options{},
 			wantType: "",
 			wantErr:  true,
 		},
 		{
-			name:     "制表符和空格",
+			name:     "tabs and spaces",
 			input:    "\t \n",
 			opts:     Options{},
 			wantType: "",
@@ -347,7 +347,7 @@ func TestDetect(t *testing.T) {
 	}
 }
 
-// TestDetectEmptyInput 测试空输入处理
+// TestDetectEmptyInput tests empty input handling
 func TestDetectEmptyInput(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -372,15 +372,15 @@ func TestDetectEmptyInput(t *testing.T) {
 				t.Errorf("Detect(%q) should return nil source for empty/whitespace input", tt.input)
 			}
 
-			// 验证错误消息包含有意义的内容
-			if err != nil && !strings.Contains(err.Error(), "空") {
-				t.Logf("Error message: %v", err)
+			// Verify error message contains meaningful content
+			if err != nil && !strings.Contains(err.Error(), "empty") {
+				t.Errorf("Error message should contain 'empty': %v", err)
 			}
 		})
 	}
 }
 
-// TestGitHubURLEdgeCases 测试 GitHub URL 边界情况
+// TestGitHubURLEdgeCases tests GitHub URL edge cases
 func TestGitHubURLEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -424,7 +424,7 @@ func TestGitHubURLEdgeCases(t *testing.T) {
 	}
 }
 
-// TestParseGitHubURLVariations 测试 GitHub URL 变体解析
+// TestParseGitHubURLVariations tests GitHub URL variation parsing
 func TestParseGitHubURLVariations(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -469,7 +469,7 @@ func TestParseGitHubURLVariations(t *testing.T) {
 	}
 }
 
-// TestDetectOptions 测试带选项的源检测
+// TestDetectOptions tests source detection with options
 func TestDetectOptions(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -518,7 +518,7 @@ func TestDetectOptions(t *testing.T) {
 	}
 }
 
-// TestDetectTrimsInput 测试 Detect 修剪输入空格
+// TestDetectTrimsInput tests that Detect trims input whitespace
 func TestDetectTrimsInput(t *testing.T) {
 	tests := []struct {
 		name     string

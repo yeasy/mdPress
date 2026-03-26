@@ -58,7 +58,7 @@ func TestManager_Register_And_RunHook_Passthrough(t *testing.T) {
 		Config:   config.DefaultConfig(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  "original",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	if err := mgr.RunHook(ctx); err != nil {
 		t.Fatalf("RunHook returned unexpected error: %v", err)
@@ -88,7 +88,7 @@ func TestManager_RunHook_ContentReplacement(t *testing.T) {
 		Config:   config.DefaultConfig(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  "original",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	if err := mgr.RunHook(ctx); err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestManager_RunHook_StopPropagation(t *testing.T) {
 		Context:  context.Background(),
 		Config:   config.DefaultConfig(),
 		Phase:    plugin.PhaseAfterParse,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	if err := mgr.RunHook(ctx); err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestManager_RunHook_PhaseFilter(t *testing.T) {
 		Context:  context.Background(),
 		Config:   config.DefaultConfig(),
 		Phase:    plugin.PhaseAfterParse, // different phase
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	if err := mgr.RunHook(ctx); err != nil {
 		t.Fatal(err)
@@ -175,7 +175,7 @@ func TestManager_RunHook_PropagatesError(t *testing.T) {
 		Context:  context.Background(),
 		Config:   config.DefaultConfig(),
 		Phase:    plugin.PhaseBeforeBuild,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 	err := mgr.RunHook(ctx)
 	if err == nil {

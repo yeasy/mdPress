@@ -7,40 +7,40 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// TestNewResolver 测试创建新解析器
+// TestNewResolver tests creating a new resolver
 func TestNewResolver(t *testing.T) {
 	r := NewResolver()
 	if r == nil {
-		t.Fatal("NewResolver 返回 nil")
+		t.Fatal("NewResolver returned nil")
 	}
 	refs := r.GetAllReferences()
 	if len(refs) != 0 {
-		t.Errorf("新解析器应无引用，got %d", len(refs))
+		t.Errorf("new resolver should have no references, got %d", len(refs))
 	}
 }
 
-// TestRegisterFigure 测试注册图片引用
+// TestRegisterFigure tests registering figure references
 func TestRegisterFigure(t *testing.T) {
 	r := NewResolver()
 
 	n1 := r.RegisterFigure("fig1", "第一张图")
 	if n1 != 1 {
-		t.Errorf("第一张图编号应为 1，got %d", n1)
+		t.Errorf("first figure number should be 1, got %d", n1)
 	}
 
 	n2 := r.RegisterFigure("fig2", "第二张图")
 	if n2 != 2 {
-		t.Errorf("第二张图编号应为 2，got %d", n2)
+		t.Errorf("second figure number should be 2, got %d", n2)
 	}
 
-	// 重复注册同一 ID 应返回相同编号
+	// Re-registering the same ID should return the same number
 	n1again := r.RegisterFigure("fig1", "重复注册")
 	if n1again != 1 {
-		t.Errorf("重复注册应返回原编号 1，got %d", n1again)
+		t.Errorf("re-registration should return original number 1, got %d", n1again)
 	}
 }
 
-// TestRegisterTable 测试注册表格引用
+// TestRegisterTable tests registering table references
 func TestRegisterTable(t *testing.T) {
 	r := NewResolver()
 
@@ -48,11 +48,11 @@ func TestRegisterTable(t *testing.T) {
 	n2 := r.RegisterTable("tab2", "表格二")
 
 	if n1 != 1 || n2 != 2 {
-		t.Errorf("表格编号错误: got %d, %d, want 1, 2", n1, n2)
+		t.Errorf("table numbering error: got %d, %d, want 1, 2", n1, n2)
 	}
 }
 
-// TestRegisterSection 测试注册章节引用
+// TestRegisterSection tests registering section references
 func TestRegisterSection(t *testing.T) {
 	r := NewResolver()
 	r.RegisterSection("intro", "简介", 1)
@@ -61,14 +61,14 @@ func TestRegisterSection(t *testing.T) {
 
 	ref, err := r.Resolve("intro")
 	if err != nil {
-		t.Fatalf("查找 'intro' 失败: %v", err)
+		t.Fatalf("failed to resolve 'intro': %v", err)
 	}
 	if ref.Type != TypeSection {
-		t.Errorf("引用类型错误: got %v, want %v", ref.Type, TypeSection)
+		t.Errorf("wrong reference type: got %v, want %v", ref.Type, TypeSection)
 	}
 }
 
-// TestResolve 测试引用查找
+// TestResolve tests reference resolution
 func TestResolve(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("fig_arch", "架构图")
@@ -90,12 +90,12 @@ func TestResolve(t *testing.T) {
 		ref, err := r.Resolve(tt.id)
 		if tt.wantErr {
 			if err == nil {
-				t.Errorf("Resolve(%q) 应返回错误", tt.id)
+				t.Errorf("Resolve(%q) should return an error", tt.id)
 			}
 			continue
 		}
 		if err != nil {
-			t.Errorf("Resolve(%q) 返回意外错误: %v", tt.id, err)
+			t.Errorf("Resolve(%q) returned unexpected error: %v", tt.id, err)
 			continue
 		}
 		if ref.Type != tt.wantType {
@@ -104,7 +104,7 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-// TestProcessHTML 测试 HTML 中的引用替换
+// TestProcessHTML tests reference replacement in HTML
 func TestProcessHTML(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("fig1", "示例图")
@@ -114,71 +114,71 @@ func TestProcessHTML(t *testing.T) {
 	result := r.ProcessHTML(input)
 
 	if strings.Contains(result, "{{ref:fig1}}") {
-		t.Error("图片引用未被替换")
+		t.Error("figure reference was not replaced")
 	}
 	if strings.Contains(result, "{{ref:tab1}}") {
-		t.Error("表格引用未被替换")
+		t.Error("table reference was not replaced")
 	}
 	if !strings.Contains(result, "图1") {
-		t.Error("结果中应包含 '图1'")
+		t.Error("result should contain '图1'")
 	}
 	if !strings.Contains(result, "表1") {
-		t.Error("结果中应包含 '表1'")
+		t.Error("result should contain '表1'")
 	}
 	if !strings.Contains(result, `href="#fig1"`) {
-		t.Error("结果中应包含 fig1 锚点链接")
+		t.Error("result should contain fig1 anchor link")
 	}
 }
 
-// TestProcessHTMLUnknownRef 测试未知引用保留原文
+// TestProcessHTMLUnknownRef tests that unknown references are preserved
 func TestProcessHTMLUnknownRef(t *testing.T) {
 	r := NewResolver()
 	input := "参见 {{ref:unknown_id}} 了解更多。"
 	result := r.ProcessHTML(input)
 
 	if !strings.Contains(result, "{{ref:unknown_id}}") {
-		t.Error("未知引用应保留原占位符")
+		t.Error("unknown reference should preserve original placeholder")
 	}
 }
 
-// TestProcessHTMLNoRefs 测试无引用的 HTML
+// TestProcessHTMLNoRefs tests HTML without references
 func TestProcessHTMLNoRefs(t *testing.T) {
 	r := NewResolver()
 	input := "<p>这是一段普通文本，没有引用。</p>"
 	result := r.ProcessHTML(input)
 	if result != input {
-		t.Errorf("无引用的 HTML 不应被修改: got %q", result)
+		t.Errorf("HTML without references should not be modified: got %q", result)
 	}
 }
 
-// TestAddCaptions 测试图表标题添加
+// TestAddCaptions tests adding figure and table captions
 func TestAddCaptions(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("fig_demo", "演示图")
 	r.RegisterTable("tab_demo", "演示表")
 
-	// 图片标题
+	// Figure caption
 	figHTML := `<figure id="fig_demo"><img src="demo.png"></figure>`
 	result := r.AddCaptions(figHTML)
 	if !strings.Contains(result, "figcaption") {
-		t.Error("应为 figure 添加 figcaption")
+		t.Error("should add figcaption to figure")
 	}
 	if !strings.Contains(result, "图1") {
-		t.Error("figcaption 中应包含 '图1'")
+		t.Error("figcaption should contain '图1'")
 	}
 
-	// 表格标题
+	// Table caption
 	tabHTML := `<table id="tab_demo"><tr><td>data</td></tr></table>`
 	result = r.AddCaptions(tabHTML)
 	if !strings.Contains(result, "caption") {
-		t.Error("应为 table 添加 caption")
+		t.Error("should add caption to table")
 	}
 	if !strings.Contains(result, "表1") {
-		t.Error("caption 中应包含 '表1'")
+		t.Error("caption should contain '表1'")
 	}
 }
 
-// TestAddCaptionsNoDuplicate 测试不重复添加标题
+// TestAddCaptionsNoDuplicate tests that captions are not added when already present
 func TestAddCaptionsNoDuplicate(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("fig1", "图一")
@@ -187,15 +187,15 @@ func TestAddCaptionsNoDuplicate(t *testing.T) {
 	result := r.AddCaptions(html)
 
 	count := strings.Count(result, "figcaption")
-	if count != 2 { // 开标签 + 闭标签
-		t.Errorf("已有 figcaption 时应只保留原有一个 figcaption，实际标签计数 %d", count)
+	if count != 2 { // opening tag + closing tag
+		t.Errorf("existing figcaption should be kept as-is, actual tag count %d", count)
 	}
 	if strings.Contains(result, "图1") {
-		t.Error("已有 figcaption 时不应再添加编号标题")
+		t.Error("should not add numbered caption when figcaption already exists")
 	}
 }
 
-// TestGetAllReferences 测试获取所有引用
+// TestGetAllReferences tests retrieving all references
 func TestGetAllReferences(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("f1", "图1")
@@ -205,11 +205,11 @@ func TestGetAllReferences(t *testing.T) {
 
 	refs := r.GetAllReferences()
 	if len(refs) != 4 {
-		t.Errorf("总引用数错误: got %d, want 4", len(refs))
+		t.Errorf("total reference count error: got %d, want 4", len(refs))
 	}
 }
 
-// TestReset 测试重置
+// TestReset tests reset functionality
 func TestReset(t *testing.T) {
 	r := NewResolver()
 	r.RegisterFigure("f1", "图1")
@@ -220,17 +220,17 @@ func TestReset(t *testing.T) {
 
 	refs := r.GetAllReferences()
 	if len(refs) != 0 {
-		t.Errorf("重置后应无引用: got %d", len(refs))
+		t.Errorf("should have no references after reset: got %d", len(refs))
 	}
 
-	// 重置后编号应从头开始
+	// After reset, numbering should restart from 1
 	n := r.RegisterFigure("f_new", "新图")
 	if n != 1 {
-		t.Errorf("重置后编号应从 1 开始: got %d", n)
+		t.Errorf("numbering should restart from 1 after reset: got %d", n)
 	}
 }
 
-// TestConcurrentAccess 测试并发访问安全性
+// TestConcurrentAccess tests thread safety of concurrent access
 func TestConcurrentAccess(t *testing.T) {
 	r := NewResolver()
 	done := make(chan bool, 100)
@@ -250,7 +250,7 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 }
 
-// TestEscapeHTML 测试 HTML 转义
+// TestEscapeHTML tests HTML escaping
 func TestEscapeHTML(t *testing.T) {
 	tests := []struct {
 		input string
@@ -271,7 +271,7 @@ func TestEscapeHTML(t *testing.T) {
 	}
 }
 
-// TestSectionNumbering 测试章节分层编号
+// TestSectionNumbering tests hierarchical section numbering
 func TestSectionNumbering(t *testing.T) {
 	r := NewResolver()
 	r.RegisterSection("ch1", "第一章", 1)
@@ -282,56 +282,56 @@ func TestSectionNumbering(t *testing.T) {
 
 	ref, _ := r.Resolve("ch2")
 	if ref.Number != 2 {
-		t.Errorf("第二章编号应为 2, got %d", ref.Number)
+		t.Errorf("chapter 2 number should be 2, got %d", ref.Number)
 	}
 
 	ref, _ = r.Resolve("sec2_1")
 	if ref.Number != 1 {
-		t.Errorf("第2.1节同级编号应为 1, got %d", ref.Number)
+		t.Errorf("section 2.1 sibling number should be 1, got %d", ref.Number)
 	}
 }
 
-// TestProcessHTMLSectionRef 测试章节引用在 HTML 中生成 §1.2 格式的链接
+// TestProcessHTMLSectionRef tests that section references generate links in the section 1.2 format
 func TestProcessHTMLSectionRef(t *testing.T) {
 	r := NewResolver()
 	r.RegisterSection("intro", "简介", 1)
 	r.RegisterSection("background", "背景", 2)
 	r.RegisterSection("details", "细节", 2)
 
-	// 测试章节引用的处理
+	// Test section reference processing
 	input := "详见 {{ref:details}} 部分。"
 	result := r.ProcessHTML(input)
 
-	// 不应该包含原占位符
+	// Should not contain the original placeholder
 	if strings.Contains(result, "{{ref:details}}") {
-		t.Error("章节引用占位符应被替换")
+		t.Error("section reference placeholder should be replaced")
 	}
 
-	// 应该包含 § 符号和编号
+	// Should contain section symbol and number
 	if !strings.Contains(result, "§") {
-		t.Error("章节引用应包含 § 符号")
+		t.Error("section reference should contain the section symbol")
 	}
 
-	// 应该包含分层编号
+	// Should contain hierarchical number
 	if !strings.Contains(result, "1.2") {
-		t.Error("章节引用应包含分层编号 1.2")
+		t.Error("section reference should contain hierarchical number 1.2")
 	}
 
-	// 应该是链接格式
+	// Should be formatted as a link
 	if !strings.Contains(result, `href="#details"`) {
-		t.Error("章节引用应包含锚点链接")
+		t.Error("section reference should contain anchor link")
 	}
 
 	if !strings.Contains(result, `class="ref-section"`) {
-		t.Error("章节引用应包含正确的 CSS 类")
+		t.Error("section reference should contain correct CSS class")
 	}
 }
 
-// TestRegisterSectionDeepNesting 测试 4 级深度的章节分层编号
+// TestRegisterSectionDeepNesting tests 4-level deep hierarchical section numbering
 func TestRegisterSectionDeepNesting(t *testing.T) {
 	r := NewResolver()
 
-	// 注册 4 级嵌套结构
+	// Register 4-level nested structure
 	r.RegisterSection("ch1", "第一章", 1)
 	r.RegisterSection("sec1_1", "第1.1节", 2)
 	r.RegisterSection("subsec1_1_1", "第1.1.1小节", 3)
@@ -373,48 +373,48 @@ func TestRegisterSectionDeepNesting(t *testing.T) {
 	}
 }
 
-// TestRegisterDuplicateSection 测试重复注册同一章节 ID 的幂等性
+// TestRegisterDuplicateSection tests idempotency of registering the same section ID twice
 func TestRegisterDuplicateSection(t *testing.T) {
 	r := NewResolver()
 
-	// 第一次注册
+	// First registration
 	r.RegisterSection("intro", "简介", 1)
 	ref1, _ := r.Resolve("intro")
 
-	// 第二次注册相同 ID（应被忽略）
+	// Second registration with same ID (should be ignored)
 	r.RegisterSection("intro", "修改后的简介", 1)
 	ref2, _ := r.Resolve("intro")
 
-	// ID 和编号应该保持不变
+	// ID and number should remain unchanged
 	if ref1.ID != ref2.ID {
-		t.Error("重复注册应保持相同的 ID")
+		t.Error("duplicate registration should keep the same ID")
 	}
 
 	if ref1.Number != ref2.Number {
-		t.Errorf("重复注册应保持相同的编号: got %d, then %d", ref1.Number, ref2.Number)
+		t.Errorf("duplicate registration should keep the same number: got %d, then %d", ref1.Number, ref2.Number)
 	}
 
-	// 标题应该保持原值（未被更新）
+	// Title should retain the original value (not updated)
 	if ref2.Title != "简介" {
-		t.Errorf("重复注册不应更新标题: got %q, want %q", ref2.Title, "简介")
+		t.Errorf("duplicate registration should not update title: got %q, want %q", ref2.Title, "简介")
 	}
 
-	// 总计数应该只增加一次
+	// Total count should only increment once
 	r.RegisterSection("ch2", "第二章", 1)
 	ref3, _ := r.Resolve("ch2")
 	if ref3.Number != 2 {
-		t.Errorf("新章节编号应为 2, got %d", ref3.Number)
+		t.Errorf("new section number should be 2, got %d", ref3.Number)
 	}
 }
 
-// TestAddCaptionsUnregistered 测试为未注册的图表 ID 添加标题
+// TestAddCaptionsUnregistered tests adding captions for unregistered figure/table IDs
 func TestAddCaptionsUnregistered(t *testing.T) {
 	r := NewResolver()
 
-	// 只注册 fig1，不注册 fig2 和 tab1
+	// Only register fig1, not fig2 or tab1
 	r.RegisterFigure("fig1", "已注册的图")
 
-	// 包含已注册和未注册 ID 的 HTML
+	// HTML with both registered and unregistered IDs
 	html := `
 	<figure id="fig1"><img src="a.png"></figure>
 	<figure id="fig_unreg"><img src="b.png"></figure>
@@ -423,78 +423,78 @@ func TestAddCaptionsUnregistered(t *testing.T) {
 
 	result := r.AddCaptions(html)
 
-	// 已注册的应被处理
+	// Registered ones should be processed
 	if !strings.Contains(result, "figcaption") || !strings.Contains(result, "图1") {
-		t.Error("已注册的图应添加标题")
+		t.Error("registered figure should have caption added")
 	}
 
-	// 未注册的应保持原样
+	// Unregistered ones should remain unchanged
 	if !strings.Contains(result, `id="fig_unreg"`) {
-		t.Error("未注册的图 ID 应保留")
+		t.Error("unregistered figure ID should be preserved")
 	}
 
 	if !strings.Contains(result, `id="tab_unreg"`) {
-		t.Error("未注册的表 ID 应保留")
+		t.Error("unregistered table ID should be preserved")
 	}
 
-	// 未注册元素不应被修改
+	// Unregistered elements should not be modified
 	origCount := strings.Count(html, `<figure id="fig_unreg">`)
 	resultCount := strings.Count(result, `id="fig_unreg"`)
 	if origCount != resultCount {
-		t.Error("未注册的图表不应被修改")
+		t.Error("unregistered figures/tables should not be modified")
 	}
 }
 
-// TestResolveSearchOrder 测试查找优先级（图 > 表 > 章节）
+// TestResolveSearchOrder tests resolution priority (figure > table > section)
 func TestResolveSearchOrder(t *testing.T) {
 	r := NewResolver()
 
-	// 使用相同 ID 注册不同类型的引用
+	// Register different reference types with the same ID
 	id := "item"
 
-	// 虽然实际使用中这不太可能，但我们测试 Resolve 的搜索顺序
+	// Though unlikely in practice, we test Resolve search order
 
-	// 情况1：只注册为图
+	// Case 1: registered as figure only
 	r.Reset()
 	r.RegisterFigure(id, "这是一张图")
 	ref, err := r.Resolve(id)
 	if err != nil || ref.Type != TypeFigure {
-		t.Error("应该找到图引用")
+		t.Error("should find figure reference")
 	}
 
-	// 情况2：注册为表和图，应找到图（优先级更高）
+	// Case 2: registered as table and figure; figure should be found (higher priority)
 	r.Reset()
 	r.RegisterTable(id, "这是一张表")
 	r.RegisterFigure(id, "这是一张图")
 	ref, err = r.Resolve(id)
 	if err != nil || ref.Type != TypeFigure {
-		t.Error("当有图和表时，应优先返回图")
+		t.Error("when both figure and table exist, figure should be returned first")
 	}
 
-	// 情况3：注册为章节
+	// Case 3: registered as section
 	r.Reset()
 	r.RegisterSection(id, "这是一章", 1)
 	ref, err = r.Resolve(id)
 	if err != nil || ref.Type != TypeSection {
-		t.Error("应该找到章节引用")
+		t.Error("should find section reference")
 	}
 
-	// 情况4：三种都有（虽然不现实），应优先返回图
+	// Case 4: all three types (unrealistic but tests priority); figure should be returned
 	r.Reset()
 	r.RegisterSection(id, "章节", 1)
 	r.RegisterTable(id, "表")
 	r.RegisterFigure(id, "图")
 	ref, err = r.Resolve(id)
 	if err != nil || ref.Type != TypeFigure {
-		t.Error("三种都有时应优先返回图")
+		t.Error("when all three types exist, figure should be returned first")
 	}
 }
 
-// TestProcessHTMLMultipleRefs 测试单个 HTML 字符串中处理多个不同类型的引用
+// TestProcessHTMLMultipleRefs tests processing multiple different reference types in a single HTML string
 func TestProcessHTMLMultipleRefs(t *testing.T) {
 	r := NewResolver()
 
-	// 注册不同类型的引用
+	// Register different reference types
 	r.RegisterFigure("fig1", "架构图")
 	r.RegisterFigure("fig2", "流程图")
 	r.RegisterTable("tab1", "性能对比")
@@ -502,7 +502,7 @@ func TestProcessHTMLMultipleRefs(t *testing.T) {
 	r.RegisterSection("intro", "简介", 1)
 	r.RegisterSection("method", "方法", 2)
 
-	// 包含多个混合类型引用的 HTML
+	// HTML with multiple mixed-type references
 	input := `
 	<p>如 {{ref:fig1}} 所示，系统架构如下。根据 {{ref:tab1}}，性能指标如下。</p>
 	<p>详见 {{ref:intro}} 和 {{ref:method}} 获取更多信息。</p>
@@ -511,48 +511,48 @@ func TestProcessHTMLMultipleRefs(t *testing.T) {
 
 	result := r.ProcessHTML(input)
 
-	// 验证所有占位符都被替换
+	// Verify all placeholders were replaced
 	if strings.Contains(result, "{{ref:") {
-		t.Error("所有引用占位符应被替换")
+		t.Error("all reference placeholders should be replaced")
 	}
 
-	// 验证每种类型都被正确替换
+	// Verify each type was replaced correctly
 	if !strings.Contains(result, "图1") || !strings.Contains(result, "图2") {
-		t.Error("两个图的引用都应被处理")
+		t.Error("both figure references should be processed")
 	}
 
 	if !strings.Contains(result, "表1") || !strings.Contains(result, "表2") {
-		t.Error("两个表的引用都应被处理")
+		t.Error("both table references should be processed")
 	}
 
-	// 章节应显示为分层编号
+	// Sections should display hierarchical numbering
 	if !strings.Contains(result, "§1") || !strings.Contains(result, "§1.1") {
-		t.Error("两个章节的引用都应被处理")
+		t.Error("both section references should be processed")
 	}
 
-	// 验证链接结构
+	// Verify link structure
 	if !strings.Contains(result, `href="#fig1"`) || !strings.Contains(result, `href="#fig2"`) {
-		t.Error("图的引用应包含正确的锚点")
+		t.Error("figure references should contain correct anchors")
 	}
 
 	if !strings.Contains(result, `href="#tab1"`) || !strings.Contains(result, `href="#tab2"`) {
-		t.Error("表的引用应包含正确的锚点")
+		t.Error("table references should contain correct anchors")
 	}
 
 	if !strings.Contains(result, `href="#intro"`) || !strings.Contains(result, `href="#method"`) {
-		t.Error("章节的引用应包含正确的锚点")
+		t.Error("section references should contain correct anchors")
 	}
 
-	// 验证 CSS 类都正确
+	// Verify CSS classes are correct
 	if !strings.Contains(result, `class="ref-figure"`) {
-		t.Error("图的引用应包含 ref-figure 类")
+		t.Error("figure references should contain ref-figure class")
 	}
 
 	if !strings.Contains(result, `class="ref-table"`) {
-		t.Error("表的引用应包含 ref-table 类")
+		t.Error("table references should contain ref-table class")
 	}
 
 	if !strings.Contains(result, `class="ref-section"`) {
-		t.Error("章节的引用应包含 ref-section 类")
+		t.Error("section references should contain ref-section class")
 	}
 }

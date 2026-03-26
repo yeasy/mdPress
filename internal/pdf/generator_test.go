@@ -12,28 +12,28 @@ import (
 	"time"
 )
 
-// TestNewGenerator 测试创建生成器
+// TestNewGenerator tests creating a generator
 func TestNewGenerator(t *testing.T) {
 	g := NewGenerator()
 	if g == nil {
-		t.Fatal("NewGenerator 返回 nil")
+		t.Fatal("NewGenerator returned nil")
 	}
-	// 验证默认值
+	// Verify default values
 	if g.timeout != defaultTimeout {
-		t.Errorf("默认超时错误: got %v, want %v", g.timeout, defaultTimeout)
+		t.Errorf("default timeout wrong: got %v, want %v", g.timeout, defaultTimeout)
 	}
 	if g.pageWidth != defaultPageWidth {
-		t.Errorf("默认页宽错误: got %f, want %f", g.pageWidth, defaultPageWidth)
+		t.Errorf("default page width wrong: got %f, want %f", g.pageWidth, defaultPageWidth)
 	}
 	if g.pageHeight != defaultPageHeight {
-		t.Errorf("默认页高错误: got %f, want %f", g.pageHeight, defaultPageHeight)
+		t.Errorf("default page height wrong: got %f, want %f", g.pageHeight, defaultPageHeight)
 	}
 	if !g.printBackground {
-		t.Error("默认应打印背景")
+		t.Error("printBackground should be true by default")
 	}
 }
 
-// TestNewGeneratorWithOptions 测试带选项的创建
+// TestNewGeneratorWithOptions tests creation with options
 func TestNewGeneratorWithOptions(t *testing.T) {
 	g := NewGenerator(
 		WithTimeout(30*time.Second),
@@ -44,75 +44,75 @@ func TestNewGeneratorWithOptions(t *testing.T) {
 	)
 
 	if g.timeout != 30*time.Second {
-		t.Errorf("超时设置错误: got %v", g.timeout)
+		t.Errorf("timeout setting wrong: got %v", g.timeout)
 	}
 	if g.pageWidth != 148 {
-		t.Errorf("页宽设置错误: got %f", g.pageWidth)
+		t.Errorf("page width setting wrong: got %f", g.pageWidth)
 	}
 	if g.pageHeight != 210 {
-		t.Errorf("页高设置错误: got %f", g.pageHeight)
+		t.Errorf("page height setting wrong: got %f", g.pageHeight)
 	}
 	if g.marginLeft != 10 {
-		t.Errorf("左边距设置错误: got %f", g.marginLeft)
+		t.Errorf("left margin setting wrong: got %f", g.marginLeft)
 	}
 	if g.marginTop != 15 {
-		t.Errorf("上边距设置错误: got %f", g.marginTop)
+		t.Errorf("top margin setting wrong: got %f", g.marginTop)
 	}
 	if g.printBackground {
-		t.Error("printBackground 应为 false")
+		t.Error("printBackground should be false")
 	}
 	if !g.displayHeaderFooter {
-		t.Error("displayHeaderFooter 应为 true")
+		t.Error("displayHeaderFooter should be true")
 	}
 }
 
-// TestGenerateEmptyContent 测试空内容
+// TestGenerateEmptyContent tests empty content
 func TestGenerateEmptyContent(t *testing.T) {
 	g := NewGenerator()
 	err := g.Generate("", "output.pdf")
 	if err == nil {
-		t.Error("空 HTML 内容应返回错误")
+		t.Error("empty HTML content should return an error")
 	}
 }
 
-// TestGenerateEmptyOutput 测试空输出路径
+// TestGenerateEmptyOutput tests empty output path
 func TestGenerateEmptyOutput(t *testing.T) {
 	g := NewGenerator()
 	err := g.Generate("<html></html>", "")
 	if err == nil {
-		t.Error("空输出路径应返回错误")
+		t.Error("empty output path should return an error")
 	}
 }
 
-// TestGenerateFromNonExistentFile 测试不存在的 HTML 文件
+// TestGenerateFromNonExistentFile tests non-existent HTML file
 func TestGenerateFromNonExistentFile(t *testing.T) {
 	g := NewGenerator()
 	err := g.GenerateFromFile("/nonexistent/file.html", "output.pdf")
 	if err == nil {
-		t.Error("不存在的文件应返回错误")
+		t.Error("non-existent file should return an error")
 	}
 }
 
-// TestWithTimeoutOption 测试超时选项
+// TestWithTimeoutOption tests timeout option
 func TestWithTimeoutOption(t *testing.T) {
 	tests := []struct {
 		name    string
 		timeout time.Duration
 	}{
-		{"10秒", 10 * time.Second},
-		{"1分钟", time.Minute},
-		{"5分钟", 5 * time.Minute},
+		{"10 seconds", 10 * time.Second},
+		{"1 minute", time.Minute},
+		{"5 minutes", 5 * time.Minute},
 	}
 
 	for _, tt := range tests {
 		g := NewGenerator(WithTimeout(tt.timeout))
 		if g.timeout != tt.timeout {
-			t.Errorf("%s: 超时设置错误: got %v, want %v", tt.name, g.timeout, tt.timeout)
+			t.Errorf("%s: timeout setting wrong: got %v, want %v", tt.name, g.timeout, tt.timeout)
 		}
 	}
 }
 
-// TestWithPageSizeOption 测试页面尺寸选项
+// TestWithPageSizeOption tests page size option
 func TestWithPageSizeOption(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -127,28 +127,28 @@ func TestWithPageSizeOption(t *testing.T) {
 	for _, tt := range tests {
 		g := NewGenerator(WithPageSize(tt.width, tt.height))
 		if g.pageWidth != tt.width {
-			t.Errorf("%s: 页宽错误: got %f, want %f", tt.name, g.pageWidth, tt.width)
+			t.Errorf("%s: page width wrong: got %f, want %f", tt.name, g.pageWidth, tt.width)
 		}
 		if g.pageHeight != tt.height {
-			t.Errorf("%s: 页高错误: got %f, want %f", tt.name, g.pageHeight, tt.height)
+			t.Errorf("%s: page height wrong: got %f, want %f", tt.name, g.pageHeight, tt.height)
 		}
 	}
 }
 
-// TestWithMarginsOption 测试边距选项
+// TestWithMarginsOption tests margin option
 func TestWithMarginsOption(t *testing.T) {
 	g := NewGenerator(WithMargins(5, 10, 15, 20))
 	if g.marginLeft != 5 {
-		t.Errorf("左边距错误: got %f", g.marginLeft)
+		t.Errorf("left margin wrong: got %f", g.marginLeft)
 	}
 	if g.marginRight != 10 {
-		t.Errorf("右边距错误: got %f", g.marginRight)
+		t.Errorf("right margin wrong: got %f", g.marginRight)
 	}
 	if g.marginTop != 15 {
-		t.Errorf("上边距错误: got %f", g.marginTop)
+		t.Errorf("top margin wrong: got %f", g.marginTop)
 	}
 	if g.marginBottom != 20 {
-		t.Errorf("下边距错误: got %f", g.marginBottom)
+		t.Errorf("bottom margin wrong: got %f", g.marginBottom)
 	}
 }
 

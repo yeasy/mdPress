@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -73,23 +74,20 @@ func TestPluginInit_WithServerURL(t *testing.T) {
 		{
 			Name: "plantuml",
 			Path: "",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"server": "http://custom-plantuml.example.com/plantuml",
 			},
 		},
 	}
 
+	// The server URL uses a non-existent domain, so Init should return a validation error.
 	err := p.Init(cfg)
-	if err != nil {
-		t.Fatalf("Init returned unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected Init to fail for non-resolvable server URL")
 	}
-
-	// Verify the server URL was set on the renderer
-	if p.renderer == nil {
-		t.Fatal("renderer should not be nil after Init")
+	if !strings.Contains(err.Error(), "DNS resolution failed") {
+		t.Fatalf("expected DNS resolution error, got: %v", err)
 	}
-	// We can't directly access the server URL from the renderer,
-	// but we can verify the renderer was created successfully
 }
 
 // TestPluginInit_WithLocalFlag tests Init with local rendering flag.
@@ -100,7 +98,7 @@ func TestPluginInit_WithLocalFlag(t *testing.T) {
 		{
 			Name: "plantuml",
 			Path: "",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"local": true,
 			},
 		},
@@ -123,19 +121,17 @@ func TestPluginInit_WithBothOptions(t *testing.T) {
 		{
 			Name: "plantuml",
 			Path: "",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"server": "http://plantuml.example.com",
 				"local":  false,
 			},
 		},
 	}
 
+	// The server URL uses a non-existent domain, so Init should return a validation error.
 	err := p.Init(cfg)
-	if err != nil {
-		t.Fatalf("Init returned unexpected error: %v", err)
-	}
-	if p.renderer == nil {
-		t.Fatal("renderer should not be nil after Init")
+	if err == nil {
+		t.Fatal("expected Init to fail for non-resolvable server URL")
 	}
 }
 
@@ -147,7 +143,7 @@ func TestPluginInit_InvalidConfigTypes(t *testing.T) {
 		{
 			Name: "plantuml",
 			Path: "",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				// Use wrong types: server should be string, local should be bool.
 				"server": 12345,
 				"local":  "true",
@@ -184,7 +180,7 @@ func TestPluginExecute_WrongPhase(t *testing.T) {
 		Context:  context.Background(),
 		Phase:    plugin.PhaseBeforeBuild, // Not AfterParse
 		Content:  "<p>Hello</p>",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 
 	result, err := p.Execute(ctx)
@@ -203,7 +199,7 @@ func TestPluginExecute_CorrectPhase_NoPlantUML(t *testing.T) {
 		Context:  context.Background(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  "<p>Just regular HTML</p>",
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 
 	result, err := p.Execute(ctx)
@@ -229,14 +225,14 @@ func TestPluginExecute_WithPlantUML(t *testing.T) {
 	defer mockServer.Close()
 
 	p := NewPlugin()
-	p.renderer = NewRenderer(mockServer.URL, false)
+	p.renderer = newRendererNoValidation(mockServer.URL, false)
 
 	html := `<pre><code class="language-plantuml">Alice -> Bob: Hello</code></pre>`
 	ctx := &plugin.HookContext{
 		Context:  context.Background(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  html,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 
 	result, err := p.Execute(ctx)
@@ -262,14 +258,14 @@ func TestPluginExecute_RenderError(t *testing.T) {
 	defer mockServer.Close()
 
 	p := NewPlugin()
-	p.renderer = NewRenderer(mockServer.URL, false)
+	p.renderer = newRendererNoValidation(mockServer.URL, false)
 
 	html := `<pre><code class="language-plantuml">Alice -> Bob</code></pre>`
 	ctx := &plugin.HookContext{
 		Context:  context.Background(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  html,
-		Metadata: make(map[string]interface{}),
+		Metadata: make(map[string]any),
 	}
 
 	result, err := p.Execute(ctx)
@@ -297,7 +293,7 @@ func TestPluginExecute_NilMetadata(t *testing.T) {
 	defer mockServer.Close()
 
 	p := NewPlugin()
-	p.renderer = NewRenderer(mockServer.URL, false)
+	p.renderer = newRendererNoValidation(mockServer.URL, false)
 
 	ctx := &plugin.HookContext{
 		Context:  context.Background(),
@@ -431,12 +427,12 @@ func TestPluginLifecycle(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	p.renderer = NewRenderer(mockServer.URL, false)
+	p.renderer = newRendererNoValidation(mockServer.URL, false)
 	ctx := &plugin.HookContext{
 		Context:  context.Background(),
 		Phase:    plugin.PhaseAfterParse,
 		Content:  `<pre><code class="language-plantuml">A -> B</code></pre>`,
-		Metadata: map[string]interface{}{},
+		Metadata: map[string]any{},
 	}
 
 	result, err := p.Execute(ctx)

@@ -426,12 +426,10 @@ func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 
 	// themes without subcommand should trigger help
 	err := themesCmd.Execute()
-	// Note: cobra may or may not return an error here depending on configuration
-	// The important thing is that it handles the no-subcommand case gracefully
-
-	if err != nil && !strings.Contains(err.Error(), "help") {
-		// Some implementations might error, some might just show help
-		t.Logf("themes command without subcommand: %v", err)
+	// Cobra is expected to return an error for missing subcommand (e.g., "accepts 1 arg(s)").
+	// This test verifies the command handles no-subcommand gracefully without panicking.
+	if err != nil {
+		t.Logf("themes command without subcommand (expected): %v", err)
 	}
 }
 

@@ -329,9 +329,16 @@ func TestBuildHeadingTree_WithHeadings(t *testing.T) {
 		{Level: 2, Text: "Section 1.1", ID: "section-1-1"},
 	}
 	result := buildHeadingTree(headings, "chapter-one")
-	// The chapter root heading is stripped from the result.
-	// So we expect section-level entries only.
-	_ = result // just check it doesn't panic
+	// The chapter root heading (level 1) is stripped; only section-level entries remain.
+	if result == nil {
+		t.Fatal("expected non-nil result for non-empty headings")
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 section heading after stripping root, got %d", len(result))
+	}
+	if result[0].Title != "Section 1.1" {
+		t.Errorf("expected heading title %q, got %q", "Section 1.1", result[0].Title)
+	}
 }
 
 // ---------------------------------------------------------------------------

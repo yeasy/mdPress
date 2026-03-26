@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestNewLocalSource 测试本地源创建
+// TestNewLocalSource tests local source creation
 func TestNewLocalSource(t *testing.T) {
 	tests := []struct {
 		name string
@@ -15,22 +15,22 @@ func TestNewLocalSource(t *testing.T) {
 		opts Options
 	}{
 		{
-			name: "简单路径",
+			name: "simple path",
 			path: "/home/user/project",
 			opts: Options{},
 		},
 		{
-			name: "路径带子目录选项",
+			name: "path with subdirectory option",
 			path: "/home/user/project",
 			opts: Options{SubDir: "docs"},
 		},
 		{
-			name: "相对路径",
+			name: "relative path",
 			path: "./project",
 			opts: Options{},
 		},
 		{
-			name: "当前目录",
+			name: "current directory",
 			path: ".",
 			opts: Options{},
 		},
@@ -55,7 +55,7 @@ func TestNewLocalSource(t *testing.T) {
 	}
 }
 
-// TestLocalSourceType 测试本地源类型
+// TestLocalSourceType tests local source type
 func TestLocalSourceType(t *testing.T) {
 	src := NewLocalSource(t.TempDir(), Options{})
 	if src.Type() != "local" {
@@ -63,7 +63,7 @@ func TestLocalSourceType(t *testing.T) {
 	}
 }
 
-// TestLocalSourceCleanup 测试本地源清理（应安全返回 nil）
+// TestLocalSourceCleanup tests local source cleanup (should safely return nil)
 func TestLocalSourceCleanup(t *testing.T) {
 	src := NewLocalSource(t.TempDir(), Options{})
 	err := src.Cleanup()
@@ -72,21 +72,21 @@ func TestLocalSourceCleanup(t *testing.T) {
 	}
 }
 
-// TestLocalSourcePrepare 测试本地源准备函数
+// TestLocalSourcePrepare tests local source Prepare function
 func TestLocalSourcePrepare(t *testing.T) {
-	// 使用临时目录进行测试
+	// Use temp directory for testing
 	tempDir := t.TempDir()
 
 	tests := []struct {
 		name    string
-		setup   func() string // 返回要使用的路径
+		setup   func() string // returns the path to use
 		opts    Options
 		wantErr bool
 		check   func(t *testing.T, result string)
 	}{
-		// 成功情况
+		// Success cases
 		{
-			name: "现有目录",
+			name: "existing directory",
 			setup: func() string {
 				return tempDir
 			},
@@ -96,16 +96,16 @@ func TestLocalSourcePrepare(t *testing.T) {
 				if result == "" {
 					t.Error("Prepare should return non-empty path for existing dir")
 				}
-				// 应该返回绝对路径
+				// Should return an absolute path
 				if !filepath.IsAbs(result) {
 					t.Errorf("path should be absolute, got %q", result)
 				}
 			},
 		},
 		{
-			name: "相对路径的现有目录",
+			name: "existing directory with relative path",
 			setup: func() string {
-				// 创建临时子目录
+				// Create temp subdirectory
 				subDir := filepath.Join(tempDir, "subdir")
 				if err := os.MkdirAll(subDir, 0755); err != nil {
 					t.Fatalf("mkdir subdir failed: %v", err)
@@ -120,9 +120,9 @@ func TestLocalSourcePrepare(t *testing.T) {
 				}
 			},
 		},
-		// 错误情况
+		// Error cases
 		{
-			name: "不存在的路径",
+			name: "non-existent path",
 			setup: func() string {
 				return "/nonexistent/path/that/should/not/exist"
 			},
@@ -131,7 +131,7 @@ func TestLocalSourcePrepare(t *testing.T) {
 			check:   nil,
 		},
 		{
-			name: "文件而非目录",
+			name: "file instead of directory",
 			setup: func() string {
 				filePath := filepath.Join(tempDir, "testfile.txt")
 				if err := os.WriteFile(filePath, []byte("test"), 0644); err != nil {
@@ -171,19 +171,19 @@ func TestLocalSourcePrepare(t *testing.T) {
 	}
 }
 
-// TestLocalSourcePrepareWithSubDir 测试带子目录选项的本地源准备
+// TestLocalSourcePrepareWithSubDir tests local source Prepare with subdirectory option
 func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := []struct {
 		name      string
-		setup     func() (baseDir, subDir string) // 返回基础路径和子目录
+		setup     func() (baseDir, subDir string) // returns base path and subdirectory
 		opts      Options
 		wantErr   bool
 		checkPath func(t *testing.T, path string, subDir string)
 	}{
 		{
-			name: "存在的子目录",
+			name: "existing subdirectory",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "docs"
@@ -204,7 +204,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			},
 		},
 		{
-			name: "不存在的子目录",
+			name: "non-existent subdirectory",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "nonexistent_subdir"
@@ -215,7 +215,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			checkPath: nil,
 		},
 		{
-			name: "子目录是文件而非目录",
+			name: "subdirectory is a file instead of directory",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "file.txt"
@@ -229,7 +229,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			checkPath: nil,
 		},
 		{
-			name: "嵌套子目录",
+			name: "nested subdirectory",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "a/b/c"
@@ -247,7 +247,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			},
 		},
 		{
-			name: "空子目录名称（应被忽略）",
+			name: "empty subdirectory name (should be ignored)",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = ""
@@ -256,7 +256,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			opts:    Options{SubDir: ""},
 			wantErr: false,
 			checkPath: func(t *testing.T, path string, subDir string) {
-				// 空子目录名称应返回基础目录本身
+				// Empty subdirectory name should return the base directory itself
 				absPath, _ := filepath.Abs(tempDir)
 				if path != absPath {
 					t.Errorf("path with empty SubDir should be base path, got %q, want %q", path, absPath)

@@ -276,7 +276,9 @@ func TestCompletionCmd_HelpOutput(t *testing.T) {
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
 
-	_ = rootCmd.Execute() // --help may or may not return an error depending on Cobra version
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("completion --help failed: %v", err)
+	}
 
 	output := out.String()
 	checks := []string{

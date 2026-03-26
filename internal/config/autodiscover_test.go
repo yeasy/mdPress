@@ -7,33 +7,33 @@ import (
 	"testing"
 )
 
-// TestAutoDiscoverWithYamlAndSummary 测试具有 book.yaml 和 SUMMARY.md 的目录
+// TestAutoDiscoverWithYamlAndSummary tests a directory with book.yaml and SUMMARY.md
 func TestAutoDiscoverWithYamlAndSummary(t *testing.T) {
 	dir := t.TempDir()
 
-	// 创建 book.yaml
+	// Create book.yaml
 	yamlContent := `book:
   title: "Auto Discover Test"
 chapters: []
 `
 	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("写入 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
-	// 创建 SUMMARY.md
+	// Create SUMMARY.md
 	summaryContent := `# Summary
 
 * [Intro](intro.md)
 * [Chapter 1](ch1.md)
 `
 	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
-		t.Fatalf("写入 SUMMARY.md 失败: %v", err)
+		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
 		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
-			t.Fatalf("创建文件失败: %v", err)
+			t.Fatalf("failed to create file: %v", err)
 		}
 	}
 
@@ -53,11 +53,11 @@ chapters: []
 	}
 }
 
-// TestAutoDiscoverCompleteDirectory 测试包含所有文件的完整目录
+// TestAutoDiscoverCompleteDirectory tests a directory with all files present
 func TestAutoDiscoverCompleteDirectory(t *testing.T) {
 	dir := t.TempDir()
 
-	// 创建 book.yaml
+	// Create book.yaml
 	yamlContent := `book:
   title: "Complete Directory"
   author: "Test Author"
@@ -66,38 +66,38 @@ chapters:
     file: "ch1.md"
 `
 	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("写入 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
-	// 创建 SUMMARY.md
+	// Create SUMMARY.md
 	summaryContent := `* [Intro](intro.md)`
 	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
-		t.Fatalf("写入 SUMMARY.md 失败: %v", err)
+		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
-	// 创建 GLOSSARY.md
+	// Create GLOSSARY.md
 	glossaryContent := `# Glossary
 
 ## API
 Application Programming Interface
 `
 	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte(glossaryContent), 0644); err != nil {
-		t.Fatalf("写入 GLOSSARY.md 失败: %v", err)
+		t.Fatalf("failed to write GLOSSARY.md: %v", err)
 	}
 
-	// 创建 LANGS.md
+	// Create LANGS.md
 	langsContent := `# Languages
 
 * [English](en/)
 * [中文](zh/)
 `
 	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte(langsContent), 0644); err != nil {
-		t.Fatalf("写入 LANGS.md 失败: %v", err)
+		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
 	// Create chapter file
 	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
-		t.Fatalf("创建文件失败: %v", err)
+		t.Fatalf("failed to create file: %v", err)
 	}
 
 	cfg, err := Discover(context.Background(), dir)
@@ -111,7 +111,7 @@ Application Programming Interface
 	if cfg.Book.Author != "Test Author" {
 		t.Errorf("expected author 'Test Author', got %q", cfg.Book.Author)
 	}
-	// book.yaml 定义了 chapters，所以应该使用 YAML 中的
+	// book.yaml defines chapters, so YAML ones should be used
 	if len(cfg.Chapters) != 1 {
 		t.Errorf("expected 1 chapter from YAML, got %d", len(cfg.Chapters))
 	}
@@ -123,11 +123,11 @@ Application Programming Interface
 	}
 }
 
-// TestAutoDiscoverOnlyYamlNoSummary 测试仅有 book.yaml 但没有 SUMMARY.md 的目录
+// TestAutoDiscoverOnlyYamlNoSummary tests a directory with only book.yaml and no SUMMARY.md
 func TestAutoDiscoverOnlyYamlNoSummary(t *testing.T) {
 	dir := t.TempDir()
 
-	// 创建 book.yaml，包含章节定义
+	// Create book.yaml with chapter definitions
 	yamlContent := `book:
   title: "Only YAML"
 chapters:
@@ -137,13 +137,13 @@ chapters:
     file: "ch2.md"
 `
 	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("写入 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"ch1.md", "ch2.md"} {
 		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
-			t.Fatalf("创建文件失败: %v", err)
+			t.Fatalf("failed to create file: %v", err)
 		}
 	}
 
@@ -160,43 +160,43 @@ chapters:
 	}
 }
 
-// TestAutoDiscoverOnlyYamlNoChapters 测试 book.yaml 存在但没有章节，也没有 SUMMARY.md
+// TestAutoDiscoverOnlyYamlNoChapters tests book.yaml without chapters and no SUMMARY.md
 func TestAutoDiscoverOnlyYamlNoChapters(t *testing.T) {
 	dir := t.TempDir()
 
-	// 创建 book.yaml，但没有定义章节
+	// Create book.yaml without chapter definitions
 	yamlContent := `book:
   title: "No Chapters"
 chapters: []
 `
 	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("写入 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	_, err := Discover(context.Background(), dir)
-	// 如果没有章节，Load() 会在 Validate() 时失败
+	// Without chapters, Load() fails at Validate()
 	if err == nil {
 		t.Error("expected error when no chapters defined")
 	}
 }
 
-// TestAutoDiscoverEmptyYaml 测试空 book.yaml 内容
+// TestAutoDiscoverEmptyYaml tests empty book.yaml content
 func TestAutoDiscoverEmptyYaml(t *testing.T) {
 	dir := t.TempDir()
 
-	// 创建空的 book.yaml
+	// Create empty book.yaml
 	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(""), 0644); err != nil {
-		t.Fatalf("写入空 book.yaml 失败: %v", err)
+		t.Fatalf("failed to write empty book.yaml: %v", err)
 	}
 
 	_, err := Discover(context.Background(), dir)
-	// 空 YAML 会导致默认值被使用，但没有章节时应该失败
+	// Empty YAML uses defaults, but should fail without chapters
 	if err == nil {
 		t.Error("expected error for empty config without chapters")
 	}
 }
 
-// TestLoadAutoDiscoverTableDriven 表驱动的自动发现测试
+// TestLoadAutoDiscoverTableDriven table-driven auto-discovery tests
 func TestLoadAutoDiscoverTableDriven(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -233,7 +233,7 @@ chapters:
 				if cfg.Book.Title != "Test Book" {
 					t.Errorf("expected 'Test Book', got %q", cfg.Book.Title)
 				}
-				// YAML 中定义了 chapters，所以应该使用 YAML，不读 SUMMARY.md
+				// YAML defines chapters, so YAML is used instead of SUMMARY.md
 				if len(cfg.Chapters) != 1 {
 					t.Errorf("expected 1 chapter from YAML, got %d", len(cfg.Chapters))
 				}

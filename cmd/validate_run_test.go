@@ -151,7 +151,9 @@ func TestExecuteValidate_WithJSONReport(t *testing.T) {
 	reportPath := filepath.Join(tmpDir, "report.json")
 	defer withValidateReportPath(t, reportPath)()
 
-	_ = executeValidate(context.Background(), tmpDir)
+	if err := executeValidate(context.Background(), tmpDir); err != nil {
+		t.Fatalf("executeValidate failed: %v", err)
+	}
 
 	if _, err := os.Stat(reportPath); err != nil {
 		t.Errorf("JSON report should have been written: %v", err)
@@ -166,7 +168,9 @@ func TestExecuteValidate_WithMDReport(t *testing.T) {
 	reportPath := filepath.Join(tmpDir, "report.md")
 	defer withValidateReportPath(t, reportPath)()
 
-	_ = executeValidate(context.Background(), tmpDir)
+	if err := executeValidate(context.Background(), tmpDir); err != nil {
+		t.Fatalf("executeValidate failed: %v", err)
+	}
 
 	if _, err := os.Stat(reportPath); err != nil {
 		t.Errorf("MD report should have been written: %v", err)
@@ -268,7 +272,9 @@ func TestValidateChapterContentAndSequence_ValidProject(t *testing.T) {
 	if err != nil {
 		t.Errorf("should not error for valid project: %v", err)
 	}
-	_ = issues
+	if len(issues) != 0 {
+		t.Errorf("expected 0 issues for valid project, got %d: %v", len(issues), issues)
+	}
 }
 
 func TestValidateChapterContentAndSequence_MissingFile(t *testing.T) {

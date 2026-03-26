@@ -180,7 +180,7 @@ func TestLoadDetectsGlossary(t *testing.T) {
 	}
 }
 
-// TestParseSummarySpecialChars 测试标题中包含特殊字符的 SUMMARY
+// TestParseSummarySpecialChars tests SUMMARY with special characters in titles
 func TestParseSummarySpecialChars(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
@@ -216,7 +216,7 @@ func TestParseSummarySpecialChars(t *testing.T) {
 	}
 }
 
-// TestParseSummaryDeepNesting 测试 4+ 层嵌套
+// TestParseSummaryDeepNesting tests 4+ levels of nesting
 func TestParseSummaryDeepNesting(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
@@ -243,7 +243,7 @@ func TestParseSummaryDeepNesting(t *testing.T) {
 		t.Errorf("expected 'Level 1', got %q", chapters[0].Title)
 	}
 
-	// 验证深层嵌套结构
+	// Verify deep nesting structure
 	level2 := chapters[0].Sections
 	if len(level2) != 1 {
 		t.Fatalf("expected 1 level 2, got %d", len(level2))
@@ -277,11 +277,11 @@ func TestParseSummaryDeepNesting(t *testing.T) {
 	}
 }
 
-// TestParseSummaryMixedIndent 测试混合空格和 tab 的缩进
+// TestParseSummaryMixedIndent tests mixed space and tab indentation
 func TestParseSummaryMixedIndent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
-	// 混合使用空格和 tab - 第一级 2 个空格，第二级 1 个 tab（算作 2 个空格）
+	// Mixed spaces and tabs - first level 2 spaces, second level 1 tab (counts as 2 spaces)
 	content := "* [Part A](a.md)\n  * [Section A1](a1.md)\n\t* [Section A2](a2.md)\n* [Part B](b.md)\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
@@ -305,7 +305,7 @@ func TestParseSummaryMixedIndent(t *testing.T) {
 	}
 }
 
-// TestCountIndent 单元测试 countIndent 函数
+// TestCountIndent unit tests for the countIndent function
 func TestCountIndent(t *testing.T) {
 	tests := []struct {
 		name string
@@ -350,7 +350,7 @@ func TestCountIndent(t *testing.T) {
 		{
 			name: "space after non-space",
 			line: "  x  spaces",
-			want: 2, // 只计算前导空格/tab
+			want: 2, // Only counts leading spaces/tabs
 		},
 	}
 
@@ -364,7 +364,7 @@ func TestCountIndent(t *testing.T) {
 	}
 }
 
-// TestParseSummaryNoLinks 测试不包含 markdown 链接的文件
+// TestParseSummaryNoLinks tests a file with no markdown links
 func TestParseSummaryNoLinks(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")

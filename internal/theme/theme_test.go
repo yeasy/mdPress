@@ -7,15 +7,15 @@ import (
 	"testing"
 )
 
-// TestNewThemeManager 测试创建主题管理器
+// TestNewThemeManager tests creating a theme manager
 func TestNewThemeManager(t *testing.T) {
 	tm := NewThemeManager()
 	if tm == nil {
-		t.Fatal("NewThemeManager 返回 nil")
+		t.Fatal("NewThemeManager returned nil")
 	}
 }
 
-// TestBuiltinThemesExist 测试内置主题都存在
+// TestBuiltinThemesExist tests that all built-in themes exist
 func TestBuiltinThemesExist(t *testing.T) {
 	tm := NewThemeManager()
 	builtins := []string{"technical", "elegant", "minimal"}
@@ -23,95 +23,95 @@ func TestBuiltinThemesExist(t *testing.T) {
 	for _, name := range builtins {
 		thm, err := tm.Get(name)
 		if err != nil {
-			t.Errorf("内置主题 %q 应存在: %v", name, err)
+			t.Errorf("built-in theme %q should exist: %v", name, err)
 			continue
 		}
 		if thm.Name != name {
-			t.Errorf("主题名称错误: got %q, want %q", thm.Name, name)
+			t.Errorf("theme name mismatch: got %q, want %q", thm.Name, name)
 		}
 	}
 }
 
-// TestGetDefaultTheme 测试空名称返回默认主题
+// TestGetDefaultTheme tests that empty name returns the default theme
 func TestGetDefaultTheme(t *testing.T) {
 	tm := NewThemeManager()
 	thm, err := tm.Get("")
 	if err != nil {
-		t.Fatalf("空名称应返回默认主题: %v", err)
+		t.Fatalf("empty name should return default theme: %v", err)
 	}
 	if thm.Name != "technical" {
-		t.Errorf("默认主题应为 'technical': got %q", thm.Name)
+		t.Errorf("default theme should be 'technical': got %q", thm.Name)
 	}
 }
 
-// TestGetNonExistentTheme 测试获取不存在的主题
+// TestGetNonExistentTheme tests retrieving a non-existent theme
 func TestGetNonExistentTheme(t *testing.T) {
 	tm := NewThemeManager()
 	_, err := tm.Get("nonexistent")
 	if err == nil {
-		t.Error("获取不存在的主题应返回错误")
+		t.Error("getting non-existent theme should return error")
 	}
 }
 
-// TestListThemes 测试列出所有主题
+// TestListThemes tests listing all themes
 func TestListThemes(t *testing.T) {
 	tm := NewThemeManager()
 	names := tm.List()
 	if len(names) < 3 {
-		t.Errorf("应至少有 3 个主题: got %d", len(names))
+		t.Errorf("should have at least 3 themes: got %d", len(names))
 	}
 
-	// 检查内置主题在列表中
+	// Check built-in themes are in the list
 	nameSet := make(map[string]bool)
 	for _, name := range names {
 		nameSet[name] = true
 	}
 	for _, expected := range []string{"technical", "elegant", "minimal"} {
 		if !nameSet[expected] {
-			t.Errorf("主题列表中应包含 %q", expected)
+			t.Errorf("theme list should contain %q", expected)
 		}
 	}
 }
 
-// TestThemeTechnicalProperties 测试 technical 主题属性
+// TestThemeTechnicalProperties tests technical theme properties
 func TestThemeTechnicalProperties(t *testing.T) {
 	tm := NewThemeManager()
 	thm, _ := tm.Get("technical")
 
 	if thm.PageSize == "" {
-		t.Error("technical 主题应有 PageSize")
+		t.Error("technical theme should have PageSize")
 	}
 	if thm.FontFamily == "" {
-		t.Error("technical 主题应有 FontFamily")
+		t.Error("technical theme should have FontFamily")
 	}
 	if thm.FontSize <= 0 {
-		t.Error("technical 主题 FontSize 应大于 0")
+		t.Error("technical theme FontSize should be > 0")
 	}
 	if thm.LineHeight <= 0 {
-		t.Error("technical 主题 LineHeight 应大于 0")
+		t.Error("technical theme LineHeight should be > 0")
 	}
 	if thm.Colors.Text == "" {
-		t.Error("technical 主题应有 Text 颜色")
+		t.Error("technical theme should have Text color")
 	}
 	if thm.Colors.Background == "" {
-		t.Error("technical 主题应有 Background 颜色")
+		t.Error("technical theme should have Background color")
 	}
 	if thm.Colors.Heading == "" {
-		t.Error("technical 主题应有 Heading 颜色")
+		t.Error("technical theme should have Heading color")
 	}
 }
 
-// TestThemeToCSS 测试 CSS 生成
+// TestThemeToCSS tests CSS generation
 func TestThemeToCSS(t *testing.T) {
 	tm := NewThemeManager()
 	thm, _ := tm.Get("technical")
 
 	css := thm.ToCSS()
 	if css == "" {
-		t.Fatal("CSS 不应为空")
+		t.Fatal("CSS should not be empty")
 	}
 
-	// 检查 CSS 变量
+	// Check CSS variables
 	expectedVars := []string{
 		"--font-family",
 		"--font-family-mono",
@@ -124,11 +124,11 @@ func TestThemeToCSS(t *testing.T) {
 	}
 	for _, v := range expectedVars {
 		if !strings.Contains(css, v) {
-			t.Errorf("CSS 应包含变量 %q", v)
+			t.Errorf("CSS should contain variable %q", v)
 		}
 	}
 
-	// 检查基础样式规则
+	// Check base style rules
 	expectedRules := []string{
 		"body {",
 		"h1, h2, h3",
@@ -139,12 +139,12 @@ func TestThemeToCSS(t *testing.T) {
 	}
 	for _, rule := range expectedRules {
 		if !strings.Contains(css, rule) {
-			t.Errorf("CSS 应包含规则 %q", rule)
+			t.Errorf("CSS should contain rule %q", rule)
 		}
 	}
 }
 
-// TestThemeValidate 测试主题验证
+// TestThemeValidate tests theme validation
 func TestThemeValidate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -152,43 +152,43 @@ func TestThemeValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			"合法主题",
+			"valid theme",
 			Theme{Name: "test", PageSize: "A4", FontSize: 12, LineHeight: 1.6,
 				Colors: ColorScheme{Text: "#333", Background: "#fff"}},
 			false,
 		},
 		{
-			"无名称",
+			"no name",
 			Theme{PageSize: "A4", FontSize: 12, LineHeight: 1.6,
 				Colors: ColorScheme{Text: "#333", Background: "#fff"}},
 			true,
 		},
 		{
-			"无 PageSize",
+			"no PageSize",
 			Theme{Name: "test", FontSize: 12, LineHeight: 1.6,
 				Colors: ColorScheme{Text: "#333", Background: "#fff"}},
 			true,
 		},
 		{
-			"FontSize 为 0",
+			"FontSize is 0",
 			Theme{Name: "test", PageSize: "A4", FontSize: 0, LineHeight: 1.6,
 				Colors: ColorScheme{Text: "#333", Background: "#fff"}},
 			true,
 		},
 		{
-			"LineHeight 为 0",
+			"LineHeight is 0",
 			Theme{Name: "test", PageSize: "A4", FontSize: 12, LineHeight: 0,
 				Colors: ColorScheme{Text: "#333", Background: "#fff"}},
 			true,
 		},
 		{
-			"无文本颜色",
+			"no text color",
 			Theme{Name: "test", PageSize: "A4", FontSize: 12, LineHeight: 1.6,
 				Colors: ColorScheme{Background: "#fff"}},
 			true,
 		},
 		{
-			"无背景颜色",
+			"no background color",
 			Theme{Name: "test", PageSize: "A4", FontSize: 12, LineHeight: 1.6,
 				Colors: ColorScheme{Text: "#333"}},
 			true,
@@ -198,15 +198,15 @@ func TestThemeValidate(t *testing.T) {
 	for _, tt := range tests {
 		err := tt.theme.Validate()
 		if tt.wantErr && err == nil {
-			t.Errorf("%s: 应验证失败", tt.name)
+			t.Errorf("%s: should fail validation", tt.name)
 		}
 		if !tt.wantErr && err != nil {
-			t.Errorf("%s: 不应验证失败: %v", tt.name, err)
+			t.Errorf("%s: should not fail validation: %v", tt.name, err)
 		}
 	}
 }
 
-// TestThemeClone 测试主题克隆
+// TestThemeClone tests theme cloning
 func TestThemeClone(t *testing.T) {
 	original := &Theme{
 		Name:       "original",
@@ -219,20 +219,20 @@ func TestThemeClone(t *testing.T) {
 	clone := original.Clone()
 
 	if clone == original {
-		t.Error("克隆应返回新实例")
+		t.Error("clone should return a new instance")
 	}
 	if clone.Name != original.Name {
-		t.Errorf("克隆的 Name 不同: got %q", clone.Name)
+		t.Errorf("cloned Name differs: got %q", clone.Name)
 	}
 
-	// 修改克隆不应影响原件
+	// Modifying clone should not affect original
 	clone.Name = "modified"
 	if original.Name == "modified" {
-		t.Error("修改克隆不应影响原件")
+		t.Error("modifying clone should not affect original")
 	}
 }
 
-// TestLoadFromFile 测试从文件加载主题
+// TestLoadFromFile tests loading a theme from file
 func TestLoadFromFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	themePath := filepath.Join(tmpDir, "custom.yaml")
@@ -259,45 +259,45 @@ margins:
   right: 20
 `
 	if err := os.WriteFile(themePath, []byte(content), 0644); err != nil {
-		t.Fatalf("写入主题文件失败: %v", err)
+		t.Fatalf("failed to write theme file: %v", err)
 	}
 
 	tm := NewThemeManager()
 	thm, err := tm.LoadFromFile(themePath)
 	if err != nil {
-		t.Fatalf("从文件加载主题失败: %v", err)
+		t.Fatalf("failed to load theme from file: %v", err)
 	}
 
 	if thm.Name != "custom-theme" {
-		t.Errorf("主题名称错误: got %q", thm.Name)
+		t.Errorf("theme name mismatch: got %q", thm.Name)
 	}
 	if thm.FontSize != 14 {
-		t.Errorf("字体大小错误: got %d", thm.FontSize)
+		t.Errorf("font size mismatch: got %d", thm.FontSize)
 	}
 	if thm.Colors.Heading != "#c0392b" {
-		t.Errorf("标题颜色错误: got %q", thm.Colors.Heading)
+		t.Errorf("heading color mismatch: got %q", thm.Colors.Heading)
 	}
 
-	// 应该能通过名称获取
+	// Should be retrievable by name
 	retrieved, err := tm.Get("custom-theme")
 	if err != nil {
-		t.Errorf("加载后应能通过名称获取主题: %v", err)
+		t.Errorf("should be able to get theme by name after loading: %v", err)
 	}
 	if retrieved.FontSize != 14 {
-		t.Error("通过名称获取的主题属性应正确")
+		t.Error("theme properties retrieved by name should be correct")
 	}
 }
 
-// TestLoadFromFileNonExistent 测试加载不存在的主题文件
+// TestLoadFromFileNonExistent tests loading a non-existent theme file
 func TestLoadFromFileNonExistent(t *testing.T) {
 	tm := NewThemeManager()
 	_, err := tm.LoadFromFile("/nonexistent/theme.yaml")
 	if err == nil {
-		t.Error("加载不存在的文件应返回错误")
+		t.Error("loading non-existent file should return error")
 	}
 }
 
-// TestLoadFromFileInvalidYAML 测试加载无效 YAML 主题
+// TestLoadFromFileInvalidYAML tests loading an invalid YAML theme
 func TestLoadFromFileInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	themePath := filepath.Join(tmpDir, "bad.yaml")
@@ -308,15 +308,15 @@ func TestLoadFromFileInvalidYAML(t *testing.T) {
 	tm := NewThemeManager()
 	_, err := tm.LoadFromFile(themePath)
 	if err == nil {
-		t.Error("无效 YAML 应返回错误")
+		t.Error("invalid YAML should return error")
 	}
 }
 
-// TestLoadFromFileAutoName 测试文件名自动命名
+// TestLoadFromFileAutoName tests automatic naming from filename
 func TestLoadFromFileAutoName(t *testing.T) {
 	tmpDir := t.TempDir()
 	themePath := filepath.Join(tmpDir, "my-theme.yaml")
-	// 必须包含 name 字段，因为验证在自动命名之前执行
+	// Must include name field since validation runs before auto-naming
 	content := `
 name: my-theme
 page_size: A4
@@ -334,46 +334,46 @@ colors:
 	tm := NewThemeManager()
 	thm, err := tm.LoadFromFile(themePath)
 	if err != nil {
-		t.Fatalf("加载主题失败: %v", err)
+		t.Fatalf("failed to load theme: %v", err)
 	}
 
 	if thm.Name != "my-theme" {
-		t.Errorf("主题名错误: got %q, want %q", thm.Name, "my-theme")
+		t.Errorf("theme name mismatch: got %q, want %q", thm.Name, "my-theme")
 	}
 
-	// 应通过名称获取
+	// Should be retrievable by name
 	_, err = tm.Get("my-theme")
 	if err != nil {
-		t.Errorf("应能通过名称获取加载的主题: %v", err)
+		t.Errorf("should be able to get loaded theme by name: %v", err)
 	}
 }
 
-// TestBuiltinThemesValidate 测试所有内置主题通过验证
+// TestBuiltinThemesValidate tests that all built-in themes pass validation
 func TestBuiltinThemesValidate(t *testing.T) {
 	tm := NewThemeManager()
 	for _, name := range tm.List() {
 		thm, err := tm.Get(name)
 		if err != nil {
-			t.Errorf("获取主题 %q 失败: %v", name, err)
+			t.Errorf("failed to get theme %q: %v", name, err)
 			continue
 		}
 		if err := thm.Validate(); err != nil {
-			t.Errorf("内置主题 %q 验证失败: %v", name, err)
+			t.Errorf("built-in theme %q failed validation: %v", name, err)
 		}
 	}
 }
 
-// TestToCSSAllThemes 测试所有主题都能生成 CSS
+// TestToCSSAllThemes tests that all themes can generate CSS
 func TestToCSSAllThemes(t *testing.T) {
 	tm := NewThemeManager()
 	for _, name := range tm.List() {
 		thm, _ := tm.Get(name)
 		css := thm.ToCSS()
 		if css == "" {
-			t.Errorf("主题 %q 生成的 CSS 为空", name)
+			t.Errorf("theme %q generated empty CSS", name)
 		}
 		if !strings.Contains(css, ":root") {
-			t.Errorf("主题 %q 的 CSS 应包含 :root", name)
+			t.Errorf("theme %q CSS should contain :root", name)
 		}
 	}
 }
@@ -901,7 +901,7 @@ func TestColorScheme_AllFieldsSet(t *testing.T) {
 // GetThemeDescription - Tests for Theme Description Lookup
 // ---------------------------------------------------------------------------
 
-// TestGetThemeDescription_KnownThemes 测试获取已知主题的描述
+// TestGetThemeDescription_KnownThemes tests getting descriptions of known themes
 func TestGetThemeDescription_KnownThemes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -938,7 +938,7 @@ func TestGetThemeDescription_KnownThemes(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_UnknownTheme 测试获取未知主题的描述
+// TestGetThemeDescription_UnknownTheme tests getting description of unknown theme
 func TestGetThemeDescription_UnknownTheme(t *testing.T) {
 	unknownThemes := []string{
 		"nonexistent",
@@ -959,7 +959,7 @@ func TestGetThemeDescription_UnknownTheme(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_EmptyString 测试空字符串输入
+// TestGetThemeDescription_EmptyString tests empty string input
 func TestGetThemeDescription_EmptyString(t *testing.T) {
 	desc := GetThemeDescription("")
 	expectedDefault := "Unknown theme"
@@ -968,7 +968,7 @@ func TestGetThemeDescription_EmptyString(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_CaseSensitive 测试主题名称大小写敏感性
+// TestGetThemeDescription_CaseSensitive tests theme name case sensitivity
 func TestGetThemeDescription_CaseSensitive(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1020,7 +1020,7 @@ func TestGetThemeDescription_CaseSensitive(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_AllKnownThemes 测试所有已知主题
+// TestGetThemeDescription_AllKnownThemes tests all known themes
 func TestGetThemeDescription_AllKnownThemes(t *testing.T) {
 	expectedDefault := "Unknown theme"
 
@@ -1039,7 +1039,7 @@ func TestGetThemeDescription_AllKnownThemes(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_NonEmptyDescriptions 测试已知主题返回非空描述
+// TestGetThemeDescription_NonEmptyDescriptions tests that known themes return non-empty descriptions
 func TestGetThemeDescription_NonEmptyDescriptions(t *testing.T) {
 	knownThemes := []string{"technical", "elegant", "minimal"}
 
@@ -1056,7 +1056,7 @@ func TestGetThemeDescription_NonEmptyDescriptions(t *testing.T) {
 	}
 }
 
-// TestGetThemeDescription_ConsistentResults 测试多次调用返回一致结果
+// TestGetThemeDescription_ConsistentResults tests that multiple calls return consistent results
 func TestGetThemeDescription_ConsistentResults(t *testing.T) {
 	themeName := "technical"
 
@@ -1074,10 +1074,10 @@ func TestGetThemeDescription_ConsistentResults(t *testing.T) {
 }
 
 // ============================================================================
-// 新增：主题验证集成测试
+// Additional: theme validation integration tests
 // ============================================================================
 
-// TestBuiltinThemesStructureIntegrity 测试内置主题的结构完整性 (表格驱动)
+// TestBuiltinThemesStructureIntegrity tests built-in theme structural integrity (table-driven)
 func TestBuiltinThemesStructureIntegrity(t *testing.T) {
 	builtinThemes := []string{"technical", "elegant", "minimal"}
 
@@ -1086,38 +1086,38 @@ func TestBuiltinThemesStructureIntegrity(t *testing.T) {
 		fieldCheck func(t *testing.T, theme *Theme, themeName string)
 	}{
 		{
-			name: "主题名称一致性",
+			name: "theme name consistency",
 			fieldCheck: func(t *testing.T, theme *Theme, themeName string) {
 				if theme.Name != themeName {
-					t.Errorf("主题 %q: 名称不匹配，期望 %q 得 %q", themeName, themeName, theme.Name)
+					t.Errorf("theme %q: name mismatch, want %q got %q", themeName, themeName, theme.Name)
 				}
 			},
 		},
 		{
-			name: "必需字段非空",
+			name: "required fields non-empty",
 			fieldCheck: func(t *testing.T, theme *Theme, themeName string) {
 				if theme.Name == "" {
-					t.Errorf("主题 %q: Name 为空", themeName)
+					t.Errorf("theme %q: Name is empty", themeName)
 				}
 				if theme.PageSize == "" {
-					t.Errorf("主题 %q: PageSize 为空", themeName)
+					t.Errorf("theme %q: PageSize is empty", themeName)
 				}
 				if theme.FontFamily == "" {
-					t.Errorf("主题 %q: FontFamily 为空", themeName)
+					t.Errorf("theme %q: FontFamily is empty", themeName)
 				}
 				if theme.FontSize <= 0 {
-					t.Errorf("主题 %q: FontSize 无效 (%d)", themeName, theme.FontSize)
+					t.Errorf("theme %q: FontSize invalid (%d)", themeName, theme.FontSize)
 				}
 				if theme.CodeTheme == "" {
-					t.Errorf("主题 %q: CodeTheme 为空", themeName)
+					t.Errorf("theme %q: CodeTheme is empty", themeName)
 				}
 				if theme.LineHeight <= 0 {
-					t.Errorf("主题 %q: LineHeight 无效 (%.2f)", themeName, theme.LineHeight)
+					t.Errorf("theme %q: LineHeight invalid (%.2f)", themeName, theme.LineHeight)
 				}
 			},
 		},
 		{
-			name: "颜色方案完整",
+			name: "color scheme completeness",
 			fieldCheck: func(t *testing.T, theme *Theme, themeName string) {
 				requiredColors := map[string]*string{
 					"Text":       &theme.Colors.Text,
@@ -1131,33 +1131,33 @@ func TestBuiltinThemesStructureIntegrity(t *testing.T) {
 				}
 				for colorName, colorPtr := range requiredColors {
 					if colorPtr == nil || *colorPtr == "" {
-						t.Errorf("主题 %q: 颜色 %s 为空", themeName, colorName)
+						t.Errorf("theme %q: color %s is empty", themeName, colorName)
 					}
 				}
 			},
 		},
 		{
-			name: "边距设置有效",
+			name: "margin settings valid",
 			fieldCheck: func(t *testing.T, theme *Theme, themeName string) {
 				if theme.Margins.Top < 0 {
-					t.Errorf("主题 %q: Top 边距无效 (%.2f)", themeName, theme.Margins.Top)
+					t.Errorf("theme %q: Top margin invalid (%.2f)", themeName, theme.Margins.Top)
 				}
 				if theme.Margins.Bottom < 0 {
-					t.Errorf("主题 %q: Bottom 边距无效 (%.2f)", themeName, theme.Margins.Bottom)
+					t.Errorf("theme %q: Bottom margin invalid (%.2f)", themeName, theme.Margins.Bottom)
 				}
 				if theme.Margins.Left < 0 {
-					t.Errorf("主题 %q: Left 边距无效 (%.2f)", themeName, theme.Margins.Left)
+					t.Errorf("theme %q: Left margin invalid (%.2f)", themeName, theme.Margins.Left)
 				}
 				if theme.Margins.Right < 0 {
-					t.Errorf("主题 %q: Right 边距无效 (%.2f)", themeName, theme.Margins.Right)
+					t.Errorf("theme %q: Right margin invalid (%.2f)", themeName, theme.Margins.Right)
 				}
 			},
 		},
 		{
-			name: "验证通过",
+			name: "validation passes",
 			fieldCheck: func(t *testing.T, theme *Theme, themeName string) {
 				if err := theme.Validate(); err != nil {
-					t.Errorf("主题 %q: 验证失败: %v", themeName, err)
+					t.Errorf("theme %q: validation failed: %v", themeName, err)
 				}
 			},
 		},
@@ -1169,7 +1169,7 @@ func TestBuiltinThemesStructureIntegrity(t *testing.T) {
 			for _, themeName := range builtinThemes {
 				theme, err := tm.Get(themeName)
 				if err != nil {
-					t.Fatalf("获取主题 %q 失败: %v", themeName, err)
+					t.Fatalf("failed to get theme %q: %v", themeName, err)
 				}
 				tt.fieldCheck(t, theme, themeName)
 			}
@@ -1177,7 +1177,7 @@ func TestBuiltinThemesStructureIntegrity(t *testing.T) {
 	}
 }
 
-// TestThemeColorValidation 测试主题颜色值格式 (表格驱动)
+// TestThemeColorValidation tests theme color value format (table-driven)
 func TestThemeColorValidation(t *testing.T) {
 	tm := NewThemeManager()
 	builtinThemes := []string{"technical", "elegant", "minimal"}
@@ -1199,20 +1199,20 @@ func TestThemeColorValidation(t *testing.T) {
 
 			for colorName, colorValue := range colorFields {
 				if colorValue == "" {
-					t.Errorf("颜色 %s 不应为空", colorName)
+					t.Errorf("color %s should not be empty", colorName)
 					continue
 				}
 
-				// 检查是否是有效的十六进制颜色格式
+				// Check if it's a valid hex color format
 				if !isValidColorHex(colorValue) && !isValidColorRGB(colorValue) && !isValidColorName(colorValue) {
-					t.Logf("警告: 颜色 %s 格式可能非标准: %q (但可能有效)", colorName, colorValue)
+					t.Logf("warning: color %s may have non-standard format: %q (but may be valid)", colorName, colorValue)
 				}
 			}
 		})
 	}
 }
 
-// TestThemeCSSSyntax 测试生成的 CSS 语法有效性 (表格驱动)
+// TestThemeCSSSyntax tests generated CSS syntax validity (table-driven)
 func TestThemeCSSSyntax(t *testing.T) {
 	tm := NewThemeManager()
 	builtinThemes := []string{"technical", "elegant", "minimal"}
@@ -1239,27 +1239,27 @@ func TestThemeCSSSyntax(t *testing.T) {
 			css := theme.ToCSS()
 
 			if css == "" {
-				t.Fatal("生成的 CSS 不应为空")
+				t.Fatal("generated CSS should not be empty")
 			}
 
-			// 检查必需的 CSS 模式
+			// Check required CSS patterns
 			for _, pattern := range requiredCSSPatterns {
 				if !strings.Contains(css, pattern) {
-					t.Errorf("CSS 应包含 %q", pattern)
+					t.Errorf("CSS should contain %q", pattern)
 				}
 			}
 
-			// 基本的 CSS 结构检查
+			// Basic CSS structure check
 			openBraces := strings.Count(css, "{")
 			closeBraces := strings.Count(css, "}")
 			if openBraces != closeBraces {
-				t.Errorf("CSS 括号不匹配: { 出现 %d 次, } 出现 %d 次", openBraces, closeBraces)
+				t.Errorf("CSS braces mismatch: { appears %d times, } appears %d times", openBraces, closeBraces)
 			}
 		})
 	}
 }
 
-// TestThemeNoDuplicateNames 测试没有重复的主题名称
+// TestThemeNoDuplicateNames tests that there are no duplicate theme names
 func TestThemeNoDuplicateNames(t *testing.T) {
 	tm := NewThemeManager()
 	names := tm.List()
@@ -1271,12 +1271,12 @@ func TestThemeNoDuplicateNames(t *testing.T) {
 
 	for name, count := range nameMap {
 		if count > 1 {
-			t.Errorf("主题名称 %q 重复 %d 次", name, count)
+			t.Errorf("theme name %q duplicated %d times", name, count)
 		}
 	}
 }
 
-// TestThemeConsistencyBetweenBuiltinAndManager 测试内置主题与管理器一致性
+// TestThemeConsistencyBetweenBuiltinAndManager tests consistency between built-in themes and manager
 func TestThemeConsistencyBetweenBuiltinAndManager(t *testing.T) {
 	builtinFuncs := map[string]func() *Theme{
 		"technical": builtinTechnical,
@@ -1288,75 +1288,75 @@ func TestThemeConsistencyBetweenBuiltinAndManager(t *testing.T) {
 
 	for themeName, builderFunc := range builtinFuncs {
 		t.Run(themeName, func(t *testing.T) {
-			// 从 manager 获取
+			// Get from manager
 			managed, err := tm.Get(themeName)
 			if err != nil {
-				t.Fatalf("从 manager 获取 %q 失败: %v", themeName, err)
+				t.Fatalf("failed to get %q from manager: %v", themeName, err)
 			}
 
-			// 直接构建
+			// Build directly
 			builtin := builderFunc()
 
-			// 比较关键字段
+			// Compare key fields
 			if managed.Name != builtin.Name {
-				t.Errorf("Name 不一致: managed=%q, builtin=%q", managed.Name, builtin.Name)
+				t.Errorf("Name mismatch: managed=%q, builtin=%q", managed.Name, builtin.Name)
 			}
 			if managed.PageSize != builtin.PageSize {
-				t.Errorf("PageSize 不一致: managed=%q, builtin=%q", managed.PageSize, builtin.PageSize)
+				t.Errorf("PageSize mismatch: managed=%q, builtin=%q", managed.PageSize, builtin.PageSize)
 			}
 			if managed.FontSize != builtin.FontSize {
-				t.Errorf("FontSize 不一致: managed=%d, builtin=%d", managed.FontSize, builtin.FontSize)
+				t.Errorf("FontSize mismatch: managed=%d, builtin=%d", managed.FontSize, builtin.FontSize)
 			}
 			if managed.CodeTheme != builtin.CodeTheme {
-				t.Errorf("CodeTheme 不一致: managed=%q, builtin=%q", managed.CodeTheme, builtin.CodeTheme)
+				t.Errorf("CodeTheme mismatch: managed=%q, builtin=%q", managed.CodeTheme, builtin.CodeTheme)
 			}
 		})
 	}
 }
 
-// TestThemeCloneIndependence 测试克隆主题的独立性
+// TestThemeCloneIndependence tests clone independence
 func TestThemeCloneIndependence(t *testing.T) {
 	tm := NewThemeManager()
 	original, _ := tm.Get("technical")
 
 	cloned := original.Clone()
 
-	// 修改克隆
+	// Modify clone
 	cloned.Name = "cloned-technical"
 	cloned.FontSize = 20
 	cloned.Colors.Text = "#FF0000"
 
-	// 检查原始主题未被修改
+	// Check original theme was not modified
 	if original.Name != "technical" {
-		t.Errorf("原始主题被修改了: %q", original.Name)
+		t.Errorf("original theme was modified: %q", original.Name)
 	}
 	if original.FontSize != 11 {
-		t.Errorf("原始主题 FontSize 被修改了: %d", original.FontSize)
+		t.Errorf("original theme FontSize was modified: %d", original.FontSize)
 	}
 	if original.Colors.Text != "#2C3E50" {
-		t.Errorf("原始主题颜色被修改了: %q", original.Colors.Text)
+		t.Errorf("original theme color was modified: %q", original.Colors.Text)
 	}
 }
 
-// TestThemeFontFamilyQuoting 测试字体族引号处理
+// TestThemeFontFamilyQuoting tests font family quoting
 func TestThemeFontFamilyQuoting(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		contains string // 输出应包含的内容
+		contains string // expected content in output
 	}{
 		{
-			name:     "多字体链式",
+			name:     "multiple font chain",
 			input:    "Arial, 'Helvetica Neue', sans-serif",
 			contains: "Arial",
 		},
 		{
-			name:     "CJK 字体",
+			name:     "CJK font",
 			input:    "'Noto Sans SC', sans-serif",
 			contains: "Noto",
 		},
 		{
-			name:     "单字体",
+			name:     "single font",
 			input:    "monospace",
 			contains: "monospace",
 		},
@@ -1366,18 +1366,18 @@ func TestThemeFontFamilyQuoting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			quoted := quoteFontFamily(tt.input)
 			if quoted == "" {
-				t.Error("引号处理结果不应为空")
+				t.Error("quoted result should not be empty")
 			}
 			if !strings.Contains(quoted, tt.contains) {
-				t.Errorf("输出应包含 %q，得 %q", tt.contains, quoted)
+				t.Errorf("output should contain %q, got %q", tt.contains, quoted)
 			}
 		})
 	}
 }
 
-// TestThemeLoadFromYAML 测试从 YAML 文件加载主题
+// TestThemeLoadFromYAML tests loading themes from YAML files
 func TestThemeLoadFromYAML(t *testing.T) {
-	// 获取主题文件目录
+	// Get theme file directory
 	themeDir := filepath.Join("/sessions/epic-blissful-johnson/mnt/mdpress", "themes")
 
 	themeFiles := []string{
@@ -1390,30 +1390,29 @@ func TestThemeLoadFromYAML(t *testing.T) {
 
 	for _, themeFile := range themeFiles {
 		t.Run(filepath.Base(themeFile), func(t *testing.T) {
-			// 检查文件是否存在
+			// Skip if theme file does not exist
 			if _, err := os.Stat(themeFile); err != nil {
-				t.Logf("跳过: 主题文件不存在: %s", themeFile)
-				return
+				t.Skipf("theme file does not exist: %s", themeFile)
 			}
 
-			// 尝试加载
+			// Attempt to load
 			theme, err := tm.LoadFromFile(themeFile)
 			if err != nil {
-				t.Fatalf("加载主题文件失败: %v", err)
+				t.Fatalf("failed to load theme file: %v", err)
 			}
 
-			// 验证加载的主题
+			// Verify loaded theme
 			if theme.Name == "" {
-				t.Error("加载的主题名称不应为空")
+				t.Error("loaded theme name should not be empty")
 			}
 			if theme.PageSize == "" {
-				t.Error("加载的主题 PageSize 不应为空")
+				t.Error("loaded theme PageSize should not be empty")
 			}
 		})
 	}
 }
 
-// TestThemeAllFieldsNotEmpty 测试所有字段都不为空（针对内置主题）
+// TestThemeAllFieldsNotEmpty tests that all fields are non-empty (for built-in themes)
 func TestThemeAllFieldsNotEmpty(t *testing.T) {
 	tm := NewThemeManager()
 	builtinThemes := []string{"technical", "elegant", "minimal"}
@@ -1422,8 +1421,8 @@ func TestThemeAllFieldsNotEmpty(t *testing.T) {
 		t.Run(themeName, func(t *testing.T) {
 			theme, _ := tm.Get(themeName)
 
-			// 关键字段检查
-			checks := map[string]interface{}{
+			// Key field checks
+			checks := map[string]any{
 				"Name":       theme.Name,
 				"PageSize":   theme.PageSize,
 				"FontFamily": theme.FontFamily,
@@ -1432,26 +1431,26 @@ func TestThemeAllFieldsNotEmpty(t *testing.T) {
 
 			for fieldName, value := range checks {
 				if str, ok := value.(string); ok && str == "" {
-					t.Errorf("%s 字段不应为空", fieldName)
+					t.Errorf("%s field should not be empty", fieldName)
 				}
 			}
 
-			// 数值字段检查
+			// Numeric field checks
 			if theme.FontSize == 0 {
-				t.Error("FontSize 不应为 0")
+				t.Error("FontSize should not be 0")
 			}
 			if theme.LineHeight == 0 {
-				t.Error("LineHeight 不应为 0")
+				t.Error("LineHeight should not be 0")
 			}
 		})
 	}
 }
 
 // ============================================================================
-// 辅助函数
+// Helper functions
 // ============================================================================
 
-// isValidColorHex 检查是否是有效的十六进制颜色
+// isValidColorHex checks if the string is a valid hex color
 func isValidColorHex(color string) bool {
 	if !strings.HasPrefix(color, "#") {
 		return false
@@ -1460,12 +1459,12 @@ func isValidColorHex(color string) bool {
 	return len(hex) == 6 || len(hex) == 3 || len(hex) == 8
 }
 
-// isValidColorRGB 检查是否是有效的 RGB 颜色
+// isValidColorRGB checks if the string is a valid RGB color
 func isValidColorRGB(color string) bool {
 	return strings.HasPrefix(color, "rgb")
 }
 
-// isValidColorName 检查是否是有效的 CSS 颜色名称
+// isValidColorName checks if the string is a valid CSS color name
 func isValidColorName(color string) bool {
 	cssColors := map[string]bool{
 		"red": true, "blue": true, "green": true, "black": true, "white": true,

@@ -105,7 +105,7 @@ func TestExpandInMarkdown(t *testing.T) {
 
 func TestExpandMixedContent(t *testing.T) {
 	cfg := newTestConfig()
-	// {{ ref:fig1 }} 不是合法的变量名（有冒号），不应被处理
+	// {{ ref:fig1 }} is not a valid variable name (contains colon), should not be processed
 	input := "{{ book.title }} and {{ref:fig1}}"
 	result := ExpandString(input, cfg)
 	if !strings.Contains(result, "测试书名") {

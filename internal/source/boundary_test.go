@@ -1,5 +1,5 @@
-// boundary_test.go 补充 source 包的边界测试。
-// 覆盖无效 URL、权限问题、特殊路径等边界场景。
+// boundary_test.go Boundary tests for the source package.
+// Covers invalid URLs, permission issues, special paths, and other edge cases.
 package source
 
 import (
@@ -10,218 +10,222 @@ import (
 	"testing"
 )
 
-// TestDetect_InvalidGitHubURLs 测试无效 GitHub URL 的错误处理
+// TestDetect_InvalidGitHubURLs tests error handling for invalid GitHub URLs.
 func TestDetect_InvalidGitHubURLs(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
 	}{
-		{"仅域名", "https://github.com"},
-		{"仅 owner", "https://github.com/owner"},
-		{"带查询参数", "https://github.com/owner/repo?tab=readme"},
-		{"带锚点", "https://github.com/owner/repo#readme"},
+		{"domain only", "https://github.com"},
+		{"owner only", "https://github.com/owner"},
+		{"with query params", "https://github.com/owner/repo?tab=readme"},
+		{"with anchor", "https://github.com/owner/repo#readme"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src, err := Detect(tt.input, Options{})
-			// 如果识别为 GitHub URL 但解析失败，应返回错误
-			// 如果不识别为 GitHub URL，应返回 local 类型
+			// If recognized as GitHub URL but parsing fails, should return error
+			// If not recognized as GitHub URL, should return local type
 			if err != nil {
-				t.Logf("正确返回错误: %v", err)
+				// Invalid GitHub URL correctly returns error.
 				return
 			}
-			if src != nil {
-				t.Logf("类型: %s（作为本地路径处理）", src.Type())
+			if src == nil {
+				t.Errorf("Detect(%q) returned nil source with no error", tt.input)
 			}
 		})
 	}
 }
 
-// TestLocalSource_PermissionDenied 测试无权限目录的处理
+// TestLocalSource_PermissionDenied tests handling of directories without read permission.
 func TestLocalSource_PermissionDenied(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix file-permission semantics required; skipping on Windows")
 	}
 	if os.Getuid() == 0 {
-		t.Skip("root 用户无法测试权限限制")
+		t.Skip("cannot test permission restrictions as root")
 	}
 
-	// 创建无读取权限的目录
+	// Create directory without read permission
 	tempDir := t.TempDir()
 	noReadDir := filepath.Join(tempDir, "noperm")
 	if err := os.MkdirAll(noReadDir, 0000); err != nil {
-		t.Fatalf("创建无权限目录失败: %v", err)
+		t.Fatalf("failed to create no-permission directory: %v", err)
 	}
 	defer func() {
 		if err := os.Chmod(noReadDir, 0755); err != nil {
-			t.Logf("恢复目录权限失败: %v", err)
+			t.Logf("failed to restore directory permissions: %v", err)
 		}
 	}()
 
 	src := NewLocalSource(noReadDir, Options{})
 	result, err := src.Prepare()
 
-	// 路径存在但可能因权限返回目录（Prepare 只检查 Stat）
-	// 只要不 panic 即可
-	t.Logf("无权限目录: result=%q, err=%v", result, err)
+	// Prepare should either succeed (returns path) or return an error.
+	// Must not panic or return both error and non-empty result.
+	if err != nil && result != "" {
+		t.Errorf("Prepare returned both error and result: result=%q, err=%v", result, err)
+	}
 }
 
-// TestLocalSource_SymlinkPath 测试符号链接路径
+// TestLocalSource_SymlinkPath tests symlink path handling.
 func TestLocalSource_SymlinkPath(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 创建实际目录
+	// Create actual directory
 	realDir := filepath.Join(tempDir, "real")
 	if err := os.MkdirAll(realDir, 0755); err != nil {
-		t.Fatalf("创建实际目录失败: %v", err)
+		t.Fatalf("failed to create real directory: %v", err)
 	}
 
-	// 创建符号链接
+	// Create symlink
 	linkDir := filepath.Join(tempDir, "link")
 	err := os.Symlink(realDir, linkDir)
 	if err != nil {
-		t.Skip("无法创建符号链接")
+		t.Skip("cannot create symlink")
 	}
 
 	src := NewLocalSource(linkDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("符号链接路径应可正常使用: %v", err)
+		t.Errorf("symlink path should work: %v", err)
 	}
 	if result == "" {
-		t.Error("符号链接路径应返回非空结果")
+		t.Error("symlink path should return non-empty result")
 	}
 }
 
-// TestLocalSource_SubDirPermission 测试子目录权限问题
+// TestLocalSource_SubDirPermission tests subdirectory permission issues.
 func TestLocalSource_SubDirPermission(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix file-permission semantics required; skipping on Windows")
 	}
 	if os.Getuid() == 0 {
-		t.Skip("root 用户无法测试权限限制")
+		t.Skip("cannot test permission restrictions as root")
 	}
 
 	tempDir := t.TempDir()
 	subDir := filepath.Join(tempDir, "restricted")
 	if err := os.MkdirAll(subDir, 0000); err != nil {
-		t.Fatalf("创建受限子目录失败: %v", err)
+		t.Fatalf("failed to create restricted subdirectory: %v", err)
 	}
 	defer func() {
 		if err := os.Chmod(subDir, 0755); err != nil {
-			t.Logf("恢复子目录权限失败: %v", err)
+			t.Logf("failed to restore subdirectory permissions: %v", err)
 		}
 	}()
 
 	src := NewLocalSource(tempDir, Options{SubDir: "restricted"})
 	result, err := src.Prepare()
 
-	// 子目录存在但可能无法访问
-	t.Logf("受限子目录: result=%q, err=%v", result, err)
+	// Prepare should either succeed or return an error, not both.
+	if err != nil && result != "" {
+		t.Errorf("Prepare returned both error and result: result=%q, err=%v", result, err)
+	}
 }
 
-// TestLocalSource_DeepNestedPath 测试深层嵌套路径
+// TestLocalSource_DeepNestedPath tests deeply nested directory paths.
 func TestLocalSource_DeepNestedPath(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 创建深层嵌套目录
+	// Create deeply nested directory
 	deepPath := filepath.Join(tempDir, "a", "b", "c", "d", "e", "f")
 	if err := os.MkdirAll(deepPath, 0755); err != nil {
-		t.Fatalf("创建深层嵌套目录失败: %v", err)
+		t.Fatalf("failed to create deeply nested directory: %v", err)
 	}
 
 	src := NewLocalSource(tempDir, Options{SubDir: "a/b/c/d/e/f"})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("深层嵌套目录应可正常使用: %v", err)
+		t.Errorf("deeply nested directory should work: %v", err)
 	}
 	if !strings.HasSuffix(result, filepath.Join("a", "b", "c", "d", "e", "f")) {
-		t.Errorf("路径应包含完整嵌套路径, 实际: %q", result)
+		t.Errorf("path should contain full nested path, got: %q", result)
 	}
 }
 
-// TestLocalSource_SpecialCharsInPath 测试路径中包含特殊字符
+// TestLocalSource_SpecialCharsInPath tests paths containing special characters.
 func TestLocalSource_SpecialCharsInPath(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 创建包含空格和中文的目录
-	specialDir := filepath.Join(tempDir, "我的 文档")
+	// Create directory with spaces and CJK characters
+	specialDir := filepath.Join(tempDir, "my docs")
 	err := os.MkdirAll(specialDir, 0755)
 	if err != nil {
-		t.Skip("无法创建特殊字符目录")
+		t.Skip("cannot create directory with special characters")
 	}
 
 	src := NewLocalSource(specialDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("特殊字符路径应可正常使用: %v", err)
+		t.Errorf("special character path should work: %v", err)
 	}
 	if result == "" {
-		t.Error("应返回非空路径")
+		t.Error("should return non-empty path")
 	}
 }
 
-// TestLocalSource_EmptyDirectory 测试空目录作为源
+// TestLocalSource_EmptyDirectory tests using an empty directory as source.
 func TestLocalSource_EmptyDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	emptyDir := filepath.Join(tempDir, "empty")
 	if err := os.MkdirAll(emptyDir, 0755); err != nil {
-		t.Fatalf("创建空目录失败: %v", err)
+		t.Fatalf("failed to create empty directory: %v", err)
 	}
 
 	src := NewLocalSource(emptyDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("空目录应可作为源: %v", err)
+		t.Errorf("empty directory should work as source: %v", err)
 	}
 	if result == "" {
-		t.Error("空目录应返回路径")
+		t.Error("empty directory should return a path")
 	}
 }
 
-// TestGitHubSource_InvalidOwnerRepo 测试无效的 owner/repo 组合
+// TestGitHubSource_InvalidOwnerRepo tests invalid owner/repo combinations.
 func TestGitHubSource_InvalidOwnerRepo(t *testing.T) {
 	tests := []struct {
 		name  string
 		owner string
 		repo  string
 	}{
-		{"空 owner", "", "repo"},
-		{"空 repo", "owner", ""},
-		{"两者都空", "", ""},
-		{"含空格", "owner name", "repo name"},
-		{"含特殊符号", "owner@", "repo!"},
+		{"empty owner", "", "repo"},
+		{"empty repo", "owner", ""},
+		{"both empty", "", ""},
+		{"with spaces", "owner name", "repo name"},
+		{"with special chars", "owner@", "repo!"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			src := NewGitHubSource(tt.owner, tt.repo, Options{})
-			// 创建不应失败（验证推迟到 Prepare）
+			// Creation should not fail (validation deferred to Prepare)
 			if src == nil {
-				t.Error("NewGitHubSource 不应返回 nil")
+				t.Error("NewGitHubSource should not return nil")
 			}
 			if src.Type() != "github" {
-				t.Error("类型应为 github")
+				t.Error("type should be github")
 			}
 		})
 	}
 }
 
-// TestDetect_WhitespaceVariations 测试各种空白字符输入
+// TestDetect_WhitespaceVariations tests various whitespace inputs.
 func TestDetect_WhitespaceVariations(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
 		wantErr bool
 	}{
-		{"空字符串", "", true},
-		{"单个空格", " ", true},
-		{"多个空格", "     ", true},
-		{"制表符", "\t", true},
-		{"换行符", "\n", true},
-		{"混合空白", " \t\n\r ", true},
-		{"前后有空格的路径", "  /tmp/test  ", false}, // 应被 trim 后正常处理
+		{"empty string", "", true},
+		{"single space", " ", true},
+		{"multiple spaces", "     ", true},
+		{"tab", "\t", true},
+		{"newline", "\n", true},
+		{"mixed whitespace", " \t\n\r ", true},
+		{"path with surrounding spaces", "  /tmp/test  ", false}, // should be trimmed and handled
 	}
 
 	for _, tt := range tests {
@@ -229,82 +233,88 @@ func TestDetect_WhitespaceVariations(t *testing.T) {
 			src, err := Detect(tt.input, Options{})
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("Detect(%q) 应返回错误", tt.input)
+					t.Errorf("Detect(%q) should return error", tt.input)
 				}
 				if src != nil {
-					t.Errorf("Detect(%q) 错误时 source 应为 nil", tt.input)
+					t.Errorf("Detect(%q) source should be nil on error", tt.input)
 				}
 			} else if err != nil {
-				t.Errorf("Detect(%q) 不应返回错误: %v", tt.input, err)
+				t.Errorf("Detect(%q) should not return error: %v", tt.input, err)
 			}
 		})
 	}
 }
 
-// TestDetect_OptionsPassthrough 测试选项正确传递给创建的源
+// TestDetect_OptionsPassthrough tests that options are correctly passed to created sources.
 func TestDetect_OptionsPassthrough(t *testing.T) {
 	opts := Options{
 		Branch: "develop",
 		SubDir: "docs/zh",
 	}
 
-	// GitHub 源
+	// GitHub source
 	src, err := Detect("https://github.com/test/repo", opts)
 	if err != nil {
-		t.Fatalf("Detect 失败: %v", err)
+		t.Fatalf("Detect failed: %v", err)
 	}
 	ghSrc, ok := src.(*GitHubSource)
 	if !ok {
-		t.Fatal("应返回 GitHubSource")
+		t.Fatal("should return GitHubSource")
 	}
 	if ghSrc.opts.Branch != "develop" {
-		t.Errorf("Branch 应为 'develop', 实际 %q", ghSrc.opts.Branch)
+		t.Errorf("Branch should be 'develop', got %q", ghSrc.opts.Branch)
 	}
 	if ghSrc.opts.SubDir != "docs/zh" {
-		t.Errorf("SubDir 应为 'docs/zh', 实际 %q", ghSrc.opts.SubDir)
+		t.Errorf("SubDir should be 'docs/zh', got %q", ghSrc.opts.SubDir)
 	}
 
-	// 本地源
+	// Local source
 	src2, err := Detect(t.TempDir(), opts)
 	if err != nil {
-		t.Fatalf("Detect 失败: %v", err)
+		t.Fatalf("Detect failed: %v", err)
 	}
 	localSrc, ok := src2.(*LocalSource)
 	if !ok {
-		t.Fatal("应返回 LocalSource")
+		t.Fatal("should return LocalSource")
 	}
 	if localSrc.opts.SubDir != "docs/zh" {
-		t.Errorf("SubDir 应为 'docs/zh', 实际 %q", localSrc.opts.SubDir)
+		t.Errorf("SubDir should be 'docs/zh', got %q", localSrc.opts.SubDir)
 	}
 }
 
-// TestLocalSource_PathTraversal 测试路径穿越攻击场景
+// TestLocalSource_PathTraversal tests path traversal attack scenarios.
 func TestLocalSource_PathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(tempDir, "docs"), 0755); err != nil {
-		t.Fatalf("创建 docs 目录失败: %v", err)
+		t.Fatalf("failed to create docs directory: %v", err)
 	}
 
-	// 子目录使用 .. 尝试路径穿越
+	// Subdirectory uses .. to attempt path traversal
 	src := NewLocalSource(tempDir, Options{SubDir: "../../../etc"})
-	_, err := src.Prepare()
-	// 此处不检查是否报错，重要的是不会导致 panic 或安全问题
-	t.Logf("路径穿越测试: err=%v", err)
+	result, err := src.Prepare()
+	if err == nil && result != "" {
+		// If Prepare succeeded, verify the resolved path stays within tempDir.
+		absTemp, _ := filepath.Abs(tempDir)
+		absResult, _ := filepath.Abs(result)
+		if !strings.HasPrefix(absResult, absTemp+string(filepath.Separator)) && absResult != absTemp {
+			t.Errorf("path traversal not blocked: SubDir=%q resolved to %q (outside %q)", "../../../etc", absResult, absTemp)
+		}
+	}
 }
 
-// TestGitHubURL_EdgeCases 测试 GitHub URL 正则匹配的边界情况
+// TestGitHubURL_EdgeCases tests edge cases of GitHub URL regex matching.
 func TestGitHubURL_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
 		wantMatch bool
 	}{
-		{"大写 GITHUB", "https://GITHUB.COM/owner/repo", false}, // 正则未忽略大小写
-		{"尾部斜杠", "https://github.com/owner/repo/", true},
-		{"多层路径", "https://github.com/owner/repo/tree/main/docs", true},
+		{"uppercase GITHUB", "https://GITHUB.COM/owner/repo", false}, // regex is case-sensitive
+		{"trailing slash", "https://github.com/owner/repo/", true},
+		{"deep path", "https://github.com/owner/repo/tree/main/docs", true},
 		{"github.io", "https://github.io/owner/repo", false},
-		{"企业 GitHub", "https://github.example.com/owner/repo", false},
-		{"仅 github.com", "github.com", false},
+		{"enterprise GitHub", "https://github.example.com/owner/repo", false},
+		{"bare github.com", "github.com", false},
 		{"github.com/", "github.com/", false},
 	}
 
@@ -312,38 +322,39 @@ func TestGitHubURL_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := isGitHubURL(tt.input)
 			if got != tt.wantMatch {
-				t.Errorf("isGitHubURL(%q) = %v, 期望 %v", tt.input, got, tt.wantMatch)
+				t.Errorf("isGitHubURL(%q) = %v, want %v", tt.input, got, tt.wantMatch)
 			}
 		})
 	}
 }
 
-// TestLocalSource_ConcurrentPrepare 测试并发调用 Prepare 的安全性
+// TestLocalSource_ConcurrentPrepare tests concurrent Prepare calls are safe.
 func TestLocalSource_ConcurrentPrepare(t *testing.T) {
 	tempDir := t.TempDir()
 	src := NewLocalSource(tempDir, Options{})
 
-	// 并发调用 Prepare 不应 panic
-	done := make(chan bool, 10)
+	errs := make(chan error, 10)
 	for i := 0; i < 10; i++ {
 		go func() {
-			_, _ = src.Prepare()
-			done <- true
+			_, err := src.Prepare()
+			errs <- err
 		}()
 	}
 	for i := 0; i < 10; i++ {
-		<-done
+		if err := <-errs; err != nil {
+			t.Errorf("concurrent Prepare() failed: %v", err)
+		}
 	}
 }
 
-// TestGitHubSource_RepeatedCleanup 测试多次调用 Cleanup 的安全性
+// TestGitHubSource_RepeatedCleanup tests that multiple Cleanup calls are safe.
 func TestGitHubSource_RepeatedCleanup(t *testing.T) {
 	src := NewGitHubSource("owner", "repo", Options{})
 
-	// GitHubSource 不需要并发安全；验证连续多次调用不会 panic
+	// GitHubSource need not be concurrency-safe; verify repeated calls don't panic
 	for i := 0; i < 10; i++ {
 		if err := src.Cleanup(); err != nil {
-			t.Fatalf("Cleanup 第 %d 次调用失败: %v", i+1, err)
+			t.Fatalf("Cleanup call %d failed: %v", i+1, err)
 		}
 	}
 }

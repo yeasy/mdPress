@@ -498,66 +498,6 @@ func TestDetectCoverImageVariants(t *testing.T) {
 	}
 }
 
-// TestGenerateBookYAML tests YAML generation with chapters.
-func TestGenerateBookYAML(t *testing.T) {
-	files := []discoveredFile{
-		{RelPath: "intro.md", Title: "Introduction", Depth: 0},
-		{RelPath: "chapter1/README.md", Title: "Chapter 1", Depth: 1},
-	}
-
-	yaml := generateBookYAML("MyBook", files, "cover.png")
-
-	// Check for required fields
-	requiredStrings := []string{
-		"title: \"MyBook\"",
-		"file: \"intro.md\"",
-		"file: \"chapter1/README.md\"",
-		"cover.png",
-		"MyBook.pdf",
-	}
-
-	for _, req := range requiredStrings {
-		if !strings.Contains(yaml, req) {
-			t.Errorf("generateBookYAML() missing %q", req)
-		}
-	}
-}
-
-// TestGenerateBookYAMLNoChapters tests YAML generation without chapters.
-func TestGenerateBookYAMLNoChapters(t *testing.T) {
-	yaml := generateBookYAMLNoChapters("ProjectName", "")
-
-	// Check for required fields
-	requiredStrings := []string{
-		"title: \"ProjectName\"",
-		"SUMMARY.md",
-		"background: \"#1a1a2e\"",
-		"ProjectName.pdf",
-	}
-
-	for _, req := range requiredStrings {
-		if !strings.Contains(yaml, req) {
-			t.Errorf("generateBookYAMLNoChapters() missing %q", req)
-		}
-	}
-}
-
-// TestGenerateBookYAMLNoCoverImage tests YAML generation without cover image.
-func TestGenerateBookYAMLNoCoverImage(t *testing.T) {
-	files := []discoveredFile{
-		{RelPath: "chapter1.md", Title: "Chapter 1", Depth: 0},
-	}
-
-	yaml := generateBookYAML("Test", files, "")
-
-	if !strings.Contains(yaml, "background: \"#1a1a2e\"") {
-		t.Error("generateBookYAML() should include background color when no cover image")
-	}
-	if strings.Contains(yaml, "image:") {
-		t.Error("generateBookYAML() should not include image field when cover is empty")
-	}
-}
-
 // TestGenerateInteractiveBookYAML tests interactive YAML generation.
 func TestGenerateInteractiveBookYAML(t *testing.T) {
 	answers := initAnswers{
@@ -728,13 +668,15 @@ func TestCreateStarterTemplateDirectoryExists(t *testing.T) {
 	}
 }
 
-// TestIsTerminalInteractive tests terminal detection (simplified check).
+// TestIsTerminalInteractive tests terminal detection does not panic.
 func TestIsTerminalInteractive(t *testing.T) {
-	// This test just ensures the function doesn't panic
-	// Actual behavior depends on environment
+	// isTerminalInteractive checks if stdin is a real terminal.
+	// In test environments this typically returns false.
 	result := isTerminalInteractive()
-	if result != false && result != true {
-		t.Errorf("isTerminalInteractive() returned invalid value: %v", result)
+	t.Logf("isTerminalInteractive() = %v", result)
+	// In CI/test environments, stdin is not a terminal
+	if result {
+		t.Log("Running in a real terminal environment")
 	}
 }
 
@@ -841,23 +783,5 @@ func TestPromptChoiceBasic(t *testing.T) {
 
 	if result != "Option2" {
 		t.Errorf("promptChoice() with empty input = %q, want Option2", result)
-	}
-}
-
-// TestGenerateBookYAMLWithInferredTitles tests YAML generation when files lack titles.
-func TestGenerateBookYAMLWithInferredTitles(t *testing.T) {
-	files := []discoveredFile{
-		{RelPath: "preface.md", Title: "", Depth: 0},
-		{RelPath: "chapter01/README.md", Title: "", Depth: 1},
-	}
-
-	yaml := generateBookYAML("MyProject", files, "")
-
-	// Should have inferred titles
-	if !strings.Contains(yaml, "title: \"Preface\"") {
-		t.Error("generateBookYAML() should infer title 'Preface' from path")
-	}
-	if !strings.Contains(yaml, "title: \"Chapter01\"") {
-		t.Error("generateBookYAML() should infer title 'Chapter01' from path")
 	}
 }

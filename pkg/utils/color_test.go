@@ -440,28 +440,28 @@ func TestSuccess(t *testing.T) {
 	tests := []struct {
 		name         string
 		format       string
-		args         []interface{}
+		args         []any
 		colorEnabled bool
 		expectPrefix string
 	}{
 		{
 			name:         "success basic",
 			format:       "test passed",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: true,
 			expectPrefix: "✓",
 		},
 		{
 			name:         "success with args",
 			format:       "test %d passed",
-			args:         []interface{}{5},
+			args:         []any{5},
 			colorEnabled: true,
 			expectPrefix: "✓",
 		},
 		{
 			name:         "success no color",
 			format:       "test passed",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: false,
 			expectPrefix: "✓",
 		},
@@ -502,28 +502,28 @@ func TestWarning(t *testing.T) {
 	tests := []struct {
 		name         string
 		format       string
-		args         []interface{}
+		args         []any
 		colorEnabled bool
 		expectPrefix string
 	}{
 		{
 			name:         "warning basic",
 			format:       "be careful",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: true,
 			expectPrefix: "⚠",
 		},
 		{
 			name:         "warning with args",
 			format:       "deprecated: %s",
-			args:         []interface{}{"feature"},
+			args:         []any{"feature"},
 			colorEnabled: true,
 			expectPrefix: "⚠",
 		},
 		{
 			name:         "warning no color",
 			format:       "be careful",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: false,
 			expectPrefix: "⚠",
 		},
@@ -558,28 +558,28 @@ func TestError(t *testing.T) {
 	tests := []struct {
 		name         string
 		format       string
-		args         []interface{}
+		args         []any
 		colorEnabled bool
 		expectPrefix string
 	}{
 		{
 			name:         "error basic",
 			format:       "something went wrong",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: true,
 			expectPrefix: "✗",
 		},
 		{
 			name:         "error with args",
 			format:       "error code: %d",
-			args:         []interface{}{500},
+			args:         []any{500},
 			colorEnabled: true,
 			expectPrefix: "✗",
 		},
 		{
 			name:         "error no color",
 			format:       "something went wrong",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: false,
 			expectPrefix: "✗",
 		},
@@ -620,28 +620,28 @@ func TestInfo(t *testing.T) {
 	tests := []struct {
 		name         string
 		format       string
-		args         []interface{}
+		args         []any
 		colorEnabled bool
 		expectPrefix string
 	}{
 		{
 			name:         "info basic",
 			format:       "here's some info",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: true,
 			expectPrefix: "ℹ",
 		},
 		{
 			name:         "info with args",
 			format:       "processing %d items",
-			args:         []interface{}{42},
+			args:         []any{42},
 			colorEnabled: true,
 			expectPrefix: "ℹ",
 		},
 		{
 			name:         "info no color",
 			format:       "here's some info",
-			args:         []interface{}{},
+			args:         []any{},
 			colorEnabled: false,
 			expectPrefix: "ℹ",
 		},

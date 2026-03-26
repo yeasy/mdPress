@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -681,11 +682,12 @@ func TestCheckGitAvailable(t *testing.T) {
 	report := &doctorReport{}
 	checkGitAvailable(report)
 
-	// Git may or may not be available, but the function should not error
-	// and should populate the GitAvailable field
-	if report.GitAvailable {
-		// Git is available, that's good
-		t.Logf("Git is available")
+	// Determine whether git is actually on PATH and assert accordingly.
+	_, lookErr := exec.LookPath("git")
+	gitOnPath := lookErr == nil
+
+	if report.GitAvailable != gitOnPath {
+		t.Errorf("report.GitAvailable = %v, but exec.LookPath says git available = %v", report.GitAvailable, gitOnPath)
 	}
 }
 
