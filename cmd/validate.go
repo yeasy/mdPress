@@ -91,7 +91,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 				OK:      false,
 				Message: fmt.Sprintf("Invalid config syntax: %v", err),
 			})
-			return finalizeValidate(results, true)
+			return finalizeValidate(results, true, 0)
 		}
 		results = append(results, validateResult{
 			OK:      true,
@@ -104,7 +104,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 				OK:      false,
 				Message: fmt.Sprintf("No buildable project found: %v", err),
 			})
-			return finalizeValidate(results, true)
+			return finalizeValidate(results, true, 0)
 		}
 		results = append(results, validateResult{
 			OK:      true,
@@ -228,6 +228,14 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		})
 	}
 
+	// Print progress so far before the slow content validation step.
+	printedSoFar := 0
+	if !quiet {
+		printResults(results)
+		printedSoFar = len(results)
+		fmt.Printf("\n  Validating chapter content (%d files)...\n", len(flatChapters))
+	}
+
 	// ========== 8. Check chapter numbering and Mermaid diagnostics ==========
 	contentIssues, contentErr := validateChapterContentAndSequence(cfg)
 	if contentErr != nil {
@@ -292,16 +300,23 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		}
 	}
 
-	return finalizeValidate(results, hasError)
+	return finalizeValidate(results, hasError, printedSoFar)
 }
 
-// printResults prints all validation results.
-func printResults(results []validateResult) {
+// printResults prints validation results, optionally skipping already-printed ones.
+func printResults(results []validateResult, skipFirst ...int) {
 	if quiet {
 		return
 	}
+	skip := 0
+	if len(skipFirst) > 0 {
+		skip = skipFirst[0]
+	}
 	fmt.Println()
-	for _, r := range results {
+	for i, r := range results {
+		if i < skip {
+			continue
+		}
 		if r.OK {
 			utils.Success("%s", r.Message)
 		} else {
@@ -476,6 +491,16 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) ([]string, error)
 			issues = append(issues, fmt.Sprintf("Chapter title numbering mismatch: %s (rule=%s)", flat.Def.File, diag.Rule))
 		}
 
+		// Check SUMMARY title vs file heading mismatch.
+		if flat.Def.Title != "" && len(headings) > 0 && headings[0].Text != "" {
+			summaryNorm := normalizeChapterTitle(flat.Def.Title)
+			headingNorm := normalizeChapterTitle(headings[0].Text)
+			if summaryNorm != "" && headingNorm != "" && summaryNorm != headingNorm {
+				issues = append(issues, fmt.Sprintf("Title mismatch in %s: SUMMARY %q vs file heading %q (SUMMARY title takes precedence)",
+					flat.Def.File, flat.Def.Title, headings[0].Text))
+			}
+		}
+
 		for _, diag := range diagnostics {
 			if strings.HasPrefix(diag.Rule, "mermaid-") {
 				issues = append(issues, fmt.Sprintf("Mermaid issue in %s at %d:%d: %s", flat.Def.File, diag.Line, diag.Column, diag.Message))
@@ -597,7 +622,7 @@ type validationReport struct {
 	Results     []validateResult `json:"results"`
 }
 
-func finalizeValidate(results []validateResult, hasError bool) error {
+func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ...int) error {
 	passed, failed := summarizeValidationResults(results)
 
 	if validateReportPath != "" {
@@ -612,7 +637,11 @@ func finalizeValidate(results []validateResult, hasError bool) error {
 		}
 	}
 
-	printResults(results)
+	skip := 0
+	if len(alreadyPrinted) > 0 {
+		skip = alreadyPrinted[0]
+	}
+	printResults(results, skip)
 
 	if !quiet {
 		fmt.Println()
