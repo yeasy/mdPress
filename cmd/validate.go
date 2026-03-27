@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -633,7 +634,7 @@ func finalizeValidate(results []validateResult, hasError bool) error {
 	}
 
 	if hasError {
-		return fmt.Errorf("validation failed; fix the issues above and try again")
+		return errors.New("validation failed; fix the issues above and try again")
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ package output
 import (
 	"archive/zip"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -83,11 +84,11 @@ func (g *EpubGenerator) AddChapter(ch EpubChapter) {
 func (g *EpubGenerator) Generate(outputPath string) error {
 	coverAsset, err := g.loadCoverImageAsset()
 	if err != nil {
-		return err
+		return fmt.Errorf("load cover image: %w", err)
 	}
 	chapters, chapterAssets, err := g.collectChapterAssets()
 	if err != nil {
-		return err
+		return fmt.Errorf("collect chapter assets: %w", err)
 	}
 
 	f, err := os.Create(outputPath)
@@ -709,7 +710,11 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 	matches := dataURIImagePattern.FindStringSubmatch(src)
 	if len(matches) != 3 {
-		return nil, fmt.Errorf("unsupported data URI image format: %s", src)
+		preview := src
+		if len(preview) > 80 {
+			preview = preview[:80] + "..."
+		}
+		return nil, fmt.Errorf("unsupported data URI image format: %s", preview)
 	}
 
 	mediaType := strings.TrimSpace(matches[1])
@@ -758,7 +763,7 @@ func buildFileImageAsset(src string, index int) (*epubAsset, error) {
 
 func buildRemoteImageAsset(src string, remoteTempDir string, index int) (*epubAsset, error) {
 	if remoteTempDir == "" {
-		return nil, fmt.Errorf("temporary directory for remote EPUB assets is not available")
+		return nil, errors.New("temporary directory for remote EPUB assets is not available")
 	}
 
 	localPath, err := utils.DownloadImage(src, remoteTempDir)

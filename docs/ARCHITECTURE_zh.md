@@ -2,8 +2,8 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.6.3
-> 更新日期: 2026-03-25
+> 版本: v0.6.4
+> 更新日期: 2026-03-26
 
 ## 1. 系统架构总览
 
@@ -40,7 +40,7 @@ Markdown 解析 (Parser)
   ├─ PDF (Typst): Typst 命令行 → 原生 PDF
   ├─ HTML: 单页 HTML 文档
   ├─ Site: 多页静态站点
-  └─ ePub: ZIP(OPF + NCX + XHTML)
+  └─ ePub 3: ZIP(OPF + NCX + XHTML + Navigation Document)
 ```
 
 ### 1.2 命令结构
@@ -159,7 +159,10 @@ graph TB
 | 文件 | 职责 |
 |------|------|
 | `root.go` | Cobra 根命令，全局 flag（`--config`, `--verbose`） |
-| `build.go` | 构建 pipeline 编排：加载配置 → 解析 → 渲染 → 输出 |
+| `build.go` | 构建命令：源解析、配置加载、格式分发 |
+| `build_run.go` | 核心构建执行：渲染流水线、输出生成 |
+| `build_orchestrator.go` | `BuildOrchestrator` 并发章节处理 |
+| `format_builders.go` | `FormatBuilderRegistry` 输出格式分发 |
 | `serve.go` | 构建 HTML 站点并启动 HTTP 服务器 |
 | `init_cmd.go` | 扫描目录，生成 book.yaml 骨架 |
 | `quickstart.go` | 创建示例项目并立即构建预览 |
@@ -167,9 +170,10 @@ graph TB
 | `themes.go` | 列出/展示内置主题 |
 
 **关键函数：**
-- `executeBuild()` — 核心构建流程编排器
+- `executeBuild()` — 分发到 `executeBuildForConfig()` 处理每种语言
+- `executeBuildForConfig()` — 运行完整的渲染和输出流水线
+- `BuildOrchestrator.ProcessChapters()` — 并发章节解析
 - `executeServe()` — 构建站点 + 启动 HTTP server
-- `flattenChapters()` — 递归展平嵌套章节定义
 
 ### 3.2 internal/config — 配置管理
 
@@ -182,6 +186,7 @@ type BookConfig struct {     // 顶层配置
     Chapters []ChapterDef     // 章节定义（支持嵌套）
     Style    StyleConfig      // 样式配置
     Output   OutputConfig     // 输出配置
+    Plugins  []PluginConfig   // 插件配置
 }
 
 type ChapterDef struct {     // 章节定义
@@ -458,78 +463,58 @@ chapter.md (原始 Markdown)
 **接口定义：** 见 `internal/source/source.go`
 
 ```go
-// Source 定义内容来源的统一抽象
+// Source 定义内容来源的统一抽象。
+// Prepare 返回包含内容的本地目录路径。
 type Source interface {
-    // Open 打开并准备内容来源（如克隆仓库、下载文件等）
-    Open(ctx context.Context) error
-
-    // ReadFile 读取指定路径的文件内容
-    ReadFile(path string) ([]byte, error)
-
-    // ListFiles 列出匹配 pattern 的所有文件
-    ListFiles(pattern string) ([]string, error)
-
-    // Resolve 将相对路径解析为来源内的绝对路径
-    Resolve(base, rel string) string
-
-    // Close 关闭来源，清理临时资源
-    Close() error
-
-    // Type 返回来源类型标识
+    Prepare() (string, error)
+    Cleanup() error
     Type() string
 }
 ```
 
-**实现计划：**
+**类图：**
 
 ```mermaid
 classDiagram
     class Source {
         <<interface>>
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
-        +ListFiles(pattern) ([]string, error)
-        +Resolve(base, rel) string
-        +Close() error
+        +Prepare() (string, error)
+        +Cleanup() error
         +Type() string
     }
 
     class LocalSource {
         -rootDir string
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
+        -opts SourceOptions
+        +Prepare() (string, error)
+        +Cleanup() error
+        +Type() string
     }
 
     class GitHubSource {
         -owner string
         -repo string
-        -ref string
-        -localDir string
-        +Open(ctx) error
-        +ReadFile(path) ([]byte, error)
-    }
-
-    class GitLabSource {
-        -projectID string
-        -ref string
-        +Open(ctx) error
-    }
-
-    class URLSource {
-        -baseURL string
-        -cacheDir string
-        +Open(ctx) error
+        -tempDir string
+        -opts SourceOptions
+        +Prepare() (string, error)
+        +Cleanup() error
+        +Type() string
     }
 
     Source <|.. LocalSource
     Source <|.. GitHubSource
-    Source <|.. GitLabSource : 未来扩展
-    Source <|.. URLSource : 未来扩展
 ```
 
+**当前实现：**
+
+- `LocalSource`（已实现）
+- `GitHubSource`（已实现，支持 `GITHUB_TOKEN` 访问私有仓库）
+- `GitLabSource`（未来扩展）
+- `URLSource`（未来扩展）
+
 **与现有代码的集成：**
-- `config.Load()` 根据输入路径自动选择 Source 实现
-- `cmd/build.go` 中的 `utils.ReadFile()` 调用改为通过 Source 接口读取
+- `source.Detect()` 根据输入 URL 或路径自动选择 Source 实现
+- `cmd/build.go` 和 `cmd/serve.go` 使用 Source 进行项目获取
 - LocalSource 封装现有的文件系统操作，保持向后兼容
 
 ### 5.2 Config 发现链（已实现）
@@ -547,7 +532,8 @@ classDiagram
    ▼
 3. 自动扫描 *.md 文件                  ← 零配置体验
    按目录结构 + 文件名排序
-   排除: README.md, SUMMARY.md, GLOSSARY.md, LANGS.md
+   如果存在 README.md 则作为第一章
+   排除: SUMMARY.md, GLOSSARY.md, LANGS.md
 ```
 
 **设计方案：**

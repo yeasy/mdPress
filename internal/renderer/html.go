@@ -3,6 +3,7 @@
 package renderer
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"strings"
@@ -67,7 +68,7 @@ type templateChapter struct {
 // NewHTMLRenderer creates a new HTML renderer used for PDF generation.
 func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("config must not be nil")
+		return nil, errors.New("config must not be nil")
 	}
 	// Substitute CDN URL placeholders so the template does not need to import
 	// the utils package at template execution time.
@@ -90,7 +91,7 @@ func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, e
 // Render assembles all parts into a complete HTML document.
 func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	if parts == nil {
-		return "", fmt.Errorf("render parts cannot be nil")
+		return "", errors.New("render parts cannot be nil")
 	}
 
 	// Assemble CSS: theme CSS + custom CSS + print CSS.

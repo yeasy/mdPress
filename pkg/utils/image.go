@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -63,7 +64,7 @@ var imageHTTPClient = &http.Client{
 	Timeout: imageDownloadTimeout,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
-			return fmt.Errorf("too many redirects")
+			return errors.New("too many redirects")
 		}
 		if ssrfCheckEnabled.Load() {
 			if err := checkURLNotPrivate(req.URL); err != nil {
@@ -211,9 +212,12 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		return "", fmt.Errorf("failed to create file %q: %w", destPath, err)
 	}
 	tmpPath := tmpFile.Name()
+	renamed := false
 	defer func() {
 		tmpFile.Close() //nolint:errcheck
-		_ = os.Remove(tmpPath)
+		if !renamed {
+			_ = os.Remove(tmpPath)
+		}
 	}()
 
 	// Copy the response body into the file with a size limit to prevent disk exhaustion.
@@ -230,6 +234,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	}
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		// Another process may have won the race and written the same cache file.
+		// Let defer clean up tmpPath; the winner's file at destPath is valid.
 		if !CacheDisabled() {
 			if info, statErr := os.Stat(destPath); statErr == nil && !info.IsDir() && info.Size() > 0 {
 				return destPath, nil
@@ -237,6 +242,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		}
 		return "", fmt.Errorf("failed to move cached image into place: %w", err)
 	}
+	renamed = true
 
 	return destPath, nil
 }
@@ -312,13 +318,18 @@ func injectSVGCJKFonts(data []byte) []byte {
 // injectSVGStyleForCJK inserts a <style> element after the opening <svg> tag
 // that overrides font-family on all text/tspan elements to include CJK-Embedded.
 func injectSVGStyleForCJK(svg string) string {
-	idx := strings.Index(svg, ">")
+	// Find the opening <svg tag (skip any XML declaration or DOCTYPE).
+	svgIdx := strings.Index(svg, "<svg")
+	if svgIdx < 0 {
+		return svg
+	}
+	idx := strings.Index(svg[svgIdx:], ">")
 	if idx < 0 {
 		return svg
 	}
-	// Insert right after the opening <svg ...> tag.
+	insertPos := svgIdx + idx + 1
 	style := `<style>text,tspan{font-family:"CJK-Embedded",Verdana,Geneva,"DejaVu Sans",sans-serif !important}</style>`
-	return svg[:idx+1] + style + svg[idx+1:]
+	return svg[:insertPos] + style + svg[insertPos:]
 }
 
 // svgTextLengthPattern matches textLength attributes in SVG text elements.
@@ -464,6 +475,8 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 	}
 	if options.MaxConcurrentDownloads <= 0 {
 		options.MaxConcurrentDownloads = 4
+	} else if options.MaxConcurrentDownloads > 32 {
+		options.MaxConcurrentDownloads = 32
 	}
 	if options.EmbedRemoteAsBase64 || options.RewriteRemoteToFileURL {
 		options.DownloadRemote = true
@@ -670,7 +683,7 @@ func EnableSSRFCheck() { ssrfCheckEnabled.Store(true) }
 func checkURLNotPrivate(u *url.URL) error {
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("empty hostname")
+		return errors.New("empty hostname")
 	}
 
 	// Block known internal hostnames.

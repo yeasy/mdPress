@@ -61,6 +61,7 @@ These flags appear in `--help` output for most commands.
 | `--config <path>` | `book.yaml` | Config file path. Mainly relevant for commands that load project config, such as `build`, `serve`, and `validate`. |
 | `--cache-dir <path>` | OS default | Override mdPress runtime cache directory. |
 | `--no-cache` | off | Disable mdPress runtime caches for this command. Forces a full rebuild. |
+| `--output <path>` | `_output/` | Output path or directory for generated files. Available on `build` and `serve`. |
 | `-v, --verbose` | off | Print more detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -118,7 +119,7 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `output.watermark` | — | Text or image to overlay on PDF pages. Examples: `"DRAFT"`, `"CONFIDENTIAL"`, or path to image file. |
+| `output.watermark` | — | Text to overlay on PDF pages. Examples: `"DRAFT"`, `"CONFIDENTIAL"`. |
 | `output.watermark_opacity` | `0.1` | Watermark transparency (0.0–1.0). Lower values are more subtle. |
 
 ### PDF Margins

@@ -3,6 +3,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -253,11 +254,11 @@ func (c *BookConfig) SetBaseDir(dir string) {
 // Validate checks the configuration for completeness and validity.
 func (c *BookConfig) Validate() error {
 	if c.Book.Title == "" {
-		return fmt.Errorf("book title cannot be empty (set book.title in book.yaml)")
+		return errors.New("book title cannot be empty (set book.title in book.yaml)")
 	}
 
 	if len(c.Chapters) == 0 {
-		return fmt.Errorf("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)")
+		return errors.New("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)")
 	}
 
 	if err := c.validateChapters(c.Chapters, ""); err != nil {
@@ -303,7 +304,7 @@ func (c *BookConfig) Validate() error {
 			return fmt.Errorf("watermark text is too long (%d characters; max 200)", len(c.Output.Watermark))
 		}
 		if strings.Contains(c.Output.Watermark, "{{") || strings.Contains(c.Output.Watermark, "}}") {
-			return fmt.Errorf("watermark text must not contain template markers ({{ or }})")
+			return errors.New("watermark text must not contain template markers ({{ or }})")
 		}
 	}
 
@@ -315,7 +316,7 @@ func (c *BookConfig) Validate() error {
 	// Validate font_family: only allow alphanumeric, spaces, commas, hyphens, single quotes, and periods.
 	if c.Style.FontFamily != "" {
 		if !fontFamilyPattern.MatchString(c.Style.FontFamily) {
-			return fmt.Errorf("font_family contains invalid characters (only alphanumeric, spaces, commas, hyphens, periods, and single quotes are allowed)")
+			return errors.New("font_family contains invalid characters (only alphanumeric, spaces, commas, hyphens, periods, and single quotes are allowed)")
 		}
 	}
 

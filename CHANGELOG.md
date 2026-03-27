@@ -274,14 +274,11 @@ All notable changes to this project will be documented in this file. The format 
 - **Golden test framework**: `tests/golden/` infrastructure for snapshot-based regression testing of Markdown → HTML output; `go test ./tests/golden/... -update` regenerates fixtures; initial suite covers 12 Markdown feature combinations across both PDF backends
 - **`mdpress doctor` PlantUML check**: Doctor command now detects local PlantUML availability (`plantuml` CLI or `PLANTUML_JAR`) and reports installation instructions when absent
 
-### Behavior Changes
+### Changed
 
 - **Default CodeTheme now "github"**: When neither `style.code_theme` in `book.yaml` nor the selected theme specifies a code theme, the fallback defaults to `"github"` instead of leaving it unset. Existing configurations with explicit `code_theme` values are unaffected. Impact: code blocks in Markdown are now highlighted with the GitHub color scheme by default.
 - **HTML `lang` attribute now uses book language**: The generated HTML templates now include `lang="{{.Language}}"` with fallback to `"en"` if not set. The book language defaults to `"zh-CN"` via `book.yaml`, so CJK projects are unaffected. This affects PDF, HTML, and ePub output rendering. Impact: browsers and assistive technologies now correctly detect document language.
 - **Monospace font stack now includes CJK fonts**: Code blocks and inline code now use a dedicated CJK-aware monospace font family (`ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace`) instead of the generic `'Courier New', monospace`. Code blocks also no longer have a background color by default (professional book style). Impact: CJK characters in code blocks render correctly on all platforms; code styling is now cleaner without the background.
-
-### Changed
-
 - **CI: Node.js 24 actions upgrade**: Updated `goreleaser/goreleaser-action` to v7 (Node.js 24) ahead of the 2026-06-02 GitHub deprecation deadline for Node.js 20 runners; also pinned `codecov/codecov-action` to v5
 - **CI: Release workflow Docker job fix**: Removed stale "Log in to Docker Hub" step that caused every release tag to show a red check; images are now exclusively published to GHCR via `docker/login-action` with `registry: ghcr.io`
 

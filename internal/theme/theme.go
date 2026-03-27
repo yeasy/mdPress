@@ -1,10 +1,12 @@
 package theme
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -119,39 +121,40 @@ func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
 	return theme, nil
 }
 
-// List returns the names of all available themes.
+// List returns the names of all available themes in sorted order.
 func (tm *ThemeManager) List() []string {
 	names := make([]string, 0, len(tm.themes))
 	for name := range tm.themes {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
 // Validate checks theme fields for correctness.
 func (t *Theme) Validate() error {
 	if t.Name == "" {
-		return fmt.Errorf("theme name must not be empty")
+		return errors.New("theme name must not be empty")
 	}
 
 	if t.PageSize == "" {
-		return fmt.Errorf("page size must not be empty")
+		return errors.New("page size must not be empty")
 	}
 
 	if t.FontSize <= 0 {
-		return fmt.Errorf("font size must be greater than 0")
+		return errors.New("font size must be greater than 0")
 	}
 
 	if t.LineHeight <= 0 {
-		return fmt.Errorf("line height must be greater than 0")
+		return errors.New("line height must be greater than 0")
 	}
 
 	if t.Colors.Text == "" {
-		return fmt.Errorf("text color must not be empty")
+		return errors.New("text color must not be empty")
 	}
 
 	if t.Colors.Background == "" {
-		return fmt.Errorf("background color must not be empty")
+		return errors.New("background color must not be empty")
 	}
 
 	// Reject color/font values containing CSS injection characters.
@@ -198,11 +201,13 @@ func quoteFontFamily(family string) string {
 			parts[i] = trimmed
 			continue
 		}
-		// Contains spaces but not quoted — wrap in single quotes.
-		if strings.Contains(trimmed, " ") {
-			parts[i] = "'" + trimmed + "'"
+		// Strip stray single quotes to avoid CSS syntax errors, then
+		// wrap in single quotes if the name contains spaces.
+		cleaned := strings.ReplaceAll(trimmed, "'", "")
+		if strings.Contains(cleaned, " ") {
+			parts[i] = "'" + cleaned + "'"
 		} else {
-			parts[i] = trimmed
+			parts[i] = cleaned
 		}
 	}
 	return strings.Join(parts, ", ")

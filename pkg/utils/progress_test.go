@@ -395,7 +395,7 @@ func TestProgressTracker_ColorOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Save original color state
-	originalColors := colorEnabled
+	originalColors := IsColorEnabled()
 
 	// Test with colors enabled
 	SetColorEnabled(true)
@@ -428,7 +428,7 @@ func TestProgressTracker_NoColorOutput(t *testing.T) {
 	os.Stdout = w
 
 	// Save original color state
-	originalColors := colorEnabled
+	originalColors := IsColorEnabled()
 
 	// Test with colors disabled
 	SetColorEnabled(false)

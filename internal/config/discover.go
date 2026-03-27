@@ -6,6 +6,7 @@ package config
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -111,7 +112,7 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 		// If book.json doesn't exist and SUMMARY.md has no chapters, return error
 		if !hasBookJSON {
-			return nil, fmt.Errorf("SUMMARY.md contains no chapter definitions")
+			return nil, errors.New("SUMMARY.md contains no chapter definitions")
 		}
 	}
 

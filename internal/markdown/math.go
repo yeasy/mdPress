@@ -17,6 +17,13 @@ import (
 	"strings"
 )
 
+const (
+	// mathBlockFmt is the format string for display math placeholder tokens.
+	mathBlockFmt = "MDPMATHBLOCK%06d"
+	// mathInlineFmt is the format string for inline math placeholder tokens.
+	mathInlineFmt = "MDPMATHINLINE%06d"
+)
+
 // blockMathPattern matches display math delimited by $$...$$ (multiline).
 // Non-greedy to avoid spanning multiple formula blocks.
 var blockMathPattern = regexp.MustCompile(`(?s)\$\$(.*?)\$\$`)
@@ -58,7 +65,7 @@ func (m *mathPreprocessor) preprocess(md string) string {
 		}
 		idx := len(m.blocks)
 		m.blocks = append(m.blocks, sub[1])
-		return fmt.Sprintf("MDPMATHBLOCK%06d", idx)
+		return fmt.Sprintf(mathBlockFmt, idx)
 	})
 
 	// Handle inline math ($...$).
@@ -69,7 +76,7 @@ func (m *mathPreprocessor) preprocess(md string) string {
 		}
 		idx := len(m.inlines)
 		m.inlines = append(m.inlines, sub[1])
-		return fmt.Sprintf("MDPMATHINLINE%06d", idx)
+		return fmt.Sprintf(mathInlineFmt, idx)
 	})
 	return md
 }
@@ -84,7 +91,7 @@ func (m *mathPreprocessor) preprocess(md string) string {
 // text nodes inside these spans and renders the LaTeX.
 func (m *mathPreprocessor) postprocess(htmlStr string) string {
 	for i, content := range m.blocks {
-		placeholder := fmt.Sprintf("MDPMATHBLOCK%06d", i)
+		placeholder := fmt.Sprintf(mathBlockFmt, i)
 		// HTML-escape the formula content to prevent XSS injection.
 		// KaTeX auto-render reads textContent from DOM nodes, so the
 		// browser-decoded text still contains the original LaTeX.
@@ -93,7 +100,7 @@ func (m *mathPreprocessor) postprocess(htmlStr string) string {
 		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)
 	}
 	for i, content := range m.inlines {
-		placeholder := fmt.Sprintf("MDPMATHINLINE%06d", i)
+		placeholder := fmt.Sprintf(mathInlineFmt, i)
 		escaped := html.EscapeString(content)
 		replacement := `<span class="math math-inline">$` + escaped + `$</span>`
 		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)

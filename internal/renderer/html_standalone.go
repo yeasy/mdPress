@@ -8,6 +8,7 @@
 package renderer
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"strings"
@@ -79,7 +80,7 @@ func NewStandaloneHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*Stand
 // Render renders the complete single-page HTML document.
 func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	if parts == nil {
-		return "", fmt.Errorf("render parts cannot be nil")
+		return "", errors.New("render parts cannot be nil")
 	}
 
 	// Assemble CSS bundle (theme CSS + custom CSS).

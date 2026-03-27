@@ -145,7 +145,7 @@ func executeMigrate(dir string, dryRun bool) error {
 		var err error
 		gb, err = migrateBookJSON(bookJSONPath, absDir, dryRun, report)
 		if err != nil {
-			return err
+			return fmt.Errorf("migrate book.json: %w", err)
 		}
 	}
 
@@ -155,7 +155,7 @@ func executeMigrate(dir string, dryRun bool) error {
 
 	// Rewrite GitBook template tags in all Markdown files.
 	if err := migrateMarkdownFiles(absDir, dryRun, report); err != nil {
-		return err
+		return fmt.Errorf("migrate markdown files: %w", err)
 	}
 
 	if dryRun {

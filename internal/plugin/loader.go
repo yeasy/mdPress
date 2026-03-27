@@ -3,7 +3,11 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"path/filepath"
+	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
 )
@@ -21,7 +25,7 @@ func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 
 	for _, pc := range cfg.Plugins {
 		if pc.Name == "" {
-			return nil, fmt.Errorf("plugin config is missing the required 'name' field")
+			return nil, errors.New("plugin config is missing the required 'name' field")
 		}
 		if pc.Path == "" {
 			return nil, fmt.Errorf("plugin %q is missing the required 'path' field", pc.Name)
@@ -29,6 +33,17 @@ func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 
 		// Resolve the path relative to the directory that contains book.yaml.
 		resolvedPath := cfg.ResolvePath(pc.Path)
+
+		// Warn if the plugin path resolves outside the project directory.
+		absPlugin, err := filepath.Abs(resolvedPath)
+		if err == nil {
+			absBase, baseErr := filepath.Abs(cfg.ResolvePath("."))
+			if baseErr == nil && !strings.HasPrefix(absPlugin, absBase+string(filepath.Separator)) && absPlugin != absBase {
+				slog.Warn("Plugin path resolves outside project directory",
+					slog.String("plugin", pc.Name),
+					slog.String("path", resolvedPath))
+			}
+		}
 
 		ep, err := NewExternalPlugin(pc.Name, resolvedPath, pc.Config)
 		if err != nil {

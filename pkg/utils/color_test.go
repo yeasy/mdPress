@@ -27,8 +27,8 @@ func TestSetColorEnabled(t *testing.T) {
 	}
 
 	// Save original state
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -43,8 +43,8 @@ func TestSetColorEnabled(t *testing.T) {
 // TestIsColorEnabled verifies the color detection state can be read.
 func TestIsColorEnabled(t *testing.T) {
 	// Save original state
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	SetColorEnabled(true)
 	if !IsColorEnabled() {
@@ -59,8 +59,8 @@ func TestIsColorEnabled(t *testing.T) {
 
 // TestBold returns bold text when colors are enabled, plain text when disabled.
 func TestBold(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name           string
@@ -117,8 +117,8 @@ func TestBold(t *testing.T) {
 
 // TestDim returns dimmed text when colors are enabled, plain text when disabled.
 func TestDim(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -169,8 +169,8 @@ func TestDim(t *testing.T) {
 
 // TestGreen returns green text when colors are enabled, plain text when disabled.
 func TestGreen(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -221,8 +221,8 @@ func TestGreen(t *testing.T) {
 
 // TestRed returns red text when colors are enabled, plain text when disabled.
 func TestRed(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -273,8 +273,8 @@ func TestRed(t *testing.T) {
 
 // TestYellow returns yellow text when colors are enabled, plain text when disabled.
 func TestYellow(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -325,8 +325,8 @@ func TestYellow(t *testing.T) {
 
 // TestBlue returns blue text when colors are enabled, plain text when disabled.
 func TestBlue(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -377,8 +377,8 @@ func TestBlue(t *testing.T) {
 
 // TestCyan returns cyan text when colors are enabled, plain text when disabled.
 func TestCyan(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -429,8 +429,8 @@ func TestCyan(t *testing.T) {
 
 // TestSuccess writes a green success message to stdout.
 func TestSuccess(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -497,8 +497,8 @@ func TestSuccess(t *testing.T) {
 
 // TestWarning writes a yellow warning message to stdout.
 func TestWarning(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -564,8 +564,8 @@ func TestWarning(t *testing.T) {
 
 // TestError writes a red error message to stderr.
 func TestError(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -627,8 +627,8 @@ func TestError(t *testing.T) {
 
 // TestInfo writes a blue info message to stdout.
 func TestInfo(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -694,8 +694,8 @@ func TestInfo(t *testing.T) {
 
 // TestHeader prints a titled separator with proper formatting.
 func TestHeader(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	tests := []struct {
 		name         string
@@ -767,8 +767,8 @@ func TestHeader(t *testing.T) {
 
 // TestColorizeWithColorEnabled verifies colorize adds color codes when enabled.
 func TestColorizeWithColorEnabled(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	SetColorEnabled(true)
 	result := colorize(colorGreen, "test")
@@ -788,8 +788,8 @@ func TestColorizeWithColorEnabled(t *testing.T) {
 
 // TestColorizeWithoutColorEnabled verifies colorize returns plain text when disabled.
 func TestColorizeWithoutColorEnabled(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	SetColorEnabled(false)
 	result := colorize(colorGreen, "test")
@@ -805,8 +805,8 @@ func TestColorizeWithoutColorEnabled(t *testing.T) {
 
 // TestColorizeEmptyString verifies colorize handles empty strings.
 func TestColorizeEmptyString(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	SetColorEnabled(true)
 	result := colorize(colorRed, "")
@@ -819,8 +819,8 @@ func TestColorizeEmptyString(t *testing.T) {
 
 // TestMultipleColorApplications verifies that colors can be nested/combined.
 func TestMultipleColorApplications(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	SetColorEnabled(true)
 
@@ -840,8 +840,8 @@ func TestMultipleColorApplications(t *testing.T) {
 
 // TestColorFunctionConsistency verifies all color functions follow same pattern.
 func TestColorFunctionConsistency(t *testing.T) {
-	originalState := colorEnabled
-	defer func() { colorEnabled = originalState }()
+	originalState := colorEnabled.Load()
+	defer func() { colorEnabled.Store(originalState) }()
 
 	colorFuncs := []struct {
 		name string
@@ -930,9 +930,9 @@ func TestSuccessWithMultipleArgs(t *testing.T) {
 	}
 	os.Stdout = w
 
-	originalState := colorEnabled
+	originalState := colorEnabled.Load()
 	SetColorEnabled(true)
-	defer func() { colorEnabled = originalState; os.Stdout = oldStdout }()
+	defer func() { colorEnabled.Store(originalState); os.Stdout = oldStdout }()
 
 	Success("test %s with %d args", "string", 42)
 
@@ -957,9 +957,9 @@ func TestErrorWithMultipleArgs(t *testing.T) {
 	}
 	os.Stderr = w
 
-	originalState := colorEnabled
+	originalState := colorEnabled.Load()
 	SetColorEnabled(true)
-	defer func() { colorEnabled = originalState; os.Stderr = oldStderr }()
+	defer func() { colorEnabled.Store(originalState); os.Stderr = oldStderr }()
 
 	Error("error %d: %s", 500, "server error")
 

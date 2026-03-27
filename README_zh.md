@@ -16,7 +16,6 @@
 $ mdpress build --format site,pdf,html,epub
   ✓ Loaded book.yaml (12 chapters)
   ✓ Parsed Markdown (technical theme)
-  ✓ Generated Markdown mirrors  → _output/my-book_site/*.md
   ✓ Generated PDF        → _output/my-book.pdf
   ✓ Generated HTML       → _output/my-book.html
   ✓ Generated site       → _output/my-book_site/
@@ -73,8 +72,6 @@ $ mdpress build --format site,pdf,html,epub
 - `Cmd/Ctrl+K` 全文搜索
 - 侧边栏导航和本页目录
 - 深色模式
-- 每个页面对应的 Markdown 镜像
-- 方便 LLM 读取的 `llms.txt` 与 `llms-full.txt`
 
 ## 安装
 

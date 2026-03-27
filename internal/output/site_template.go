@@ -311,7 +311,13 @@ html.dark .content h2[id] a.header-anchor,
 html.dark .content h3[id] a.header-anchor,
 html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
 .content p { margin: 0.6em 0; text-align: left; }
-.content img { max-width: 100%; height: auto; display: block; margin: 1em auto; border-radius: 4px; }
+.content img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
+.content p:has(> img), .content p:has(> a > img) { text-align: center; }
+.content p > a:not(:only-child) > img { max-height: 28px; width: auto; }
+.content p > img:only-child,
+.content p > a:only-child > img:only-child {
+  display: block; margin: 1em auto;
+}
 .content figure {
   margin: 1.25em auto;
   text-align: center;
@@ -544,7 +550,7 @@ body.sidebar-open::before {
   .main { margin-left: 0 !important; }
   .main-body { grid-template-columns: 1fr; }
   .content { padding: 24px 20px 80px; }
-  .page-header { padding: 12px 16px; }
+  .page-header { padding: 12px 16px 12px 56px; }
   .header-search-btn span { display: none; }
   .header-search-btn kbd { display: none; }
   .page-nav {

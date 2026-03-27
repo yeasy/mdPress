@@ -11,6 +11,7 @@ package i18n
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,8 +31,18 @@ type LangDef struct {
 // (neither package imports the other or pkg/utils for regex patterns).
 var linkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 
+// maxLangsFileSize is the maximum size for LANGS.md to prevent resource exhaustion.
+const maxLangsFileSize = 1 * 1024 * 1024 // 1 MB
+
 // ParseLangsFile parses language definitions from LANGS.md.
 func ParseLangsFile(path string) ([]LangDef, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open LANGS.md: %w", err)
+	}
+	if info.Size() > maxLangsFileSize {
+		return nil, fmt.Errorf("LANGS.md exceeds maximum size of %d bytes", maxLangsFileSize)
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open LANGS.md: %w", err)
@@ -70,7 +81,7 @@ func ParseLangsFile(path string) ([]LangDef, error) {
 	}
 
 	if len(langs) == 0 {
-		return nil, fmt.Errorf("no language definitions found in LANGS.md")
+		return nil, errors.New("no language definitions found in LANGS.md")
 	}
 
 	return langs, nil

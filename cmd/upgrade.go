@@ -154,11 +154,11 @@ func fetchLatestRelease(ctx context.Context) (*gitHubRelease, error) {
 	}
 
 	if release.TagName == "" {
-		return nil, fmt.Errorf("invalid release: missing tag_name")
+		return nil, errors.New("invalid release: missing tag_name")
 	}
 
 	if len(release.Assets) == 0 {
-		return nil, fmt.Errorf("release has no assets")
+		return nil, errors.New("release has no assets")
 	}
 
 	return &release, nil
@@ -235,7 +235,7 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 
 	// Validate the download URL points to a known GitHub domain.
 	if !isGitHubDownloadURL(assetURL) {
-		return fmt.Errorf("asset URL has unexpected host (expected github.com or *.githubusercontent.com)")
+		return errors.New("asset URL has unexpected host (expected github.com or *.githubusercontent.com)")
 	}
 
 	// Download the binary.
@@ -548,14 +548,14 @@ func verifyChecksum(ctx context.Context, release *gitHubRelease, assetName strin
 	}
 
 	if checksumURL == "" {
-		return fmt.Errorf("no checksum file found in release, skipping verification")
+		return errors.New("no checksum file found in release, skipping verification")
 	}
 
 	slog.Info("found checksum file", slog.String("file", checksumFileName))
 
 	// Validate the checksum URL points to a known GitHub domain.
 	if !isGitHubDownloadURL(checksumURL) {
-		return fmt.Errorf("checksum URL has unexpected host (expected github.com or *.githubusercontent.com)")
+		return errors.New("checksum URL has unexpected host (expected github.com or *.githubusercontent.com)")
 	}
 
 	// Download the checksum file.

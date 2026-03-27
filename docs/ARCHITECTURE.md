@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.6.3
-> Updated: 2026-03-25
+> Version: v0.6.4
+> Updated: 2026-03-26
 
 ## 1. System Overview
 
@@ -41,7 +41,7 @@ Output
   ├─ PDF (Typst): Typst CLI -> native PDF
   ├─ HTML: single-page document or multi-page site
   ├─ Site: multi-page static website
-  └─ ePub: ZIP(OPF + NCX + XHTML)
+  └─ ePub 3: ZIP(OPF + NCX + XHTML + Navigation Document)
 ```
 
 ### 1.2 Command Structure
@@ -189,6 +189,7 @@ type BookConfig struct {
     Chapters []ChapterDef
     Style    StyleConfig
     Output   OutputConfig
+    Plugins  []PluginConfig
 }
 
 type ChapterDef struct {
