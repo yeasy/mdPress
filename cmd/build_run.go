@@ -560,6 +560,28 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 		}
 	}
 
+	// SUMMARY vs file heading mismatch: warn when the SUMMARY.md title
+	// differs from the first heading in the Markdown file.
+	for _, record := range records {
+		if record.SummaryTitle == "" || record.Heading.Text == "" {
+			continue
+		}
+		summaryNorm := normalizeChapterTitle(record.SummaryTitle)
+		headingNorm := normalizeChapterTitle(record.Heading.Text)
+		if summaryNorm != "" && headingNorm != "" && summaryNorm != headingNorm {
+			warnings = append(warnings, chapterHeadingWarning{
+				File: record.File,
+				Diagnostic: markdown.Diagnostic{
+					Rule:   "book-title-mismatch",
+					Line:   max(record.Heading.Line, 1),
+					Column: max(record.Heading.Column, 1),
+					Message: fmt.Sprintf("SUMMARY title %q differs from file heading %q (SUMMARY title takes precedence)",
+						record.SummaryTitle, record.Heading.Text),
+				},
+			})
+		}
+	}
+
 	// Duplicate title detection: use directory-scoped keys so that
 	// "chapter01/Chapter Summary" and "chapter02/Chapter Summary" are treated as distinct.
 	// Also skip common recurring section titles entirely.

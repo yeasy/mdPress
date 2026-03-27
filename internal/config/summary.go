@@ -19,11 +19,11 @@ import (
 	"strings"
 )
 
-// linkPattern matches Markdown links: [title](path).
-// NOTE: intentionally duplicated in internal/i18n/langs.go.
-// Consolidating would add an unnatural dependency between config and i18n
-// (neither package imports the other or pkg/utils for regex patterns).
-var linkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+// listItemLinkPattern matches a list item whose primary content is a single
+// Markdown link: "* [Title](path)" or "- [Title](path)" or "+ [Title](path)".
+// Lines where the link is embedded in prose (e.g., "* `A轨`：从 [第一章](…)")
+// do NOT match, preventing navigation paragraphs from being parsed as chapters.
+var listItemLinkPattern = regexp.MustCompile(`^[*+\-]\s+\[([^\]]+)\]\(([^)]+)\)\s*$`)
 
 // ParseSummary parses chapter definitions from SUMMARY.md.
 // Nesting is expressed with indentation: two spaces or one tab per level.
@@ -57,15 +57,14 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 		// Parse indentation depth.
 		indent := countIndent(line)
 
-		// Extract the Markdown link.
-		matches := linkPattern.FindStringSubmatch(trimmed)
+		// Only accept list items whose primary content is a single link.
+		// This skips prose lines that happen to contain inline links
+		// (e.g., navigation guides like "* `A轨`：从 [第一章](…) → …").
+		matches := listItemLinkPattern.FindStringSubmatch(trimmed)
 		if len(matches) < 3 {
-			// Non-link, non-blank, non-heading lines that contain list markers
-			// may indicate a formatting error in SUMMARY.md.
-			if strings.HasPrefix(trimmed, "*") || strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "+") {
-				return nil, fmt.Errorf("SUMMARY.md line %d: list item has no Markdown link: %q", lineNum, trimmed)
-			}
-			continue // Skip non-link lines.
+			// Lines with a list marker but no direct link may be navigation
+			// prose or a formatting issue — skip silently.
+			continue
 		}
 
 		title := strings.TrimSpace(matches[1])
