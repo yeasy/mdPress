@@ -2,6 +2,7 @@ package typst
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -117,15 +118,15 @@ func WithVersion(version string) GeneratorOption {
 // Generate converts Markdown content to a PDF file via Typst.
 func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	if outputPath == "" {
-		return fmt.Errorf("output path cannot be empty")
+		return errors.New("output path cannot be empty")
 	}
 	if markdownContent == "" {
-		return fmt.Errorf("markdown content cannot be empty")
+		return errors.New("markdown content cannot be empty")
 	}
 
 	// Check if typst command is available
 	if err := g.checkTypstAvailable(); err != nil {
-		return err
+		return fmt.Errorf("check typst: %w", err)
 	}
 
 	// Convert Markdown to Typst syntax
@@ -179,7 +180,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 
 	// Compile the Typst file to PDF using 'typst compile'
 	if err := g.compileToPDF(tmpTypFile, outputPath); err != nil {
-		return err
+		return fmt.Errorf("compile typst to PDF: %w", err)
 	}
 
 	return nil
@@ -237,7 +238,7 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 func (g *Generator) checkTypstAvailable() error {
 	path, err := exec.LookPath("typst")
 	if err != nil {
-		return fmt.Errorf(
+		return errors.New(
 			"typst is not installed or not found in PATH.\n" +
 				"Install Typst from https://github.com/typst/typst/releases\n" +
 				"Or set it up with: cargo install typst-cli",

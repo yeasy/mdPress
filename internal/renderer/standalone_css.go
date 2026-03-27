@@ -773,11 +773,17 @@ const standaloneCSS = `    /* ==================================================
     img {
       max-width: 100%;
       height: auto;
-      display: block;
-      margin: 1rem auto;
       border-radius: 6px;
       cursor: pointer;
       transition: opacity 0.2s;
+      vertical-align: middle;
+    }
+    p:has(> img), p:has(> a > img) { text-align: center; }
+    p > a:not(:only-child) > img { max-height: 28px; width: auto; }
+    p > img:only-child,
+    p > a:only-child > img:only-child {
+      display: block;
+      margin: 1rem auto;
     }
 
     img:hover {

@@ -3,6 +3,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -45,7 +46,7 @@ func NewGitHubSource(owner, repo string, opts Options) *GitHubSource {
 func (s *GitHubSource) Prepare() (string, error) {
 	// Ensure git is installed.
 	if _, err := exec.LookPath("git"); err != nil {
-		return "", fmt.Errorf("git command not found; please install git first")
+		return "", errors.New("git command not found; please install git first")
 	}
 
 	// Create the temporary directory.

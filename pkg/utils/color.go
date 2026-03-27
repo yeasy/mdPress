@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 )
 
 // ANSI color constants.
@@ -22,8 +23,12 @@ const (
 	colorDim    = "\033[2m"
 )
 
-// colorEnabled caches terminal color support detection.
-var colorEnabled = detectColorSupport()
+// colorEnabled caches terminal color support detection (atomic for thread safety).
+var colorEnabled atomic.Bool
+
+func init() {
+	colorEnabled.Store(detectColorSupport())
+}
 
 // detectColorSupport reports whether the current terminal supports ANSI colors.
 func detectColorSupport() bool {
@@ -57,17 +62,17 @@ func detectColorSupport() bool {
 
 // SetColorEnabled overrides color output for tests or forced modes.
 func SetColorEnabled(enabled bool) {
-	colorEnabled = enabled
+	colorEnabled.Store(enabled)
 }
 
 // IsColorEnabled reports whether color output is enabled.
 func IsColorEnabled() bool {
-	return colorEnabled
+	return colorEnabled.Load()
 }
 
 // colorize wraps text with ANSI color codes when supported.
 func colorize(color, text string) string {
-	if !colorEnabled {
+	if !colorEnabled.Load() {
 		return text
 	}
 	return color + text + colorReset
@@ -137,7 +142,7 @@ func Header(title string) {
 	width := 50
 	line := strings.Repeat("─", width)
 	fmt.Println()
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Println(colorBold + colorCyan + "  " + title + colorReset)
 		fmt.Println(colorDim + "  " + line + colorReset)
 	} else {

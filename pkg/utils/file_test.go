@@ -446,3 +446,60 @@ func TestExtractTitleFrom50LineLimit(t *testing.T) {
 		t.Errorf("ExtractTitleFromFile() should stop at 50 lines, got %q", title)
 	}
 }
+
+func TestSafeJoin(t *testing.T) {
+	base := t.TempDir()
+
+	tests := []struct {
+		name      string
+		untrusted string
+		wantErr   bool
+	}{
+		{"simple relative", "subdir/file.txt", false},
+		{"current dir", ".", false},
+		{"dotdot escape", "../etc/passwd", true},
+		{"nested dotdot escape", "subdir/../../etc/passwd", true},
+		{"absolute path stays within base", "/etc/passwd", false}, // filepath.Join normalizes this
+		{"clean relative", "a/b/c", false},
+		{"trailing dotdot", "a/..", false}, // resolves to base, which is allowed
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := SafeJoin(base, tt.untrusted)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SafeJoin(%q, %q) error = %v, wantErr %v", base, tt.untrusted, err, tt.wantErr)
+				return
+			}
+			if err == nil && !strings.HasPrefix(result, base) {
+				t.Errorf("SafeJoin result %q does not start with base %q", result, base)
+			}
+		})
+	}
+}
+
+func TestParseVersionPart(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{"simple number", "25", 25, false},
+		{"with suffix", "25rc1", 25, false},
+		{"zero", "0", 0, false},
+		{"non-numeric", "abc", 0, true},
+		{"empty", "", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseVersionPart(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseVersionPart(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ParseVersionPart(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}

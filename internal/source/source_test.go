@@ -295,6 +295,21 @@ func TestDetect(t *testing.T) {
 			wantType: "local",
 			wantErr:  false,
 		},
+		// Non-GitHub remote URLs (should error)
+		{
+			name:     "GitLab URL rejected",
+			input:    "https://gitlab.com/owner/repo",
+			opts:     Options{},
+			wantType: "",
+			wantErr:  true,
+		},
+		{
+			name:     "Bitbucket URL rejected",
+			input:    "https://bitbucket.org/owner/repo",
+			opts:     Options{},
+			wantType: "",
+			wantErr:  true,
+		},
 		// Error cases
 		{
 			name:     "empty string",

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -93,7 +94,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 						return nil
 					}
 					if time.Now().After(deadline) {
-						return fmt.Errorf("mermaid rendering timed out")
+						return errors.New("mermaid rendering timed out")
 					}
 				case <-ctx.Done():
 					return ctx.Err()

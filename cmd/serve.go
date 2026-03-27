@@ -206,7 +206,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		// Reload the config on every rebuild.
 		newCfg, err := loadConfig()
 		if err != nil {
-			return err
+			return fmt.Errorf("reload config: %w", err)
 		}
 		// Build to a temporary directory first, then swap on success.
 		tempOutput := outputDir + ".tmp"

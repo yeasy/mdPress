@@ -31,7 +31,7 @@ func (p *ProgressTracker) Start(description string) {
 	p.current++
 	prefix := fmt.Sprintf("[%d/%d]", p.current, p.total)
 
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf("  %s%s %s%s ...%s", colorCyan, prefix, colorReset, description, "")
 	} else {
 		fmt.Printf("  %s %s ...", prefix, description)
@@ -40,7 +40,7 @@ func (p *ProgressTracker) Start(description string) {
 
 // Done marks the current step as completed.
 func (p *ProgressTracker) Done() {
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf(" %s✓%s\n", colorGreen, colorReset)
 	} else {
 		fmt.Println(" ✓")
@@ -49,7 +49,7 @@ func (p *ProgressTracker) Done() {
 
 // Fail marks the current step as failed.
 func (p *ProgressTracker) Fail() {
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf(" %s✗%s\n", colorRed, colorReset)
 	} else {
 		fmt.Println(" ✗")
@@ -58,7 +58,7 @@ func (p *ProgressTracker) Fail() {
 
 // Skip marks the current step as skipped.
 func (p *ProgressTracker) Skip(reason string) {
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf(" %s⊘ %s%s\n", colorYellow, reason, colorReset)
 	} else {
 		fmt.Printf(" ⊘ %s\n", reason)
@@ -67,7 +67,7 @@ func (p *ProgressTracker) Skip(reason string) {
 
 // DoneWithDetail marks the current step as completed with extra detail.
 func (p *ProgressTracker) DoneWithDetail(detail string) {
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf(" %s✓%s %s%s%s\n", colorGreen, colorReset, colorDim, detail, colorReset)
 	} else {
 		fmt.Printf(" ✓ %s\n", detail)
@@ -78,7 +78,7 @@ func (p *ProgressTracker) DoneWithDetail(detail string) {
 func (p *ProgressTracker) Finish() {
 	elapsed := time.Since(p.start).Round(time.Millisecond)
 	fmt.Println()
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf("  %s%s✅ Build completed%s (elapsed %s)\n", colorBold, colorGreen, colorReset, elapsed)
 	} else {
 		fmt.Printf("  ✅ Build completed (elapsed %s)\n", elapsed)
@@ -89,7 +89,7 @@ func (p *ProgressTracker) Finish() {
 func (p *ProgressTracker) FinishWithError(err error) {
 	elapsed := time.Since(p.start).Round(time.Millisecond)
 	fmt.Println()
-	if colorEnabled {
+	if colorEnabled.Load() {
 		fmt.Printf("  %s%s❌ Build failed%s (elapsed %s): %v\n", colorBold, colorRed, colorReset, elapsed, err)
 	} else {
 		fmt.Printf("  ❌ Build failed (elapsed %s): %v\n", elapsed, err)

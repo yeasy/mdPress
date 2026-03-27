@@ -68,7 +68,7 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 			// Validate redirect targets to prevent SSRF via 302 to internal IPs.
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 10 {
-					return fmt.Errorf("too many redirects")
+					return errors.New("too many redirects")
 				}
 				return validateRedirectTarget(req.URL)
 			},
@@ -76,12 +76,21 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 	}, nil
 }
 
+// ClearCache removes all cached PlantUML renderings, freeing memory.
+// This should be called between rebuild cycles in long-running processes.
+func (r *Renderer) ClearCache() {
+	r.cache.Range(func(key, _ any) bool {
+		r.cache.Delete(key)
+		return true
+	})
+}
+
 // validateRedirectTarget checks that an HTTP redirect does not point to a
 // private/internal address, preventing SSRF through open redirects.
 func validateRedirectTarget(u *url.URL) error {
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("redirect to empty hostname")
+		return errors.New("redirect to empty hostname")
 	}
 	lower := strings.ToLower(host)
 	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
@@ -127,7 +136,7 @@ func validatePlantUMLServer(serverURL string) error {
 	}
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("empty hostname")
+		return errors.New("empty hostname")
 	}
 	lower := strings.ToLower(host)
 	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
@@ -285,7 +294,7 @@ func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error)
 
 	svg := stdout.String()
 	if svg == "" {
-		return "", fmt.Errorf("plantuml produced no output")
+		return "", errors.New("plantuml produced no output")
 	}
 
 	return svg, nil
@@ -309,7 +318,7 @@ func localPlantumlCmd(ctx context.Context) (*exec.Cmd, error) {
 	// Fall back to the plantuml wrapper script / binary.
 	path, err := exec.LookPath("plantuml")
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, errors.New(
 			"plantuml not found: install plantuml (e.g. brew install plantuml) " +
 				"or set PLANTUML_JAR=/path/to/plantuml.jar",
 		)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -123,6 +124,19 @@ func sanitizeTemplateValue(s string) string {
 	return s
 }
 
+// dimensionPattern matches valid CSS/Typst dimension values like "10mm", "2.5cm", "1in".
+var dimensionPattern = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?\s*(mm|cm|in|pt|em)$`)
+
+// sanitizeDimension validates that a string looks like a dimension value.
+// Returns a safe default if the input is not a valid dimension.
+func sanitizeDimension(s, fallback string) string {
+	s = sanitizeTemplateValue(strings.TrimSpace(s))
+	if dimensionPattern.MatchString(s) {
+		return s
+	}
+	return fallback
+}
+
 // contentPlaceholder is used instead of a Go template action for Content
 // to prevent user-supplied Typst content containing "{{ }}" from being
 // interpreted as template directives (which could panic or inject code).
@@ -138,15 +152,16 @@ func renderTypstDocument(data TypstTemplateData) (string, error) {
 	data.Date = sanitizeTypstText(data.Date)
 	data.Language = sanitizeTypstText(data.Language)
 
-	// Sanitize dimension/font fields against template injection.
-	data.PageWidth = sanitizeTemplateValue(data.PageWidth)
-	data.PageHeight = sanitizeTemplateValue(data.PageHeight)
-	data.MarginTop = sanitizeTemplateValue(data.MarginTop)
-	data.MarginRight = sanitizeTemplateValue(data.MarginRight)
-	data.MarginBottom = sanitizeTemplateValue(data.MarginBottom)
-	data.MarginLeft = sanitizeTemplateValue(data.MarginLeft)
-	data.FontFamily = sanitizeTemplateValue(data.FontFamily)
-	data.FontSize = sanitizeTemplateValue(data.FontSize)
+	// Sanitize dimension fields against Typst code injection.
+	data.PageWidth = sanitizeDimension(data.PageWidth, "210mm")
+	data.PageHeight = sanitizeDimension(data.PageHeight, "297mm")
+	data.MarginTop = sanitizeDimension(data.MarginTop, "25mm")
+	data.MarginRight = sanitizeDimension(data.MarginRight, "25mm")
+	data.MarginBottom = sanitizeDimension(data.MarginBottom, "25mm")
+	data.MarginLeft = sanitizeDimension(data.MarginLeft, "25mm")
+	data.FontSize = sanitizeDimension(data.FontSize, "11pt")
+	// FontFamily needs Typst text escaping, not dimension validation.
+	data.FontFamily = sanitizeTypstText(data.FontFamily)
 
 	// Save content before template execution — it is injected via string
 	// replacement afterwards to avoid text/template interpreting any

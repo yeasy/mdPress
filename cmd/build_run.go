@@ -94,7 +94,7 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		langOutputOverride := deriveLanguageOutputOverride(outputOverride, lang.Dir)
 		baseOutput, err := resolveBuildBaseOutput(langCfg, langOutputOverride)
 		if err != nil {
-			return err
+			return fmt.Errorf("resolve output for language %s: %w", lang.Dir, err)
 		}
 		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, logger); err != nil {
 			return fmt.Errorf("failed to build language %s: %w", lang.Dir, err)
@@ -147,7 +147,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	progress.Start("Initializing theme system")
 	orchestrator, err := NewBuildOrchestrator(cfg, logger)
 	if err != nil {
-		return err
+		return fmt.Errorf("initialize theme: %w", err)
 	}
 	progress.DoneWithDetail(orchestrator.Theme.Name)
 
@@ -186,7 +186,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	result, err := orchestrator.ProcessChaptersWithOptions(ctx, primaryPipelineOptions)
 	if err != nil {
 		progress.Fail()
-		return err
+		return fmt.Errorf("process chapters: %w", err)
 	}
 	progress.DoneWithDetail(fmt.Sprintf("%d chapters", len(result.Chapters)))
 	if len(result.Issues) > 0 {
@@ -306,7 +306,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	progress.Start(fmt.Sprintf("Generating output (%s)", strings.Join(formats, ", ")))
 	baseOutput, err := resolveBuildBaseOutput(cfg, outputOverride)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve output path: %w", err)
 	}
 	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
 
@@ -325,7 +325,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Build formats in parallel (but not PDF with others, as PDF generation is memory-intensive)
 	if err := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger); err != nil {
-		return err
+		return fmt.Errorf("build output formats: %w", err)
 	}
 
 	// Invoke the AfterBuild hook after all output formats have been written.
@@ -389,7 +389,7 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 		}
 
 		if err := eg.Wait(); err != nil {
-			return err
+			return fmt.Errorf("parallel format build: %w", err)
 		}
 	}
 
@@ -404,7 +404,7 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 			continue
 		}
 		if err := builder.Build(buildCtx, baseName); err != nil {
-			return err
+			return fmt.Errorf("build %s: %w", format, err)
 		}
 	}
 
@@ -838,7 +838,7 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	landingPath := multilingualLandingPath(rootDir, outputOverride)
 	landingDir := filepath.Dir(landingPath)
 	if err := utils.EnsureDir(landingDir); err != nil {
-		return err
+		return fmt.Errorf("create landing directory: %w", err)
 	}
 	defaultTarget := defaultLanguageTarget(landingDir, summaries)
 
@@ -891,7 +891,7 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
 	tmpPath := landingPath + ".tmp"
 	if err := os.WriteFile(tmpPath, []byte(b.String()), 0644); err != nil {
-		return err
+		return fmt.Errorf("write landing page: %w", err)
 	}
 	return os.Rename(tmpPath, landingPath)
 }
@@ -926,15 +926,15 @@ func injectMultilingualSwitchers(rootDir string, outputOverride string, summarie
 		}
 		switcherHTML, err := buildLanguageSwitcherHTML(filepath.Dir(currentTarget), landingPath, summaries, summary.Dir)
 		if err != nil {
-			return err
+			return fmt.Errorf("build language switcher for %s: %w", summary.Dir, err)
 		}
 		if err := injectBannerIntoOutput(currentTarget, switcherHTML); err != nil {
-			return err
+			return fmt.Errorf("inject language banner into %s: %w", currentTarget, err)
 		}
 		if siteIndex, ok := summary.Outputs["site"]; ok {
 			siteDir := filepath.Dir(siteIndex)
 			if err := injectBannerIntoSite(siteDir, switcherHTML); err != nil {
-				return err
+				return fmt.Errorf("inject banner into site %s: %w", siteDir, err)
 			}
 		}
 	}

@@ -118,7 +118,7 @@ func NewServer(host string, port int, watchDir, outputDir string, logger *slog.L
 				if err != nil {
 					return false
 				}
-				return u.Host == r.Host
+				return strings.EqualFold(u.Host, r.Host)
 			},
 		},
 	}
@@ -173,7 +173,7 @@ func isAddrInUse(err error) bool {
 func (s *Server) Start(ctx context.Context) error {
 	ln, err := s.Listen()
 	if err != nil {
-		return err
+		return fmt.Errorf("listen: %w", err)
 	}
 	return s.StartWithListener(ctx, ln)
 }
@@ -181,7 +181,7 @@ func (s *Server) Start(ctx context.Context) error {
 // StartWithListener runs the server using a pre-bound listener.
 func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	if ln == nil {
-		return fmt.Errorf("listener is nil")
+		return errors.New("listener is nil")
 	}
 	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
 		s.Port = tcpAddr.Port
@@ -250,7 +250,10 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	if err != nil && errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
 		return nil
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+	return nil
 }
 
 // snapshotClients returns a snapshot of the current client set, allowing
@@ -645,14 +648,10 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			return
 		}
 
-		content, err := os.ReadFile(absFilePath)
-		if err != nil {
-			// Fallback: if the requested HTML page does not exist and this is
-			// not already the root path, redirect to the home page so that
-			// mistyped or stale URLs land on a useful page instead of a 404.
-			// Only redirect page navigations (no extension or .html); static
-			// asset requests (.css, .js, .png, etc.) should still 404.
-			if os.IsNotExist(err) && r.URL.Path != "/" {
+		// Check file size before reading to prevent memory exhaustion.
+		info, statErr := os.Stat(absFilePath)
+		if statErr != nil || info.IsDir() {
+			if os.IsNotExist(statErr) && r.URL.Path != "/" {
 				ext := filepath.Ext(r.URL.Path)
 				if ext == "" || ext == ".html" {
 					s.logger.Warn("Page not found, redirecting to /", slog.String("path", r.URL.Path))
@@ -660,6 +659,17 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 					return
 				}
 			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		const maxHTMLSize = 20 * 1024 * 1024 // 20 MB
+		if info.Size() > maxHTMLSize {
+			s.logger.Warn("HTML file too large for live reload injection", slog.String("path", r.URL.Path), slog.Int64("size", info.Size()))
+			next.ServeHTTP(w, r)
+			return
+		}
+		content, err := os.ReadFile(absFilePath)
+		if err != nil {
 			next.ServeHTTP(w, r)
 			return
 		}

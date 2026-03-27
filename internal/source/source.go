@@ -3,6 +3,7 @@
 package source
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -35,7 +36,7 @@ var githubURLPattern = regexp.MustCompile(
 func Detect(input string, opts Options) (Source, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return nil, fmt.Errorf("input path cannot be empty")
+		return nil, errors.New("input path cannot be empty")
 	}
 
 	// Handle GitHub repository URLs first.
@@ -45,6 +46,13 @@ func Detect(input string, opts Options) (Source, error) {
 			return nil, fmt.Errorf("failed to parse GitHub repository URL: %s", input)
 		}
 		return NewGitHubSource(owner, repo, opts), nil
+	}
+
+	// Reject non-GitHub remote URLs with a clear message.
+	lower := strings.ToLower(input)
+	if (strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")) &&
+		!strings.Contains(lower, "github.com") {
+		return nil, fmt.Errorf("unsupported remote URL: %s (only GitHub repository URLs are supported)", input)
 	}
 
 	// Everything else is treated as a local path.

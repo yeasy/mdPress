@@ -11,7 +11,7 @@ book:
   description: "A guide on using mdpress to convert Markdown books into high-quality PDFs."
   cover:
     # image: "cover.png"
-    background: "#1a1a2e"
+    # background: "#1a1a2e"
 
 # Chapters are listed in reading order.
 # Paths are relative to this file.

@@ -219,11 +219,13 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := utils.ReadFile(chapterPath)
 		if err != nil {
+			t.Errorf("ReadFile %s failed: %v", chapterPath, err)
 			continue
 		}
 
 		htmlContent, headings, err := parser.Parse(content)
 		if err != nil {
+			t.Errorf("Parse failed for chapter: %v", err)
 			continue
 		}
 
@@ -289,11 +291,13 @@ func TestE2E_HTMLOutput(t *testing.T) {
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := utils.ReadFile(chapterPath)
 		if err != nil {
+			t.Errorf("ReadFile %s failed: %v", chapterPath, err)
 			continue
 		}
 
 		htmlContent, headings, err := parser.Parse(content)
 		if err != nil {
+			t.Errorf("Parse failed for chapter: %v", err)
 			continue
 		}
 
@@ -393,10 +397,12 @@ func TestE2E_EPubOutput(t *testing.T) {
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := utils.ReadFile(chapterPath)
 		if err != nil {
+			t.Errorf("ReadFile %s failed: %v", chapterPath, err)
 			continue
 		}
 		htmlContent, headings, err := parser.Parse(content)
 		if err != nil {
+			t.Errorf("Parse failed for chapter: %v", err)
 			continue
 		}
 
@@ -512,11 +518,13 @@ func TestE2E_MultiChapterTOC(t *testing.T) {
 		filePath := filepath.Join(testDataDir, file)
 		data, err := os.ReadFile(filePath)
 		if err != nil {
+			t.Errorf("ReadFile %s failed: %v", filePath, err)
 			continue
 		}
 
 		_, headings, err := parser.Parse(data)
 		if err != nil {
+			t.Errorf("Parse failed for %s: %v", file, err)
 			continue
 		}
 
@@ -609,10 +617,12 @@ func TestE2E_SiteOutput(t *testing.T) {
 		chapterPath := cfg.ResolvePath(ch.File)
 		content, err := utils.ReadFile(chapterPath)
 		if err != nil {
+			t.Errorf("ReadFile %s failed: %v", chapterPath, err)
 			continue
 		}
 		htmlContent, headings, err := parser.Parse(content)
 		if err != nil {
+			t.Errorf("Parse failed for chapter: %v", err)
 			continue
 		}
 		chapterID := "site-ch"

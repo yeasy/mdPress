@@ -584,10 +584,10 @@ func (fs *fontServer) Close() {
 // Generate renders an HTML string to a PDF file.
 func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if outputPath == "" {
-		return fmt.Errorf("GenerateFromHTML: output path cannot be empty")
+		return errors.New("GenerateFromHTML: output path cannot be empty")
 	}
 	if htmlContent == "" {
-		return fmt.Errorf("GenerateFromHTML: HTML content cannot be empty")
+		return errors.New("GenerateFromHTML: HTML content cannot be empty")
 	}
 
 	// Find a CJK font and inject @font-face CSS into the HTML.
@@ -661,7 +661,7 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	chromePath, err := resolveChromiumPath()
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve Chrome path: %w", err)
 	}
 
 	runtimeDirs, err := prepareChromiumRuntimeDirs()
@@ -816,7 +816,7 @@ func resolveChromiumPath() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf(
+	return "", errors.New(
 		"Chrome/Chromium was not found. Install one of the following:\n" +
 			"  macOS:   brew install chromium or install Google Chrome\n" +
 			"  Ubuntu:  sudo apt install chromium-browser\n" +
@@ -1011,7 +1011,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	info, err := os.Stat(tmpOutput)
 	if err != nil || info.Size() == 0 {
 		os.Remove(tmpOutput) // clean up empty/missing temp file
-		return fmt.Errorf("chrome CLI fallback did not produce a PDF")
+		return errors.New("chrome CLI fallback did not produce a PDF")
 	}
 	if err := os.Rename(tmpOutput, outputPath); err != nil {
 		return fmt.Errorf("failed to finalize fallback PDF output: %w", err)

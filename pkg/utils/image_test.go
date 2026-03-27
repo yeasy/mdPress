@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -935,6 +936,110 @@ func TestFilePathToURL(t *testing.T) {
 			// Should be a valid URL scheme
 			if !strings.HasPrefix(url, "file://") {
 				t.Errorf("filePathToURL() = %q, should use file:// scheme", url)
+			}
+		})
+	}
+}
+
+func TestInjectSVGStyleForCJK(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantSub  string // substring that must appear in output
+		wantSkip bool   // if true, output should equal input (no injection)
+	}{
+		{
+			name:    "simple SVG",
+			input:   `<svg width="100"><text>Hello</text></svg>`,
+			wantSub: `<svg width="100"><style>text,tspan{font-family:`,
+		},
+		{
+			name:    "SVG with XML declaration",
+			input:   `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"><text>Test</text></svg>`,
+			wantSub: `xmlns="http://www.w3.org/2000/svg"><style>text,tspan{font-family:`,
+		},
+		{
+			name:    "SVG with DOCTYPE",
+			input:   `<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg><text>Hi</text></svg>`,
+			wantSub: `<svg><style>text,tspan{font-family:`,
+		},
+		{
+			name:     "no SVG tag",
+			input:    `<html><body>not svg</body></html>`,
+			wantSkip: true,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			wantSkip: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := injectSVGStyleForCJK(tt.input)
+			if tt.wantSkip {
+				if result != tt.input {
+					t.Errorf("expected no change, got %q", result)
+				}
+				return
+			}
+			if !strings.Contains(result, tt.wantSub) {
+				t.Errorf("result does not contain %q\ngot: %s", tt.wantSub, result)
+			}
+		})
+	}
+}
+
+func TestStripHTMLTags(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain text", "hello world", "hello world"},
+		{"simple tag", "<b>bold</b>", "bold"},
+		{"nested tags", "<div><p>text</p></div>", "text"},
+		{"self-closing", "line<br/>break", "linebreak"},
+		{"with attributes", `<a href="url">link</a>`, "link"},
+		{"empty", "", ""},
+		{"only tags", "<div></div>", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := StripHTMLTags(tt.in)
+			if got != tt.want {
+				t.Errorf("StripHTMLTags(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckURLNotPrivate(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawURL  string
+		wantErr bool
+	}{
+		{"public URL", "https://example.com/image.png", false},
+		{"localhost", "http://localhost/file", true},
+		{"localhost with port", "http://localhost:8080/file", true},
+		{"dot-local domain", "http://myhost.local/file", true},
+		{"loopback IP", "http://127.0.0.1/file", true},
+		{"private 10.x", "http://10.0.0.1/file", true},
+		{"private 192.168.x", "http://192.168.1.1/file", true},
+		{"private 172.16.x", "http://172.16.0.1/file", true},
+		{"empty hostname", "http:///path", true},
+		{"IPv6 loopback", "http://[::1]/file", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.rawURL)
+			if err != nil {
+				t.Fatalf("invalid test URL: %v", err)
+			}
+			err = checkURLNotPrivate(u)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("checkURLNotPrivate(%q) error = %v, wantErr %v", tt.rawURL, err, tt.wantErr)
 			}
 		})
 	}

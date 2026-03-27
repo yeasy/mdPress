@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "mdpress-serve",
-      "runtimeExecutable": "go",
-      "runtimeArgs": ["run", ".", "serve", "examples", "--port", "9006"],
+      "runtimeExecutable": "./bin/mdpress",
+      "runtimeArgs": ["serve", "examples", "--port", "9006"],
       "port": 9006
     }
   ]

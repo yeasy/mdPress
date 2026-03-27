@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -447,7 +448,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 
 	// Validate that at least some chapters were processed.
 	if len(chaptersHTML) == 0 {
-		return nil, fmt.Errorf("no chapters were processed successfully (check chapter paths in book.yaml and run mdpress validate)")
+		return nil, errors.New("no chapters were processed successfully (check chapter paths in book.yaml and run mdpress validate)")
 	}
 
 	// Validate book title consistency across chapters.
