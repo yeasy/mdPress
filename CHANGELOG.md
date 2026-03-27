@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file. The format 
 ### Fixed
 
 - **Duplicate chapter title in PDF**: Sub-chapters using h2–h6 in Markdown had their heading duplicated because the deduplication logic only matched h1 tags; now matches any heading level
+- **SUMMARY.md parsing picks up inline links**: Navigation prose lines (e.g., `* \`A轨\`：从 [第一章](…) → …`) were incorrectly parsed as chapter entries; now only list items with a direct link are accepted
+
+### Added
+
+- **Title mismatch warning**: New `book-title-mismatch` rule warns when a SUMMARY.md title differs from the file's first heading; SUMMARY title takes precedence in rendered output
 
 ---
 
