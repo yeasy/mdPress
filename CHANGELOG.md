@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.6] - 2026-03-27
+
+### Fixed
+
+- **Duplicate chapter title in PDF**: Sub-chapters using h2–h6 in Markdown had their heading duplicated because the deduplication logic only matched h1 tags; now matches any heading level
+
+---
+
 ## [0.6.5] - 2026-03-27
 
 ### Security
