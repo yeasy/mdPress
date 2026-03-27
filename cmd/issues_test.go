@@ -326,32 +326,6 @@ func TestReportBuildIssues_NilLogger(t *testing.T) {
 	reportBuildIssues(logger, issues)
 }
 
-func TestProjectIssue_Structure(t *testing.T) {
-	issue := projectIssue{
-		Rule:    "test-rule",
-		File:    "test.md",
-		Line:    42,
-		Column:  10,
-		Message: "test message",
-	}
-
-	if issue.Rule != "test-rule" {
-		t.Error("Rule not set correctly")
-	}
-	if issue.File != "test.md" {
-		t.Error("File not set correctly")
-	}
-	if issue.Line != 42 {
-		t.Error("Line not set correctly")
-	}
-	if issue.Column != 10 {
-		t.Error("Column not set correctly")
-	}
-	if issue.Message != "test message" {
-		t.Error("Message not set correctly")
-	}
-}
-
 func TestFormatIssueSummary_DuplicateRules(t *testing.T) {
 	// All same rule
 	issues := make([]projectIssue, 5)

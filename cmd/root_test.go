@@ -141,21 +141,6 @@ func TestCacheDirOverrideWorks(t *testing.T) {
 	}
 }
 
-// TestFlagDefaults tests that flags have proper defaults
-func TestFlagDefaults(t *testing.T) {
-	// Reset to defaults
-	cacheDir = ""
-	noCache = false
-
-	if cacheDir != "" {
-		t.Error("cacheDir should default to empty string")
-	}
-
-	if noCache != false {
-		t.Error("noCache should default to false")
-	}
-}
-
 // TestConfigureRuntimeCacheEnvDoesNotPanicOnEmpty tests robustness
 func TestConfigureRuntimeCacheEnvRobustness(t *testing.T) {
 	t.Setenv("MDPRESS_CACHE_DIR", "")
