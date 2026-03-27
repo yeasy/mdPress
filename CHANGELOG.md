@@ -8,6 +8,28 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.5] - 2026-03-27
+
+### Security
+
+- **Plugin path traversal enforced**: Relative plugin paths resolving outside the project directory are now rejected instead of only logging a warning
+- **Mermaid XSS defense-in-depth**: Strip `<script>` tags and event handler attributes from Mermaid diagram content after HTML unescaping, protecting against XSS if Mermaid JS fails to load
+- **Typst output capture bounded**: Limit captured stdout/stderr from `typst compile` to 1 MB, preventing OOM from malicious documents
+- **Upgrade redirect SSRF protection**: Validate HTTP redirect targets during upgrade downloads to prevent SSRF via DNS poisoning
+- **Git command timeouts**: Add 5-second timeout to `git describe` and `git config` calls in auto-discovery to prevent indefinite blocking
+
+### Fixed
+
+- **GitBook plugin migration errors**: Skip GitBook npm plugins during `book.json` migration instead of generating invalid configs with missing paths
+- **Search index heading snippets**: Compute rune slice once per chapter instead of per heading, fixing O(N×M) allocation for chapters with many headings
+- **Inline SVG badge height**: Fix badge height mismatch between inline SVG and `<img>` rendering
+
+### Changed
+
+- Remove tautological tests that produced false coverage
+
+---
+
 ## [0.6.4] - 2026-03-26
 
 ### Fixed
