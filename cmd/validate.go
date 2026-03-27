@@ -56,8 +56,9 @@ func init() {
 
 // validateResult represents a single validation result.
 type validateResult struct {
-	OK      bool   `json:"ok"`      // Whether the check passed.
-	Message string `json:"message"` // Human-readable description.
+	OK      bool   `json:"ok"`                // Whether the check passed.
+	Warning bool   `json:"warning,omitempty"` // True for non-fatal warnings (OK is also true).
+	Message string `json:"message"`           // Human-readable description.
 }
 
 // executeValidate runs the full validation flow.
@@ -237,26 +238,41 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	}
 
 	// ========== 8. Check chapter numbering and Mermaid diagnostics ==========
-	contentIssues, contentErr := validateChapterContentAndSequence(cfg)
+	contentIssues, contentWarnings, contentErr := validateChapterContentAndSequence(cfg)
 	if contentErr != nil {
 		results = append(results, validateResult{
 			OK:      false,
 			Message: fmt.Sprintf("Content validation failed: %v", contentErr),
 		})
 		hasError = true
-	} else if len(contentIssues) == 0 {
+	} else if len(contentIssues) == 0 && len(contentWarnings) == 0 {
 		results = append(results, validateResult{
 			OK:      true,
-			Message: "Chapter numbering and Mermaid checks passed",
+			Message: "Chapter numbering, title, and Mermaid checks passed",
 		})
 	} else {
+		if len(contentIssues) == 0 {
+			results = append(results, validateResult{
+				OK:      true,
+				Message: "Chapter numbering and Mermaid checks passed",
+			})
+		}
 		for _, issue := range contentIssues {
 			results = append(results, validateResult{
 				OK:      false,
 				Message: issue,
 			})
 		}
-		hasError = true
+		for _, warn := range contentWarnings {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: warn,
+			})
+		}
+		if len(contentIssues) > 0 {
+			hasError = true
+		}
 	}
 
 	// ========== 9. Check Markdown chapter links ==========
@@ -317,7 +333,9 @@ func printResults(results []validateResult, skipFirst ...int) {
 		if i < skip {
 			continue
 		}
-		if r.OK {
+		if r.Warning {
+			utils.Warning("%s", r.Message)
+		} else if r.OK {
 			utils.Success("%s", r.Message)
 		} else {
 			utils.Error("%s", r.Message)
@@ -471,32 +489,32 @@ func normalizeMarkdownLinkTarget(raw string) string {
 	return target
 }
 
-func validateChapterContentAndSequence(cfg *config.BookConfig) ([]string, error) {
-	issues := validateChapterSequence(cfg.Chapters)
+func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string, warnings []string, err error) {
+	issues = validateChapterSequence(cfg.Chapters)
 	parser := markdown.NewParser()
 
 	for _, flat := range flattenChaptersWithDepth(cfg.Chapters) {
 		filePath := cfg.ResolvePath(flat.Def.File)
-		content, err := utils.ReadFile(filePath)
-		if err != nil {
-			return issues, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, err)
+		content, readErr := utils.ReadFile(filePath)
+		if readErr != nil {
+			return issues, warnings, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, readErr)
 		}
 
-		htmlContent, headings, diagnostics, err := parser.ParseWithDiagnostics(content)
-		if err != nil {
-			return issues, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, err)
+		htmlContent, headings, diagnostics, parseErr := parser.ParseWithDiagnostics(content)
+		if parseErr != nil {
+			return issues, warnings, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, parseErr)
 		}
 
 		if diag := validateChapterTitleSequence(flat.Def.Title, headings); diag != nil {
 			issues = append(issues, fmt.Sprintf("Chapter title numbering mismatch: %s (rule=%s)", flat.Def.File, diag.Rule))
 		}
 
-		// Check SUMMARY title vs file heading mismatch.
+		// Check SUMMARY title vs file heading mismatch (warning, not error).
 		if flat.Def.Title != "" && len(headings) > 0 && headings[0].Text != "" {
 			summaryNorm := normalizeChapterTitle(flat.Def.Title)
 			headingNorm := normalizeChapterTitle(headings[0].Text)
 			if summaryNorm != "" && headingNorm != "" && summaryNorm != headingNorm {
-				issues = append(issues, fmt.Sprintf("Title mismatch in %s: SUMMARY %q vs file heading %q (SUMMARY title takes precedence)",
+				warnings = append(warnings, fmt.Sprintf("Title mismatch in %s: SUMMARY %q vs file heading %q (SUMMARY title takes precedence)",
 					flat.Def.File, flat.Def.Title, headings[0].Text))
 			}
 		}
@@ -513,7 +531,7 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) ([]string, error)
 		}
 	}
 
-	return issues, nil
+	return issues, warnings, nil
 }
 
 func validateChapterSequence(chapters []config.ChapterDef) []string {
@@ -624,6 +642,12 @@ type validationReport struct {
 
 func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ...int) error {
 	passed, failed := summarizeValidationResults(results)
+	warned := 0
+	for _, r := range results {
+		if r.Warning {
+			warned++
+		}
+	}
 
 	if validateReportPath != "" {
 		if err := writeValidationReport(validateReportPath, validationReport{
@@ -645,12 +669,24 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 
 	if !quiet {
 		fmt.Println()
+		warnSuffix := ""
+		if warned > 0 {
+			warnSuffix = fmt.Sprintf(", %s warnings", utils.Yellow(fmt.Sprintf("%d", warned)))
+		}
 		if hasError {
-			fmt.Printf("  %s %d checks total, %s passed, %s failed\n",
+			fmt.Printf("  %s %d checks total, %s passed, %s failed%s\n",
 				utils.Red("Result:"),
 				len(results),
 				utils.Green(fmt.Sprintf("%d", passed)),
 				utils.Red(fmt.Sprintf("%d", failed)),
+				warnSuffix,
+			)
+			fmt.Println()
+		} else if warned > 0 {
+			fmt.Printf("  %s %d checks passed, %s warnings ✓\n",
+				utils.Green("Result:"),
+				passed,
+				utils.Yellow(fmt.Sprintf("%d", warned)),
 			)
 			fmt.Println()
 		} else {
@@ -670,11 +706,12 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 
 func summarizeValidationResults(results []validateResult) (passed int, failed int) {
 	for _, r := range results {
-		if r.OK {
+		if r.OK && !r.Warning {
 			passed++
-		} else {
+		} else if !r.OK {
 			failed++
 		}
+		// Warnings are counted separately (not in passed or failed).
 	}
 	return passed, failed
 }

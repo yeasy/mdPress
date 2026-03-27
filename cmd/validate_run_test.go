@@ -268,7 +268,7 @@ func TestValidateChapterContentAndSequence_ValidProject(t *testing.T) {
 		t.Fatalf("config.Load failed: %v", err)
 	}
 
-	issues, err := validateChapterContentAndSequence(cfg)
+	issues, _, err := validateChapterContentAndSequence(cfg)
 	if err != nil {
 		t.Errorf("should not error for valid project: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestValidateChapterContentAndSequence_MissingFile(t *testing.T) {
 		{Title: "Chapter 1", File: "missing.md"},
 	}
 
-	_, err := validateChapterContentAndSequence(cfg)
+	_, _, err := validateChapterContentAndSequence(cfg)
 	if err == nil {
 		t.Error("should error when chapter file is missing")
 	}
@@ -302,7 +302,7 @@ func TestValidateChapterContentAndSequence_EmptyChapters(t *testing.T) {
 	cfg.Book.Title = "Test"
 	cfg.Chapters = []config.ChapterDef{}
 
-	issues, err := validateChapterContentAndSequence(cfg)
+	issues, _, err := validateChapterContentAndSequence(cfg)
 	if err != nil {
 		t.Errorf("empty chapters should not error: %v", err)
 	}
