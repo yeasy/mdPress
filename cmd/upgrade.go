@@ -39,8 +39,22 @@ var (
 
 // upgradeHTTPClient is a shared HTTP client with sensible timeouts for upgrade operations.
 // Using http.DefaultClient has no timeout and could hang indefinitely.
+// CheckRedirect validates redirect targets to prevent SSRF via DNS poisoning.
 var upgradeHTTPClient = &http.Client{
 	Timeout: 5 * time.Minute,
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("too many redirects")
+		}
+		host := req.URL.Hostname()
+		if !strings.HasSuffix(host, ".github.com") &&
+			!strings.HasSuffix(host, ".githubusercontent.com") &&
+			!strings.HasSuffix(host, ".githubassets.com") &&
+			host != "github.com" {
+			return fmt.Errorf("redirect to unexpected host: %s", host)
+		}
+		return nil
+	},
 }
 
 var upgradeCheckOnly bool

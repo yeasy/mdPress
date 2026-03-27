@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -265,6 +266,9 @@ func fileNameToTitle(path string) string {
 // gitLatestTag returns the latest semver-like git tag (e.g. "v1.7.0" → "1.7.0"),
 // or an empty string when git is unavailable or no tags exist.
 func gitLatestTag(ctx context.Context, dir string) string {
+	// Enforce a short timeout to prevent blocking on SSH passphrase prompts etc.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	// Use describe to find the most recent tag reachable from HEAD.
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "describe", "--tags", "--abbrev=0").Output()
 	if err != nil {
@@ -278,6 +282,8 @@ func gitLatestTag(ctx context.Context, dir string) string {
 // or an empty string when git is unavailable or no name is set.
 // The context is used to allow cancellation of the git command.
 func gitConfigAuthor(ctx context.Context, dir string) string {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "config", "user.name").Output()
 	if err != nil {
 		return ""

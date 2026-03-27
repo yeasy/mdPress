@@ -1,6 +1,7 @@
 package typst
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -217,9 +218,14 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "typst", "compile", absTypPath, absOutputPath)
 
-	output, err := cmd.CombinedOutput()
+	// Limit captured output to prevent OOM from malicious/buggy Typst documents.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &limitedWriter{w: &stdout, n: maxTypstOutput}
+	cmd.Stderr = &limitedWriter{w: &stderr, n: maxTypstOutput}
+
+	err = cmd.Run()
 	if err != nil {
-		details := strings.TrimSpace(string(output))
+		details := strings.TrimSpace(stdout.String() + stderr.String())
 		if details != "" {
 			return fmt.Errorf("typst compile failed: %w\noutput:\n%s", err, details)
 		}
@@ -257,4 +263,25 @@ func (g *Generator) checkTypstAvailable() error {
 // checkTypstAvailable checks Typst availability.
 func checkTypstAvailable() error {
 	return NewGenerator().checkTypstAvailable()
+}
+
+// maxTypstOutput is the maximum bytes captured from typst's stdout/stderr.
+const maxTypstOutput = 1 << 20 // 1 MB
+
+// limitedWriter wraps an io.Writer and silently discards writes beyond n bytes.
+type limitedWriter struct {
+	w interface{ Write([]byte) (int, error) }
+	n int64
+}
+
+func (lw *limitedWriter) Write(p []byte) (int, error) {
+	if lw.n <= 0 {
+		return len(p), nil // discard
+	}
+	if int64(len(p)) > lw.n {
+		p = p[:lw.n]
+	}
+	n, err := lw.w.Write(p)
+	lw.n -= int64(n)
+	return n, err
 }
