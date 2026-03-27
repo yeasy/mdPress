@@ -313,7 +313,8 @@ html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
 .content p { margin: 0.6em 0; text-align: left; }
 .content img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
 .content p:has(> img), .content p:has(> a > img) { text-align: center; }
-.content p > a:not(:only-child) > img { max-height: 28px; width: auto; }
+.content p > a:not(:only-child) > img,
+.content p > a:not(:only-child) > svg { max-height: 20px; width: auto; vertical-align: middle; display: inline; }
 .content p > img:only-child,
 .content p > a:only-child > img:only-child {
   display: block; margin: 1em auto;
