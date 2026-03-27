@@ -140,14 +140,30 @@ func processMermaid(html string) string {
 		}
 		// Unescape HTML entities that goldmark added (e.g. &lt; &gt; &amp; &#34;)
 		// so Mermaid JS can parse the diagram syntax correctly.
-		// XSS protection is handled by Mermaid's securityLevel:'strict' mode
-		// which uses DOMPurify to sanitize rendered output.
+		// Primary XSS protection is Mermaid's securityLevel:'strict' mode.
+		// As defense-in-depth (e.g. if Mermaid CDN fails to load), strip
+		// <script> tags and event handler attributes from the unescaped content.
 		code := parts[1]
 		code = htmlpkg.UnescapeString(code)
 		code = strings.TrimSpace(code)
+		code = sanitizeMermaidCode(code)
 
 		return "<div class=\"mermaid\">\n" + code + "\n</div>"
 	})
+}
+
+// scriptTagPattern matches <script> tags (opening and closing) for sanitization.
+var scriptTagPattern = regexp.MustCompile(`(?i)</?script[^>]*>`)
+
+// eventHandlerPattern matches HTML event handler attributes like onclick, onload, etc.
+var eventHandlerPattern = regexp.MustCompile(`(?i)\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
+
+// sanitizeMermaidCode strips <script> tags and event handler attributes from
+// Mermaid diagram code as defense-in-depth against XSS if Mermaid JS fails to load.
+func sanitizeMermaidCode(code string) string {
+	code = scriptTagPattern.ReplaceAllString(code, "")
+	code = eventHandlerPattern.ReplaceAllString(code, "")
+	return code
 }
 
 // mermaidScript returns the <script> tags needed to load and initialize Mermaid.

@@ -5,7 +5,6 @@ package plugin
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -34,14 +33,15 @@ func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 		// Resolve the path relative to the directory that contains book.yaml.
 		resolvedPath := cfg.ResolvePath(pc.Path)
 
-		// Warn if the plugin path resolves outside the project directory.
-		absPlugin, err := filepath.Abs(resolvedPath)
-		if err == nil {
-			absBase, baseErr := filepath.Abs(cfg.ResolvePath("."))
-			if baseErr == nil && !strings.HasPrefix(absPlugin, absBase+string(filepath.Separator)) && absPlugin != absBase {
-				slog.Warn("Plugin path resolves outside project directory",
-					slog.String("plugin", pc.Name),
-					slog.String("path", resolvedPath))
+		// Reject relative plugin paths that resolve outside the project directory.
+		// Only enforce containment for relative paths (absolute paths are explicit).
+		if !filepath.IsAbs(pc.Path) {
+			absPlugin, absErr := filepath.Abs(resolvedPath)
+			if absErr == nil {
+				absBase, baseErr := filepath.Abs(cfg.ResolvePath("."))
+				if baseErr == nil && !strings.HasPrefix(absPlugin, absBase+string(filepath.Separator)) && absPlugin != absBase {
+					return nil, fmt.Errorf("plugin %q path resolves outside project directory: %s", pc.Name, resolvedPath)
+				}
 			}
 		}
 
