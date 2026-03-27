@@ -156,19 +156,11 @@ func TestLoadBookJSON_Plugins(t *testing.T) {
 		t.Fatalf("LoadBookJSON error: %v", err)
 	}
 
-	// "-sharing" must be filtered out.
-	if len(cfg.Plugins) != 2 {
-		t.Fatalf("Plugins len = %d, want 2", len(cfg.Plugins))
-	}
-	if cfg.Plugins[0].Name != "search" {
-		t.Errorf("Plugins[0].Name = %q, want %q", cfg.Plugins[0].Name, "search")
-	}
-	if cfg.Plugins[1].Name != "highlight" {
-		t.Errorf("Plugins[1].Name = %q, want %q", cfg.Plugins[1].Name, "highlight")
-	}
-	// Plugin config should be wired through.
-	if cfg.Plugins[1].Config["theme"] != "monokai" {
-		t.Errorf("highlight config theme = %v, want %q", cfg.Plugins[1].Config["theme"], "monokai")
+	// GitBook plugins are npm packages with no mdpress equivalent.
+	// convertBookJSONPlugins correctly returns nil to avoid confusing
+	// "missing path" errors during migration.
+	if len(cfg.Plugins) != 0 {
+		t.Fatalf("Plugins len = %d, want 0 (GitBook plugins have no mdpress equivalent)", len(cfg.Plugins))
 	}
 }
 

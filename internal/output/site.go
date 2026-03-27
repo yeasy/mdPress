@@ -391,6 +391,8 @@ type searchEntry struct {
 
 func searchEntriesForHeadings(page SiteChapter, plainText string) []searchEntry {
 	entries := make([]searchEntry, 0)
+	// Convert to rune slice once for safe UTF-8 slicing across all headings.
+	runeText := []rune(plainText)
 	var walk func([]SiteNavHeading)
 	walk = func(items []SiteNavHeading) {
 		for _, item := range items {
@@ -399,8 +401,6 @@ func searchEntriesForHeadings(page SiteChapter, plainText string) []searchEntry 
 				// duplicating the entire page text for every heading entry.
 				snippet := item.Title
 				if idx := strings.Index(plainText, item.Title); idx >= 0 {
-					// Convert to rune slice for safe UTF-8 slicing.
-					runeText := []rune(plainText)
 					runeIdx := utf8.RuneCountInString(plainText[:idx])
 					end := runeIdx + utf8.RuneCountInString(item.Title) + 500
 					if end > len(runeText) {

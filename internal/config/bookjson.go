@@ -197,28 +197,9 @@ func normalizeLanguage(lang string) string {
 	}
 }
 
-// convertBookJSONPlugins maps GitBook plugin entries to PluginConfig values.
-// Entries prefixed with "-" are disabled in GitBook and are skipped here.
-func convertBookJSONPlugins(names []string, cfgs map[string]map[string]any) []PluginConfig {
-	if len(names) == 0 {
-		return nil
-	}
-	var plugins []PluginConfig
-	for _, name := range names {
-		// GitBook uses a "-name" prefix to disable a plugin.
-		if strings.HasPrefix(name, "-") {
-			continue
-		}
-		p := PluginConfig{Name: name}
-		if cfgs != nil {
-			if extra, ok := cfgs[name]; ok {
-				p.Config = make(map[string]any, len(extra))
-				for k, v := range extra {
-					p.Config[k] = v
-				}
-			}
-		}
-		plugins = append(plugins, p)
-	}
-	return plugins
+// convertBookJSONPlugins is a no-op: GitBook plugins are npm packages with no
+// mdpress equivalent. Returning them as PluginConfig (which requires an executable
+// path) would produce confusing "missing path" errors during migration.
+func convertBookJSONPlugins(_ []string, _ map[string]map[string]any) []PluginConfig {
+	return nil
 }
