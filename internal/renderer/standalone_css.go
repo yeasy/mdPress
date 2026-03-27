@@ -779,7 +779,8 @@ const standaloneCSS = `    /* ==================================================
       vertical-align: middle;
     }
     p:has(> img), p:has(> a > img) { text-align: center; }
-    p > a:not(:only-child) > img { max-height: 28px; width: auto; }
+    p > a:not(:only-child) > img,
+    p > a:not(:only-child) > svg { max-height: 20px; width: auto; vertical-align: middle; display: inline; }
     p > img:only-child,
     p > a:only-child > img:only-child {
       display: block;
