@@ -50,24 +50,75 @@ func StripHTMLTags(s string) string {
 const (
 	// MaxImageSize is the maximum allowed size for a downloaded image (50 MB).
 	MaxImageSize = 50 * 1024 * 1024
+	// DefaultMaxConcurrentDownloads is the default number of concurrent image downloads.
+	DefaultMaxConcurrentDownloads = 4
+	// maxConcurrentDownloadsLimit caps the maximum concurrent downloads to prevent resource exhaustion.
+	maxConcurrentDownloadsLimit = 32
 	// imageDownloadTimeout is the timeout for downloading a single image.
 	imageDownloadTimeout = 30 * time.Second
 	// imageDownloadRetryDelay is the delay before retrying a failed image download.
 	imageDownloadRetryDelay = 1 * time.Second
+	// mimeSniffMaxBytes is the maximum number of bytes used for MIME type detection.
+	mimeSniffMaxBytes = 512
+	// svgHeaderScanBytes is how many bytes at the start of an SVG to scan for a width attribute.
+	svgHeaderScanBytes = 200
 )
+
+// ssrfSafeTransport validates resolved IP addresses at connection time to prevent
+// DNS rebinding attacks (TOCTOU between DNS check and HTTP connection).
+// It clones http.DefaultTransport to inherit sensible defaults (TLS timeouts,
+// idle connection limits, etc.) and overrides only DialContext.
+var ssrfSafeTransport = func() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if ssrfCheckEnabled.Load() {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse address %q: %w", addr, err)
+			}
+			resolveCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			ips, err := net.DefaultResolver.LookupHost(resolveCtx, host)
+			if err != nil {
+				return nil, fmt.Errorf("dns resolution failed for %q: %w", host, err)
+			}
+			for _, ipStr := range ips {
+				ip := net.ParseIP(ipStr)
+				if ip == nil {
+					continue
+				}
+				if v4 := ip.To4(); v4 != nil {
+					ip = v4
+				}
+				if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+					ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+					return nil, fmt.Errorf("connection to private address %s is not allowed", ipStr)
+				}
+			}
+			// Connect directly to the first validated IP to avoid a second DNS lookup.
+			if len(ips) == 0 {
+				return nil, fmt.Errorf("dns returned no addresses for %q", host)
+			}
+			addr = net.JoinHostPort(ips[0], port)
+		}
+		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+	}
+	return t
+}()
 
 // imageHTTPClient is a shared HTTP client for image downloads, enabling TCP
 // connection reuse across multiple downloads from the same host.
-// CheckRedirect validates each redirect target against SSRF rules to prevent
-// an attacker from redirecting to internal/cloud-metadata endpoints.
+// Uses ssrfSafeTransport to validate resolved IPs at connection time and
+// CheckRedirect to validate redirect targets, preventing DNS rebinding attacks.
 var imageHTTPClient = &http.Client{
-	Timeout: imageDownloadTimeout,
+	Timeout:   imageDownloadTimeout,
+	Transport: ssrfSafeTransport,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
+		if len(via) >= MaxHTTPRedirects {
 			return errors.New("too many redirects")
 		}
 		if ssrfCheckEnabled.Load() {
-			if err := checkURLNotPrivate(req.URL); err != nil {
+			if err := CheckURLNotPrivate(req.URL); err != nil {
 				return fmt.Errorf("redirect blocked by SSRF check: %w", err)
 			}
 		}
@@ -75,9 +126,8 @@ var imageHTTPClient = &http.Client{
 	},
 }
 
-// ImageExtensionMap maps MIME types to file extensions.
-// This is used by multiple packages (epub, etc.) to ensure consistent MIME type handling.
-var ImageExtensionMap = map[string]string{
+// imageExtensionMap maps MIME types to file extensions.
+var imageExtensionMap = map[string]string{
 	"image/jpeg":    ".jpg",
 	"image/png":     ".png",
 	"image/gif":     ".gif",
@@ -86,6 +136,13 @@ var ImageExtensionMap = map[string]string{
 	"image/bmp":     ".bmp",
 	"image/tiff":    ".tiff",
 	"image/x-icon":  ".ico",
+}
+
+// ImageExtForMIME returns the file extension for a given image MIME type.
+// Returns the extension and true if found, or "" and false otherwise.
+func ImageExtForMIME(mimeType string) (string, bool) {
+	ext, ok := imageExtensionMap[mimeType]
+	return ext, ok
 }
 
 // IsRemoteURL reports whether a path is an HTTP(S) URL.
@@ -120,7 +177,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 
 	// SSRF prevention: block requests to private/internal network addresses.
 	if ssrfCheckEnabled.Load() {
-		if err := checkURLNotPrivate(parsedURL); err != nil {
+		if err := CheckURLNotPrivate(parsedURL); err != nil {
 			return "", fmt.Errorf("blocked image download from %q: %w", urlStr, err)
 		}
 	}
@@ -347,6 +404,12 @@ var svgStartPattern = regexp.MustCompile(`<svg\b`)
 // which are inaccessible when the SVG is isolated inside <img src="data:...">.
 // Returns "" if the file is not an SVG or contains no CJK text.
 func tryInlineCJKSVG(path string, originalImgTag string) string {
+	// Check file size before reading to prevent OOM on large files.
+	const maxInlineSVGSize = 2 * 1024 * 1024 // 2 MB
+	fi, err := os.Stat(path)
+	if err != nil || fi.Size() > maxInlineSVGSize {
+		return ""
+	}
 	data, err := ReadFile(path)
 	if err != nil || !looksLikeSVG(data) {
 		return ""
@@ -376,7 +439,7 @@ func tryInlineCJKSVG(path string, originalImgTag string) string {
 	if wm := imgWidthPattern.FindStringSubmatch(originalImgTag); len(wm) >= 2 {
 		w := wm[1]
 		// Only add width if the SVG doesn't already have one.
-		if !strings.Contains(svg[:min(len(svg), 200)], "width=") {
+		if !strings.Contains(svg[:min(len(svg), svgHeaderScanBytes)], "width=") {
 			svg = svgStartPattern.ReplaceAllString(svg, `<svg width="`+w+`"`)
 		}
 	}
@@ -425,8 +488,8 @@ func DetectImageMIME(path string, data []byte) string {
 
 	if len(data) > 0 {
 		sniffLen := len(data)
-		if sniffLen > 512 {
-			sniffLen = 512
+		if sniffLen > mimeSniffMaxBytes {
+			sniffLen = mimeSniffMaxBytes
 		}
 		mimeType := http.DetectContentType(data[:sniffLen])
 		if strings.HasPrefix(mimeType, "image/") {
@@ -459,7 +522,7 @@ func ProcessImages(htmlContent string, baseDir string, embedAsBase64 bool, logge
 		EmbedRemoteAsBase64:    embedAsBase64,
 		DownloadRemote:         embedAsBase64,
 		CacheDir:               filepath.Join(CacheRootDir(), "images"),
-		MaxConcurrentDownloads: 4,
+		MaxConcurrentDownloads: DefaultMaxConcurrentDownloads,
 		Logger:                 log,
 	})
 }
@@ -474,9 +537,9 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 		options.CacheDir = filepath.Join(os.TempDir(), "mdpress-nocache-images")
 	}
 	if options.MaxConcurrentDownloads <= 0 {
-		options.MaxConcurrentDownloads = 4
-	} else if options.MaxConcurrentDownloads > 32 {
-		options.MaxConcurrentDownloads = 32
+		options.MaxConcurrentDownloads = DefaultMaxConcurrentDownloads
+	} else if options.MaxConcurrentDownloads > maxConcurrentDownloadsLimit {
+		options.MaxConcurrentDownloads = maxConcurrentDownloadsLimit
 	}
 	if options.EmbedRemoteAsBase64 || options.RewriteRemoteToFileURL {
 		options.DownloadRemote = true
@@ -656,7 +719,7 @@ func imageExtensionForContentType(contentType string) string {
 		return ".ico"
 	}
 	// Look up extension from the shared map
-	if ext, ok := ImageExtensionMap[contentType]; ok {
+	if ext, ok := ImageExtForMIME(contentType); ok {
 		return ext
 	}
 	return ""
@@ -687,9 +750,11 @@ func DisableSSRFCheck() { ssrfCheckEnabled.Store(false) }
 // EnableSSRFCheck re-enables the SSRF prevention check.
 func EnableSSRFCheck() { ssrfCheckEnabled.Store(true) }
 
-// checkURLNotPrivate checks that a URL's hostname does not resolve to a
+// CheckURLNotPrivate checks that a URL's hostname does not resolve to a
 // private, loopback, or link-local IP address (SSRF prevention).
-func checkURLNotPrivate(u *url.URL) error {
+// Exported so that other packages (e.g. internal/plantuml) can reuse
+// the same validation instead of duplicating the logic.
+func CheckURLNotPrivate(u *url.URL) error {
 	host := u.Hostname()
 	if host == "" {
 		return errors.New("empty hostname")

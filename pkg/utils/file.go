@@ -45,19 +45,42 @@ func CacheDisabled() bool {
 	}
 }
 
+// maxReadFileSize is a general-purpose safety net for ReadFile.
+// Individual callers should set tighter limits for their use case.
+const maxReadFileSize = 100 * 1024 * 1024 // 100 MB
+
 // ReadFile reads a file and returns clearer errors.
+// It rejects files larger than 100 MB as a safety net against OOM.
+//
+// The size check uses Fstat on the open file descriptor to avoid a
+// TOCTOU race between a separate Stat call and the subsequent read.
 func ReadFile(path string) ([]byte, error) {
-	// Read the file directly to avoid TOCTOU race between stat and read.
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("file does not exist %q: %w", path, err)
 		}
-		// Reject directories explicitly.
-		if fi, statErr := os.Stat(path); statErr == nil && fi.IsDir() {
-			return nil, fmt.Errorf("path is a directory, not a file: %q", path)
-		}
+		return nil, fmt.Errorf("failed to open file %q: %w", path, err)
+	}
+	defer f.Close() //nolint:errcheck
+
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat file %q: %w", path, err)
+	}
+	if fi.IsDir() {
+		return nil, fmt.Errorf("path is a directory, not a file: %q", path)
+	}
+	if fi.Size() > maxReadFileSize {
+		return nil, fmt.Errorf("file %q is too large (%d bytes, max %d)", path, fi.Size(), maxReadFileSize)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(f, maxReadFileSize+1))
+	if err != nil {
 		return nil, fmt.Errorf("failed to read file %q: %w", path, err)
+	}
+	if int64(len(data)) > maxReadFileSize {
+		return nil, fmt.Errorf("file %q is too large (exceeded %d bytes during read)", path, maxReadFileSize)
 	}
 
 	return data, nil

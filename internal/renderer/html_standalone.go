@@ -59,10 +59,7 @@ func NewStandaloneHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*Stand
 
 	// Substitute CDN URL placeholders before parsing the template so that the
 	// template engine never needs to evaluate them as Go template expressions.
-	resolved := strings.ReplaceAll(standaloneHTMLTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL)
-	resolved = strings.ReplaceAll(resolved, "{{KATEX_CSS_URL}}", utils.KaTeXCSSURL)
-	resolved = strings.ReplaceAll(resolved, "{{KATEX_JS_URL}}", utils.KaTeXJSURL)
-	resolved = strings.ReplaceAll(resolved, "{{KATEX_AUTO_RENDER_URL}}", utils.KaTeXAutoRenderURL)
+	resolved := utils.ResolveCDNPlaceholders(standaloneHTMLTemplate)
 
 	tmpl, err := template.New("standalone").Funcs(template.FuncMap{
 		"safeHTML": func(s template.HTML) template.HTML { return s },
@@ -90,7 +87,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		cssBuilder.WriteString("\n")
 	}
 	if parts.CustomCSS != "" {
-		cssBuilder.WriteString(parts.CustomCSS)
+		cssBuilder.WriteString(utils.SanitizeCSS(parts.CustomCSS))
 		cssBuilder.WriteString("\n")
 	}
 

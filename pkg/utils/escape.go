@@ -2,7 +2,10 @@
 
 package utils
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // Pre-compiled replacers to avoid allocation on every call.
 var (
@@ -37,4 +40,39 @@ func EscapeXML(s string) string {
 // EscapeAttr escapes an HTML attribute value.
 func EscapeAttr(s string) string {
 	return EscapeHTML(s)
+}
+
+// styleClosePattern matches "</style" (case-insensitive) which would break
+// out of an inline <style> block if present in user-provided CSS.
+var styleClosePattern = regexp.MustCompile(`(?i)</style`)
+
+// cssImportPattern matches @import rules (case-insensitive) which could load
+// external stylesheets and exfiltrate data via URL requests.
+var cssImportPattern = regexp.MustCompile(`(?i)@import\b`)
+
+// cssExpressionPattern matches expression() (legacy IE CSS expression) which
+// could execute arbitrary JavaScript.
+var cssExpressionPattern = regexp.MustCompile(`(?i)expression\s*\(`)
+
+// cssExternalURLPattern matches url() references to external HTTP(S) origins,
+// which could exfiltrate data or load untrusted resources.
+var cssExternalURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*https?://[^)]*\)`)
+
+// SanitizeCSS removes sequences from CSS content that could break out of a
+// <style> block or perform injection attacks. This prevents:
+// - </style> tag breakout
+// - @import-based data exfiltration
+// - expression()-based script execution (legacy IE)
+// - url() references to external HTTP(S) origins
+//
+// Note: @font-face rules are allowed because external url() references are
+// already blocked by cssExternalURLPattern. This permits legitimate local
+// font declarations (e.g. src: local("...") or src: url("fonts/my.woff"))
+// while still preventing data exfiltration via external URLs.
+func SanitizeCSS(css string) string {
+	css = styleClosePattern.ReplaceAllString(css, `<\/style`)
+	css = cssImportPattern.ReplaceAllString(css, "/* blocked import */")
+	css = cssExpressionPattern.ReplaceAllString(css, "/* blocked expression */(")
+	css = cssExternalURLPattern.ReplaceAllString(css, "/* blocked external url */")
+	return css
 }

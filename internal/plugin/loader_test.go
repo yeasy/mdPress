@@ -25,22 +25,26 @@ func stubLoaderMetaQueries(t *testing.T) {
 
 // --- Helper: createTestPlugin writes a simple test plugin script that echoes valid responses ---
 
+// createTestPlugin creates a minimal plugin script in dir and returns its
+// basename (relative path).  The caller must set cfg.SetBaseDir(dir) so that
+// LoadPlugins resolves the relative path correctly.
 func createTestPlugin(t *testing.T, dir, name string) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		scriptPath := filepath.Join(dir, name+".bat")
+		name += ".bat"
+		scriptPath := filepath.Join(dir, name)
 		script := "@echo off\r\necho {}\r\n"
 		if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
 			t.Fatalf("failed to create test plugin: %v", err)
 		}
-		return scriptPath
+		return name
 	}
 	scriptPath := filepath.Join(dir, name)
 	script := "#!/bin/sh\necho '{}'\n"
 	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
 		t.Fatalf("failed to create test plugin: %v", err)
 	}
-	return scriptPath
+	return name
 }
 
 // --- LoadPlugins tests ---
@@ -69,6 +73,7 @@ func TestLoadPlugins_SinglePlugin(t *testing.T) {
 	pluginPath := createTestPlugin(t, dir, "test-plugin")
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name: "test-plugin",
@@ -103,6 +108,7 @@ func TestLoadPlugins_MultiplePlugins(t *testing.T) {
 	plugin3Path := createTestPlugin(t, dir, "plugin3")
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{Name: "plugin1", Path: plugin1Path, Config: nil},
 		{Name: "plugin2", Path: plugin2Path, Config: nil},
@@ -135,6 +141,7 @@ func TestLoadPlugins_MissingName(t *testing.T) {
 	pluginPath := createTestPlugin(t, dir, "plugin")
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name: "", // Missing name
@@ -178,11 +185,13 @@ func TestLoadPlugins_MissingPath(t *testing.T) {
 
 // TestLoadPlugins_NonExistentPlugin tests LoadPlugins rejects non-existent plugin executable.
 func TestLoadPlugins_NonExistentPlugin(t *testing.T) {
+	dir := t.TempDir()
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name: "nonexistent",
-			Path: "/no/such/binary/exists",
+			Path: "no-such-binary-exists",
 		},
 	}
 
@@ -205,9 +214,10 @@ func TestLoadPlugins_PartialFailure(t *testing.T) {
 	plugin1Path := createTestPlugin(t, dir, "plugin1")
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{Name: "plugin1", Path: plugin1Path, Config: nil},
-		{Name: "plugin2", Path: "/no/such/plugin", Config: nil}, // Will fail
+		{Name: "plugin2", Path: "no-such-plugin", Config: nil}, // Will fail
 	}
 
 	mgr, err := LoadPlugins(cfg)
@@ -227,12 +237,13 @@ func TestLoadPlugins_InitFailure(t *testing.T) {
 	dir := t.TempDir()
 	// Create a valid test plugin (graceful degradation during metadata query)
 	pluginPath := createTestPlugin(t, dir, "valid-plugin")
-	if _, err := os.Stat(pluginPath); err != nil {
-		t.Fatalf("plugin fixture not created at %q: %v", pluginPath, err)
+	resolvedPath := filepath.Join(dir, pluginPath)
+	if _, err := os.Stat(resolvedPath); err != nil {
+		t.Fatalf("plugin fixture not created at %q: %v", resolvedPath, err)
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.SetBaseDir(dir) // Ensure base directory is set correctly
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{Name: "valid-plugin", Path: pluginPath, Config: nil},
 	}
@@ -262,8 +273,9 @@ func TestLoadPlugins_ResolvePath(t *testing.T) {
 
 	// Create the test plugin fixture in the plugins subdirectory
 	pluginPath := createTestPlugin(t, pluginDir, "myplugin")
-	if _, err := os.Stat(pluginPath); err != nil {
-		t.Fatalf("plugin fixture not created at %q: %v", pluginPath, err)
+	resolvedPath := filepath.Join(pluginDir, pluginPath)
+	if _, err := os.Stat(resolvedPath); err != nil {
+		t.Fatalf("plugin fixture not created at %q: %v", resolvedPath, err)
 	}
 
 	cfg := config.DefaultConfig()
@@ -297,6 +309,7 @@ func TestLoadPlugins_PluginConfigPassed(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name:   "configurable",
@@ -321,7 +334,7 @@ func TestLoadPlugins_ErrorWrapping(t *testing.T) {
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name: "bad-plugin",
-			Path: "/no/such/path",
+			Path: "no-such-path",
 		},
 	}
 
@@ -336,6 +349,28 @@ func TestLoadPlugins_ErrorWrapping(t *testing.T) {
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "bad-plugin") {
 		t.Errorf("error should mention plugin name 'bad-plugin', got: %v", err)
+	}
+}
+
+// TestLoadPlugins_RejectAbsolutePath tests LoadPlugins rejects absolute plugin paths.
+func TestLoadPlugins_RejectAbsolutePath(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Plugins = []config.PluginConfig{
+		{
+			Name: "evil-plugin",
+			Path: "/usr/bin/some-binary",
+		},
+	}
+
+	mgr, err := LoadPlugins(cfg)
+	if err == nil {
+		t.Fatal("LoadPlugins should reject absolute plugin paths")
+	}
+	if mgr != nil {
+		t.Error("LoadPlugins should return nil Manager on error")
+	}
+	if !strings.Contains(err.Error(), "absolute paths are not allowed") {
+		t.Errorf("error should mention absolute paths, got: %v", err)
 	}
 }
 
@@ -362,6 +397,7 @@ func TestMustLoadPlugins_ValidPlugin(t *testing.T) {
 	pluginPath := createTestPlugin(t, dir, "valid")
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	cfg.Plugins = []config.PluginConfig{
 		{Name: "valid", Path: pluginPath},
 	}
@@ -379,7 +415,7 @@ func TestMustLoadPlugins_ValidPlugin(t *testing.T) {
 func TestMustLoadPlugins_NilWarnFn(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Plugins = []config.PluginConfig{
-		{Name: "missing", Path: "/no/such/plugin"},
+		{Name: "missing", Path: "no-such-plugin"},
 	}
 
 	// Should not panic even with nil warnFn
@@ -396,7 +432,7 @@ func TestMustLoadPlugins_NilWarnFn(t *testing.T) {
 func TestMustLoadPlugins_CallsWarnFn(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Plugins = []config.PluginConfig{
-		{Name: "broken", Path: "/missing/plugin"},
+		{Name: "broken", Path: "missing-plugin"},
 	}
 
 	warnCalled := false
@@ -444,7 +480,7 @@ func TestMustLoadPlugins_NeverFails(t *testing.T) {
 			name: "missing plugin file",
 			config: &config.BookConfig{
 				Plugins: []config.PluginConfig{
-					{Name: "missing", Path: "/no/such/file"},
+					{Name: "missing", Path: "no-such-file"},
 				},
 			},
 		},
@@ -465,7 +501,7 @@ func TestMustLoadPlugins_NeverFails(t *testing.T) {
 func TestMustLoadPlugins_WarnMessage(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Plugins = []config.PluginConfig{
-		{Name: "broken", Path: "/no/such/path"},
+		{Name: "broken", Path: "no-such-path"},
 	}
 
 	var capturedMsg string
@@ -504,6 +540,7 @@ func TestLoadPlugins_PluginOrderPreserved(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
+	cfg.SetBaseDir(dir)
 	for i := 0; i < 5; i++ {
 		cfg.Plugins = append(cfg.Plugins, config.PluginConfig{
 			Name: "plugin-" + string(rune('A'+i)),
@@ -538,6 +575,7 @@ func TestLoadPlugins_MultipleErrorScenarios(t *testing.T) {
 			config: func() *config.BookConfig {
 				dir := t.TempDir()
 				cfg := config.DefaultConfig()
+				cfg.SetBaseDir(dir)
 				cfg.Plugins = []config.PluginConfig{
 					{Name: "valid", Path: createTestPlugin(t, dir, "valid")},
 				}
@@ -549,7 +587,7 @@ func TestLoadPlugins_MultipleErrorScenarios(t *testing.T) {
 			name: "empty name",
 			config: &config.BookConfig{
 				Plugins: []config.PluginConfig{
-					{Name: "", Path: "/some/path"},
+					{Name: "", Path: "some-path"},
 				},
 			},
 			wantError: true,

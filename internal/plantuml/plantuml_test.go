@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // TestEncodeForServer tests the encoding of PlantUML code for the server.
@@ -220,8 +222,8 @@ func TestUnescapeHTML(t *testing.T) {
 	}
 }
 
-// TestNeedsPlantuml tests the detection of PlantUML content.
-func TestNeedsPlantuml(t *testing.T) {
+// Test_needsPlantuml tests the detection of PlantUML content.
+func Test_needsPlantuml(t *testing.T) {
 	tests := []struct {
 		html  string
 		found bool
@@ -235,7 +237,7 @@ func TestNeedsPlantuml(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.html, func(t *testing.T) {
-			result := NeedsPlantuml(tt.html)
+			result := needsPlantuml(tt.html)
 			if result != tt.found {
 				t.Fatalf("got %v, want %v", result, tt.found)
 			}
@@ -483,6 +485,68 @@ func TestRenderLocalWithFakePlantuml(t *testing.T) {
 	}
 }
 
+// TestSanitizeSVG tests the SVG sanitizer strips dangerous content.
+func TestSanitizeSVG(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		shouldStrip string // substring that must NOT appear in output
+	}{
+		{
+			name:        "script tag",
+			input:       `<svg><script>alert(1)</script></svg>`,
+			shouldStrip: "<script>",
+		},
+		{
+			name:        "event handler",
+			input:       `<svg><rect onmouseover="alert(1)"/></svg>`,
+			shouldStrip: "onmouseover",
+		},
+		{
+			name:        "javascript href",
+			input:       `<svg><a href="javascript:alert(1)">x</a></svg>`,
+			shouldStrip: "javascript:",
+		},
+		{
+			name:        "data URI href",
+			input:       `<svg><a href="data:text/html,<script>alert(1)</script>">x</a></svg>`,
+			shouldStrip: "data:",
+		},
+		{
+			name:        "vbscript href",
+			input:       `<svg><a href="vbscript:MsgBox">x</a></svg>`,
+			shouldStrip: "vbscript:",
+		},
+		{
+			name:        "foreignObject",
+			input:       `<svg><foreignObject><body xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></body></foreignObject></svg>`,
+			shouldStrip: "<foreignObject",
+		},
+		{
+			name:        "external use xlink",
+			input:       `<svg><use xlink:href="https://evil.com/payload.svg"></svg>`,
+			shouldStrip: "evil.com",
+		},
+		{
+			name:        "preserves safe SVG",
+			input:       `<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="blue"/></svg>`,
+			shouldStrip: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeSVG(tt.input)
+			if tt.shouldStrip != "" && strings.Contains(result, tt.shouldStrip) {
+				t.Errorf("sanitizeSVG should strip %q, got: %s", tt.shouldStrip, result)
+			}
+			if tt.shouldStrip == "" && result != tt.input {
+				t.Errorf("sanitizeSVG should preserve safe SVG, got: %s", result)
+			}
+		})
+	}
+}
+
 // TestSanitizePlantUMLCode tests the directive sanitizer.
 func TestSanitizePlantUMLCode(t *testing.T) {
 	tests := []struct {
@@ -502,6 +566,13 @@ func TestSanitizePlantUMLCode(t *testing.T) {
 		{"%getenv", "%getenv(\"SECRET\")", true},
 		{"%filename", "title %filename()", true},
 		{"%dirpath", "title %dirpath()", true},
+		{"function directive", "!function my_func()", true},
+		{"procedure directive", "!procedure do_thing()", true},
+		{"unquoted directive", "!unquoted function f(x)", true},
+		{"log directive", "!log debug message here", true},
+		{"local directive", "!local myvar = 42", true},
+		{"startsub directive", "!startsub my_sub", true},
+		{"endsub directive", "!endsub", true},
 		{"normal code", "Alice -> Bob: Hello", false},
 		{"comment", "' this is a comment", false},
 		{"participant", "participant Alice", false},
@@ -538,7 +609,7 @@ func TestValidateRedirectTarget(t *testing.T) {
 			name:      "empty hostname",
 			rawURL:    "http:///path",
 			wantErr:   true,
-			errSubstr: "redirect to empty hostname",
+			errSubstr: "empty hostname",
 		},
 		{
 			name:      "localhost",
@@ -578,7 +649,7 @@ func TestValidateRedirectTarget(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to parse URL %q: %v", tt.rawURL, err)
 			}
-			err = validateRedirectTarget(u)
+			err = utils.CheckURLNotPrivate(u)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error containing %q, got nil", tt.errSubstr)

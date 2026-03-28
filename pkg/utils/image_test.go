@@ -1030,6 +1030,19 @@ func TestCheckURLNotPrivate(t *testing.T) {
 		{"private 172.16.x", "http://172.16.0.1/file", true},
 		{"empty hostname", "http:///path", true},
 		{"IPv6 loopback", "http://[::1]/file", true},
+		// IPv4-mapped IPv6 addresses must be detected as private.
+		{"IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/file", true},
+		{"IPv4-mapped IPv6 private 10.x", "http://[::ffff:10.0.0.1]/file", true},
+		{"IPv4-mapped IPv6 private 192.168.x", "http://[::ffff:192.168.1.1]/file", true},
+		{"IPv4-mapped IPv6 private 172.16.x", "http://[::ffff:172.16.0.1]/file", true},
+		// Unspecified address (0.0.0.0) must be blocked.
+		{"unspecified address 0.0.0.0", "http://0.0.0.0/file", true},
+		// Link-local addresses must be blocked.
+		{"link-local unicast 169.254.x", "http://169.254.1.1/file", true},
+		// DNS resolution failure should block, not allow.
+		{"unresolvable host", "http://this-domain-does-not-exist-xyz123.invalid/file", true},
+		// IPv6 unspecified address.
+		{"IPv6 unspecified", "http://[::]/file", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1037,9 +1050,70 @@ func TestCheckURLNotPrivate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("invalid test URL: %v", err)
 			}
-			err = checkURLNotPrivate(u)
+			err = CheckURLNotPrivate(u)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("checkURLNotPrivate(%q) error = %v, wantErr %v", tt.rawURL, err, tt.wantErr)
+				t.Errorf("CheckURLNotPrivate(%q) error = %v, wantErr %v", tt.rawURL, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestCheckURLNotPrivateErrorMessages verifies that error messages from
+// CheckURLNotPrivate contain useful context for debugging blocked requests.
+func TestCheckURLNotPrivateErrorMessages(t *testing.T) {
+	tests := []struct {
+		name        string
+		rawURL      string
+		errContains string
+	}{
+		{"empty hostname says empty", "http:///path", "empty hostname"},
+		{"localhost says not allowed", "http://localhost/x", "not allowed"},
+		{"dot-local says not allowed", "http://foo.local/x", "not allowed"},
+		{"loopback says private", "http://127.0.0.1/x", "private"},
+		{"DNS failure says dns", "http://nxdomain-abc123.invalid/x", "dns resolution failed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.rawURL)
+			if err != nil {
+				t.Fatalf("invalid test URL: %v", err)
+			}
+			err = CheckURLNotPrivate(u)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(strings.ToLower(err.Error()), tt.errContains) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.errContains)
+			}
+		})
+	}
+}
+
+// TestCheckURLNotPrivateLinkLocalMulticast verifies that link-local multicast
+// addresses are blocked.  Multicast IPs cannot be used as HTTP hostnames that
+// DNS resolves, so we test the IP classification logic indirectly by checking
+// that the function correctly identifies all IP categories it guards against.
+// This test covers the ip.IsLinkLocalMulticast() branch in CheckURLNotPrivate.
+func TestCheckURLNotPrivateLinkLocalMulticast(t *testing.T) {
+	// The multicast addresses 224.0.0.x (IPv4) and ff02::x (IPv6) are
+	// link-local multicast.  When passed as bracket-enclosed IPv6 literals
+	// the DNS resolver returns them directly, which exercises the check.
+	tests := []struct {
+		name   string
+		rawURL string
+	}{
+		{"IPv6 link-local multicast ff02::1", "http://[ff02::1]/file"},
+		{"IPv6 link-local multicast ff02::2", "http://[ff02::2]/file"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.rawURL)
+			if err != nil {
+				t.Fatalf("invalid test URL: %v", err)
+			}
+			err = CheckURLNotPrivate(u)
+			if err == nil {
+				t.Errorf("CheckURLNotPrivate(%q) should block link-local multicast, but got nil", tt.rawURL)
 			}
 		})
 	}

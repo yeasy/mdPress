@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,15 +28,20 @@ import (
 
 // WebSocket message type constants and timing
 const (
-	msgTypeBuildStart   = "build-start"
-	msgTypeReload       = "reload"
-	msgTypeCSSUpdate    = "css-update"
-	msgTypeBuildErr     = "build-error"
-	shutdownTimeout     = 5 * time.Second
-	debounceInterval    = 500 * time.Millisecond
-	fileWatcherInterval = 1 * time.Second
-	browserOpenDelay    = 500 * time.Millisecond
-	wsReadLimit         = 4096
+	msgTypeBuildStart     = "build-start"
+	msgTypeReload         = "reload"
+	msgTypeCSSUpdate      = "css-update"
+	msgTypeBuildErr       = "build-error"
+	shutdownTimeout       = 5 * time.Second
+	debounceInterval      = 500 * time.Millisecond
+	fileWatcherInterval   = 1 * time.Second
+	browserOpenDelay      = 500 * time.Millisecond
+	browserOpenTimeout    = 10 * time.Second
+	wsReadLimit           = 4096
+	httpReadHeaderTimeout = 10 * time.Second
+	httpReadTimeout       = 30 * time.Second
+	httpWriteTimeout      = 60 * time.Second
+	httpIdleTimeout       = 120 * time.Second
 )
 
 // wsClient wraps a single WebSocket connection with a dedicated write lock.
@@ -132,7 +138,7 @@ func NewServer(host string, port int, watchDir, outputDir string, logger *slog.L
 
 // Listen reserves the configured port and returns the listener.
 func (s *Server) Listen() (net.Listener, error) {
-	addr := net.JoinHostPort(s.Host, fmt.Sprintf("%d", s.Port))
+	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return nil, fmt.Errorf("address %s is already in use (try mdpress serve --host %s --port %d): %w", addr, s.Host, s.Port+1, err)
@@ -197,7 +203,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	mux := http.NewServeMux()
 
 	// Static file server with injected live reload support.
-	fileServer := http.FileServer(http.Dir(s.OutputDir))
+	fileServer := securityHeaders(http.FileServer(http.Dir(s.OutputDir)))
 	mux.Handle("/", s.injectLiveReload(fileServer))
 
 	// WebSocket endpoint for reload notifications.
@@ -209,10 +215,10 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	server := &http.Server{
 		Addr:              ln.Addr().String(),
 		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       120 * time.Second,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		ReadTimeout:       httpReadTimeout,
+		WriteTimeout:      httpWriteTimeout,
+		IdleTimeout:       httpIdleTimeout,
 	}
 
 	// Graceful shutdown.
@@ -235,7 +241,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 
 	fmt.Printf("\n📖 mdpress Live Preview Server\n\n")
 	fmt.Printf("  Address: %s\n", s.browserURL())
-	fmt.Printf("  Binding: %s\n", net.JoinHostPort(s.Host, fmt.Sprintf("%d", s.Port)))
+	fmt.Printf("  Binding: %s\n", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 	fmt.Printf("  Watching: %s\n", s.WatchDir)
 	fmt.Printf("  Output: %s\n", s.OutputDir)
 	fmt.Printf("\n  File changes automatically trigger browser reloads (fsnotify + WebSocket)\n")
@@ -540,10 +546,22 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
     ws.onmessage = function(e) {
       var data = e.data;
+      // Perform a live reload.  When the SPA navigation hook is available
+      // (site output), re-fetch and swap only the page content so the
+      // reader keeps their scroll position and reading flow is not
+      // disrupted.  Falls back to a full page reload otherwise.
+      function doReload() {
+        if (typeof window.__mdpressLiveReload === 'function') {
+          window.__mdpressLiveReload();
+          setServeStatus('success', 'Content updated', '', false);
+        } else {
+          rememberServeFlash('success', 'Rebuild complete');
+          location.reload();
+        }
+      }
       // Support both legacy string and JSON messages.
       if (data === 'reload') {
-        rememberServeFlash('success', 'Rebuild complete');
-        location.reload();
+        doReload();
         return;
       }
       try {
@@ -551,8 +569,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
         if (msg.type === '` + msgTypeBuildStart + `') {
           setServeStatus('building', 'Rebuilding…', '', true);
         } else if (msg.type === 'reload') {
-          rememberServeFlash('success', 'Rebuild complete');
-          location.reload();
+          doReload();
         } else if (msg.type === 'css-update') {
           setServeStatus('success', 'Styles updated', '', false);
           // Reload all stylesheets without page flash.
@@ -686,11 +703,21 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
 		if _, err := w.Write([]byte(injected)); err != nil {
 			s.logger.Debug("Failed to write HTTP response", slog.String("error", err.Error()))
 		}
+	})
+}
+
+// securityHeaders wraps an http.Handler to set security headers on all responses.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data: https://cdn.jsdelivr.net;")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -740,6 +767,12 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 		if ctx.Err() != nil {
 			return
 		}
+		// Always reset for next debounce cycle, even on build failure.
+		defer func() {
+			s.debounceMu.Lock()
+			s.lastTriggeredExt = ""
+			s.debounceMu.Unlock()
+		}()
 		s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
 		s.notifyBuildStart()
 		if s.BuildFunc != nil {
@@ -755,10 +788,6 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 		} else {
 			s.notifyClients()
 		}
-		// Reset for next debounce cycle.
-		s.debounceMu.Lock()
-		s.lastTriggeredExt = ""
-		s.debounceMu.Unlock()
 	})
 	s.debounceMu.Unlock()
 }
@@ -766,6 +795,11 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 // isSkippedDir reports whether a directory name should be excluded from file watching.
 func isSkippedDir(name string) bool {
 	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "_book" || name == "vendor"
+}
+
+// isWatchedExtension reports whether ext is a file extension we monitor for changes.
+func isWatchedExtension(ext string) bool {
+	return ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css"
 }
 
 // watchFilesWithFsnotify uses fsnotify to watch for changes and trigger rebuilds.
@@ -781,13 +815,17 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	// Recursively add watched directories.
 	err = filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			s.logger.Warn("failed to access path during watch setup", slog.String("path", path), slog.String("error", err.Error()))
 			return nil
 		}
 		if d.IsDir() {
 			if isSkippedDir(filepath.Base(path)) {
 				return filepath.SkipDir
 			}
-			return watcher.Add(path)
+			if addErr := watcher.Add(path); addErr != nil {
+				s.logger.Warn("failed to watch directory", slog.String("path", path), slog.String("error", addErr.Error()))
+			}
+			return nil
 		}
 		return nil
 	})
@@ -817,7 +855,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			}
 			// Only rebuild on changes to .md, .yaml, .yml, and .css files.
 			ext := strings.ToLower(filepath.Ext(event.Name))
-			if ext != ".md" && ext != ".yaml" && ext != ".yml" && ext != ".css" {
+			if !isWatchedExtension(ext) {
 				continue
 			}
 
@@ -896,7 +934,7 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css" {
+		if isWatchedExtension(ext) {
 			info, err := d.Info()
 			if err != nil {
 				return nil
@@ -927,7 +965,7 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) (bool, string) {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
-		if ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css" {
+		if isWatchedExtension(ext) {
 			info, err := d.Info()
 			if err != nil {
 				return nil
@@ -992,7 +1030,7 @@ func openBrowser(rawURL string) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), browserOpenTimeout)
 	c := exec.CommandContext(ctx, cmd, args...)
 	if err := c.Start(); err != nil {
 		cancel()

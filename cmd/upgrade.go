@@ -41,9 +41,9 @@ var (
 // Using http.DefaultClient has no timeout and could hang indefinitely.
 // CheckRedirect validates redirect targets to prevent SSRF via DNS poisoning.
 var upgradeHTTPClient = &http.Client{
-	Timeout: 5 * time.Minute,
+	Timeout: upgradeClientTimeout,
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
+		if len(via) >= utils.MaxHTTPRedirects {
 			return errors.New("too many redirects")
 		}
 		host := req.URL.Hostname()
@@ -57,7 +57,10 @@ var upgradeHTTPClient = &http.Client{
 	},
 }
 
-const maxBinarySize = 500 << 20 // 500 MB
+const (
+	maxBinarySize        = 500 << 20 // 500 MB
+	upgradeClientTimeout = 5 * time.Minute
+)
 
 var upgradeCheckOnly bool
 
@@ -159,9 +162,9 @@ func fetchLatestRelease(ctx context.Context) (*gitHubRelease, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB max for error body
 		if err != nil {
-			return nil, fmt.Errorf("GitHub API returned %d and failed to read error body: %w", resp.StatusCode, err)
+			return nil, fmt.Errorf("github API returned %d and failed to read error body: %w", resp.StatusCode, err)
 		}
-		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("github API returned %d: %s", resp.StatusCode, string(body))
 	}
 
 	var release gitHubRelease
@@ -432,7 +435,7 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBinarySize+1))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read download response: %w", err)
 	}
 	if int64(len(data)) > maxBinarySize {
 		return nil, fmt.Errorf("binary exceeds maximum size of %d bytes", maxBinarySize)
