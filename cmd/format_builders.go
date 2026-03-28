@@ -24,8 +24,8 @@ const (
 	defaultTypstTimeout = 2 * time.Minute
 )
 
-// BuildContext carries all data needed by format builders.
-type BuildContext struct {
+// buildContext carries all data needed by format builders.
+type buildContext struct {
 	Config             *config.BookConfig
 	Theme              *theme.Theme
 	SinglePageParts    *renderer.RenderParts
@@ -37,50 +37,50 @@ type BuildContext struct {
 	Logger             *slog.Logger
 }
 
-// FormatBuilder generates output in a specific format.
-type FormatBuilder interface {
+// formatBuilder generates output in a specific format.
+type formatBuilder interface {
 	// Name returns the format name (e.g. "pdf", "html", "site", "epub").
 	Name() string
 	// Build generates the output file(s) at the given base path.
-	Build(ctx *BuildContext, baseName string) error
+	Build(ctx *buildContext, baseName string) error
 }
 
-// FormatBuilderRegistry manages registered format builders.
-type FormatBuilderRegistry struct {
-	builders map[string]FormatBuilder
+// formatBuilderRegistry manages registered format builders.
+type formatBuilderRegistry struct {
+	builders map[string]formatBuilder
 }
 
-// NewFormatBuilderRegistry creates a registry pre-populated with all built-in formats.
-func NewFormatBuilderRegistry() *FormatBuilderRegistry {
-	r := &FormatBuilderRegistry{
-		builders: make(map[string]FormatBuilder),
+// newFormatBuilderRegistry creates a registry pre-populated with all built-in formats.
+func newFormatBuilderRegistry() *formatBuilderRegistry {
+	r := &formatBuilderRegistry{
+		builders: make(map[string]formatBuilder),
 	}
-	r.Register(&PDFBuilder{})
-	r.Register(&TypstBuilder{})
-	r.Register(&HTMLBuilder{})
-	r.Register(&SiteBuilder{})
-	r.Register(&EpubBuilder{})
+	r.Register(&pdfBuilder{})
+	r.Register(&typstBuilder{})
+	r.Register(&htmlBuilder{})
+	r.Register(&siteBuilder{})
+	r.Register(&epubBuilder{})
 	return r
 }
 
 // Register adds a format builder.
-func (r *FormatBuilderRegistry) Register(b FormatBuilder) {
+func (r *formatBuilderRegistry) Register(b formatBuilder) {
 	r.builders[b.Name()] = b
 }
 
 // Get returns a builder by format name, or nil if not found.
-func (r *FormatBuilderRegistry) Get(name string) FormatBuilder {
+func (r *formatBuilderRegistry) Get(name string) formatBuilder {
 	return r.builders[name]
 }
 
 // ---- PDF ----
 
-// PDFBuilder generates PDF output via Chromium.
-type PDFBuilder struct{}
+// pdfBuilder generates PDF output via Chromium.
+type pdfBuilder struct{}
 
-func (b *PDFBuilder) Name() string { return "pdf" }
+func (b *pdfBuilder) Name() string { return "pdf" }
 
-func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
+func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	htmlRenderer, err := renderer.NewHTMLRenderer(ctx.Config, ctx.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create HTML renderer: %w", err)
@@ -105,7 +105,8 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 	// Warn early if the content contains CJK characters but the system lacks CJK fonts.
 	pdf.WarnIfCJKFontsMissing(fullHTML, ctx.Logger)
 
-	pageWidth, pageHeight := getPageDimensions(ctx.Config.Style.PageSize)
+	pageDims := utils.GetPageDimensions(ctx.Config.Style.PageSize)
+	pageWidth, pageHeight := pageDims.Width, pageDims.Height
 	pdfTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
 	if pdfTimeout <= 0 {
 		pdfTimeout = defaultPDFTimeout
@@ -129,8 +130,9 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 			ctx.Config.Output.MarginBottom,
 		))
 	} else {
-		// Default margins: 0 on sides, 10mm on bottom for footer
-		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, 0, 10))
+		// Default margins: 0 on sides, reserved space at bottom for footer branding.
+		const defaultFooterMarginMM = 10
+		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, 0, defaultFooterMarginMM))
 	}
 
 	// Add document outline option if enabled
@@ -148,12 +150,12 @@ func (b *PDFBuilder) Build(ctx *BuildContext, baseName string) error {
 
 // ---- HTML ----
 
-// HTMLBuilder generates a self-contained single-page HTML document.
-type HTMLBuilder struct{}
+// htmlBuilder generates a self-contained single-page HTML document.
+type htmlBuilder struct{}
 
-func (b *HTMLBuilder) Name() string { return "html" }
+func (b *htmlBuilder) Name() string { return "html" }
 
-func (b *HTMLBuilder) Build(ctx *BuildContext, baseName string) error {
+func (b *htmlBuilder) Build(ctx *buildContext, baseName string) error {
 	outputPath := baseName + ".html"
 	ctx.Logger.Info("Generating standalone HTML", slog.String("output", outputPath))
 
@@ -177,12 +179,12 @@ func (b *HTMLBuilder) Build(ctx *BuildContext, baseName string) error {
 
 // ---- Site ----
 
-// SiteBuilder generates a multi-page HTML site.
-type SiteBuilder struct{}
+// siteBuilder generates a multi-page HTML site.
+type siteBuilder struct{}
 
-func (b *SiteBuilder) Name() string { return "site" }
+func (b *siteBuilder) Name() string { return "site" }
 
-func (b *SiteBuilder) Build(ctx *BuildContext, baseName string) error {
+func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 	outputDir := baseName + "_site"
 	ctx.Logger.Info("Generating HTML site", slog.String("output", outputDir))
 
@@ -197,12 +199,12 @@ func (b *SiteBuilder) Build(ctx *BuildContext, baseName string) error {
 
 // ---- ePub ----
 
-// EpubBuilder generates an EPUB 3 ebook.
-type EpubBuilder struct{}
+// epubBuilder generates an EPUB 3 ebook.
+type epubBuilder struct{}
 
-func (b *EpubBuilder) Name() string { return "epub" }
+func (b *epubBuilder) Name() string { return "epub" }
 
-func (b *EpubBuilder) Build(ctx *BuildContext, baseName string) error {
+func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 	outputPath := baseName + ".epub"
 	ctx.Logger.Info("Generating ePub", slog.String("output", outputPath))
 
@@ -243,19 +245,18 @@ func (b *EpubBuilder) Build(ctx *BuildContext, baseName string) error {
 
 // ---- Typst PDF ----
 
-// TypstBuilder generates PDF output via Typst (proof-of-concept).
-type TypstBuilder struct{}
+// typstBuilder generates PDF output via Typst.
+type typstBuilder struct{}
 
-func (b *TypstBuilder) Name() string { return "typst" }
+func (b *typstBuilder) Name() string { return "typst" }
 
-func (b *TypstBuilder) Build(ctx *BuildContext, baseName string) error {
+func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 	// For Typst, we work directly with Markdown content rather than HTML.
-	// This is a proof-of-concept that demonstrates the core use case.
 
-	outputPath := baseName + ".pdf"
+	outputPath := baseName + "-typst.pdf"
 	ctx.Logger.Info("Generating PDF via Typst", slog.String("output", outputPath))
 
-	// Extract text from chapters for now (proof of concept)
+	// Extract text from chapters
 	var markdownContent strings.Builder
 
 	// Add title
@@ -272,7 +273,7 @@ func (b *TypstBuilder) Build(ctx *BuildContext, baseName string) error {
 			markdownContent.WriteString(ch.Title)
 			markdownContent.WriteString("\n\n")
 		}
-		// For PoC, use the HTML content as-is. In production, convert HTML to Markdown.
+		// Use the HTML content as-is; a future improvement could convert HTML to Markdown.
 		markdownContent.WriteString(ch.Content)
 		markdownContent.WriteString("\n\n")
 	}

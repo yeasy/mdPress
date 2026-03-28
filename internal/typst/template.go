@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // TypstTemplateData holds the data needed to render a Typst document.
@@ -33,7 +35,8 @@ type TypstTemplateData struct {
 
 // TypstTemplate defines the base Typst document template.
 const typstTemplateStr = `#set page(
-  paper: "{{ .PageWidth }}-x-{{ .PageHeight }}",
+  width: {{ .PageWidth }},
+  height: {{ .PageHeight }},
   margin: (
     top: {{ .MarginTop }},
     bottom: {{ .MarginBottom }},
@@ -194,21 +197,8 @@ func writeTypstFile(filePath string, content string) error {
 
 // getPageDimensions returns page width and height in mm as Typst format strings.
 func getPageDimensions(pageSize string) (width, height string) {
-	switch strings.ToUpper(pageSize) {
-	case "A4":
-		return "210mm", "297mm"
-	case "A5":
-		return "148mm", "210mm"
-	case "B5":
-		return "176mm", "250mm"
-	case "LETTER":
-		return "216mm", "279mm"
-	case "LEGAL":
-		return "216mm", "356mm"
-	default:
-		// Default to A4
-		return "210mm", "297mm"
-	}
+	d := utils.GetPageDimensions(pageSize)
+	return d.WidthMM(), d.HeightMM()
 }
 
 // ConvertMarginToTypst converts a margin value (e.g., "20mm", "1in") to a Typst string.
