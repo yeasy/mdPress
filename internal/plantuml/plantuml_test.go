@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -520,6 +521,73 @@ func TestSanitizePlantUMLCode(t *testing.T) {
 				if result != tt.input {
 					t.Errorf("safe input should be unchanged: want %q, got %q", tt.input, result)
 				}
+			}
+		})
+	}
+}
+
+// TestValidateRedirectTarget tests the SSRF-prevention redirect validator.
+func TestValidateRedirectTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		rawURL    string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:      "empty hostname",
+			rawURL:    "http:///path",
+			wantErr:   true,
+			errSubstr: "redirect to empty hostname",
+		},
+		{
+			name:      "localhost",
+			rawURL:    "http://localhost/path",
+			wantErr:   true,
+			errSubstr: "not allowed",
+		},
+		{
+			name:      "LOCALHOST case insensitive",
+			rawURL:    "http://LOCALHOST/path",
+			wantErr:   true,
+			errSubstr: "not allowed",
+		},
+		{
+			name:      "dot local suffix",
+			rawURL:    "http://myhost.local/path",
+			wantErr:   true,
+			errSubstr: "not allowed",
+		},
+		{
+			name:      "non-existent domain",
+			rawURL:    "http://this-domain-does-not-exist-abc123xyz.example/path",
+			wantErr:   true,
+			errSubstr: "dns resolution failed",
+		},
+		{
+			name:      "loopback IP as hostname",
+			rawURL:    "http://127.0.0.1/path",
+			wantErr:   true,
+			errSubstr: "not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := url.Parse(tt.rawURL)
+			if err != nil {
+				t.Fatalf("failed to parse URL %q: %v", tt.rawURL, err)
+			}
+			err = validateRedirectTarget(u)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.errSubstr)
+				}
+				if !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Fatalf("expected error containing %q, got: %v", tt.errSubstr, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}

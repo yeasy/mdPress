@@ -314,7 +314,7 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 	if err := os.Rename(tempPath, currentPath); err != nil {
 		// Try to restore from backup on error.
 		if restoreErr := os.Rename(backupPath, currentPath); restoreErr != nil {
-			return fmt.Errorf("failed to install binary (%w), and restore failed (%v); backup at %s", err, restoreErr, backupPath)
+			return fmt.Errorf("failed to install binary (%w), and restore failed (%w); backup at %s", err, restoreErr, backupPath)
 		}
 		return fmt.Errorf("failed to install binary (backup restored): %w", err)
 	}

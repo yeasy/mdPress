@@ -329,14 +329,14 @@ func TestSetCodeTheme(t *testing.T) {
 	}
 }
 
-// TestGetHeadings tests retrieving heading list
+// TestGetHeadings tests retrieving heading list via Parse return value.
 func TestGetHeadings(t *testing.T) {
 	parser := NewParser()
-	if _, _, err := parser.Parse([]byte("# A\n\n## B")); err != nil {
+	_, headings, err := parser.Parse([]byte("# A\n\n## B"))
+	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	headings := parser.GetHeadings()
 	if len(headings) != 2 {
 		t.Errorf("should have 2 headings: got %d", len(headings))
 	}

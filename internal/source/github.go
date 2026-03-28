@@ -118,8 +118,9 @@ func (s *GitHubSource) Prepare() (string, error) {
 
 	// Check for Git LFS usage and warn if LFS files may not be fully fetched.
 	gitattrsPath := filepath.Join(tempDir, ".gitattributes")
-	if data, err := os.ReadFile(gitattrsPath); err == nil {
-		if strings.Contains(string(data), "filter=lfs") {
+	if fi, statErr := os.Stat(gitattrsPath); statErr == nil && fi.Size() < 1<<20 {
+		data, err := os.ReadFile(gitattrsPath)
+		if err == nil && strings.Contains(string(data), "filter=lfs") {
 			slog.Warn("Repository uses Git LFS. Large files (images, binaries) may not be fully fetched with shallow clone. " +
 				"If images are missing, clone the repository locally with 'git lfs pull' and use a local path instead.")
 		}

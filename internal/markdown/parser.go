@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
-	"sync"
 
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
@@ -38,16 +37,13 @@ type ParserOption func(*Parser)
 
 // Parser is the Markdown parser.
 type Parser struct {
-	md         goldmark.Markdown
-	headings   []HeadingInfo
-	headingsMu sync.RWMutex
-	codeTheme  string
+	md        goldmark.Markdown
+	codeTheme string
 }
 
 // NewParser creates and returns a new Markdown parser instance.
 func NewParser(opts ...ParserOption) *Parser {
 	p := &Parser{
-		headings:  make([]HeadingInfo, 0),
 		codeTheme: "github",
 	}
 
@@ -110,18 +106,14 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	mathProc := newMathPreprocessor()
 	processedSource := []byte(mathProc.preprocess(string(source)))
 
-	// Reset heading collection for this parse run.
-	p.headingsMu.Lock()
-	p.headings = make([]HeadingInfo, 0)
-	p.headingsMu.Unlock()
-
 	// Parse the pre-processed source into an AST.
 	reader := text.NewReader(processedSource)
 	document := p.md.Parser().Parse(reader)
 	diagnostics := collectDiagnostics(document, processedSource)
 
-	// Walk the AST to collect heading information.
-	p.collectHeadings(document, processedSource, newSourceIndex(processedSource))
+	// Walk the AST to collect heading information using local state
+	// (no shared mutable struct fields) so concurrent Parse calls are safe.
+	headings := p.collectHeadings(document, processedSource, newSourceIndex(processedSource))
 
 	// Render AST to HTML.
 	var buf bytes.Buffer
@@ -135,25 +127,26 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 	// Restore math placeholders to KaTeX-recognizable HTML span elements.
 	htmlResult = mathProc.postprocess(htmlResult)
 
-	p.headingsMu.RLock()
-	headingsCopy := make([]HeadingInfo, len(p.headings))
-	copy(headingsCopy, p.headings)
-	p.headingsMu.RUnlock()
-
-	return htmlResult, headingsCopy, diagnostics, nil
+	return htmlResult, headings, diagnostics, nil
 }
 
 // collectHeadings recursively walks the AST to collect heading information.
-func (p *Parser) collectHeadings(node ast.Node, source []byte, index *sourceIndex) {
+// It returns the collected headings instead of mutating struct state, making
+// concurrent Parse calls on the same Parser safe.
+func (p *Parser) collectHeadings(node ast.Node, source []byte, index *sourceIndex) []HeadingInfo {
+	var headings []HeadingInfo
+	p.collectHeadingsRecurse(node, source, index, &headings)
+	return headings
+}
+
+// collectHeadingsRecurse is the recursive helper for collectHeadings.
+func (p *Parser) collectHeadingsRecurse(node ast.Node, source []byte, index *sourceIndex, headings *[]HeadingInfo) {
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		if heading, ok := child.(*ast.Heading); ok {
-			info := p.extractHeadingInfo(heading, source, index)
-			p.headingsMu.Lock()
-			p.headings = append(p.headings, info)
-			p.headingsMu.Unlock()
+			*headings = append(*headings, p.extractHeadingInfo(heading, source, index))
 		}
 		if child.HasChildren() {
-			p.collectHeadings(child, source, index)
+			p.collectHeadingsRecurse(child, source, index, headings)
 		}
 	}
 }
@@ -195,13 +188,11 @@ func (p *Parser) SetCodeTheme(theme string) {
 	p.initGoldmark()
 }
 
-// GetHeadings returns all currently collected heading information.
+// GetHeadings returns headings from the last Parse call.
+//
+// Deprecated: Use the headings returned directly by Parse instead.
 func (p *Parser) GetHeadings() []HeadingInfo {
-	p.headingsMu.RLock()
-	defer p.headingsMu.RUnlock()
-	headingsCopy := make([]HeadingInfo, len(p.headings))
-	copy(headingsCopy, p.headings)
-	return headingsCopy
+	return nil
 }
 
 // generateHeadingID generates a normalized heading ID.
