@@ -8,6 +8,21 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.8] - 2026-03-28
+
+### Improved
+
+- **Markdown parser thread safety**: Remove unnecessary `sync.RWMutex` from parser; headings are now collected via local state, making concurrent `Parse` calls safe without locking
+- **Error wrapping in upgrade**: Use `%w` instead of `%v` for inner errors so callers can unwrap them
+- **GitHub source hardening**: Guard `.gitattributes` read with stat + size check to avoid reading oversized files
+
+### Added
+
+- **Checksum verification tests**: Comprehensive test suite for upgrade binary checksum verification (valid match, mismatch, missing entry, case-insensitive hash, multiple formats)
+- **SSRF redirect validation tests**: Test coverage for PlantUML redirect target validation (localhost, loopback IP, .local suffix, empty hostname)
+
+---
+
 ## [0.6.7] - 2026-03-27
 
 ### Fixed
@@ -584,7 +599,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.7...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.8...HEAD
+[0.6.8]: https://github.com/yeasy/mdpress/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/yeasy/mdpress/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/yeasy/mdpress/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/yeasy/mdpress/compare/v0.6.4...v0.6.5
