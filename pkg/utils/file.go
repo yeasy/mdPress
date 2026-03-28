@@ -51,7 +51,7 @@ func ReadFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("file does not exist: %q", path)
+			return nil, fmt.Errorf("file does not exist %q: %w", path, err)
 		}
 		// Reject directories explicitly.
 		if fi, statErr := os.Stat(path); statErr == nil && fi.IsDir() {
@@ -200,16 +200,24 @@ func ExtractTitleFromFile(path string) string {
 // the result stays within the base directory. It returns an error if the
 // resolved path escapes the base via ".." or absolute-path tricks.
 func SafeJoin(baseDir, untrusted string) (string, error) {
-	// Clean the base directory.
+	// Clean and resolve the base directory (including symlinks).
 	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve base directory: %w", err)
 	}
-	// Join and resolve.
+	if evaled, evalErr := filepath.EvalSymlinks(absBase); evalErr == nil {
+		absBase = evaled
+	}
+	// Join with the resolved base and clean.
 	joined := filepath.Join(absBase, untrusted)
 	absJoined, err := filepath.Abs(joined)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve joined path: %w", err)
+	}
+	// Resolve symlinks on the joined path if it exists on disk, to prevent
+	// containment bypass via symlinks pointing outside base.
+	if evaled, evalErr := filepath.EvalSymlinks(absJoined); evalErr == nil {
+		absJoined = evaled
 	}
 	// Ensure the result is inside baseDir.
 	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {

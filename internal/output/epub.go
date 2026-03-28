@@ -693,10 +693,19 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 	if sourceDir != "" && src != "" && !strings.HasPrefix(src, "#") {
 		resolved := filepath.Clean(filepath.Join(sourceDir, filepath.FromSlash(src)))
 		// Ensure the resolved path stays within the source directory.
+		// Use EvalSymlinks to prevent symlink-based containment bypass.
 		absBase, err1 := filepath.Abs(sourceDir)
 		absResolved, err2 := filepath.Abs(resolved)
 		if err1 != nil || err2 != nil {
 			return "", nil, nil
+		}
+		// Resolve symlinks to prevent containment bypass. Only apply when
+		// both paths can be resolved to keep them comparable.
+		if evaledR, errR := filepath.EvalSymlinks(absResolved); errR == nil {
+			if evaledB, errB := filepath.EvalSymlinks(absBase); errB == nil {
+				absResolved = evaledR
+				absBase = evaledB
+			}
 		}
 		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
 			return "", nil, nil

@@ -8,6 +8,22 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.7] - 2026-03-27
+
+### Fixed
+
+- **Cover title no longer creates duplicate PDF bookmark**: Cover page title changed from `<h1>` to styled `<div>`, preventing Chrome's outline generator from creating a bookmark that duplicates the first chapter entry
+- **README title deduplication handles wrapped headings**: `stripDuplicateLeadingH1` now finds the first heading even when preceded by non-heading HTML (e.g., `<div align="center">`, badge images), fixing duplicate titles for README files with centered layouts
+- **Mermaid diagrams fully render in PDF**: Added a wait step (up to 15s) for mermaid.js to finish rendering all diagrams before Chrome prints to PDF, ensuring SVG diagrams appear in the output
+
+### Security
+
+- **Chrome CLI output capture bounded**: The Chrome CLI fallback path now limits captured stdout/stderr to 10 MB via `chromeLimitedWriter`, preventing OOM from excessive Chrome process output
+- **Symlink-aware image path containment**: `resolveLocalImagePath` and EPUB `buildImageAssetFromSource` now resolve symlinks via `filepath.EvalSymlinks` before the containment check, preventing symlink-based path traversal
+- **Git argument injection hardened**: `discover.go` git commands validated against flag injection
+
+---
+
 ## [0.6.6] - 2026-03-27
 
 ### Fixed

@@ -85,7 +85,7 @@ func TestPluginInit_WithServerURL(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected Init to fail for non-resolvable server URL")
 	}
-	if !strings.Contains(err.Error(), "DNS resolution failed") {
+	if !strings.Contains(err.Error(), "dns resolution failed") {
 		t.Fatalf("expected DNS resolution error, got: %v", err)
 	}
 }

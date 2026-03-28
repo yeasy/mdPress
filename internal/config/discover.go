@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/url"
 	"os"
@@ -221,14 +222,14 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 // findMarkdownFiles recursively finds Markdown files.
 func findMarkdownFiles(dir string) ([]string, error) {
 	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			slog.Warn("error during directory walk", slog.String("path", path), slog.Any("error", err))
 			return nil // Skip inaccessible files.
 		}
 
 		// Skip hidden and dependency directories.
-		if info.IsDir() {
+		if d.IsDir() {
 			base := filepath.Base(path)
 			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
 				return filepath.SkipDir

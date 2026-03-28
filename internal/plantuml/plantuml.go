@@ -100,11 +100,17 @@ func validateRedirectTarget(u *url.URL) error {
 	defer cancel()
 	ips, err := net.DefaultResolver.LookupHost(ctx, host)
 	if err != nil {
-		return fmt.Errorf("redirect DNS resolution failed for %q: %w", host, err)
+		return fmt.Errorf("redirect dns resolution failed for %q: %w", host, err)
 	}
 	for _, ipStr := range ips {
 		ip := net.ParseIP(ipStr)
-		if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
+		if ip == nil {
+			continue
+		}
+		if v4 := ip.To4(); v4 != nil {
+			ip = v4
+		}
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return fmt.Errorf("redirect to private address %s is not allowed", ipStr)
 		}
 	}
@@ -146,11 +152,17 @@ func validatePlantUMLServer(serverURL string) error {
 	defer cancel()
 	ips, err := net.DefaultResolver.LookupHost(ctx, host)
 	if err != nil {
-		return fmt.Errorf("DNS resolution failed for %q: %w", host, err)
+		return fmt.Errorf("dns resolution failed for %q: %w", host, err)
 	}
 	for _, ipStr := range ips {
 		ip := net.ParseIP(ipStr)
-		if ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
+		if ip == nil {
+			continue
+		}
+		if v4 := ip.To4(); v4 != nil {
+			ip = v4
+		}
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return fmt.Errorf("address %s is private/internal", ipStr)
 		}
 	}
@@ -192,6 +204,9 @@ func (r *Renderer) RenderHTML(ctx context.Context, html string) (string, error) 
 
 // getSVG returns the SVG for the given PlantUML code, using cache when available.
 func (r *Renderer) getSVG(ctx context.Context, code string) (string, error) {
+	// Sanitize before caching or rendering — applies to both local and server paths.
+	code = sanitizePlantUMLCode(code)
+
 	// Check cache first
 	if cached, ok := r.cache.Load(code); ok {
 		if s, ok := cached.(string); ok {
@@ -261,6 +276,56 @@ func (r *Renderer) renderServer(ctx context.Context, code string) (string, error
 	}
 
 	return buf.String(), nil
+}
+
+// sanitizePlantUMLCode strips potentially dangerous PlantUML directives
+// that could read arbitrary local files, fetch remote resources, or leak
+// environment variables when running a local PlantUML process.
+func sanitizePlantUMLCode(code string) string {
+	lines := strings.Split(code, "\n")
+	var sb strings.Builder
+	sb.Grow(len(code))
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		lower := strings.ToLower(trimmed)
+		if isDangerousPlantUMLDirective(lower) {
+			sb.WriteString("' [directive removed for security]")
+		} else {
+			sb.WriteString(line)
+		}
+		if i < len(lines)-1 {
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
+// isDangerousPlantUMLDirective returns true if the lowercased, trimmed line
+// starts with a PlantUML preprocessor directive that could access the
+// filesystem, network, or environment.
+func isDangerousPlantUMLDirective(lower string) bool {
+	// File inclusion and imports
+	if strings.HasPrefix(lower, "!include") || strings.HasPrefix(lower, "!import") {
+		return true
+	}
+	// Macro definitions (can reference external resources)
+	if strings.HasPrefix(lower, "!define") {
+		return true
+	}
+	// Theme loading (can load external files)
+	if strings.HasPrefix(lower, "!theme") {
+		return true
+	}
+	// Pragma directives (can alter security behavior)
+	if strings.HasPrefix(lower, "!pragma") {
+		return true
+	}
+	// Built-in functions that leak filesystem or environment info
+	if strings.Contains(lower, "%load_json") || strings.Contains(lower, "%getenv") ||
+		strings.Contains(lower, "%filename") || strings.Contains(lower, "%dirpath") {
+		return true
+	}
+	return false
 }
 
 // renderLocal renders PlantUML using a local plantuml installation.

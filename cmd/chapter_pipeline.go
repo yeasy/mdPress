@@ -85,25 +85,29 @@ func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdo
 	}
 }
 
+// maxConcurrency caps parallel workers to avoid memory issues from
+// multiple Chrome/typst instances.
+const maxConcurrency = 8
+
 // computeMaxConcurrency determines the number of worker goroutines to use.
-// Returns at least 1 (sequential), at most 8 (to avoid memory issues).
+// Returns at least 1 (sequential), at most maxConcurrency.
 func computeMaxConcurrency(requested int) int {
 	if requested < 0 {
 		return 1 // Sequential processing
 	}
 	if requested > 0 {
-		if requested > 8 {
-			return 8
+		if requested > maxConcurrency {
+			return maxConcurrency
 		}
 		return requested
 	}
-	// Default: use number of CPUs, capped at 8
+	// Default: use number of CPUs, capped at maxConcurrency
 	numCPU := runtime.NumCPU()
 	if numCPU <= 0 {
 		numCPU = 1
 	}
-	if numCPU > 8 {
-		numCPU = 8
+	if numCPU > maxConcurrency {
+		numCPU = maxConcurrency
 	}
 	return numCPU
 }
@@ -494,37 +498,44 @@ func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
 	}
 }
 
-func pdfChapterImageOptions() utils.ImageProcessingOptions {
-	// PDF HTML is served via a local HTTP server for font loading.
-	// Chrome blocks file:// URLs from HTTP pages, so images must be
-	// embedded as base64 data URIs instead of rewritten to file:// URLs.
-	return utils.ImageProcessingOptions{
-		EmbedLocalAsBase64:     true,
-		EmbedRemoteAsBase64:    true,
-		DownloadRemote:         true,
-		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
-		MaxConcurrentDownloads: 4,
-	}
-}
+// pdfChapterImageOptions returns image options for PDF output.
+// PDF HTML is served via a local HTTP server for font loading.
+// Chrome blocks file:// URLs from HTTP pages, so images must be
+// embedded as base64 data URIs instead of rewritten to file:// URLs.
+// Currently identical to defaultEmbeddedChapterImageOptions.
+var pdfChapterImageOptions = defaultEmbeddedChapterImageOptions
 
-// leadingHeadingPattern matches the first heading (<h1>–<h6>) at the start of
-// content (allowing only whitespace before it). The closing tag level is
-// verified in code since RE2 does not support backreferences.
-var leadingHeadingPattern = regexp.MustCompile(`(?is)^\s*<h([1-6])[^>]*>(.*?)</h[1-6]>`)
+// firstHeadingPattern matches the first heading (<h1>–<h6>) anywhere in
+// the content. Many README files start with non-heading HTML (e.g.
+// <div align="center">, badge images) before the title heading, so we
+// cannot require the heading to be at the very start.
+var firstHeadingPattern = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
 
 // stripDuplicateLeadingH1 removes the first heading (h1–h6) from htmlContent
 // if its text matches the summaryTitle. This prevents duplicate headings when
 // the template already renders the SUMMARY.md title as <h1 class="chapter-title">.
 // Sub-chapters often use h2 or lower in their Markdown, so matching only h1 is
 // not sufficient.
+//
+// The heading is considered "leading" if only non-heading HTML elements appear
+// before it (e.g. <div>, <p>, <img>, badge links). This handles the common
+// pattern where README files wrap the title in a centered div or precede it
+// with shield badges.
 func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 	if summaryTitle == "" {
 		return htmlContent
 	}
 
-	m := leadingHeadingPattern.FindStringSubmatchIndex(htmlContent)
+	m := firstHeadingPattern.FindStringSubmatchIndex(htmlContent)
 	if m == nil {
 		return htmlContent
+	}
+
+	// Verify that no other heading appears before this one.
+	// The content before the match must not contain any <h1>–<h6> tags.
+	prefix := htmlContent[:m[0]]
+	if firstHeadingPattern.MatchString(prefix) {
+		return htmlContent // another heading precedes this one; not leading
 	}
 
 	// Extract inner text of the heading, strip HTML tags for comparison.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -189,8 +190,13 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 
 // GenerateFromFile reads a Markdown file and generates a PDF.
 func (g *Generator) GenerateFromFile(markdownFilePath string, outputPath string) error {
-	if _, err := os.Stat(markdownFilePath); err != nil {
+	const maxMarkdownSize = 50 << 20 // 50 MB
+	fi, err := os.Stat(markdownFilePath)
+	if err != nil {
 		return fmt.Errorf("markdown file does not exist: %w", err)
+	}
+	if fi.Size() > maxMarkdownSize {
+		return fmt.Errorf("markdown file too large (%d bytes, max %d)", fi.Size(), maxMarkdownSize)
 	}
 
 	content, err := os.ReadFile(markdownFilePath)
@@ -270,16 +276,22 @@ const maxTypstOutput = 1 << 20 // 1 MB
 
 // limitedWriter wraps an io.Writer and silently discards writes beyond n bytes.
 type limitedWriter struct {
-	w interface{ Write([]byte) (int, error) }
+	w io.Writer
 	n int64
 }
 
 func (lw *limitedWriter) Write(p []byte) (int, error) {
 	if lw.n <= 0 {
-		return len(p), nil // discard
+		return len(p), nil // discard entirely
 	}
 	if int64(len(p)) > lw.n {
-		p = p[:lw.n]
+		// Write what fits, discard the rest, report all consumed.
+		_, err := lw.w.Write(p[:lw.n])
+		lw.n = 0
+		if err != nil {
+			return 0, err
+		}
+		return len(p), nil
 	}
 	n, err := lw.w.Write(p)
 	lw.n -= int64(n)

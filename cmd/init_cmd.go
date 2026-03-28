@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -345,25 +346,25 @@ func countChapterDefs(chapters []config.ChapterDef) int {
 func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 	var files []discoveredFile
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // Skip inaccessible files.
 		}
 
 		// Skip hidden directories.
-		if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+		if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
 			return filepath.SkipDir
 		}
 		// Skip common dependency directories.
-		if info.IsDir() {
-			if scanSkipDirs[info.Name()] {
+		if d.IsDir() {
+			if scanSkipDirs[d.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
 		// Only keep .md files.
-		if !strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
+		if !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
 			return nil
 		}
 
@@ -377,7 +378,7 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 		// Skip top-level documentation files that are not book content.
 		// Keep README.md files inside subdirectories as chapter entry files.
 		if filepath.Dir(relPath) == "." {
-			baseLower := strings.ToLower(info.Name())
+			baseLower := strings.ToLower(d.Name())
 			if baseLower == "readme.md" || baseLower == "changelog.md" ||
 				baseLower == "contributing.md" || baseLower == "license.md" {
 				return nil

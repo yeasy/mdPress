@@ -389,9 +389,19 @@ func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string,
 		if err != nil {
 			return fmt.Errorf("chapter %s: invalid path: %w", label, err)
 		}
+		// Resolve symlinks so that a symlink inside the project pointing
+		// outside cannot bypass the containment check. Only apply symlink
+		// resolution when both paths resolve successfully to keep them at
+		// the same "resolution level".
 		absBase, err := filepath.Abs(c.baseDir)
 		if err != nil {
 			return fmt.Errorf("chapter %s: cannot resolve base dir: %w", label, err)
+		}
+		if evaledR, errR := filepath.EvalSymlinks(absResolved); errR == nil {
+			if evaledB, errB := filepath.EvalSymlinks(absBase); errB == nil {
+				absResolved = evaledR
+				absBase = evaledB
+			}
 		}
 		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
 			return fmt.Errorf("chapter %s: path escapes project directory: %s", label, ch.File)

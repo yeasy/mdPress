@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -52,17 +53,22 @@ func (c *wsClient) writeMessage(msgType int, data []byte) error {
 
 // buildWSMessage constructs a WebSocket JSON message with timestamp.
 func buildWSMessage(msgType string) []byte {
-	return []byte(fmt.Sprintf(`{"type":"%s","timestamp":%d}`, msgType, time.Now().UnixMilli()))
+	msg := struct {
+		Type      string `json:"type"`
+		Timestamp int64  `json:"timestamp"`
+	}{Type: msgType, Timestamp: time.Now().UnixMilli()}
+	data, _ := json.Marshal(msg) // only fails on unencodable types; struct is safe
+	return data
 }
 
 // buildWSErrorMessage constructs a build-error WebSocket message with escaped error text.
 func buildWSErrorMessage(errMsg string) ([]byte, error) {
-	// Use json.Marshal to properly escape all special characters
-	escapedBytes, err := json.Marshal(errMsg)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(fmt.Sprintf(`{"type":"%s","timestamp":%d,"error":%s}`, msgTypeBuildErr, time.Now().UnixMilli(), escapedBytes)), nil
+	msg := struct {
+		Type      string `json:"type"`
+		Timestamp int64  `json:"timestamp"`
+		Error     string `json:"error"`
+	}{Type: msgTypeBuildErr, Timestamp: time.Now().UnixMilli(), Error: errMsg}
+	return json.Marshal(msg)
 }
 
 // Server implements the live preview server.
@@ -368,7 +374,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // injectLiveReload injects live-reload JavaScript into HTML responses.
 func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 	// Browser-side script: connect over WebSocket and reload on change.
-	serveInfoJSON, _ := json.Marshal(map[string]string{
+	serveInfoJSON, _ := json.Marshal(map[string]string{ //nolint:errchkjson // map[string]string cannot fail
 		"address":   s.browserURL(),
 		"watchDir":  s.WatchDir,
 		"outputDir": s.OutputDir,
@@ -757,6 +763,11 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 	s.debounceMu.Unlock()
 }
 
+// isSkippedDir reports whether a directory name should be excluded from file watching.
+func isSkippedDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "_book" || name == "vendor"
+}
+
 // watchFilesWithFsnotify uses fsnotify to watch for changes and trigger rebuilds.
 func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	watcher, err := fsnotify.NewWatcher()
@@ -768,14 +779,12 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	defer watcher.Close() //nolint:errcheck
 
 	// Recursively add watched directories.
-	err = filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() {
-			base := filepath.Base(path)
-			// Skip hidden, dependency, and output directories.
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
+		if d.IsDir() {
+			if isSkippedDir(filepath.Base(path)) {
 				return filepath.SkipDir
 			}
 			return watcher.Add(path)
@@ -820,8 +829,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			// Watch newly created directories for recursive monitoring.
 			if event.Op&fsnotify.Create != 0 {
 				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-					base := filepath.Base(event.Name)
-					if !strings.HasPrefix(base, ".") && base != "node_modules" && base != "_book" && base != "vendor" {
+					if !isSkippedDir(filepath.Base(event.Name)) {
 						if addErr := watcher.Add(event.Name); addErr != nil {
 							s.logger.Warn("Failed to watch new directory", slog.String("dir", event.Name), slog.String("error", addErr.Error()))
 						} else {
@@ -876,19 +884,23 @@ func (s *Server) watchFilesPolling(ctx context.Context) {
 
 // scanModTimes records file modification times.
 func (s *Server) scanModTimes(modTimes map[string]time.Time) {
-	if err := filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		base := filepath.Base(path)
-		if info.IsDir() {
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
+		if d.IsDir() {
+			if isSkippedDir(base) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
 		if ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css" {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
 			modTimes[path] = info.ModTime()
 		}
 		return nil
@@ -903,19 +915,23 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) (bool, string) {
 	changedFile := ""
 	newModTimes := make(map[string]time.Time)
 
-	if err := filepath.Walk(s.WatchDir, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		base := filepath.Base(path)
-		if info.IsDir() {
-			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
+		if d.IsDir() {
+			if isSkippedDir(base) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
 		if ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css" {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
 			newModTimes[path] = info.ModTime()
 			if prevTime, ok := modTimes[path]; !ok || !prevTime.Equal(info.ModTime()) {
 				changed = true

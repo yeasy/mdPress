@@ -238,7 +238,7 @@ mdpress serve https://github.com/yeasy/agentic_ai_guide
 
 ## 内置主题
 
-mdPress 自带三款主题。用 `mdpress themes preview` 预览全部：
+mdPress 自带三款主题。用 `mdpress themes list` 查看：
 
 ```
 $ mdpress themes list
