@@ -7,8 +7,7 @@
 mdPress 支持多种配置文件格式。它按这个顺序搜索：
 
 1. `book.yaml`（推荐）
-2. `book.json`
-3. `book.toml`
+2. `book.json`（GitBook 兼容）
 
 只需其中一个。在项目根目录创建文件：
 
@@ -27,7 +26,6 @@ book:
   author: 张三
   description: 我的产品使用综合指南
   language: en
-  direction: ltr
 ```
 
 在 `book.json` 中：
@@ -38,8 +36,7 @@ book:
     "title": "我的文档",
     "author": "张三",
     "description": "综合指南",
-    "language": "en",
-    "direction": "ltr"
+    "language": "en"
   }
 }
 ```
@@ -49,7 +46,6 @@ book:
 - `author` —— 文档元数据
 - `description` —— 用于搜索引擎和社交媒体
 - `language` —— 语言代码（en、fr、es 等）
-- `direction` —— 文本方向：`ltr`（从左到右）或 `rtl`（从右到左）
 
 ## 章节和结构
 
@@ -57,13 +53,13 @@ book:
 
 ```yaml
 chapters:
-  - path: README.md
-  - path: chapters/chapter1.md
-  - path: chapters/chapter2.md
-    chapters:
-      - path: chapters/chapter2/section1.md
-      - path: chapters/chapter2/section2.md
-  - path: chapters/chapter3.md
+  - file: README.md
+  - file: chapters/chapter1.md
+  - file: chapters/chapter2.md
+    sections:
+      - file: chapters/chapter2/section1.md
+      - file: chapters/chapter2/section2.md
+  - file: chapters/chapter3.md
 ```
 
 或使用 `SUMMARY.md`（对大多数项目推荐）。如果两者都存在，`SUMMARY.md` 优先。
@@ -74,21 +70,21 @@ chapters:
 
 ```yaml
 style:
-  theme: light
+  theme: technical
   page_size: A4
   font_family: "Segoe UI, system-ui, sans-serif"
-  font_size: 16
+  font_size: "16pt"
   code_theme: monokai
   line_height: 1.6
-  margins:
-    top: 20mm
-    bottom: 20mm
-    left: 20mm
-    right: 20mm
+  margin:
+    top: "20mm"
+    bottom: "20mm"
+    left: "20mm"
+    right: "20mm"
   header:
-    left: 第 {chapter_num} 章
-    center: 我的文档
-    right: 第 {page_num} 页
+    left: "{{.Book.Title}}"
+    center: ""
+    right: "{{.PageNum}}"
   footer:
     left: ""
     center: ""
@@ -99,13 +95,13 @@ style:
 ### 主题选项
 
 可用主题：
-- `light` —— 清爽的浅色背景（默认）
-- `dark` —— 深色背景，适合低光环境
-- `auto` —— 跟随系统偏好设置
+- `technical` —— 适合技术文档（默认）
+- `elegant` —— 优雅风格，适合长篇写作
+- `minimal` —— 极简风格，适合团队手册
 
 ```yaml
 style:
-  theme: light
+  theme: technical
 ```
 
 ### 页面大小
@@ -114,17 +110,14 @@ style:
 - `A4` —— 标准（210 × 297 mm）
 - `A5` —— A4 的一半
 - `Letter` —— 美国信纸（8.5 × 11 英寸）
-- `Custom` —— 自定义宽度和高度
+- `B5` —— B5 纸张尺寸
+- `Legal` —— 美国法律纸（8.5 × 14 英寸）
 
 ```yaml
 style:
   page_size: A4
 
-# 或自定义：
-style:
-  page_size: Custom
-  page_width: 200mm
-  page_height: 280mm
+# 支持的页面尺寸：A4、Letter、A5、B5、Legal
 ```
 
 ### 字体配置
@@ -134,20 +127,10 @@ style:
 ```yaml
 style:
   font_family: "Georgia, serif"
-  font_size: 14
-  code_font: "Monaco, monospace"
-  code_font_size: 13
+  font_size: "14pt"
 ```
 
-使用系统字体或网络安全字体。对于嵌入字体，在 assets 中放置 `.ttf` 或 `.woff2` 文件并参考：
-
-```yaml
-style:
-  font_family: "CustomFont"
-  custom_fonts:
-    - name: CustomFont
-      path: assets/fonts/custom.ttf
-```
+使用系统字体或网络安全字体。
 
 ### 代码高亮主题
 
@@ -175,11 +158,11 @@ style:
 ```yaml
 style:
   line_height: 1.6        # 1.0-2.0，影响可读性
-  margins:
-    top: 25mm
-    bottom: 25mm
-    left: 20mm
-    right: 20mm
+  margin:
+    top: "25mm"
+    bottom: "25mm"
+    left: "20mm"
+    right: "20mm"
 ```
 
 ### 页眉和页脚
@@ -189,23 +172,20 @@ style:
 ```yaml
 style:
   header:
-    left: 第 {chapter_num} 章
-    center: {title}
+    left: "{{.Book.Title}}"
+    center: ""
     right: ""
   footer:
     left: ""
-    center: 第 {page_num} 页
-    right: {date}
+    center: "{{.PageNum}}"
+    right: "{{.Chapter.Title}}"
 ```
 
 可用变量：
-- `{title}` —— 书籍标题
-- `{author}` —— 书籍作者
-- `{page_num}` —— 当前页码
-- `{total_pages}` —— 总页数
-- `{chapter_num}` —— 当前章节号
-- `{date}` —— 构建日期
-- `{time}` —— 构建时间
+- `{{.Book.Title}}` —— 书籍标题
+- `{{.Book.Author}}` —— 书籍作者
+- `{{.Chapter.Title}}` —— 当前章节标题
+- `{{.PageNum}}` —— 当前页码
 
 ### 自定义 CSS
 
@@ -246,12 +226,11 @@ output:
     - pdf
     - epub
   toc: true
-  toc_depth: 3
+  toc_max_depth: 3
   cover: true
   watermark: ""
   pdf_timeout: 300
-  bookmarks: true
-  minify: false
+  generate_bookmarks: true
 ```
 
 ### 格式
@@ -273,7 +252,7 @@ output:
 ```yaml
 output:
   toc: true                    # 生成目录
-  toc_depth: 3                 # 包含到第 3 级的标题
+  toc_max_depth: 3                 # 包含到第 3 级的标题
 ```
 
 ### 封面页
@@ -283,7 +262,10 @@ output:
 ```yaml
 output:
   cover: true                  # 生成封面
-  cover_image: assets/cover.png  # 可选自定义封面图像
+
+book:
+  cover:
+    image: assets/cover.png    # 可选自定义封面图像
 ```
 
 ### 水印
@@ -312,19 +294,10 @@ output:
 
 ```yaml
 output:
-  bookmarks: true             # 启用 PDF 大纲/书签
+  generate_bookmarks: true    # 启用 PDF 大纲/书签
 ```
 
 书签允许读者通过 PDF 查看器导航。
-
-### 最小化
-
-最小化 HTML 和 CSS 以减小输出大小：
-
-```yaml
-output:
-  minify: true
-```
 
 ## 插件配置
 
@@ -332,9 +305,10 @@ output:
 
 ```yaml
 plugins:
-  - mermaid                    # 图表支持
-  - mathjax                    # 数学方程
-  - highlighting               # 代码高亮
+  - name: word-count
+    path: ./plugins/word-count
+    config:
+      warn_threshold: 500
 ```
 
 可用插件取决于你的 mdPress 安装。
@@ -351,24 +325,24 @@ book:
   language: en
 
 style:
-  theme: light
+  theme: technical
   page_size: A4
   font_family: "Segoe UI, system-ui, sans-serif"
-  font_size: 15
+  font_size: "15pt"
   code_theme: monokai
   line_height: 1.6
-  margins:
-    top: 20mm
-    bottom: 20mm
-    left: 20mm
-    right: 20mm
+  margin:
+    top: "20mm"
+    bottom: "20mm"
+    left: "20mm"
+    right: "20mm"
   header:
-    left: 第 {chapter_num} 章
+    left: "{{.Book.Title}}"
     center: ""
-    right: 第 {page_num} 页
+    right: "{{.PageNum}}"
   footer:
     left: ""
-    center: {title}
+    center: "{{.Chapter.Title}}"
     right: "© 2026 张开发者"
   custom_css: custom.css
 
@@ -378,14 +352,10 @@ output:
     - pdf
     - epub
   toc: true
-  toc_depth: 3
+  toc_max_depth: 3
   cover: true
   pdf_timeout: 300
-  bookmarks: true
-  minify: false
-
-plugins:
-  - mermaid
+  generate_bookmarks: true
 ```
 
 ## 配置继承
@@ -419,12 +389,12 @@ mdpress serve
 ```yaml
 # ✓ 正确
 style:
-  theme: light
+  theme: technical
   font_size: 16
 
 # ✗ 错误 - 缩进不一致
 style:
-  theme: light
+  theme: technical
     font_size: 16
 ```
 

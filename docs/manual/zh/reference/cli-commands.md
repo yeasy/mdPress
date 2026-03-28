@@ -15,7 +15,6 @@ mdpress [global-flags] <command> [command-flags]
 | `--config <path>` | `book.yaml` | 配置文件路径 |
 | `--cache-dir <path>` | OS 默认 | 覆盖缓存目录位置 |
 | `--no-cache` | off | 禁用所有缓存；强制完全重建 |
-| `--summary <path>` | 自动检测 | SUMMARY.md 文件路径 |
 | `-v, --verbose` | off | 启用详细输出和调试日志 |
 | `-q, --quiet` | off | 仅打印错误；抑制信息消息 |
 | `--help` | — | 显示命令帮助并退出 |
@@ -55,9 +54,12 @@ mdpress build [source] [flags]
 
 | 标志 | 默认值 | 描述 |
 |------|---------|-------------|
-| `--format <format>` | pdf | 输出格式：`pdf`、`html`、`epub`、`site`、`typst` |
+| `--format <format>` | pdf | 输出格式：`pdf`、`html`、`site`、`epub`、`typst` |
 | `--output <file>` | 自动 | 输出文件名或目录 |
 | `--config <path>` | book.yaml | 配置文件路径 |
+| `--branch <name>` | — | Git 分支名称（仅限 GitHub 源） |
+| `--subdir <path>` | — | 源中的子目录 |
+| `--summary <path>` | 自动检测 | SUMMARY.md 文件路径 |
 
 ### 示例
 
@@ -66,7 +68,7 @@ mdpress build [source] [flags]
 mdpress build
 
 # 构建多种格式
-mdpress build --format pdf --format html --format epub
+mdpress build --format pdf,html,epub
 
 # 以 HTML 格式构建（最快）
 mdpress build --format html
@@ -105,7 +107,7 @@ mdpress build --verbose
 | `html` | 单个 HTML 文件 | `./output.html` |
 | `site` | 网站目录 | `./_book/` |
 | `epub` | 电子书文件 | `./output.epub` |
-| `typst` | Typst 源代码 | `./output.typ` |
+| `typst` | 通过 Typst CLI 生成的 PDF | `./output-typst.pdf` |
 
 ## serve
 
@@ -126,7 +128,9 @@ mdpress serve [source] [flags]
 | 标志 | 默认值 | 描述 |
 |------|---------|-------------|
 | `--port <port>` | 9000 | HTTP 服务器端口 |
-| `--format <format>` | html | 预览格式：`html`、`site` |
+| `--host <address>` | 127.0.0.1 | HTTP 监听地址 |
+| `--output <path>` | _book | 输出目录 |
+| `--summary <path>` | 自动检测 | SUMMARY.md 文件路径 |
 | `--config <path>` | book.yaml | 配置文件路径 |
 | `--open` | off | 自动打开浏览器 |
 
@@ -142,8 +146,8 @@ mdpress serve --port 3000
 # 自动打开浏览器
 mdpress serve --open
 
-# 预览网站格式
-mdpress serve --format site
+# 预览网站
+mdpress serve
 
 # 监视特定目录
 mdpress serve ./docs
@@ -159,7 +163,7 @@ mdpress serve --config docs/book.yaml --open
 - **增量构建**：仅重建已更改的章节
 - **快速反馈**：HTML 预览最快（1-2 秒）
 
-在以下地址访问：http://localhost:9000
+在以下地址访问：http://127.0.0.1:9000
 
 ## init
 
@@ -177,7 +181,9 @@ mdpress init [directory] [flags]
 
 ### 标志
 
-无
+| 标志 | 默认值 | 描述 |
+|------|---------|-------------|
+| `-i, --interactive` | off | 启用交互式提示 |
 
 ### 示例
 
@@ -258,7 +264,9 @@ mdpress validate [directory] [flags]
 
 ### 标志
 
-无
+| 标志 | 默认值 | 描述 |
+|------|---------|-------------|
+| `--report <path>` | — | 将验证报告写入 .json 或 .md 文件 |
 
 ### 示例
 
@@ -307,7 +315,7 @@ mdpress doctor [directory] [flags]
 
 | 标志 | 默认值 | 描述 |
 |------|---------|-------------|
-| `--report <format>` | text | 输出格式：`text`、`json`、`markdown` |
+| `--report <path>` | — | 将诊断报告写入 .json 或 .md 文件 |
 
 ### 示例
 
@@ -316,10 +324,10 @@ mdpress doctor [directory] [flags]
 mdpress doctor
 
 # 生成 JSON 报告
-mdpress doctor --report json > report.json
+mdpress doctor --report report.json
 
 # 生成 Markdown 报告
-mdpress doctor --report markdown > report.md
+mdpress doctor --report report.md
 
 # 检查特定项目
 mdpress doctor ./docs
@@ -611,19 +619,16 @@ mdpress build https://github.com/org/private-repo
 
 需要 `contents:read` 范围。
 
-### XDG_CACHE_HOME
+### MDPRESS_CACHE_DIR
 
-覆盖缓存目录位置（Linux/macOS）：
+覆盖缓存目录位置：
 
 ```bash
-export XDG_CACHE_HOME=/tmp/cache
+export MDPRESS_CACHE_DIR=/path/to/custom/cache
 mdpress build --format pdf
 ```
 
-默认位置：
-- Linux：`~/.cache/mdpress/`
-- macOS：`~/Library/Caches/mdpress/`
-- Windows：`%USERPROFILE%\AppData\Local\mdpress\`
+默认位置为操作系统临时目录下的 `mdpress-cache` 子目录（例如 `/tmp/mdpress-cache`）。也可以通过 `--cache-dir` 标志覆盖。
 
 ## 退出代码
 

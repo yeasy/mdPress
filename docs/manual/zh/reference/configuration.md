@@ -413,7 +413,7 @@ output:
 在一次构建中生成多种格式：
 
 ```bash
-mdpress build --format pdf --format html --format epub
+mdpress build --format pdf,html,epub
 ```
 
 ### output.filename

@@ -47,7 +47,7 @@ my-documentation/
 - [用户指南](chapters/guide/index.md)
 ```
 
-mdPress 如果没有显式列出，会自动将 README.md 包含在 SUMMARY.md 中。
+mdPress 在扫描书籍内容时会跳过顶层的 README.md（将其视为项目文档，而非书籍章节）。如需将其包含在书籍中，请在 SUMMARY.md 中显式列出。
 
 ### SUMMARY.md
 
@@ -81,10 +81,10 @@ book:
   description: 简短描述
 
 style:
-  theme: light
+  theme: technical
 ```
 
-mdPress 也接受 `book.json` 或 `book.toml`。如果没有配置文件，mdPress 使用合理的默认值（零配置模式）。
+mdPress 也接受 `book.json`（用于 GitBook 兼容）。如果没有配置文件，mdPress 使用合理的默认值（零配置模式）。
 
 ## 资源目录
 

@@ -12,7 +12,7 @@ cd my-book
 mdpress serve --open
 ```
 
-这会创建一个可用的项目，包含示例内容和配置。你的浏览器会自动打开 http://localhost:9000。
+这会创建一个可用的项目，包含示例内容和配置。你的浏览器会自动打开 http://127.0.0.1:9000。
 
 在首次构建之前，建议验证你的环境是否就绪：
 
@@ -108,7 +108,7 @@ my-documentation/
 mdpress serve
 ```
 
-默认情况下，你的网站在 http://localhost:9000 可用。当你修改文件时，浏览器会自动重新加载。
+默认情况下，你的网站在 http://127.0.0.1:9000 可用。当你修改文件时，浏览器会自动重新加载。
 
 自动打开浏览器：
 
@@ -154,13 +154,13 @@ mdpress build --format epub
 
 ### 构建多种格式
 
-一次性构建所有格式：
+一次性构建多种格式：
 
 ```bash
-mdpress build
+mdpress build --format pdf,html,epub
 ```
 
-这会生成 HTML 网站、PDF 和 EPUB（如果可用）。
+这会同时生成 PDF、HTML 和 EPUB 格式的文档。
 
 ## 理解命令
 
@@ -175,7 +175,6 @@ mdpress serve [OPTIONS]
 可用选项：
 - `--open` —— 自动打开浏览器
 - `--port <PORT>` —— 使用自定义端口（默认：9000）
-- `--watch` —— 监视文件变化并重建（默认：启用）
 - `--no-cache` —— 在开发时禁用缓存
 
 服务器监视所有源文件，当你保存变化时立即重建。
@@ -189,9 +188,8 @@ mdpress build [OPTIONS]
 ```
 
 可用选项：
-- `--format <FORMAT>` —— 输出格式：`site`、`pdf`、`epub`、`html`
+- `--format <FORMAT>` —— 输出格式：`pdf`、`html`、`site`、`epub`、`typst`
 - `--output <PATH>` —— 输出目录（默认：`_book`）
-- `--minify` —— 最小化 HTML 和 CSS 以减小文件大小
 - `--no-cache` —— 禁用缓存
 
 ## 后续步骤

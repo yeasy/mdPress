@@ -64,6 +64,8 @@ flowchart TD
 | `-v, --verbose` | 关闭 | 输出更详细的日志和逐条警告。 |
 | `-q, --quiet` | 关闭 | 只输出错误信息。 |
 
+`--output <path>` 可在 `build` 和 `serve` 中使用（不是全局参数）。
+
 注意：
 
 - 如果同时传入 `--quiet` 和 `--verbose`，当前实现以 `--quiet` 为准。
@@ -101,7 +103,7 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 - `build` 如果没有显式传 `--format`，会先读取 `output.formats`。
 - 如果配置里也没有 `output.formats`，默认构建 `pdf`。
-- 特殊值 `--format all` 会构建所有支持的格式（site、PDF、HTML 和 ePub）。
+- 特殊值 `--format all` 会构建所有支持的格式（pdf、html、site、epub、typst）。
 - 默认输出文件名根据书籍标题自动生成（文件系统不安全字符会被替换）。如果标题为空或为 "Untitled Book"，则使用项目目录名。你可以通过 `output.filename` 手动覆盖。
 - `serve` 默认把预览产物写到项目目录下的 `_book/`。
 
@@ -118,7 +120,7 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `output.watermark` | — | 叠加在 PDF 页面上的文本或图片。示例：`"DRAFT"`、`"CONFIDENTIAL"`、或图片文件路径。 |
+| `output.watermark` | — | 叠加在 PDF 页面上的文本。示例：`"DRAFT"`、`"CONFIDENTIAL"`。 |
 | `output.watermark_opacity` | `0.1` | 水印透明度（0.0–1.0）。数值越小越透明。 |
 
 ### PDF 页边距

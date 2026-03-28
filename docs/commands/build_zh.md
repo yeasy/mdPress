@@ -38,8 +38,9 @@ mdpress build [source] [flags]
 `build` 的配置加载优先级如下：
 
 1. `book.yaml`
-2. `SUMMARY.md`
-3. 自动扫描 `.md` 文件
+2. `book.json`（GitBook 兼容）
+3. `SUMMARY.md`
+4. 自动扫描 `.md` 文件
 
 如果你没有提供 `[source]`，命令默认从当前目录工作。
 
@@ -55,7 +56,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - 传入 `--format` 时，命令行值会覆盖配置文件中的 `output.formats`
 - 不传 `--format` 时，优先使用 `output.formats`
 - 如果两者都没有设置，默认构建 `pdf`
-- `--format all` 展开为 `pdf,html,site,epub`，**不**包含 `typst`。如需 Typst 输出，请显式指定（例如 `--format all,typst` 或 `--format pdf,html,site,epub,typst`）。
+- `--format all` 展开为 `pdf,html,site,epub,typst`。
 
 ### `--output` 的行为
 

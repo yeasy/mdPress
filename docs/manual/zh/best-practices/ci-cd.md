@@ -303,7 +303,7 @@ export MDPRESS_CHROME_PATH=/usr/bin/chromium
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 
 # 缓存目录位置
-export XDG_CACHE_HOME=/tmp/cache
+export MDPRESS_CACHE_DIR=/tmp/mdpress-cache
 ```
 
 ### 安装 Chrome 用于 PDF 渲染

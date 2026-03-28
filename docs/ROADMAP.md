@@ -446,7 +446,7 @@ v0.6.2 is a security-focused release that hardens the preview server, upgrade co
 | --- | --- |
 | validate command | Documented the `--report` flag |
 | completion command | Corrected `--no-descriptions` support from `bash`/`zsh` to `bash`/`fish` |
-| build command | Noted that `--format all` excludes `typst` |
+| build command | Documented that `--format all` expands to `pdf,html,site,epub,typst` |
 | upgrade command | Removed fabricated exit codes section |
 
 ---
