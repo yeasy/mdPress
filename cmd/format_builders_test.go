@@ -5,19 +5,19 @@ import (
 )
 
 func TestFormatBuilderRegistryRegistersDefaults(t *testing.T) {
-	registry := NewFormatBuilderRegistry()
+	registry := newFormatBuilderRegistry()
 
-	expectedFormats := []string{"pdf", "html", "site", "epub"}
+	expectedFormats := []string{"pdf", "html", "site", "epub", "typst"}
 
 	for _, format := range expectedFormats {
 		if builder := registry.Get(format); builder == nil {
-			t.Errorf("NewFormatBuilderRegistry() missing default format: %s", format)
+			t.Errorf("newFormatBuilderRegistry() missing default format: %s", format)
 		}
 	}
 }
 
 func TestFormatBuilderRegistryGet(t *testing.T) {
-	registry := NewFormatBuilderRegistry()
+	registry := newFormatBuilderRegistry()
 
 	builder := registry.Get("unknown_format")
 	if builder != nil {
@@ -26,7 +26,7 @@ func TestFormatBuilderRegistryGet(t *testing.T) {
 }
 
 func TestFormatBuilderNames(t *testing.T) {
-	registry := NewFormatBuilderRegistry()
+	registry := newFormatBuilderRegistry()
 
 	tests := []struct {
 		format       string
@@ -36,6 +36,7 @@ func TestFormatBuilderNames(t *testing.T) {
 		{"html", "html"},
 		{"site", "site"},
 		{"epub", "epub"},
+		{"typst", "typst"},
 	}
 
 	for _, tt := range tests {
@@ -54,7 +55,7 @@ func TestFormatBuilderNames(t *testing.T) {
 }
 
 func TestFormatBuilderRegistryCustomBuilder(t *testing.T) {
-	registry := NewFormatBuilderRegistry()
+	registry := newFormatBuilderRegistry()
 
 	customBuilder := &mockFormatBuilder{name: "custom"}
 	registry.Register(customBuilder)
@@ -69,7 +70,7 @@ func TestFormatBuilderRegistryCustomBuilder(t *testing.T) {
 	}
 }
 
-// mockFormatBuilder is a mock implementation of FormatBuilder for testing.
+// mockFormatBuilder is a mock implementation of formatBuilder for testing.
 type mockFormatBuilder struct {
 	name string
 }
@@ -78,6 +79,6 @@ func (m *mockFormatBuilder) Name() string {
 	return m.name
 }
 
-func (m *mockFormatBuilder) Build(ctx *BuildContext, baseName string) error {
+func (m *mockFormatBuilder) Build(ctx *buildContext, baseName string) error {
 	return nil
 }

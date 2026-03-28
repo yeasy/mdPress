@@ -40,7 +40,8 @@ func TestRenderTypstDocument_BasicMetadata(t *testing.T) {
 				"2026-03-21",
 				"Version 1.0.0",
 				"= Introduction",
-				"paper: \"210mm-x-297mm\"",
+				"width: 210mm",
+				"height: 297mm",
 				"lang: \"en\"",
 				"size: 12pt",
 			},
@@ -422,9 +423,104 @@ func TestRenderTypstDocument_AllPageSizes(t *testing.T) {
 				t.Fatalf("renderTypstDocument failed: %v", err)
 			}
 
-			expectedDimensions := `"` + w + `-x-` + h + `"`
-			if !strings.Contains(result, expectedDimensions) {
-				t.Errorf("Expected dimensions %s not found in output", expectedDimensions)
+			if !strings.Contains(result, "width: "+w) {
+				t.Errorf("Expected width: %s not found in output", w)
+			}
+			if !strings.Contains(result, "height: "+h) {
+				t.Errorf("Expected height: %s not found in output", h)
+			}
+		})
+	}
+}
+
+func TestSanitizeTypstText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain text unchanged", "Hello world", "Hello world"},
+		{"backslash escaped", `a\b`, `a\\b`},
+		{"hash escaped", "# Heading", `\# Heading`},
+		{"dollar escaped", "$math$", `\$math\$`},
+		{"equals escaped", "a=b", `a\=b`},
+		{"at sign escaped", "user@host", `user\@host`},
+		{"less than escaped", "a<b", `a\<b`},
+		{"greater than escaped", "a>b", `a\>b`},
+		{"underscore escaped", "_italic_", `\_italic\_`},
+		{"asterisk escaped", "**bold**", `\*\*bold\*\*`},
+		{"go template open stripped", "{{inject}}", "inject"},
+		{"go template close stripped", "prefix}}", "prefix"},
+		{"empty string", "", ""},
+		{"injection attempt stripped", "{{#import bad}}", `\#import bad`},
+		{"multiple specials", "#$@", `\#\$\@`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeTypstText(tt.input)
+			if got != tt.expected {
+				t.Errorf("sanitizeTypstText(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSanitizeTemplateValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain value unchanged", "210mm", "210mm"},
+		{"open delimiter stripped", "{{bad", "bad"},
+		{"close delimiter stripped", "bad}}", "bad"},
+		{"both delimiters stripped", "{{evil}}", "evil"},
+		{"nested injection stripped", "{{{{double}}}}", "double"},
+		{"empty string", "", ""},
+		{"normal dimension", "25mm", "25mm"},
+		{"no delimiters", "1.5em", "1.5em"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeTemplateValue(tt.input)
+			if got != tt.expected {
+				t.Errorf("sanitizeTemplateValue(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSanitizeDimension(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		fallback string
+		expected string
+	}{
+		{"valid mm", "210mm", "10mm", "210mm"},
+		{"valid cm", "2.5cm", "10mm", "2.5cm"},
+		{"valid in", "1in", "10mm", "1in"},
+		{"valid pt", "12pt", "10mm", "12pt"},
+		{"valid em", "1.5em", "10mm", "1.5em"},
+		{"decimal mm", "25.4mm", "10mm", "25.4mm"},
+		{"leading whitespace trimmed", " 20mm", "10mm", "20mm"},
+		{"trailing whitespace trimmed", "20mm ", "10mm", "20mm"},
+		{"invalid empty", "", "10mm", "10mm"},
+		{"invalid word", "invalid", "10mm", "10mm"},
+		{"invalid px unit", "12px", "10mm", "10mm"},
+		{"template injection", "{{evil}}mm", "10mm", "10mm"},
+		{"negative not allowed", "-5mm", "10mm", "10mm"},
+		{"bare number no unit", "210", "10mm", "10mm"},
+		{"valid uses fallback when invalid", "notadimension", "297mm", "297mm"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeDimension(tt.input, tt.fallback)
+			if got != tt.expected {
+				t.Errorf("sanitizeDimension(%q, %q) = %q, want %q", tt.input, tt.fallback, got, tt.expected)
 			}
 		})
 	}

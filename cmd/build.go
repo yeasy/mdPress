@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -48,6 +47,7 @@ Output formats:
   html  - Self-contained single-page HTML
   site  - Multi-page static site
   epub  - ePub ebook
+  typst - Experimental PDF via Typst CLI
 
 Zero-config mode:
   If neither book.yaml nor SUMMARY.md exists, mdpress auto-discovers .md files.
@@ -73,7 +73,7 @@ Examples:
 }
 
 func init() {
-	buildCmd.Flags().StringVar(&buildFormat, "format", "", "Output formats, comma-separated (pdf,html,site,epub) or 'all'")
+	buildCmd.Flags().StringVar(&buildFormat, "format", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
 	buildCmd.Flags().StringVar(&buildOutput, "output", "", "Output file path, directory, or filename prefix")
@@ -86,20 +86,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		ctx = context.Background()
 	}
 
-	// Set log level based on quiet/verbose flags:
-	//   --quiet: errors only
-	//   --verbose: debug output
-	//   default: info and above
-	logLevel := slog.LevelInfo
-	switch {
-	case quiet:
-		logLevel = slog.LevelError
-	case verbose:
-		logLevel = slog.LevelDebug
-	}
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	logger := initLogger()
 
 	// ========== 1. Resolve the input source ==========
 	var workDir string
@@ -119,13 +106,13 @@ func executeBuild(ctx context.Context, inputSource string) error {
 			}
 		}()
 
-		logger.Info("Preparing build source", slog.String("type", src.Type()), slog.String("source", inputSource))
+		logger.Info("preparing build source", slog.String("type", src.Type()), slog.String("source", inputSource))
 
 		workDir, err = src.Prepare()
 		if err != nil {
 			return fmt.Errorf("failed to prepare source directory: %w", err)
 		}
-		logger.Info("Source directory is ready", slog.String("dir", workDir))
+		logger.Info("source directory is ready", slog.String("dir", workDir))
 	} else {
 		// Default to the current directory.
 		workDir = "."
@@ -151,7 +138,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		logger.Info("Loaded configuration from file", slog.String("config", configPath))
+		logger.Info("loaded configuration from file", slog.String("config", configPath))
 	} else {
 		// Zero-config mode: auto-discover Markdown files.
 		targetDir := workDir
@@ -162,14 +149,14 @@ func executeBuild(ctx context.Context, inputSource string) error {
 				return fmt.Errorf("failed to resolve current directory: %w", err)
 			}
 		}
-		logger.Info("Zero-config mode: auto-discovering Markdown files", slog.String("dir", targetDir))
+		logger.Info("zero-config mode: auto-discovering Markdown files", slog.String("dir", targetDir))
 		cfg, err = config.Discover(ctx, targetDir)
 		if err != nil {
 			return fmt.Errorf("auto-discovery failed: %w (try running 'mdpress init' to create a config)", err)
 		}
 	}
 
-	logger.Info("Configuration loaded",
+	logger.Info("configuration loaded",
 		slog.String("title", cfg.Book.Title),
 		slog.String("author", cfg.Book.Author),
 		slog.Int("chapters", len(cfg.Chapters)))
@@ -185,7 +172,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 			return fmt.Errorf("failed to parse SUMMARY.md: %w", err)
 		}
 		cfg.Chapters = chapters
-		logger.Info("Loaded chapters from SUMMARY.md", slog.String("path", summaryPath), slog.Int("chapters", len(chapters)))
+		logger.Info("loaded chapters from SUMMARY.md", slog.String("path", summaryPath), slog.Int("chapters", len(chapters)))
 	}
 
 	// ========== 3. Resolve output formats ==========
@@ -202,7 +189,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	expandedFormats := make([]string, 0, len(formats))
 	for _, f := range formats {
 		if f == "all" {
-			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub")
+			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub", "typst")
 		} else {
 			expandedFormats = append(expandedFormats, f)
 		}
@@ -212,7 +199,19 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		formats = []string{"pdf"}
 	}
 
-	logger.Info("Starting build", slog.Any("formats", formats))
+	// Validate format names when specified via CLI flag.
+	if buildFormat != "" {
+		validFormats := map[string]bool{
+			"pdf": true, "html": true, "site": true, "epub": true, "typst": true,
+		}
+		for _, f := range formats {
+			if !validFormats[f] {
+				return fmt.Errorf("unsupported format %q (supported: pdf, html, site, epub, typst)", f)
+			}
+		}
+	}
+
+	logger.Info("starting build", slog.Any("formats", formats))
 
 	outputOverride, err := resolveRequestedBuildOutput(buildOutput)
 	if err != nil {
@@ -222,29 +221,13 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	if cfg.LangsFile != "" {
 		langs, langsErr := i18n.ParseLangsFile(cfg.LangsFile)
 		if langsErr != nil {
-			logger.Warn("Failed to parse LANGS.md, continuing as a single-language project", slog.String("error", langsErr.Error()))
+			logger.Warn("failed to parse LANGS.md, continuing as a single-language project", slog.String("error", langsErr.Error()))
 		} else if len(langs) > 0 {
 			return executeMultilingualBuild(ctx, workDir, langs, formats, outputOverride, logger)
 		}
 	}
 
 	return executeBuildForConfig(ctx, cfg, formats, outputOverride, logger)
-}
-
-// getPageDimensions returns page dimensions in millimeters from a size name.
-func getPageDimensions(size string) (width, height float64) {
-	switch strings.ToUpper(size) {
-	case "A5":
-		return 148, 210
-	case "LETTER":
-		return 216, 279
-	case "LEGAL":
-		return 216, 356
-	case "B5":
-		return 176, 250
-	default: // A4
-		return 210, 297
-	}
 }
 
 func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
