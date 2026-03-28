@@ -125,19 +125,3 @@ func TestFontServer(t *testing.T) {
 		t.Errorf("baseURL should start with http://127.0.0.1:, got %q", srv.baseURL)
 	}
 }
-
-// TestPageSizeAndMarginConstants tests that page size constants are correct
-func TestPageSizeAndMarginConstants(t *testing.T) {
-	// A4 dimensions in millimeters
-	if defaultPageWidth != 210 || defaultPageHeight != 297 {
-		t.Errorf("A4 dimensions should be 210x297, got %.0fx%.0f", defaultPageWidth, defaultPageHeight)
-	}
-
-	if defaultMargin != 20 {
-		t.Errorf("Default margin should be 20mm, got %.0f", defaultMargin)
-	}
-
-	if defaultTimeout.String() != "1m0s" {
-		t.Errorf("Default timeout should be 1m0s, got %v", defaultTimeout)
-	}
-}

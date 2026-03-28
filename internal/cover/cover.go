@@ -192,14 +192,18 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	buf.WriteString(`  <div class="cover-page">` + "\n")
 	buf.WriteString(`    <div class="cover-content">` + "\n")
 
-	// Title
+	// Title — use <div> instead of <h1> so Chrome's GenerateDocumentOutline
+	// does not create a PDF bookmark for the cover title. The chapter template
+	// already produces an <h1> for the first chapter; when that chapter's title
+	// matches the book title (common for README/preface), an <h1> here would
+	// create a duplicate bookmark entry.
 	if cg.meta.Title != "" {
-		fmt.Fprintf(&buf, `      <h1 class="cover-title">%s</h1>`+"\n", utils.EscapeHTML(cg.meta.Title))
+		fmt.Fprintf(&buf, `      <div class="cover-title">%s</div>`+"\n", utils.EscapeHTML(cg.meta.Title))
 	}
 
-	// Subtitle
+	// Subtitle — same rationale: keep out of the document outline.
 	if cg.meta.Subtitle != "" {
-		fmt.Fprintf(&buf, `      <h2 class="cover-subtitle">%s</h2>`+"\n", utils.EscapeHTML(cg.meta.Subtitle))
+		fmt.Fprintf(&buf, `      <div class="cover-subtitle">%s</div>`+"\n", utils.EscapeHTML(cg.meta.Subtitle))
 	}
 
 	// Divider

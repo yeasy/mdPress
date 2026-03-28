@@ -116,6 +116,8 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 			return baseTarget + "#" + fragment, true, false
 		}
 		return baseTarget, true, false
+	case ModeSingle: // also handles unknown modes via default
+		fallthrough
 	default:
 		if fragment != "" {
 			return "#" + fragment, true, false

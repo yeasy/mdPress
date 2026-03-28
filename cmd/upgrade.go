@@ -57,6 +57,8 @@ var upgradeHTTPClient = &http.Client{
 	},
 }
 
+const maxBinarySize = 500 << 20 // 500 MB
+
 var upgradeCheckOnly bool
 
 var upgradeCmd = &cobra.Command{
@@ -428,7 +430,6 @@ func downloadBinary(ctx context.Context, url string) ([]byte, error) {
 		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	const maxBinarySize = 500 << 20 // 500 MB
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBinarySize+1))
 	if err != nil {
 		return nil, err
@@ -483,7 +484,6 @@ func extractBinaryFromTarGz(data []byte) ([]byte, error) {
 			continue
 		}
 		if isExpectedBinaryEntry(header.Name) {
-			const maxBinarySize = 500 << 20 // 500 MB
 			data, err := io.ReadAll(io.LimitReader(tr, maxBinarySize+1))
 			if err != nil {
 				return nil, fmt.Errorf("failed to read tar entry: %w", err)
@@ -517,7 +517,6 @@ func extractBinaryFromZip(data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open zip entry: %w", err)
 		}
-		const maxBinarySize = 500 << 20 // 500 MB
 		content, readErr := io.ReadAll(io.LimitReader(reader, maxBinarySize+1))
 		closeErr := reader.Close()
 		if readErr != nil {

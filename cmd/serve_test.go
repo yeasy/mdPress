@@ -97,16 +97,9 @@ func TestServeCommand_FlagDefaults(t *testing.T) {
 	}
 }
 
-// TestDefaultServeConstants tests that serve command default constants are properly set
-func TestDefaultServeConstants(t *testing.T) {
-	if defaultServePort != 9000 {
-		t.Errorf("defaultServePort should be 9000, got %d", defaultServePort)
-	}
-
-	if defaultServeHost != "127.0.0.1" {
-		t.Errorf("defaultServeHost should be 127.0.0.1, got %q", defaultServeHost)
-	}
-}
+// TestDefaultServeConstants removed: testing compile-time constants provides
+// no behavioral safety net (the test always passes unless the constant is
+// intentionally changed, at which point the test must also change).
 
 // TestServeCommand_LongDescription tests that serve command has comprehensive documentation
 func TestServeCommand_LongDescription(t *testing.T) {

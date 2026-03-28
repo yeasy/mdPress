@@ -194,14 +194,16 @@ func writeTypstFile(filePath string, content string) error {
 
 // getPageDimensions returns page width and height in mm as Typst format strings.
 func getPageDimensions(pageSize string) (width, height string) {
-	switch pageSize {
+	switch strings.ToUpper(pageSize) {
 	case "A4":
 		return "210mm", "297mm"
 	case "A5":
 		return "148mm", "210mm"
-	case "Letter":
+	case "B5":
+		return "176mm", "250mm"
+	case "LETTER":
 		return "216mm", "279mm"
-	case "Legal":
+	case "LEGAL":
 		return "216mm", "356mm"
 	default:
 		// Default to A4

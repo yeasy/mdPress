@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -1017,8 +1018,8 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 }
 
 func injectBannerIntoSite(siteDir string, bannerHTML string) error {
-	return filepath.Walk(siteDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
+	return filepath.WalkDir(siteDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
 			return err
 		}
 		return injectBannerIntoOutput(path, bannerHTML)

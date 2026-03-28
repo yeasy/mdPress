@@ -612,7 +612,8 @@ func resolveLocalImagePath(baseDir string, src string) string {
 		return "" // reject absolute paths to prevent reading arbitrary files
 	}
 	resolved := filepath.Clean(filepath.Join(baseDir, src))
-	// Ensure the resolved path stays within baseDir
+	// Ensure the resolved path stays within baseDir.
+	// Use EvalSymlinks to prevent symlink-based containment bypass.
 	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
 		return "" // cannot verify containment; reject
@@ -620,6 +621,14 @@ func resolveLocalImagePath(baseDir string, src string) string {
 	absResolved, err := filepath.Abs(resolved)
 	if err != nil {
 		return "" // cannot verify containment; reject
+	}
+	// Resolve symlinks to prevent containment bypass. Only apply symlink
+	// resolution when both paths can be resolved to keep them comparable.
+	evaledResolved, errR := filepath.EvalSymlinks(absResolved)
+	evaledBase, errB := filepath.EvalSymlinks(absBase)
+	if errR == nil && errB == nil {
+		absResolved = evaledResolved
+		absBase = evaledBase
 	}
 	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
 		// Path escapes baseDir, return empty to prevent traversal
@@ -698,14 +707,18 @@ func checkURLNotPrivate(u *url.URL) error {
 	ips, err := net.DefaultResolver.LookupHost(dnsCtx, host)
 	if err != nil {
 		// DNS resolution failure — block the request to prevent DNS rebinding attacks.
-		return fmt.Errorf("DNS resolution failed for %q: %w", host, err)
+		return fmt.Errorf("dns resolution failed for %q: %w", host, err)
 	}
 	for _, ipStr := range ips {
 		ip := net.ParseIP(ipStr)
 		if ip == nil {
 			continue
 		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		// Check IPv4-mapped IPv6 addresses (e.g., ::ffff:10.0.0.1)
+		if v4 := ip.To4(); v4 != nil {
+			ip = v4
+		}
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return fmt.Errorf("requests to private/internal address %s are not allowed", ipStr)
 		}
 	}

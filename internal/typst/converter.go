@@ -41,12 +41,11 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		line := lines[i]
 
 		// Handle code blocks: triple backticks
-		if strings.HasPrefix(line, "```") {
+		if rest, ok := strings.CutPrefix(line, "```"); ok {
 			if !inCodeBlock {
 				// Start of code block
 				inCodeBlock = true
-				codeBlockLang = strings.TrimPrefix(line, "```")
-				codeBlockLang = strings.TrimSpace(codeBlockLang)
+				codeBlockLang = strings.TrimSpace(rest)
 				codeBlockContent.Reset()
 			} else {
 				// End of code block
@@ -65,19 +64,22 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 			continue
 		}
 
-		// Handle headings
+		// Handle headings (require space after # per Markdown spec)
 		if strings.HasPrefix(line, "#") {
 			level := countLeadingChars(line, '#')
-			heading := strings.TrimSpace(strings.TrimPrefix(line, strings.Repeat("#", level)))
-			if heading != "" {
-				// Convert # to =, ## to ==, etc.
-				typstLevel := strings.Repeat("=", level)
-				result.WriteString(typstLevel)
-				result.WriteString(" ")
-				result.WriteString(c.convertInline(heading))
-				result.WriteString("\n\n")
+			if level <= 6 && len(line) > level && line[level] == ' ' {
+				heading := strings.TrimSpace(line[level+1:])
+				if heading != "" {
+					// Convert # to =, ## to ==, etc.
+					typstLevel := strings.Repeat("=", level)
+					result.WriteString(typstLevel)
+					result.WriteString(" ")
+					result.WriteString(c.convertInline(heading))
+					result.WriteString("\n\n")
+				}
+				continue
 			}
-			continue
+			// Not a valid heading (e.g., #hashtag); fall through to paragraph handling
 		}
 
 		// Handle lists (unordered)
@@ -104,8 +106,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		}
 
 		// Handle blockquotes
-		if strings.HasPrefix(line, "> ") {
-			content := strings.TrimPrefix(line, "> ")
+		if content, ok := strings.CutPrefix(line, "> "); ok {
 			result.WriteString("> ")
 			result.WriteString(c.convertInline(content))
 			result.WriteString("\n")
@@ -152,11 +153,12 @@ func (c *MarkdownToTypstConverter) convertInline(text string) string {
 	// 3. Convert links
 	text = c.convertLinks(text)
 
-	// 4. Convert bold (** or __)
-	text = c.convertBold(text)
-
-	// 5. Convert italic (* or _) - must come after bold
+	// 4. Convert italic (* or _) - must come BEFORE bold so that
+	// single *text* is converted to _text_ before ** is processed.
 	text = c.convertItalic(text)
+
+	// 5. Convert bold (** or __)
+	text = c.convertBold(text)
 
 	return text
 }
@@ -247,51 +249,66 @@ func (c *MarkdownToTypstConverter) convertBold(text string) string {
 	return text
 }
 
-// convertItalic converts *text* or _text_ to _text_
-// This must be called after convertBold to avoid conflicts.
-// Note: We need to be careful not to convert the * in *bold* (which is now *text*).
-// In the result from convertBold, bold is marked as *text*.
-// For single asterisks marking italic, we convert to _.
+// convertItalic converts *text* or _text_ to _text_ (Typst italic).
+// Must be called BEFORE convertBold so that single *text* is distinguished
+// from **text** (bold). Single asterisks are converted to underscores;
+// double asterisks are left for convertBold to handle.
 func (c *MarkdownToTypstConverter) convertItalic(text string) string {
-	// Strategy: Only convert _text_ to _text_ (idempotent), and
-	// single * that are not part of a bold *text* marker.
-	// Since bold has already been processed as *text*, we need to avoid
-	// converting those. The simplest approach: only handle underscore emphasis.
-
-	// For now, simplify: convert single underscores to underscores (already done)
-	// For asterisks, we'll be conservative and only convert them if they're
-	// clearly single emphasis markers (not part of bold).
-
-	// Actually, for PoC, let's use a simpler strategy:
-	// In Typst, both * and _ can be used for emphasis.
-	// For clarity, we'll keep * as-is after bold conversion.
-	// Just handle explicit underscore emphasis.
-
 	var result strings.Builder
 	i := 0
 	for i < len(text) {
-		if text[i] == '_' {
-			// Find closing _
-			closeIdx := strings.Index(text[i+1:], "_")
-			if closeIdx != -1 {
-				closeIdx++ // Adjust for the +1 offset
-				// Bounds check: ensure i+closeIdx is within bounds
-				if i+closeIdx >= len(text) {
+		if text[i] == '*' {
+			// Skip double asterisks (bold markers handled by convertBold)
+			if i+1 < len(text) && text[i+1] == '*' {
+				result.WriteByte('*')
+				result.WriteByte('*')
+				i += 2
+				continue
+			}
+			// Single asterisk: find closing single *
+			closeIdx := strings.Index(text[i+1:], "*")
+			if closeIdx != -1 && closeIdx > 0 {
+				// Ensure closing * is not part of **
+				absClose := i + 1 + closeIdx
+				if absClose+1 < len(text) && text[absClose+1] == '*' {
+					// This * is part of **, skip it
 					result.WriteByte(text[i])
 					i++
 					continue
 				}
-				// Make sure it's not part of __
-				if (i > 0 && text[i-1] == '_') || (i+closeIdx+1 < len(text) && text[i+closeIdx+1] == '_') {
-					result.WriteByte(text[i])
-					i++
-					continue
-				}
-				content := text[i+1 : i+closeIdx]
+				content := text[i+1 : absClose]
 				result.WriteByte('_')
 				result.WriteString(content)
 				result.WriteByte('_')
-				i += closeIdx + 1
+				i = absClose + 1
+			} else {
+				result.WriteByte(text[i])
+				i++
+			}
+		} else if text[i] == '_' {
+			// Handle _text_ (underscore italic)
+			// Skip double underscores (bold markers handled by convertBold)
+			if i+1 < len(text) && text[i+1] == '_' {
+				result.WriteByte('_')
+				result.WriteByte('_')
+				i += 2
+				continue
+			}
+			// Single underscore: find closing _
+			closeIdx := strings.Index(text[i+1:], "_")
+			if closeIdx != -1 && closeIdx > 0 {
+				absClose := i + 1 + closeIdx
+				// Ensure closing _ is not part of __
+				if absClose+1 < len(text) && text[absClose+1] == '_' {
+					result.WriteByte(text[i])
+					i++
+					continue
+				}
+				content := text[i+1 : absClose]
+				result.WriteByte('_')
+				result.WriteString(content)
+				result.WriteByte('_')
+				i = absClose + 1
 			} else {
 				result.WriteByte(text[i])
 				i++

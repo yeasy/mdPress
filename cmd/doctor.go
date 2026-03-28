@@ -578,8 +578,10 @@ func searchPlantUMLInDir(dir string) bool {
 			if err != nil {
 				continue
 			}
-			content, err := io.ReadAll(io.LimitReader(f, maxPlantUMLScanSize))
-			f.Close() //nolint:errcheck
+			content, err := func() ([]byte, error) {
+				defer f.Close() //nolint:errcheck
+				return io.ReadAll(io.LimitReader(f, maxPlantUMLScanSize))
+			}()
 			if err != nil {
 				continue
 			}

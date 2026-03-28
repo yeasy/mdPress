@@ -449,6 +449,11 @@ func TestExtractTitleFrom50LineLimit(t *testing.T) {
 
 func TestSafeJoin(t *testing.T) {
 	base := t.TempDir()
+	// Resolve symlinks on base for prefix comparison (e.g., macOS /var -> /private/var).
+	resolvedBase := base
+	if evaled, err := filepath.EvalSymlinks(base); err == nil {
+		resolvedBase = evaled
+	}
 
 	tests := []struct {
 		name      string
@@ -459,7 +464,7 @@ func TestSafeJoin(t *testing.T) {
 		{"current dir", ".", false},
 		{"dotdot escape", "../etc/passwd", true},
 		{"nested dotdot escape", "subdir/../../etc/passwd", true},
-		{"absolute path stays within base", "/etc/passwd", false}, // filepath.Join normalizes this
+		{"absolute path stays within base", "/etc/passwd", false}, // filepath.Join normalizes to base/etc/passwd
 		{"clean relative", "a/b/c", false},
 		{"trailing dotdot", "a/..", false}, // resolves to base, which is allowed
 	}
@@ -470,8 +475,8 @@ func TestSafeJoin(t *testing.T) {
 				t.Errorf("SafeJoin(%q, %q) error = %v, wantErr %v", base, tt.untrusted, err, tt.wantErr)
 				return
 			}
-			if err == nil && !strings.HasPrefix(result, base) {
-				t.Errorf("SafeJoin result %q does not start with base %q", result, base)
+			if err == nil && !strings.HasPrefix(result, resolvedBase) {
+				t.Errorf("SafeJoin result %q does not start with resolved base %q", result, resolvedBase)
 			}
 		})
 	}

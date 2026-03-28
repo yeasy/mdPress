@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,22 +13,18 @@ import (
 	"time"
 )
 
+// errWriter is a writer that always returns an error.
+type errWriter struct{ err error }
+
+func (ew *errWriter) Write([]byte) (int, error) { return 0, ew.err }
+
 // TestNewGenerator tests creating a generator
 func TestNewGenerator(t *testing.T) {
 	g := NewGenerator()
 	if g == nil {
 		t.Fatal("NewGenerator returned nil")
 	}
-	// Verify default values
-	if g.timeout != defaultTimeout {
-		t.Errorf("default timeout wrong: got %v, want %v", g.timeout, defaultTimeout)
-	}
-	if g.pageWidth != defaultPageWidth {
-		t.Errorf("default page width wrong: got %f, want %f", g.pageWidth, defaultPageWidth)
-	}
-	if g.pageHeight != defaultPageHeight {
-		t.Errorf("default page height wrong: got %f, want %f", g.pageHeight, defaultPageHeight)
-	}
+	// Verify printBackground is enabled by default
 	if !g.printBackground {
 		t.Error("printBackground should be true by default")
 	}
@@ -603,5 +600,173 @@ func TestDocumentOutlineDefault(t *testing.T) {
 	g := NewGenerator()
 	if !g.generateDocumentOutline {
 		t.Error("generateDocumentOutline should be true by default")
+	}
+}
+
+// TestChromeLimitedWriter tests the bounded writer used for Chrome output.
+func TestChromeLimitedWriter(t *testing.T) {
+	t.Run("writes within limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &chromeLimitedWriter{w: &buf, n: 100}
+		n, err := lw.Write([]byte("hello"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != 5 {
+			t.Errorf("expected n=5, got %d", n)
+		}
+		if buf.String() != "hello" {
+			t.Errorf("expected 'hello', got %q", buf.String())
+		}
+	})
+
+	t.Run("truncates at limit", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &chromeLimitedWriter{w: &buf, n: 3}
+		n, err := lw.Write([]byte("hello"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != 5 {
+			t.Errorf("expected n=5 (full input consumed), got %d", n)
+		}
+		if buf.String() != "hel" {
+			t.Errorf("expected 'hel', got %q", buf.String())
+		}
+	})
+
+	t.Run("discards after exhausted", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &chromeLimitedWriter{w: &buf, n: 3}
+		if _, err := lw.Write([]byte("abc")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		n, err := lw.Write([]byte("xyz"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if n != 3 {
+			t.Errorf("expected n=3, got %d", n)
+		}
+		if buf.String() != "abc" {
+			t.Errorf("expected 'abc', got %q", buf.String())
+		}
+	})
+
+	t.Run("sets truncated flag", func(t *testing.T) {
+		var buf bytes.Buffer
+		lw := &chromeLimitedWriter{w: &buf, n: 3}
+		if lw.truncated {
+			t.Error("truncated should be false initially")
+		}
+		if _, err := lw.Write([]byte("hello")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !lw.truncated {
+			t.Error("truncated should be true after exceeding limit")
+		}
+	})
+
+	t.Run("underlying writer error", func(t *testing.T) {
+		ew := &errWriter{err: errors.New("disk full")}
+		lw := &chromeLimitedWriter{w: ew, n: 3}
+		n, err := lw.Write([]byte("hello"))
+		if err == nil {
+			t.Fatal("expected error from underlying writer")
+		}
+		if n != 0 {
+			t.Errorf("expected n=0 on error, got %d", n)
+		}
+	})
+}
+
+// TestFilterChromiumCLIFlags tests the security-critical flag filtering function.
+func TestFilterChromiumCLIFlags(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "empty input returns empty slice",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "whitespace-only input returns empty slice",
+			input: "   \t  ",
+			want:  nil,
+		},
+		{
+			name:  "allowed flag no-sandbox passes through",
+			input: "--no-sandbox",
+			want:  []string{"--no-sandbox"},
+		},
+		{
+			name:  "allowed flag disable-gpu passes through",
+			input: "--disable-gpu",
+			want:  []string{"--disable-gpu"},
+		},
+		{
+			name:  "allowed flag hide-scrollbars passes through",
+			input: "--hide-scrollbars",
+			want:  []string{"--hide-scrollbars"},
+		},
+		{
+			name:  "disallowed flag remote-debugging-port is filtered out",
+			input: "--remote-debugging-port=9222",
+			want:  nil,
+		},
+		{
+			name:  "disallowed flag single-process is filtered out",
+			input: "--single-process",
+			want:  nil,
+		},
+		{
+			name:  "allowed flag with equals value passes through",
+			input: "--user-data-dir=/tmp/chrome",
+			want:  []string{"--user-data-dir=/tmp/chrome"},
+		},
+		{
+			name:  "allowed flag font-render-hinting with value",
+			input: "--font-render-hinting=none",
+			want:  []string{"--font-render-hinting=none"},
+		},
+		{
+			name:  "mixed allowed and disallowed flags",
+			input: "--no-sandbox --remote-debugging-port=9222 --disable-gpu --single-process",
+			want:  []string{"--no-sandbox", "--disable-gpu"},
+		},
+		{
+			name:  "multiple spaces between flags",
+			input: "--no-sandbox    --disable-gpu     --headless",
+			want:  []string{"--no-sandbox", "--disable-gpu", "--headless"},
+		},
+		{
+			name:  "flag without double-dash prefix is ignored",
+			input: "no-sandbox",
+			want:  nil,
+		},
+		{
+			name:  "bare double-dash is ignored",
+			input: "--",
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterChromiumCLIFlags(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("filterChromiumCLIFlags(%q) returned %d items %v, want %d items %v",
+					tt.input, len(got), got, len(tt.want), tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("filterChromiumCLIFlags(%q)[%d] = %q, want %q",
+						tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
 	}
 }

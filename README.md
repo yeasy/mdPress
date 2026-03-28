@@ -238,7 +238,7 @@ mdpress serve https://github.com/yeasy/agentic_ai_guide
 
 ## Built-In Themes
 
-mdPress ships with three themes. Preview them all with `mdpress themes preview`:
+mdPress ships with three themes. List them with `mdpress themes list`:
 
 ```
 $ mdpress themes list

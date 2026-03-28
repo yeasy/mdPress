@@ -267,9 +267,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			plainText = strings.Join(strings.Fields(plainText), " ")
 			// Limit text length to prevent excessively large search index entries
 			const maxTextLength = 50000
-			if len([]rune(plainText)) > maxTextLength {
-				runes := []rune(plainText)
-				plainText = string(runes[:maxTextLength])
+			if utf8.RuneCountInString(plainText) > maxTextLength {
+				plainText = string([]rune(plainText)[:maxTextLength])
 			}
 			crumbs := g.buildBreadcrumbs(g.Chapters, page.Filename)
 			var pathParts []string

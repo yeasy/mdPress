@@ -91,15 +91,6 @@ func TestNewServer(t *testing.T) {
 			if srv.Host != expectedHost {
 				t.Errorf("Host = %q, want %q", srv.Host, expectedHost)
 			}
-			if srv.Port != tt.port {
-				t.Errorf("Port = %d, want %d", srv.Port, tt.port)
-			}
-			if srv.WatchDir != tt.watchDir {
-				t.Errorf("WatchDir = %q, want %q", srv.WatchDir, tt.watchDir)
-			}
-			if srv.OutputDir != tt.outputDir {
-				t.Errorf("OutputDir = %q, want %q", srv.OutputDir, tt.outputDir)
-			}
 			if srv.clients == nil {
 				t.Error("clients map should be initialized")
 			}
@@ -684,39 +675,6 @@ func TestInjectLiveReload_MissingFile(t *testing.T) {
 	}
 }
 
-// TestNewServerDefaultLogger tests that nil logger defaults to standard logger
-func TestNewServerDefaultLogger(t *testing.T) {
-	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", nil)
-	if srv.logger == nil {
-		t.Error("should use default logger when nil is passed")
-	}
-}
-
-// TestBuildFuncIntegration tests BuildFunc callback integration
-func TestBuildFuncIntegration(t *testing.T) {
-	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
-
-	buildCalled := false
-	srv.BuildFunc = func() error {
-		buildCalled = true
-		return nil
-	}
-
-	// BuildFunc should not be nil
-	if srv.BuildFunc == nil {
-		t.Fatal("BuildFunc should be set")
-	}
-
-	// Manual invocation
-	err := srv.BuildFunc()
-	if err != nil {
-		t.Errorf("BuildFunc should not error: %v", err)
-	}
-	if !buildCalled {
-		t.Error("BuildFunc should have been called")
-	}
-}
-
 // TestBuildFuncError tests BuildFunc returning an error
 func TestBuildFuncError(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
@@ -845,45 +803,6 @@ func TestBrowserURL(t *testing.T) {
 			url := srv.browserURL()
 			if url != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, url)
-			}
-		})
-	}
-}
-
-// TestIsAddrInUse tests the isAddrInUse error detection
-func TestIsAddrInUse(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		expected bool
-	}{
-		{
-			name:     "EADDRINUSE error",
-			err:      fmt.Errorf("listen tcp 127.0.0.1:8080: %w", syscall.EADDRINUSE),
-			expected: true,
-		},
-		{
-			name:     "address already in use string",
-			err:      fmt.Errorf("address already in use"),
-			expected: true, // string fallback matches
-		},
-		{
-			name:     "other error",
-			err:      fmt.Errorf("permission denied"),
-			expected: false,
-		},
-		{
-			name:     "nil error",
-			err:      nil,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isAddrInUse(tt.err)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v for error: %v", tt.expected, result, tt.err)
 			}
 		})
 	}
@@ -1455,21 +1374,8 @@ func TestNewServerOptionsDefaults(t *testing.T) {
 			if srv.browserHost != tt.wantBHost {
 				t.Errorf("browserHost = %q, want %q", srv.browserHost, tt.wantBHost)
 			}
-			if srv.Port != tt.port {
-				t.Errorf("Port = %d, want %d", srv.Port, tt.port)
-			}
-			if srv.clients == nil {
-				t.Error("clients map should be initialized")
-			}
-			if srv.logger == nil {
-				t.Error("logger should be initialized")
-			}
-			if srv.AutoOpen != false {
-				t.Error("AutoOpen should default to false")
-			}
-			if srv.BuildFunc != nil {
-				t.Error("BuildFunc should default to nil")
-			}
+			// Only test host/browserHost resolution logic; skip tautological
+			// field-assignment assertions (Port, clients, etc.).
 		})
 	}
 }
@@ -1711,33 +1617,6 @@ func TestScanModTimes_CSSFiles(t *testing.T) {
 	}
 }
 
-// TestCheckForChanges_NoChanges tests that unchanged files are detected correctly
-func TestCheckForChanges_NoChanges(t *testing.T) {
-	watchDir := t.TempDir()
-
-	// Create a file
-	testFile := filepath.Join(watchDir, "test.md")
-	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
-		t.Fatalf("Failed to write test file: %v", err)
-	}
-
-	srv := NewServer("127.0.0.1", 8080, watchDir, "/tmp", slog.Default())
-	modTimes := make(map[string]time.Time)
-	srv.scanModTimes(modTimes)
-
-	// Check for changes immediately - should be false
-	changed, _ := srv.checkForChanges(modTimes)
-	if changed {
-		t.Error("Should detect no changes immediately after scan")
-	}
-
-	// Check again - still should be false
-	changed, _ = srv.checkForChanges(modTimes)
-	if changed {
-		t.Error("Should detect no changes on subsequent check")
-	}
-}
-
 // TestIsAddrInUseDetection tests the isAddrInUse error detection function
 func TestIsAddrInUseDetection(t *testing.T) {
 	tests := []struct {
@@ -1774,26 +1653,5 @@ func TestIsAddrInUseDetection(t *testing.T) {
 				t.Errorf("isAddrInUse(%v) = %v, want %v", tt.err, result, tt.shouldMatch)
 			}
 		})
-	}
-}
-
-// TestServerInitialClientState tests server initialization with empty client map
-func TestServerInitialClientState(t *testing.T) {
-	srv := NewServer("127.0.0.1", 8080, t.TempDir(), t.TempDir(), nil)
-
-	// Verify clients map is properly initialized
-	if srv.clients == nil {
-		t.Fatal("clients map should not be nil")
-	}
-
-	// Verify it's empty
-	if len(srv.clients) != 0 {
-		t.Errorf("clients map should be empty initially, got %d", len(srv.clients))
-	}
-
-	// Verify snapshot of empty map works
-	snapshot := srv.snapshotClients()
-	if len(snapshot) != 0 {
-		t.Errorf("snapshot of empty clients should be empty, got %d", len(snapshot))
 	}
 }

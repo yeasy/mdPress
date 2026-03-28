@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -115,8 +116,9 @@ var systemCJKFontCandidates = []cjkFontCandidate{
 	{
 		family: "Noto Sans CJK SC (Homebrew)",
 		paths: func() []string {
-			var paths []string
-			for _, prefix := range []string{"/opt/homebrew/share/fonts", "/usr/local/share/fonts"} {
+			prefixes := []string{"/opt/homebrew/share/fonts", "/usr/local/share/fonts"}
+			paths := make([]string, 0, len(prefixes)*2)
+			for _, prefix := range prefixes {
 				paths = append(paths,
 					prefix+"/NotoSansCJKsc-Regular.otf",
 					prefix+"/NotoSansCJK-Regular.ttc",
@@ -584,10 +586,10 @@ func (fs *fontServer) Close() {
 // Generate renders an HTML string to a PDF file.
 func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if outputPath == "" {
-		return errors.New("GenerateFromHTML: output path cannot be empty")
+		return errors.New("generateFromHTML: output path cannot be empty")
 	}
 	if htmlContent == "" {
-		return errors.New("GenerateFromHTML: HTML content cannot be empty")
+		return errors.New("generateFromHTML: HTML content cannot be empty")
 	}
 
 	// Find a CJK font and inject @font-face CSS into the HTML.
@@ -646,7 +648,7 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 		return fmt.Errorf("failed to resolve HTML file path: %w", err)
 	}
 	if _, err := os.Stat(absHTMLPath); err != nil {
-		return fmt.Errorf("HTML file does not exist: %w", err)
+		return fmt.Errorf("html file does not exist: %w", err)
 	}
 
 	fileURL := (&url.URL{
@@ -686,6 +688,42 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(pageURL),
 		chromedp.WaitReady("body"),
+		// Wait up to 15 s (polling every 200 ms) for Mermaid diagrams to
+		// finish rendering. Mermaid loads async from CDN and replaces
+		// .mermaid divs with SVGs.
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			const mermaidWaitJS = `(function() {
+				var els = document.querySelectorAll('.mermaid');
+				if (els.length === 0) return 'none';
+				var maxWait = 15000, interval = 200, elapsed = 0;
+				return new Promise(function(resolve) {
+					function check() {
+						var done = true;
+						els.forEach(function(el) {
+							if (!el.querySelector('svg')) done = false;
+						});
+						if (done) return resolve('ok');
+						elapsed += interval;
+						if (elapsed >= maxWait) return resolve('timeout');
+						setTimeout(check, interval);
+					}
+					check();
+				});
+			})()`
+			result, exp, err := runtime.Evaluate(mermaidWaitJS).
+				WithAwaitPromise(true).
+				Do(ctx)
+			if exp != nil {
+				slog.Warn("mermaid wait exception", slog.String("text", exp.Text))
+			}
+			if err == nil && result != nil && result.Value != nil {
+				status := string(result.Value)
+				if status != `"none"` {
+					slog.Debug("mermaid rendering status", slog.String("result", status))
+				}
+			}
+			return err
+		}),
 		// Wait for all @font-face sources to finish loading.
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, exp, err := runtime.Evaluate(`document.fonts.ready.then(() => 'ok')`).
@@ -757,8 +795,7 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	)
 	if err != nil {
 		// Only try CLI fallback for file:// URLs.
-		if strings.HasPrefix(pageURL, "file://") {
-			htmlPath := strings.TrimPrefix(pageURL, "file://")
+		if htmlPath, ok := strings.CutPrefix(pageURL, "file://"); ok {
 			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, htmlPath, outputPath); fallbackErr == nil {
 				return nil
 			}
@@ -852,11 +889,8 @@ func chromiumAllocatorOptions(execPath string, runtime chromiumRuntimeDirs, outp
 func parseChromiumFlags(raw string) map[string]any {
 	flags := make(map[string]any)
 	for _, item := range strings.Fields(raw) {
-		if !strings.HasPrefix(item, "--") {
-			continue
-		}
-		flag := strings.TrimPrefix(item, "--")
-		if flag == "" {
+		flag, ok := strings.CutPrefix(item, "--")
+		if !ok || flag == "" {
 			continue
 		}
 
@@ -895,11 +929,8 @@ func parseChromiumFlags(raw string) map[string]any {
 func filterChromiumCLIFlags(flagsString string) []string {
 	var filtered []string
 	for _, item := range strings.Fields(flagsString) {
-		if !strings.HasPrefix(item, "--") {
-			continue
-		}
-		flag := strings.TrimPrefix(item, "--")
-		if flag == "" {
+		flag, ok := strings.CutPrefix(item, "--")
+		if !ok || flag == "" {
 			continue
 		}
 
@@ -999,10 +1030,16 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	defer cancel()
 	cmd := exec.CommandContext(ctx, chromePath, args...)
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
-	output, err := cmd.CombinedOutput()
+	// Limit captured output to prevent OOM from misbehaving Chrome process.
+	const maxChromeOutput = 10 << 20 // 10 MB
+	var combinedBuf bytes.Buffer
+	lw := &chromeLimitedWriter{w: &combinedBuf, n: maxChromeOutput}
+	cmd.Stdout = lw
+	cmd.Stderr = lw
+	err := cmd.Run()
 	if err != nil {
 		os.Remove(tmpOutput) // clean up temp file on failure
-		details := strings.TrimSpace(string(output))
+		details := strings.TrimSpace(combinedBuf.String())
 		if details != "" {
 			return fmt.Errorf("chrome CLI fallback failed: %w\nchrome output:\n%s", err, details)
 		}
@@ -1017,4 +1054,35 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		return fmt.Errorf("failed to finalize fallback PDF output: %w", err)
 	}
 	return nil
+}
+
+// chromeLimitedWriter wraps an io.Writer and silently discards writes beyond n bytes,
+// preventing unbounded memory growth when capturing Chrome process output.
+type chromeLimitedWriter struct {
+	w         io.Writer
+	n         int64
+	truncated bool
+}
+
+func (lw *chromeLimitedWriter) Write(p []byte) (int, error) {
+	if lw.n <= 0 {
+		if !lw.truncated {
+			lw.truncated = true
+			slog.Warn("chrome output truncated, exceeds capture limit")
+		}
+		return len(p), nil // discard entirely
+	}
+	if int64(len(p)) > lw.n {
+		_, err := lw.w.Write(p[:lw.n])
+		lw.n = 0
+		lw.truncated = true
+		slog.Warn("chrome output truncated, exceeds capture limit")
+		if err != nil {
+			return 0, err
+		}
+		return len(p), nil
+	}
+	n, err := lw.w.Write(p)
+	lw.n -= int64(n)
+	return n, err
 }

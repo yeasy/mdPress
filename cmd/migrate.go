@@ -8,6 +8,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -323,13 +324,13 @@ func rewriteGitBookSyntax(content string) (string, bool) {
 
 // migrateMarkdownFiles walks projectDir, rewrites GitBook syntax in .md files.
 func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport) error {
-	return filepath.Walk(projectDir, func(path string, info os.FileInfo, err error) error {
+	return filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if d.IsDir() {
 			// Skip hidden and vendor directories.
-			base := info.Name()
+			base := d.Name()
 			if strings.HasPrefix(base, ".") || base == "node_modules" || base == "_book" || base == "vendor" {
 				return filepath.SkipDir
 			}
@@ -341,6 +342,11 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 
 		// Reject unreasonably large markdown files (50 MB).
 		const maxMigrateFileSize = 50 << 20
+		info, err := d.Info()
+		if err != nil {
+			report.addWarning(fmt.Sprintf("cannot stat %s: %v", path, err))
+			return nil
+		}
 		if info.Size() > maxMigrateFileSize {
 			report.addWarning(fmt.Sprintf("skipping %s: file too large (%d bytes)", path, info.Size()))
 			return nil
