@@ -1324,9 +1324,14 @@ body {
   }
 
   function scrollToTopImmediate() {
+    // Temporarily disable CSS scroll-behavior:smooth so the jump is instant.
+    var root = document.documentElement;
+    root.style.scrollBehavior = 'auto';
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-    document.documentElement.scrollTop = 0;
+    root.scrollTop = 0;
     document.body.scrollTop = 0;
+    // Restore after the current frame so smooth scrolling works for user interactions.
+    requestAnimationFrame(function() { root.style.scrollBehavior = ''; });
   }
 
   document.querySelectorAll('.nav-group').forEach(function(group) {
@@ -1360,7 +1365,7 @@ body {
         rememberInternalNavigation(chapterLink.href);
         if (chapterLink.getAttribute('data-file') === currentFile) {
           e.preventDefault();
-          window.scrollTo({ top: 0, behavior: 'auto' });
+          scrollToTopImmediate();
         }
       });
     }
@@ -1474,7 +1479,8 @@ body {
     clone.querySelectorAll('.header-anchor').forEach(function(anchor) {
       anchor.remove();
     });
-    return (clone.textContent || '').trim();
+    var text = (clone.textContent || '').trim();
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function buildPageTOC() {
@@ -1720,7 +1726,7 @@ body {
         behavior: prefersReducedMotion ? 'auto' : 'smooth'
       });
     } else if (options.scrollToTop !== false) {
-      window.scrollTo({ top: 0, behavior: 'auto' });
+      scrollToTopImmediate();
     }
 
     if (typeof saveRecentPage === 'function') {
@@ -1802,6 +1808,40 @@ body {
   ensureMermaid();
   ensureKaTeX();
 
+  // Expose a live-reload hook for the serve WebSocket script.
+  // Instead of a full page reload, re-fetch and swap the current page content
+  // while preserving the scroll position. This avoids disrupting reading flow
+  // when a different chapter is edited.
+  window.__mdpressLiveReload = function() {
+    // Invalidate all cached pages since any content may have changed.
+    for (var key in pageCache) { delete pageCache[key]; }
+    for (var pk in prefetchedPages) { delete prefetchedPages[pk]; }
+    var savedScroll = window.scrollY || document.documentElement.scrollTop;
+    var targetURL = new URL(window.location.href);
+    return fetchPagePayload(targetURL)
+      .then(function(payload) {
+        mainContent.innerHTML = payload.contentHTML;
+        document.title = payload.title;
+        var breadcrumbNav = document.querySelector('.page-breadcrumb');
+        if (breadcrumbNav && payload.breadcrumbHTML) {
+          breadcrumbNav.innerHTML = payload.breadcrumbHTML;
+        }
+        if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
+        if (window.__addHeaderAnchors) window.__addHeaderAnchors(mainContent);
+        buildPageTOC();
+        setupHeadingObserver();
+        updateActiveNavigation();
+        ensureMermaid();
+        ensureKaTeX();
+        // Restore scroll position so the reader stays where they were.
+        window.scrollTo({ top: savedScroll, behavior: 'auto' });
+      })
+      .catch(function() {
+        // If SPA reload fails, fall back to full page reload.
+        location.reload();
+      });
+  };
+
   document.addEventListener('mouseover', function(e) {
     var link = e.target.closest('.sidebar-nav a, .page-nav a, .content a');
     if (!link) return;
@@ -1849,7 +1889,7 @@ body {
         }
       } else if (target.url.pathname === window.location.pathname) {
         e.preventDefault();
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        scrollToTopImmediate();
       }
       return;
     }
@@ -1869,7 +1909,7 @@ body {
       if (target.hash) {
         scrollToHashTarget(target.hash, false);
       } else {
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        scrollToTopImmediate();
       }
       scheduleNavigationUpdate();
       return;
