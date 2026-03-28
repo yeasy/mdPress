@@ -223,7 +223,7 @@ deploy:
 
 ```bash
 # 一个命令中的所有格式
-mdpress build --format pdf --format html --format epub
+mdpress build --format pdf,html,epub
 
 # 检查支持的格式
 mdpress build --help
@@ -522,7 +522,7 @@ mdpress build --verbose --format pdf
 
 快速检查清单：
 1. 启用缓存（默认）：`mdpress build --format pdf`
-2. 开发时使用 HTML：`mdpress serve --format html`
+2. 开发时使用：`mdpress serve`
 3. 优化图像：保持每个不超过 500 KB
 4. 使用 Typst 获得更快的 PDF：`mdpress build --format typst`
 

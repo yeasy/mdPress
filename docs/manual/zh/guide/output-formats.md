@@ -102,7 +102,7 @@ mdpress build --format pdf
 使用 Typst 排版引擎的替代方法：
 
 ```bash
-mdpress build --format pdf --engine typst
+mdpress build --format typst
 ```
 
 功能：
@@ -116,17 +116,15 @@ mdpress build --format pdf --engine typst
 在 `book.yaml` 中配置 PDF 输出：
 
 ```yaml
-pdf:
-  engine: "chromium"  # 或 "typst"
-  paperSize: "A4"
-  margin:
-    top: 20
-    bottom: 20
-    left: 15
-    right: 15
-  headerTemplate: "<span class='title'></span>"
-  footerTemplate: "<span class='page'></span> of <span class='pageCount'></span>"
-  printBackground: true
+style:
+  page_size: "A4"        # Page size
+output:
+  margin_top: "20mm"      # Top margin
+  margin_bottom: "20mm"   # Bottom margin
+  margin_left: "15mm"     # Left margin
+  margin_right: "15mm"    # Right margin
+  header_template: "<span class='title'></span>"
+  footer_template: "<span class='page'></span> of <span class='pageCount'></span>"
 ```
 
 ### PDF 功能
@@ -145,15 +143,9 @@ mdPress 生成的 PDF 包括：
 在 `book.yaml` 中配置水印：
 
 ```yaml
-pdf:
+output:
   watermark: "DRAFT"
-  watermarkColor: "rgba(200, 200, 200, 0.5)"
-```
-
-或使用命令行：
-
-```bash
-mdpress build --format pdf --watermark "CONFIDENTIAL"
+  watermark_opacity: 0.3
 ```
 
 ## HTML 输出
@@ -237,11 +229,12 @@ ePub 文件支持：
 在 `book.yaml` 中配置 ePub 输出：
 
 ```yaml
-epub:
-  language: "en"
+book:
+  title: "书名"
   author: "你的名字"
-  publisher: "你的组织"
-  cover: "./assets/cover.png"
+  language: "zh"
+  cover:
+    image: "./assets/cover.png"
 ```
 
 ### ePub 限制
@@ -263,7 +256,7 @@ epub:
 mdpress build --format all
 ```
 
-这生成：网站、PDF、HTML 和 ePub。
+这生成：网站、PDF、HTML、ePub 和 Typst。
 
 ### 构建特定格式
 
@@ -323,17 +316,9 @@ dist/
 修改 `book.yaml` 以自定义网站外观：
 
 ```yaml
-title: "我的文档"
-description: "我的项目的完整指南"
-
-site:
-  baseUrl: "https://docs.example.com"
-  theme:
-    colorScheme: "light"  # 或 "dark" 或 "auto"
-    primaryColor: "#2563eb"
-    accentColor: "#dc2626"
-  footer: "版权所有 2026 Example Corp"
-  logo: "./assets/logo.svg"
+style:
+  theme: "technical"    # 或 "elegant" 或 "minimal"
+  custom_css: "./assets/custom.css"  # 可选自定义 CSS
 ```
 
 ### 资源管理

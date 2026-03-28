@@ -47,7 +47,7 @@ Introduction text, overview, and navigation guidance.
 - [User Guide](chapters/guide/index.md)
 ```
 
-mdPress automatically includes README.md in your SUMMARY.md if not explicitly listed.
+mdPress skips top-level README.md when scanning for book content (it treats it as project documentation, not a chapter). To include it in your book, list it explicitly in SUMMARY.md.
 
 ### SUMMARY.md
 
@@ -81,10 +81,10 @@ book:
   description: A brief description
 
 style:
-  theme: light
+  theme: technical
 ```
 
-mdPress also accepts `book.json` or `book.toml`. If no config file exists, mdPress uses sensible defaults (zero-config mode).
+mdPress also accepts `book.json` (for GitBook compatibility). If no config file exists, mdPress uses sensible defaults (zero-config mode).
 
 ## Asset Directory
 

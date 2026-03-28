@@ -69,6 +69,7 @@ make example
 ```bash
 make build      # Build binary to bin/mdpress
 make test       # Run all tests (with race detection)
+make check      # Run fmt + lint + build + fast tests (pre-commit gate)
 make lint       # Static analysis (go vet + golangci-lint)
 make fmt        # Format code (gofmt)
 make coverage   # Generate test coverage report (coverage.html)
@@ -162,7 +163,7 @@ Closes #42
 ### Integration Tests
 
 - Features involving multiple modules should have integration tests in `tests/`
-- Integration tests should use test data in `tests/testdata/`
+- Integration tests should use test data in `tests/golden/testdata/`
 
 ### End-to-End Tests
 

@@ -262,7 +262,7 @@ HTML 构建比 PDF 快得多：
 
 ```bash
 # 开发：快速
-mdpress serve --format html
+mdpress serve
 
 # 最终构建：较慢但需要
 mdpress build --format pdf

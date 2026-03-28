@@ -236,8 +236,8 @@ assets/
 在开发和验证期间：
 
 ```bash
-# 最快的反馈：使用 HTML 输出
-mdpress serve --format html
+# 最快的反馈：使用 serve 实时预览
+mdpress serve
 
 # 然后切换到最终格式进行最终构建
 mdpress build --format pdf       # 用于分发
@@ -277,14 +277,14 @@ mdpress build --format typst
 ### 默认缓存位置
 
 ```bash
-# Linux/macOS
-~/.cache/mdpress/
+# Linux/macOS (OS temp directory)
+/tmp/mdpress-cache
 
 # Windows
-%USERPROFILE%\AppData\Local\mdpress\
+%TEMP%\mdpress-cache
 
-# macOS (Homebrew)
-~/Library/Caches/mdpress/
+# 可通过环境变量覆盖
+export MDPRESS_CACHE_DIR=/path/to/custom/cache
 ```
 
 使用 `--cache-dir` 覆盖：
@@ -305,10 +305,10 @@ mdpress build --cache-dir /tmp/mdpress-cache --format pdf
 
 ```bash
 # 删除缓存目录（将在下次构建时重建）
-rm -rf ~/.cache/mdpress/
+rm -rf /tmp/mdpress-cache
 
-# 或指定自定义位置
-rm -rf /tmp/mdpress-cache/
+# 如果使用了自定义缓存目录
+rm -rf $MDPRESS_CACHE_DIR
 
 # mdPress 将在下次构建时重新生成
 mdpress build --format pdf
@@ -449,8 +449,8 @@ mdpress build --cache-dir ~/.mdpress-cache --format pdf
 # 解决方案 1：使用 Typst 代替
 mdpress build --format typst
 
-# 解决方案 2：开发时使用 HTML 输出
-mdpress serve --format html
+# 解决方案 2：开发时使用 serve
+mdpress serve
 ```
 
 ### 大型书籍上内存不足
@@ -466,7 +466,7 @@ docker run --memory=2g myimage mdpress build --format pdf
 
 文档的最快工作流是：
 
-1. **开发**：使用 `mdpress serve --format html`（最快反馈）
+1. **开发**：使用 `mdpress serve`（最快反馈）
 2. **验证**：使用 `mdpress validate`（尽早捕获问题）
 3. **最终构建**：使用 `mdpress build --format pdf`（启用缓存）
 4. **CI/CD**：跨构建缓存 `.mdpress-cache/`

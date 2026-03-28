@@ -236,8 +236,8 @@ Total asset directory should stay under 50 MB for reasonably fast builds.
 For development and validation:
 
 ```bash
-# Fastest feedback: use HTML output
-mdpress serve --format html
+# Fastest feedback: use serve for live preview
+mdpress serve
 
 # Then switch to final format for final builds
 mdpress build --format pdf       # For distribution
@@ -277,14 +277,14 @@ Use Typst for:
 ### Default Cache Location
 
 ```bash
-# Linux/macOS
-~/.cache/mdpress/
+# Linux/macOS (OS temp directory)
+/tmp/mdpress-cache
 
 # Windows
-%USERPROFILE%\AppData\Local\mdpress\
+%TEMP%\mdpress-cache
 
-# macOS (Homebrew)
-~/Library/Caches/mdpress/
+# Override via environment variable
+export MDPRESS_CACHE_DIR=/path/to/custom/cache
 ```
 
 Override with `--cache-dir`:
@@ -305,10 +305,10 @@ The cache grows with book size. Typical sizes:
 
 ```bash
 # Remove cache directory (will be rebuilt on next build)
-rm -rf ~/.cache/mdpress/
+rm -rf /tmp/mdpress-cache
 
-# Or specify custom location
-rm -rf /tmp/mdpress-cache/
+# If using a custom cache directory
+rm -rf $MDPRESS_CACHE_DIR
 
 # mdPress will regenerate on next build
 mdpress build --format pdf
@@ -449,8 +449,8 @@ mdpress build --cache-dir ~/.mdpress-cache --format pdf
 # Solution 1: Use Typst instead
 mdpress build --format typst
 
-# Solution 2: Use HTML output for development
-mdpress serve --format html
+# Solution 2: Use serve for development
+mdpress serve
 ```
 
 ### Out of Memory on Large Books
@@ -466,7 +466,7 @@ docker run --memory=2g myimage mdpress build --format pdf
 
 The fastest workflow for documentation is:
 
-1. **Development**: Use `mdpress serve --format html` (fastest feedback)
+1. **Development**: Use `mdpress serve` (fastest feedback)
 2. **Validation**: Use `mdpress validate` (catch issues early)
 3. **Final build**: Use `mdpress build --format pdf` (with caching enabled)
 4. **CI/CD**: Cache `.mdpress-cache/` between builds

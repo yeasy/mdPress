@@ -69,6 +69,7 @@ make example
 ```bash
 make build      # 编译二进制到 bin/mdpress
 make test       # 运行所有测试（含竞态检测）
+make check      # 格式化 + 静态检查 + 编译 + 快速测试（提交前检查）
 make lint       # 代码静态检查（go vet + golangci-lint）
 make fmt        # 格式化代码（gofmt）
 make coverage   # 生成测试覆盖率报告（coverage.html）

@@ -223,7 +223,7 @@ Site appears at: `https://username.github.io/repo-name/`
 
 ```bash
 # All formats in one command
-mdpress build --format pdf --format html --format epub
+mdpress build --format pdf,html,epub
 
 # Check supported formats
 mdpress build --help
@@ -522,7 +522,7 @@ Include:
 
 Quick checklist:
 1. Enable caching (default): `mdpress build --format pdf`
-2. Use HTML for development: `mdpress serve --format html`
+2. Use serve for development: `mdpress serve`
 3. Optimize images: keep under 500 KB each
 4. Use Typst for faster PDF: `mdpress build --format typst`
 

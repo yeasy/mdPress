@@ -262,7 +262,7 @@ HTML builds much faster than PDF:
 
 ```bash
 # Development: fast
-mdpress serve --format html
+mdpress serve
 
 # Final build: slower but needed
 mdpress build --format pdf

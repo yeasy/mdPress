@@ -14,7 +14,7 @@ mdpress doctor
 # ✓ Chrome/Chromium: /usr/bin/chromium
 # ✓ CJK fonts: Noto Sans CJK SC
 # ✓ PlantUML: not installed (optional)
-# ✓ Cache directory: ~/.cache/mdpress/
+# ✓ Cache directory: /tmp/mdpress-cache
 # ✗ book.yaml: missing
 
 # Doctor completed: 1 warning
@@ -105,7 +105,7 @@ PDF 渲染所需。Doctor 自动检测或使用 `MDPRESS_CHROME_PATH` 环境变�
 
 **缓存目录：**
 ```
-✓ Cache: ~/.cache/mdpress/ (2.4 MB)
+✓ Cache: /tmp/mdpress-cache (2.4 MB)
   - 12 cached chapters
   - Last updated: 2 hours ago
 ```

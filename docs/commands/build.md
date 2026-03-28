@@ -38,8 +38,9 @@ mdpress build [source] [flags]
 `build` loads project structure in this order:
 
 1. `book.yaml`
-2. `SUMMARY.md`
-3. Automatic `.md` file discovery
+2. `book.json` (GitBook compatibility)
+3. `SUMMARY.md`
+4. Automatic `.md` file discovery
 
 If `[source]` is omitted, the current directory is used.
 
@@ -55,7 +56,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - When `--format` is provided, the CLI value overrides `output.formats` in config.
 - When `--format` is omitted, `output.formats` is used first.
 - If neither is set, the default output is `pdf`.
-- `--format all` expands to `pdf,html,site,epub` and does **not** include `typst`. To include Typst output, specify it explicitly (e.g., `--format all,typst` or `--format pdf,html,site,epub,typst`).
+- `--format all` expands to `pdf,html,site,epub,typst`.
 
 ### `--output`
 

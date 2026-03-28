@@ -61,9 +61,10 @@ These flags appear in `--help` output for most commands.
 | `--config <path>` | `book.yaml` | Config file path. Mainly relevant for commands that load project config, such as `build`, `serve`, and `validate`. |
 | `--cache-dir <path>` | OS default | Override mdPress runtime cache directory. |
 | `--no-cache` | off | Disable mdPress runtime caches for this command. Forces a full rebuild. |
-| `--output <path>` | `_output/` | Output path or directory for generated files. Available on `build` and `serve`. |
 | `-v, --verbose` | off | Print more detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
+
+`--output <path>` is available on `build` and `serve` (not a global flag).
 
 Notes:
 
@@ -102,7 +103,7 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 - If `build` is called without `--format`, it first checks `output.formats`.
 - If `output.formats` is also absent, the default output is `pdf`.
-- The special value `--format all` builds all supported formats (site, PDF, HTML, and ePub).
+- The special value `--format all` builds all supported formats (site, PDF, HTML, ePub, and Typst).
 - The default output filename is derived from the book title (with filesystem-unsafe characters replaced). If the title is empty or "Untitled Book", the project directory name is used instead. You can override this with `output.filename`.
 - `serve` writes preview output to `_book/` under the project directory by default.
 

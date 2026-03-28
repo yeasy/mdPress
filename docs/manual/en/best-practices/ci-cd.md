@@ -303,7 +303,7 @@ export MDPRESS_CHROME_PATH=/usr/bin/chromium
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 
 # Cache directory location
-export XDG_CACHE_HOME=/tmp/cache
+export MDPRESS_CACHE_DIR=/tmp/mdpress-cache
 ```
 
 ### Install Chrome for PDF Rendering
