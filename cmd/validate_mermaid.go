@@ -88,7 +88,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 				select {
 				case <-ticker.C:
 					if err := chromedp.Run(ctx, chromedp.Evaluate(`window.__mdpressMermaidStatus`, &status)); err != nil {
-						return err
+						return fmt.Errorf("poll mermaid render status: %w", err)
 					}
 					if status.Done {
 						return nil
@@ -110,7 +110,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		if status.Error == "" {
 			status.Error = "Mermaid did not render successfully"
 		}
-		return fmt.Errorf("%s", status.Error)
+		return errors.New(status.Error)
 	}
 	if status.Total > 0 && status.Processed < status.Total {
 		return fmt.Errorf("only %d/%d Mermaid block(s) rendered", status.Processed, status.Total)

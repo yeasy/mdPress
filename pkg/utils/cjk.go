@@ -9,21 +9,13 @@ import (
 	"unicode"
 )
 
+// fcListTimeout is the maximum time to wait for the fc-list command.
+const fcListTimeout = 10 * time.Second
+
 // ContainsCJK reports whether the text contains any CJK (Chinese, Japanese, Korean) characters.
 func ContainsCJK(text string) bool {
 	for _, r := range text {
 		if IsCJKRune(r) {
-			return true
-		}
-	}
-	return false
-}
-
-// ContainsChinese reports whether the text contains Chinese characters specifically.
-// This checks for CJK Unified Ideographs which are primarily Chinese characters.
-func ContainsChinese(text string) bool {
-	for _, r := range text {
-		if unicode.Is(unicode.Han, r) {
 			return true
 		}
 	}
@@ -71,7 +63,7 @@ func CheckCJKFonts() CJKFontStatus {
 
 func checkCJKFontsLinux() CJKFontStatus {
 	// Use fc-list to query for CJK fonts.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fcListTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "fc-list", ":lang=zh").Output()
 	if err != nil {
@@ -108,7 +100,7 @@ func checkCJKFontsMacOS() CJKFontStatus {
 	// macOS ships with CJK fonts (PingFang SC, Hiragino Sans GB, etc.)
 	// by default, so they're almost always available.
 	// Do a quick check with fc-list if available, otherwise assume present.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), fcListTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "fc-list", ":lang=zh").Output()
 	if err != nil {

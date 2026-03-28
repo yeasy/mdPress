@@ -111,7 +111,7 @@ func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	return diagnostics
 }
 
-func collectOrderedListDiagnostics(lines []string, index *sourceIndex) []Diagnostic {
+func collectOrderedListDiagnostics(lines []string, _ *sourceIndex) []Diagnostic {
 	diagnostics := make([]Diagnostic, 0)
 
 	lastMarkerByIndent := make(map[int]int)

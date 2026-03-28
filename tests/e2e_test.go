@@ -495,14 +495,15 @@ func TestE2E_GlossaryIntegration(t *testing.T) {
 	// Test glossary term highlighting
 	testHTML := "<p>这是一个包含术语的测试段落。</p>"
 	processedHTML := gloss.ProcessHTML(testHTML)
+	if len(processedHTML) == 0 {
+		t.Error("ProcessHTML should return non-empty result")
+	}
 
 	// Render glossary page
 	glossHTML := gloss.RenderHTML()
 	if glossHTML == "" {
 		t.Error("glossary HTML should not be empty")
 	}
-
-	t.Logf("glossary integration: %d terms, processed HTML length %d", len(gloss.Terms), len(processedHTML))
 }
 
 // TestE2E_MultiChapterTOC tests completeness of multi-chapter TOC generation

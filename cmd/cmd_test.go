@@ -386,34 +386,6 @@ func TestFlattenChapters(t *testing.T) {
 	}
 }
 
-// TestGetPageDimensions tests page size conversion
-func TestGetPageDimensions(t *testing.T) {
-	tests := []struct {
-		size       string
-		wantWidth  float64
-		wantHeight float64
-	}{
-		{"A4", 210, 297},
-		{"a4", 210, 297},
-		{"A5", 148, 210},
-		{"LETTER", 216, 279},
-		{"LEGAL", 216, 356},
-		{"B5", 176, 250},
-		{"unknown", 210, 297},
-		{"", 210, 297},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.size, func(t *testing.T) {
-			w, h := getPageDimensions(tt.size)
-			if w != tt.wantWidth || h != tt.wantHeight {
-				t.Errorf("getPageDimensions(%q) = (%v, %v), expected (%v, %v)",
-					tt.size, w, h, tt.wantWidth, tt.wantHeight)
-			}
-		})
-	}
-}
-
 // TestGetAvailableThemes tests the available themes list
 func TestGetAvailableThemes(t *testing.T) {
 	themes := getAvailableThemes()
@@ -429,23 +401,23 @@ func TestGetAvailableThemes(t *testing.T) {
 	}
 
 	for _, thm := range themes {
-		if _, ok := requiredThemes[thm.Name]; ok {
-			requiredThemes[thm.Name] = true
+		if _, ok := requiredThemes[thm.name]; ok {
+			requiredThemes[thm.name] = true
 		}
-		if thm.Name == "" {
+		if thm.name == "" {
 			t.Error("theme name should not be empty")
 		}
-		if thm.DisplayName == "" {
-			t.Errorf("theme %q display name should not be empty", thm.Name)
+		if thm.displayName == "" {
+			t.Errorf("theme %q display name should not be empty", thm.name)
 		}
-		if thm.Description == "" {
-			t.Errorf("theme %q description should not be empty", thm.Name)
+		if thm.description == "" {
+			t.Errorf("theme %q description should not be empty", thm.name)
 		}
-		if len(thm.Features) == 0 {
-			t.Errorf("theme %q should have a features list", thm.Name)
+		if len(thm.features) == 0 {
+			t.Errorf("theme %q should have a features list", thm.name)
 		}
-		if thm.Colors.Primary == "" {
-			t.Errorf("theme %q should have a primary color", thm.Name)
+		if thm.colors.primary == "" {
+			t.Errorf("theme %q should have a primary color", thm.name)
 		}
 	}
 
