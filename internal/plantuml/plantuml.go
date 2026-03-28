@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,9 +19,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 const (
+	// defaultPlantUMLServer is the base URL for the public PlantUML rendering service.
+	defaultPlantUMLServer = "https://www.plantuml.com/plantuml"
 	// maxResponseSize limits PlantUML server responses to 10 MB to prevent DoS.
 	maxResponseSize = 10 * 1024 * 1024
 	// maxErrorBodySize caps how much of an error response body we read for logging.
@@ -49,7 +52,7 @@ type Renderer struct {
 // serverURL should be the base URL without the /svg path (e.g. "https://www.plantuml.com/plantuml")
 func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 	if serverURL == "" {
-		serverURL = "https://www.plantuml.com/plantuml"
+		serverURL = defaultPlantUMLServer
 	}
 	serverURL = strings.TrimSuffix(serverURL, "/")
 
@@ -67,10 +70,10 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 			Timeout: plantumlHTTPTimeout,
 			// Validate redirect targets to prevent SSRF via 302 to internal IPs.
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) >= 10 {
+				if len(via) >= utils.MaxHTTPRedirects {
 					return errors.New("too many redirects")
 				}
-				return validateRedirectTarget(req.URL)
+				return utils.CheckURLNotPrivate(req.URL)
 			},
 		},
 	}, nil
@@ -85,43 +88,11 @@ func (r *Renderer) ClearCache() {
 	})
 }
 
-// validateRedirectTarget checks that an HTTP redirect does not point to a
-// private/internal address, preventing SSRF through open redirects.
-func validateRedirectTarget(u *url.URL) error {
-	host := u.Hostname()
-	if host == "" {
-		return errors.New("redirect to empty hostname")
-	}
-	lower := strings.ToLower(host)
-	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
-		return fmt.Errorf("redirect to %q is not allowed", host)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	ips, err := net.DefaultResolver.LookupHost(ctx, host)
-	if err != nil {
-		return fmt.Errorf("redirect dns resolution failed for %q: %w", host, err)
-	}
-	for _, ipStr := range ips {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			continue
-		}
-		if v4 := ip.To4(); v4 != nil {
-			ip = v4
-		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-			return fmt.Errorf("redirect to private address %s is not allowed", ipStr)
-		}
-	}
-	return nil
-}
-
 // newRendererNoValidation creates a Renderer without SSRF validation.
 // This is intended for tests that use local mock servers.
 func newRendererNoValidation(serverURL string, useLocal bool) *Renderer {
 	if serverURL == "" {
-		serverURL = "https://www.plantuml.com/plantuml"
+		serverURL = defaultPlantUMLServer
 	}
 	return &Renderer{
 		serverURL:  strings.TrimSuffix(serverURL, "/"),
@@ -140,33 +111,7 @@ func validatePlantUMLServer(serverURL string) error {
 	if u.Scheme != "https" && u.Scheme != "http" {
 		return fmt.Errorf("scheme %q not allowed; use http or https", u.Scheme)
 	}
-	host := u.Hostname()
-	if host == "" {
-		return errors.New("empty hostname")
-	}
-	lower := strings.ToLower(host)
-	if lower == "localhost" || strings.HasSuffix(lower, ".local") {
-		return fmt.Errorf("requests to %q are not allowed", host)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	ips, err := net.DefaultResolver.LookupHost(ctx, host)
-	if err != nil {
-		return fmt.Errorf("dns resolution failed for %q: %w", host, err)
-	}
-	for _, ipStr := range ips {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			continue
-		}
-		if v4 := ip.To4(); v4 != nil {
-			ip = v4
-		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
-			return fmt.Errorf("address %s is private/internal", ipStr)
-		}
-	}
-	return nil
+	return utils.CheckURLNotPrivate(u)
 }
 
 // plantumlPattern matches <pre><code class="language-plantuml">...</code></pre>
@@ -320,6 +265,17 @@ func isDangerousPlantUMLDirective(lower string) bool {
 	if strings.HasPrefix(lower, "!pragma") {
 		return true
 	}
+	// Function/procedure definitions (can call dangerous built-ins or
+	// construct dynamic include paths via string concatenation)
+	if strings.HasPrefix(lower, "!function") || strings.HasPrefix(lower, "!procedure") ||
+		strings.HasPrefix(lower, "!unquoted") || strings.HasPrefix(lower, "!log") ||
+		strings.HasPrefix(lower, "!local") {
+		return true
+	}
+	// Sub-part directives (used with !include to selectively include file parts)
+	if strings.HasPrefix(lower, "!startsub") || strings.HasPrefix(lower, "!endsub") {
+		return true
+	}
 	// Built-in functions that leak filesystem or environment info
 	if strings.Contains(lower, "%load_json") || strings.Contains(lower, "%getenv") ||
 		strings.Contains(lower, "%filename") || strings.Contains(lower, "%dirpath") {
@@ -346,8 +302,8 @@ func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error)
 	// Limit captured output to maxResponseSize to prevent memory exhaustion
 	// from malicious or runaway local PlantUML processes.
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &limitedBuffer{buf: &stdout, remaining: maxResponseSize}
-	cmd.Stderr = &limitedBuffer{buf: &stderr, remaining: maxStderrSize}
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxResponseSize}
+	cmd.Stderr = &utils.LimitedWriter{W: &stderr, N: maxStderrSize}
 
 	if err := cmd.Run(); err != nil {
 		msg := stderr.String()
@@ -465,45 +421,28 @@ func unescapeHTML(s string) string {
 	return s
 }
 
-// svgScriptPattern matches <script> tags and event handler attributes in SVG.
-var svgScriptPattern = regexp.MustCompile(`(?i)<script[\s>][\s\S]*?</script>`)
-var svgEventHandlerPattern = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
-var svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')`)
+// SVG sanitization patterns to strip dangerous content from PlantUML output.
+var (
+	svgScriptPattern        = regexp.MustCompile(`(?i)<script[\s>][\s\S]*?</script>`)
+	svgEventHandlerPattern  = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
+	svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*(?:"(?:javascript|data|vbscript):[^"]*"|'(?:javascript|data|vbscript):[^']*')`)
+	svgForeignObjectPattern = regexp.MustCompile(`(?i)<foreignObject[\s>][\s\S]*?</foreignObject>`)
+	svgUsePattern           = regexp.MustCompile(`(?i)<use[^>]+xlink:href\s*=\s*"[^"#][^"]*"[^>]*>`)
+)
 
 // sanitizeSVG strips potentially dangerous elements from SVG content
 // to prevent XSS from compromised or malicious PlantUML servers.
 func sanitizeSVG(svg string) string {
 	svg = svgScriptPattern.ReplaceAllString(svg, "")
+	svg = svgForeignObjectPattern.ReplaceAllString(svg, "")
 	svg = svgEventHandlerPattern.ReplaceAllString(svg, "")
 	svg = svgJavascriptURLPattern.ReplaceAllString(svg, "")
+	svg = svgUsePattern.ReplaceAllString(svg, "")
 	return svg
 }
 
-// NeedsPlantuml reports whether the HTML contains any PlantUML diagram elements.
-func NeedsPlantuml(html string) bool {
+// needsPlantuml reports whether the HTML contains any PlantUML diagram elements.
+func needsPlantuml(html string) bool {
 	return strings.Contains(html, `class="plantuml-diagram"`) ||
 		strings.Contains(html, `language-plantuml`)
-}
-
-// limitedBuffer wraps a bytes.Buffer and silently discards writes that would
-// exceed the configured limit, preventing memory exhaustion from runaway processes.
-type limitedBuffer struct {
-	buf       *bytes.Buffer
-	remaining int64
-}
-
-func (lb *limitedBuffer) Write(p []byte) (int, error) {
-	if lb.remaining <= 0 {
-		return len(p), nil
-	}
-	orig := len(p)
-	if int64(len(p)) > lb.remaining {
-		p = p[:lb.remaining]
-	}
-	n, err := lb.buf.Write(p)
-	lb.remaining -= int64(n)
-	if err != nil {
-		return n, err
-	}
-	return orig, nil
 }

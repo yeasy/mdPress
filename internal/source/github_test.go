@@ -2,6 +2,8 @@ package source
 
 import (
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -292,5 +294,144 @@ func TestGitHubSourceTokenNotLeakedInRepoName(t *testing.T) {
 	name := src.RepoName()
 	if name != "myorg/private-repo" {
 		t.Errorf("RepoName() = %q, want %q", name, "myorg/private-repo")
+	}
+}
+
+// TestSafeNameRegex tests the regex that validates owner and repo names.
+func TestSafeNameRegex(t *testing.T) {
+	valid := []string{"golang", "my-org", "repo_name", "repo.v2", "123"}
+	for _, v := range valid {
+		if !safeNameRegex.MatchString(v) {
+			t.Errorf("safeNameRegex should accept %q", v)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"; rm -rf /",
+		"$(whoami)",
+		"`id`",
+		"owner/repo",
+		"name with spaces",
+		"--upload-pack=evil",
+		"hello\nworld",
+		"../../../etc/passwd",
+	}
+	for _, v := range invalid {
+		if safeNameRegex.MatchString(v) {
+			t.Errorf("safeNameRegex should reject %q", v)
+		}
+	}
+}
+
+// TestBranchRegex tests the regex that validates branch names.
+func TestBranchRegex(t *testing.T) {
+	valid := []string{"main", "release-1.29", "feature/foo", "v2.0.0", "dev_branch"}
+	for _, v := range valid {
+		if !branchRegex.MatchString(v) {
+			t.Errorf("branchRegex should accept %q", v)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"--upload-pack=evil",
+		"-flag",
+		".hidden",
+		"; echo pwned",
+		"$(cmd)",
+		"branch with spaces",
+	}
+	for _, v := range invalid {
+		if branchRegex.MatchString(v) {
+			t.Errorf("branchRegex should reject %q", v)
+		}
+	}
+}
+
+// TestGitHubSourcePrepareValidation tests that Prepare rejects invalid inputs
+// without actually running git. This test requires git to be installed.
+func TestGitHubSourcePrepareValidation(t *testing.T) {
+	if _, err := os.Stat("/usr/bin/git"); err != nil {
+		// Also check PATH
+		if _, lookErr := exec.LookPath("git"); lookErr != nil {
+			t.Skip("git not installed, skipping Prepare validation tests")
+		}
+	}
+
+	tests := []struct {
+		name    string
+		owner   string
+		repo    string
+		branch  string
+		subDir  string
+		wantErr string
+	}{
+		{
+			name:    "shell injection in owner",
+			owner:   "; cat /etc/passwd",
+			repo:    "repo",
+			wantErr: "invalid repository owner",
+		},
+		{
+			name:    "command substitution in repo",
+			owner:   "owner",
+			repo:    "$(whoami)",
+			wantErr: "invalid repository name",
+		},
+		{
+			name:    "git option injection in branch",
+			owner:   "owner",
+			repo:    "repo",
+			branch:  "--upload-pack=evil",
+			wantErr: "invalid branch name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := NewGitHubSource(tt.owner, tt.repo, Options{
+				Branch: tt.branch,
+				SubDir: tt.subDir,
+			})
+			_, err := src.Prepare()
+			if err == nil {
+				t.Fatalf("Prepare() should fail for %s, got nil error", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error should contain %q, got: %v", tt.wantErr, err)
+			}
+			// Verify no temp directory is left behind
+			if src.tempDir != "" {
+				t.Errorf("tempDir should be empty after validation failure, got %q", src.tempDir)
+				os.RemoveAll(src.tempDir)
+			}
+		})
+	}
+}
+
+func TestRedactToken(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		token string
+		want  string
+	}{
+		{"empty token", "some output", "", "some output"},
+		{"empty string", "", "secret", ""},
+		{"no match", "clean output", "secret", "clean output"},
+		{"single match", "https://secret@github.com/repo", "secret", "https://[REDACTED]@github.com/repo"},
+		{"multiple matches", "secret and secret again", "secret", "[REDACTED] and [REDACTED] again"},
+		{"token is entire string", "secret", "secret", "[REDACTED]"},
+		{"both empty", "", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redactToken(tt.input, tt.token)
+			if got != tt.want {
+				t.Errorf("redactToken(%q, %q) = %q, want %q", tt.input, tt.token, got, tt.want)
+			}
+		})
 	}
 }

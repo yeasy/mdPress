@@ -30,16 +30,32 @@ func LoadPlugins(cfg *config.BookConfig) (*Manager, error) {
 			return nil, fmt.Errorf("plugin %q is missing the required 'path' field", pc.Name)
 		}
 
+		// Reject absolute plugin paths — they bypass containment checks and
+		// could execute arbitrary binaries when opening an untrusted project.
+		if filepath.IsAbs(pc.Path) {
+			return nil, fmt.Errorf("plugin %q: absolute paths are not allowed; use a path relative to the project directory", pc.Name)
+		}
+
 		// Resolve the path relative to the directory that contains book.yaml.
 		resolvedPath := cfg.ResolvePath(pc.Path)
 
 		// Reject relative plugin paths that resolve outside the project directory.
-		// Only enforce containment for relative paths (absolute paths are explicit).
-		if !filepath.IsAbs(pc.Path) {
-			absPlugin, absErr := filepath.Abs(resolvedPath)
-			if absErr == nil {
-				absBase, baseErr := filepath.Abs(cfg.ResolvePath("."))
-				if baseErr == nil && !strings.HasPrefix(absPlugin, absBase+string(filepath.Separator)) && absPlugin != absBase {
+		// Resolve symlinks to prevent symlink-based escapes.
+		absPlugin, absErr := filepath.Abs(resolvedPath)
+		if absErr == nil {
+			// Resolve the plugin's parent directory (the file may not exist yet),
+			// then re-append the filename. This handles macOS /var -> /private/var.
+			pluginDir := filepath.Dir(absPlugin)
+			pluginBase := filepath.Base(absPlugin)
+			if evaled, err := filepath.EvalSymlinks(pluginDir); err == nil {
+				absPlugin = filepath.Join(evaled, pluginBase)
+			}
+			absBaseDir, baseErr := filepath.Abs(cfg.ResolvePath("."))
+			if baseErr == nil {
+				if evaled, err := filepath.EvalSymlinks(absBaseDir); err == nil {
+					absBaseDir = evaled
+				}
+				if !strings.HasPrefix(absPlugin, absBaseDir+string(filepath.Separator)) && absPlugin != absBaseDir {
 					return nil, fmt.Errorf("plugin %q path resolves outside project directory: %s", pc.Name, resolvedPath)
 				}
 			}

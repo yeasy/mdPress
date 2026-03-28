@@ -72,10 +72,7 @@ func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, e
 	}
 	// Substitute CDN URL placeholders so the template does not need to import
 	// the utils package at template execution time.
-	resolvedTemplate := strings.ReplaceAll(htmlTemplate, "{{MERMAID_CDN_URL}}", utils.MermaidCDNURL)
-	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_CSS_URL}}", utils.KaTeXCSSURL)
-	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_JS_URL}}", utils.KaTeXJSURL)
-	resolvedTemplate = strings.ReplaceAll(resolvedTemplate, "{{KATEX_AUTO_RENDER_URL}}", utils.KaTeXAutoRenderURL)
+	resolvedTemplate := utils.ResolveCDNPlaceholders(htmlTemplate)
 	tmpl, err := template.New("book").Parse(resolvedTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse HTML template: %w", err)
@@ -143,9 +140,9 @@ func (r *HTMLRenderer) buildFullCSS(customCSS string) string {
 		css.WriteString("\n")
 	}
 
-	// Custom CSS.
+	// Custom CSS (sanitized to prevent style-tag breakout).
 	if customCSS != "" {
-		css.WriteString(customCSS)
+		css.WriteString(utils.SanitizeCSS(customCSS))
 		css.WriteString("\n")
 	}
 
@@ -164,8 +161,7 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		pageSize = "A4"
 	}
 	// Defense-in-depth: validate at point of use, not just config load time.
-	validSizes := map[string]bool{"A4": true, "A5": true, "Letter": true, "Legal": true, "B5": true}
-	if !validSizes[pageSize] {
+	if !config.IsValidPageSize(pageSize) {
 		pageSize = "A4"
 	}
 

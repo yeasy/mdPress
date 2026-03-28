@@ -2,6 +2,7 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,11 +13,15 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 const (
 	// gitCloneTimeout is the maximum time allowed for a git clone operation.
 	gitCloneTimeout = 5 * time.Minute
+	// maxGitattrsSize is the maximum size of .gitattributes file to read for LFS detection.
+	maxGitattrsSize = 1 << 20 // 1 MiB
 )
 
 // Pre-compiled regexps for input validation.
@@ -98,27 +103,52 @@ func (s *GitHubSource) Prepare() (string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var stdoutBuf, stderrBuf bytes.Buffer
+	const maxGitOutput = 10 * 1024 * 1024 // 10 MB
+	cmd.Stdout = &utils.LimitedWriter{W: &stdoutBuf, N: maxGitOutput}
+	cmd.Stderr = &utils.LimitedWriter{W: &stderrBuf, N: maxGitOutput}
 
-	if err := cmd.Run(); err != nil {
+	runErr := cmd.Run()
+
+	// Redact the token from any captured output before logging.
+	token := os.Getenv("GITHUB_TOKEN")
+	redactedStderr := redactToken(stderrBuf.String(), token)
+	redactedStdout := redactToken(stdoutBuf.String(), token)
+
+	if runErr != nil {
+		// Log redacted stderr so diagnostics are available without exposing the token.
+		if redactedStderr != "" {
+			slog.Error("git clone stderr", slog.String("output", redactedStderr))
+		}
+		if redactedStdout != "" {
+			slog.Error("git clone stdout", slog.String("output", redactedStdout))
+		}
 		// Clean up the clone directory on failure.
 		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
 			slog.Warn("Failed to clean up temporary directory after clone failure", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
 		}
 		s.tempDir = ""
 		hint := ""
-		if os.Getenv("GITHUB_TOKEN") == "" {
+		if token == "" {
 			hint = "; for private repositories, set the GITHUB_TOKEN environment variable"
 		}
-		return "", fmt.Errorf("failed to clone repository: %w (URL: %s%s)", err, logURL, hint)
+		return "", fmt.Errorf("failed to clone repository: %w (URL: %s%s)", runErr, logURL, hint)
+	}
+
+	// On success, emit captured output at debug level so it is available when
+	// verbose logging is enabled but does not appear in normal runs.
+	if redactedStderr != "" {
+		slog.Debug("git clone stderr", slog.String("output", redactedStderr))
+	}
+	if redactedStdout != "" {
+		slog.Debug("git clone stdout", slog.String("output", redactedStdout))
 	}
 
 	slog.Info("Repository clone completed", slog.String("dir", tempDir))
 
 	// Check for Git LFS usage and warn if LFS files may not be fully fetched.
 	gitattrsPath := filepath.Join(tempDir, ".gitattributes")
-	if fi, statErr := os.Stat(gitattrsPath); statErr == nil && fi.Size() < 1<<20 {
+	if fi, statErr := os.Stat(gitattrsPath); statErr == nil && fi.Size() < maxGitattrsSize {
 		data, err := os.ReadFile(gitattrsPath)
 		if err == nil && strings.Contains(string(data), "filter=lfs") {
 			slog.Warn("Repository uses Git LFS. Large files (images, binaries) may not be fully fetched with shallow clone. " +
@@ -179,4 +209,13 @@ func (s *GitHubSource) Type() string {
 // RepoName returns the full repository name.
 func (s *GitHubSource) RepoName() string {
 	return s.owner + "/" + s.repo
+}
+
+// redactToken replaces all occurrences of token in s with "[REDACTED]".
+// If token is empty, s is returned unchanged.
+func redactToken(s, token string) string {
+	if token == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, token, "[REDACTED]")
 }

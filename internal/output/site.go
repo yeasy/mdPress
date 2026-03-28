@@ -14,6 +14,13 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+const (
+	// maxSearchTextLength limits how much text is included per page in the search index.
+	maxSearchTextLength = 50000
+	// searchSnippetExtraRunes is the number of runes after a heading title to include in the search snippet.
+	searchSnippetExtraRunes = 500
+)
+
 // SiteChapter stores rendered chapter data for site output.
 type SiteChapter struct {
 	Title    string
@@ -99,9 +106,9 @@ func (g *SiteGenerator) AddChapter(ch SiteChapter) {
 	g.Chapters = append(g.Chapters, ch)
 }
 
-// SetCSS sets the site CSS.
+// SetCSS sets the site CSS, sanitizing it to prevent style-tag breakout.
 func (g *SiteGenerator) SetCSS(css string) {
-	g.CSS = css
+	g.CSS = utils.SanitizeCSS(css)
 }
 
 // Generate generates the static site pages, sitemap, and search index.
@@ -265,10 +272,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		for _, page := range flatPages {
 			plainText := htmlTagPattern.ReplaceAllString(page.Content, " ")
 			plainText = strings.Join(strings.Fields(plainText), " ")
-			// Limit text length to prevent excessively large search index entries
-			const maxTextLength = 50000
-			if utf8.RuneCountInString(plainText) > maxTextLength {
-				plainText = string([]rune(plainText)[:maxTextLength])
+			if utf8.RuneCountInString(plainText) > maxSearchTextLength {
+				plainText = string([]rune(plainText)[:maxSearchTextLength])
 			}
 			crumbs := g.buildBreadcrumbs(g.Chapters, page.Filename)
 			var pathParts []string
@@ -301,15 +306,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 func (g *SiteGenerator) flattenChapters(chapters []SiteChapter) []SiteChapter {
 	var result []SiteChapter
 	for _, ch := range chapters {
-		result = append(result, SiteChapter{
-			Title:    ch.Title,
-			ID:       ch.ID,
-			Filename: ch.Filename,
-			Content:  ch.Content,
-			Markdown: ch.Markdown,
-			Depth:    ch.Depth,
-			Headings: ch.Headings,
-		})
+		flat := ch
+		flat.Children = nil
+		result = append(result, flat)
 		if len(ch.Children) > 0 {
 			result = append(result, g.flattenChapters(ch.Children)...)
 		}
@@ -401,7 +400,7 @@ func searchEntriesForHeadings(page SiteChapter, plainText string) []searchEntry 
 				snippet := item.Title
 				if idx := strings.Index(plainText, item.Title); idx >= 0 {
 					runeIdx := utf8.RuneCountInString(plainText[:idx])
-					end := runeIdx + utf8.RuneCountInString(item.Title) + 500
+					end := runeIdx + utf8.RuneCountInString(item.Title) + searchSnippetExtraRunes
 					if end > len(runeText) {
 						end = len(runeText)
 					}

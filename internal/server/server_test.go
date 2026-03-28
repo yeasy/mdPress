@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -1653,5 +1654,187 @@ func TestIsAddrInUseDetection(t *testing.T) {
 				t.Errorf("isAddrInUse(%v) = %v, want %v", tt.err, result, tt.shouldMatch)
 			}
 		})
+	}
+}
+
+func TestIsSkippedDir(t *testing.T) {
+	tests := []struct {
+		name     string
+		dirName  string
+		expected bool
+	}{
+		{"git dir", ".git", true},
+		{"hidden dir generic", ".hidden", true},
+		{"node_modules", "node_modules", true},
+		{"_book", "_book", true},
+		{"vendor", "vendor", true},
+		{"regular dir", "src", false},
+		{"output dir", "output", false},
+		{"docs dir", "docs", false},
+		{"empty string", "", false},
+		{"cache dir without dot prefix", "cache", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isSkippedDir(tt.dirName)
+			if result != tt.expected {
+				t.Errorf("isSkippedDir(%q) = %v, want %v", tt.dirName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsWatchedExtension(t *testing.T) {
+	tests := []struct {
+		name     string
+		ext      string
+		expected bool
+	}{
+		{"markdown", ".md", true},
+		{"yaml", ".yaml", true},
+		{"yml", ".yml", true},
+		{"css", ".css", true},
+		{"go source", ".go", false},
+		{"json", ".json", false},
+		{"html", ".html", false},
+		{"empty string", "", false},
+		{"no dot md", "md", false},
+		{"txt", ".txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isWatchedExtension(tt.ext)
+			if result != tt.expected {
+				t.Errorf("isWatchedExtension(%q) = %v, want %v", tt.ext, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildWSMessage(t *testing.T) {
+	tests := []struct {
+		name        string
+		msgType     string
+		wantType    string
+		wantHasTime bool
+	}{
+		{"reload message", msgTypeReload, msgTypeReload, true},
+		{"build-start message", msgTypeBuildStart, msgTypeBuildStart, true},
+		{"css-update message", msgTypeCSSUpdate, msgTypeCSSUpdate, true},
+		{"arbitrary type", "custom-event", "custom-event", true},
+		{"empty type", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := time.Now().UnixMilli()
+			data := buildWSMessage(tt.msgType)
+			after := time.Now().UnixMilli()
+
+			if data == nil {
+				t.Fatal("buildWSMessage returned nil")
+			}
+
+			s := string(data)
+			if !strings.Contains(s, `"type":"`+tt.wantType+`"`) {
+				t.Errorf("message %q missing expected type field %q", s, tt.wantType)
+			}
+
+			// Verify timestamp field is present and within range
+			var parsed struct {
+				Type      string `json:"type"`
+				Timestamp int64  `json:"timestamp"`
+			}
+			if err := json.Unmarshal(data, &parsed); err != nil {
+				t.Fatalf("failed to parse message: %v", err)
+			}
+			if parsed.Timestamp < before || parsed.Timestamp > after {
+				t.Errorf("timestamp %d not in range [%d, %d]", parsed.Timestamp, before, after)
+			}
+		})
+	}
+}
+
+func TestBuildWSErrorMessage(t *testing.T) {
+	tests := []struct {
+		name    string
+		errMsg  string
+		wantErr bool
+	}{
+		{"simple error", "build failed", false},
+		{"empty message", "", false},
+		{"message with special chars", "error: <script>alert('xss')</script>", false},
+		{"message with newlines", "line1\nline2", false},
+		{"message with quotes", `error: "file not found"`, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := buildWSErrorMessage(tt.errMsg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("buildWSErrorMessage(%q) error = %v, wantErr %v", tt.errMsg, err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if data == nil {
+				t.Fatal("buildWSErrorMessage returned nil data")
+			}
+
+			var parsed struct {
+				Type      string `json:"type"`
+				Timestamp int64  `json:"timestamp"`
+				Error     string `json:"error"`
+			}
+			if err := json.Unmarshal(data, &parsed); err != nil {
+				t.Fatalf("failed to parse message: %v", err)
+			}
+			if parsed.Type != msgTypeBuildErr {
+				t.Errorf("type = %q, want %q", parsed.Type, msgTypeBuildErr)
+			}
+			if parsed.Error != tt.errMsg {
+				t.Errorf("error field = %q, want %q", parsed.Error, tt.errMsg)
+			}
+			if parsed.Timestamp <= 0 {
+				t.Errorf("timestamp should be positive, got %d", parsed.Timestamp)
+			}
+		})
+	}
+}
+
+func TestSecurityHeaders(t *testing.T) {
+	handler := securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	expectedHeaders := map[string]string{
+		"X-Content-Type-Options":       "nosniff",
+		"X-Frame-Options":              "DENY",
+		"Cross-Origin-Resource-Policy": "same-origin",
+		"Referrer-Policy":              "strict-origin-when-cross-origin",
+	}
+
+	for header, want := range expectedHeaders {
+		got := rec.Header().Get(header)
+		if got != want {
+			t.Errorf("header %q = %q, want %q", header, got, want)
+		}
+	}
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if csp == "" {
+		t.Error("Content-Security-Policy header is missing")
+	}
+	if !strings.Contains(csp, "default-src 'self'") {
+		t.Errorf("CSP missing default-src directive: %s", csp)
+	}
+	if !strings.Contains(csp, "https://cdn.jsdelivr.net") {
+		t.Errorf("CSP missing CDN allowlist for Mermaid/KaTeX: %s", csp)
 	}
 }

@@ -663,7 +663,7 @@ func TestInstallNewVersionFlow(t *testing.T) {
 
 		err := writeBinaryFile(currentBinary, newData)
 		if err != nil {
-			t.Errorf("writeBinaryFile() failed: %v", err)
+			t.Fatalf("writeBinaryFile() failed: %v", err)
 		}
 
 		// Verify new content
@@ -1147,4 +1147,119 @@ func TestVerifyChecksum(t *testing.T) {
 			t.Errorf("expected errNoChecksumEntry, got: %v", err)
 		}
 	})
+}
+
+// TestIsGitHubDownloadURL validates the URL allowlist used to restrict
+// upgrade downloads to GitHub-hosted assets only.
+func TestIsGitHubDownloadURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		want bool
+	}{
+		{"valid github.com release", "https://github.com/yeasy/mdpress/releases/download/v1.0/mdpress", true},
+		{"valid githubusercontent", "https://objects.githubusercontent.com/foo/bar", true},
+		{"http not https", "http://github.com/yeasy/mdpress/releases/download/v1.0/mdpress", false},
+		{"spoofed subdomain", "https://github.com.evil.com/foo", false},
+		{"evil prefix", "https://evil-github.com/foo", false},
+		{"file scheme", "file:///etc/passwd", false},
+		{"empty string", "", false},
+		{"ftp scheme", "ftp://github.com/foo", false},
+		{"plain github no scheme", "github.com/foo", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isGitHubDownloadURL(tt.url); got != tt.want {
+				t.Errorf("isGitHubDownloadURL(%q) = %v, want %v", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestExtractBinaryFromTarGz_PathTraversal verifies that tar.gz entries with
+// path traversal components are silently skipped.
+func TestExtractBinaryFromTarGz_PathTraversal(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello")
+
+	archive := mustCreateTarGzArchive(t, map[string][]byte{
+		"../../../tmp/mdpress": binaryContent,
+	})
+	_, err := extractBinaryFromTarGz(archive)
+	if err == nil {
+		t.Fatal("expected error: archive with only path-traversal entry should not extract a binary")
+	}
+	if !strings.Contains(err.Error(), "does not contain") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestExtractBinaryFromZip_PathTraversal verifies that zip entries with
+// path traversal components are silently skipped.
+func TestExtractBinaryFromZip_PathTraversal(t *testing.T) {
+	binaryContent := []byte("#!/bin/sh\necho hello")
+
+	archive := mustCreateZipArchive(t, map[string][]byte{
+		"../../../tmp/mdpress": binaryContent,
+	})
+	_, err := extractBinaryFromZip(archive)
+	if err == nil {
+		t.Fatal("expected error: archive with only path-traversal entry should not extract a binary")
+	}
+	if !strings.Contains(err.Error(), "does not contain") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// TestExtractBinaryFromTarGz_AbsolutePath verifies entries with absolute paths are skipped.
+func TestExtractBinaryFromTarGz_AbsolutePath(t *testing.T) {
+	archive := mustCreateTarGzArchive(t, map[string][]byte{
+		"/usr/local/bin/mdpress": []byte("evil"),
+	})
+	_, err := extractBinaryFromTarGz(archive)
+	if err == nil {
+		t.Fatal("expected error: archive with absolute path entry should not extract")
+	}
+}
+
+// TestExtractBinaryFromZip_AbsolutePath verifies entries with absolute paths are skipped.
+func TestExtractBinaryFromZip_AbsolutePath(t *testing.T) {
+	archive := mustCreateZipArchive(t, map[string][]byte{
+		"/usr/local/bin/mdpress": []byte("evil"),
+	})
+	_, err := extractBinaryFromZip(archive)
+	if err == nil {
+		t.Fatal("expected error: archive with absolute path entry should not extract")
+	}
+}
+
+// TestWriteBinaryFile_Success verifies binary is written with correct content and permissions.
+func TestWriteBinaryFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "subdir", "mdpress")
+	data := []byte("#!/bin/sh\necho hello")
+	if err := writeBinaryFile(binPath, data); err != nil {
+		t.Fatalf("writeBinaryFile failed: %v", err)
+	}
+	info, err := os.Stat(binPath)
+	if err != nil {
+		t.Fatalf("binary not created: %v", err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		t.Error("binary is not executable")
+	}
+	content, err := os.ReadFile(binPath)
+	if err != nil {
+		t.Fatalf("failed to read binary: %v", err)
+	}
+	if !bytes.Equal(content, data) {
+		t.Error("binary content mismatch")
+	}
+}
+
+// TestWriteBinaryFile_InvalidPath verifies error when parent dir cannot be created.
+func TestWriteBinaryFile_InvalidPath(t *testing.T) {
+	err := writeBinaryFile("/dev/null/impossible/mdpress", []byte("data"))
+	if err == nil {
+		t.Fatal("expected error writing to impossible path")
+	}
 }

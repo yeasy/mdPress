@@ -88,6 +88,36 @@ func TestReadFileIsDir(t *testing.T) {
 	}
 }
 
+// TestReadFileTooLarge tests that ReadFile rejects files exceeding the size limit.
+func TestReadFileTooLarge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping large-file test in short mode")
+	}
+
+	tmpDir := t.TempDir()
+	largePath := filepath.Join(tmpDir, "large.bin")
+
+	// Create a file just over the 100 MB limit using a sparse write.
+	f, err := os.Create(largePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const limit = 100 * 1024 * 1024 // 100 MB
+	if err := f.Truncate(limit + 1); err != nil {
+		f.Close()
+		t.Fatal(err)
+	}
+	f.Close()
+
+	_, err = ReadFile(largePath)
+	if err == nil {
+		t.Fatal("ReadFile should reject files larger than 100 MB")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("error should mention 'too large', got: %v", err)
+	}
+}
+
 // TestWriteFile tests file writing
 func TestWriteFile(t *testing.T) {
 	tmpDir := t.TempDir()

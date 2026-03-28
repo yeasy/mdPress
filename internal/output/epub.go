@@ -156,6 +156,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 7. Optional cover image asset.
 	if coverAsset != nil {
+		if strings.Contains(coverAsset.Filename, "..") || filepath.IsAbs(coverAsset.Filename) {
+			return fmt.Errorf("invalid cover asset filename: %s", coverAsset.Filename)
+		}
 		if err := writeZipBinaryFile(w, "OEBPS/"+coverAsset.Filename, coverAsset.Data); err != nil {
 			return fmt.Errorf("failed to write cover image asset: %w", err)
 		}
@@ -831,9 +834,7 @@ func sanitizeAssetFilename(name string) string {
 }
 
 func extensionForMediaType(mediaType string) string {
-	// Use the shared image extension map from utils to avoid duplication.
-	// This ensures consistent MIME type handling across the codebase.
-	if ext, ok := utils.ImageExtensionMap[strings.ToLower(mediaType)]; ok {
+	if ext, ok := utils.ImageExtForMIME(strings.ToLower(mediaType)); ok {
 		return ext
 	}
 	return ""

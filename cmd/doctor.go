@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,8 +19,12 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// maxPlantUMLScanSize caps how much of each Markdown file is read when scanning for PlantUML blocks.
-const maxPlantUMLScanSize = 1024 * 1024
+const (
+	// maxPlantUMLScanSize caps how much of each Markdown file is read when scanning for PlantUML blocks.
+	maxPlantUMLScanSize = 1024 * 1024
+	// networkCheckTimeout is the timeout for the network connectivity check.
+	networkCheckTimeout = 5 * time.Second
+)
 
 var doctorReportPath string
 
@@ -127,7 +130,7 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	checkGitAvailable(&report)
 
 	// Check Network connectivity
-	checkNetworkConnectivity(&report)
+	checkNetworkConnectivity(ctx, &report)
 
 	// Try to load project config once for reuse by multiple checks.
 	bookPath := filepath.Join(absDir, "book.yaml")
@@ -302,9 +305,10 @@ func checkGitAvailable(report *doctorReport) {
 	}
 }
 
-func checkNetworkConnectivity(report *doctorReport) {
-	// Try an HTTP HEAD request to github.com (cross-platform connectivity check)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func checkNetworkConnectivity(parentCtx context.Context, report *doctorReport) {
+	// Try an HTTP HEAD request to github.com (cross-platform connectivity check).
+	// Derive from the parent context so the doctor command's cancellation is respected.
+	ctx, cancel := context.WithTimeout(parentCtx, networkCheckTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "HEAD", "https://github.com", nil)
@@ -317,7 +321,7 @@ func checkNetworkConnectivity(report *doctorReport) {
 		return
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: networkCheckTimeout}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -364,7 +368,13 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 	// On Windows this will fail gracefully and we skip the check.
 	dfCtx, dfCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer dfCancel()
-	out, err := exec.CommandContext(dfCtx, "df", "-k", outputDir).Output()
+	// Sanitize: if outputDir starts with "-", prefix with "./" to avoid flag injection.
+	// Note: "--" is not portable to macOS/BSD df.
+	dfDir := outputDir
+	if strings.HasPrefix(dfDir, "-") {
+		dfDir = "./" + dfDir
+	}
+	out, err := exec.CommandContext(dfCtx, "df", "-k", dfDir).Output()
 	if err != nil {
 		if verbose {
 			utils.Warning("Could not determine disk space: %v", err)

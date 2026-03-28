@@ -172,3 +172,116 @@ func TestEscapeAttrDelegates(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeCSS(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "plain CSS",
+			input:    "body { color: red; }",
+			expected: "body { color: red; }",
+		},
+		{
+			name:     "style tag breakout",
+			input:    "body{}</style><script>alert(1)</script>",
+			expected: `body{}<\/style><script>alert(1)</script>`,
+		},
+		{
+			name:     "case insensitive breakout",
+			input:    "body{}</STYLE><script>alert(1)</script>",
+			expected: `body{}<\/style><script>alert(1)</script>`,
+		},
+		{
+			name:     "mixed case breakout",
+			input:    "body{}</sTyLe><script>alert(1)</script>",
+			expected: `body{}<\/style><script>alert(1)</script>`,
+		},
+		{
+			name:     "multiple occurrences",
+			input:    "</style>foo</style>",
+			expected: `<\/style>foo<\/style>`,
+		},
+		{
+			name:     "partial match not modified",
+			input:    "</styl body{}",
+			expected: "</styl body{}",
+		},
+		{
+			name:     "style in comment",
+			input:    "/* </style> */",
+			expected: `/* <\/style> */`,
+		},
+		{
+			name:     "blocks @import",
+			input:    `@import url("https://evil.com/steal.css");`,
+			expected: `/* blocked import */ /* blocked external url */;`,
+		},
+		{
+			name:     "blocks @import case insensitive",
+			input:    `@Import url("https://evil.com");`,
+			expected: `/* blocked import */ /* blocked external url */;`,
+		},
+		{
+			name:     "blocks expression()",
+			input:    `width: expression(document.body.clientWidth);`,
+			expected: `width: /* blocked expression */(document.body.clientWidth);`,
+		},
+		{
+			name:     "blocks expression case insensitive",
+			input:    `width: Expression (alert(1));`,
+			expected: `width: /* blocked expression */(alert(1));`,
+		},
+		{
+			name:     "preserves legitimate CSS with import-like text",
+			input:    `/* important note */ .important { color: red; }`,
+			expected: `/* important note */ .important { color: red; }`,
+		},
+		{
+			name:     "blocks external url()",
+			input:    `body { background: url("https://attacker.com/track"); }`,
+			expected: `body { background: /* blocked external url */; }`,
+		},
+		{
+			name:     "blocks external url case insensitive",
+			input:    `body { background: URL( 'HTTP://evil.com/img.png' ); }`,
+			expected: `body { background: /* blocked external url */; }`,
+		},
+		{
+			name:     "preserves local url()",
+			input:    `body { background: url("images/bg.png"); }`,
+			expected: `body { background: url("images/bg.png"); }`,
+		},
+		{
+			name:     "preserves data: url()",
+			input:    `body { background: url(data:image/png;base64,abc); }`,
+			expected: `body { background: url(data:image/png;base64,abc); }`,
+		},
+		{
+			name:     "allows @font-face with local src",
+			input:    `@font-face { font-family: x; src: local("MyFont"), url("fonts/my.woff"); }`,
+			expected: `@font-face { font-family: x; src: local("MyFont"), url("fonts/my.woff"); }`,
+		},
+		{
+			name:     "blocks external url inside @font-face",
+			input:    `@font-face { font-family: x; src: url("https://evil.com/font.woff"); }`,
+			expected: `@font-face { font-family: x; src: /* blocked external url */; }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeCSS(tt.input)
+			if result != tt.expected {
+				t.Errorf("SanitizeCSS(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
