@@ -511,16 +511,24 @@ var pdfChapterImageOptions = defaultEmbeddedChapterImageOptions
 // cannot require the heading to be at the very start.
 var firstHeadingPattern = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
 
-// stripDuplicateLeadingH1 removes the first heading (h1–h6) from htmlContent
-// if its text matches the summaryTitle. This prevents duplicate headings when
-// the template already renders the SUMMARY.md title as <h1 class="chapter-title">.
-// Sub-chapters often use h2 or lower in their Markdown, so matching only h1 is
-// not sufficient.
+// stripDuplicateLeadingH1 removes the leading h1 from htmlContent to prevent
+// duplicate headings in PDF bookmarks. The template already renders the
+// SUMMARY.md title as <h1 class="chapter-title">, so any h1 in the content
+// itself would produce a second bookmark entry.
+//
+// Removal rules:
+//   - If the first heading is h1 and its text matches summaryTitle → remove
+//     (exact duplicate, e.g. SUMMARY "前言" == file H1 "前言")
+//   - If the first heading is h1 and its text differs → remove
+//     (title mismatch, e.g. SUMMARY "前言" vs file H1 "区块链技术指南";
+//     the SUMMARY title takes precedence via the template's chapter-title)
+//   - If the first heading is h2–h6 and matches summaryTitle → remove
+//     (sub-chapter whose Markdown heading echoes the SUMMARY title)
+//   - If the first heading is h2–h6 and differs → keep
+//     (genuine sub-heading that is part of the chapter content)
 //
 // The heading is considered "leading" if only non-heading HTML elements appear
-// before it (e.g. <div>, <p>, <img>, badge links). This handles the common
-// pattern where README files wrap the title in a centered div or precede it
-// with shield badges.
+// before it (e.g. <div>, <p>, <img>, badge links).
 func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 	if summaryTitle == "" {
 		return htmlContent
@@ -532,19 +540,33 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 	}
 
 	// Verify that no other heading appears before this one.
-	// The content before the match must not contain any <h1>–<h6> tags.
 	prefix := htmlContent[:m[0]]
 	if firstHeadingPattern.MatchString(prefix) {
 		return htmlContent // another heading precedes this one; not leading
 	}
 
-	// Extract inner text of the heading, strip HTML tags for comparison.
-	// m[4]:m[5] is the second capture group (heading content).
+	// m[2]:m[3] is the heading level (capture group 1).
+	headingLevel := htmlContent[m[2]:m[3]]
+
+	// Extract inner text for comparison.
 	innerHTML := htmlContent[m[4]:m[5]]
 	innerText := strings.TrimSpace(stripHTMLTags(innerHTML))
 	summaryText := strings.TrimSpace(summaryTitle)
 
-	if innerText == summaryText {
+	shouldStrip := false
+	if headingLevel == "1" {
+		// Always strip leading h1 — the template already renders the chapter
+		// title as <h1 class="chapter-title">. A second h1 in the content
+		// creates a duplicate (or misleading) PDF bookmark entry regardless
+		// of whether the text matches.
+		shouldStrip = true
+	} else if innerText == summaryText {
+		// Strip h2–h6 only when the text matches the SUMMARY title (sub-chapter
+		// whose Markdown heading echoes the parent title).
+		shouldStrip = true
+	}
+
+	if shouldStrip {
 		return strings.TrimSpace(htmlContent[:m[0]] + htmlContent[m[1]:])
 	}
 	return htmlContent
