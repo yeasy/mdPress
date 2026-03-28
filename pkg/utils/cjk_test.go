@@ -35,30 +35,6 @@ func TestContainsCJK(t *testing.T) {
 	}
 }
 
-func TestContainsChinese(t *testing.T) {
-	tests := []struct {
-		name string
-		text string
-		want bool
-	}{
-		{"empty string", "", false},
-		{"english only", "Hello World", false},
-		{"chinese characters", "你好", true},
-		{"japanese hiragana only", "こんにちは", false},
-		{"korean hangul only", "안녕하세요", false},
-		{"kanji (shared with chinese)", "漢字", true}, // Kanji uses Han unified ideographs
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ContainsChinese(tt.text)
-			if got != tt.want {
-				t.Errorf("ContainsChinese(%q) = %v, want %v", tt.text, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestCheckCJKFonts(t *testing.T) {
 	// Environment-dependent test; verify it doesn't panic and returns valid status.
 	status := CheckCJKFonts()
@@ -86,9 +62,9 @@ func TestCJKFontStatus(t *testing.T) {
 		t.Errorf("CheckCJKFonts() returned too many fonts: %d (max 5)", len(status.Fonts))
 	}
 
-	// If available is true, Fonts should have items (usually)
+	// If available is true, Fonts should have items - this is an invariant in the implementation
 	if status.Available && len(status.Fonts) == 0 {
-		t.Log("Available is true but no fonts listed (may be fallback behavior on some systems)")
+		t.Error("Available is true but no fonts listed: implementation always pairs Available=true with at least one font")
 	}
 
 	// Windows should always return Available=true
@@ -151,33 +127,6 @@ func TestContainsCJKEdgeCases(t *testing.T) {
 			got := ContainsCJK(tt.text)
 			if got != tt.want {
 				t.Errorf("ContainsCJK(%q) = %v, want %v", tt.text, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestContainsChineseEdgeCases tests edge cases for Chinese detection
-func TestContainsChineseEdgeCases(t *testing.T) {
-	tests := []struct {
-		name string
-		text string
-		want bool
-	}{
-		{"Simplified Chinese", "简体中文", true},
-		{"Traditional Chinese", "繁體中文", true},
-		{"Mixed with English", "English 中文", true},
-		{"Pure English", "English only", false},
-		{"Pure Japanese", "ひらがなカタカナ", false},
-		{"Pure Korean", "한글만", false},
-		{"Kanji (Han ideographs)", "漢字", true}, // These are Han ideographs used in Japanese
-		{"Rare Han characters", "𠀋𠀌", true},    // Rare CJK characters
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ContainsChinese(tt.text)
-			if got != tt.want {
-				t.Errorf("ContainsChinese(%q) = %v, want %v", tt.text, got, tt.want)
 			}
 		})
 	}
@@ -292,7 +241,7 @@ func TestCheckCJKFontsFallback(t *testing.T) {
 	// Verify the return value is a CJKFontStatus struct
 	if status.Available && len(status.Fonts) == 0 {
 		// It's okay if Available is true but Fonts is empty (platform-specific behavior)
-		t.Logf("CheckCJKFonts() returned Available=true with no fonts listed")
+		t.Errorf("CheckCJKFonts() returned Available=true but no fonts listed")
 	}
 
 	if !status.Available && len(status.Fonts) > 0 {
@@ -325,6 +274,6 @@ func TestCheckCJKFontsConsistency(t *testing.T) {
 
 	// Both calls should return compatible structure types
 	if (status1.Available && !status2.Available) || (!status1.Available && status2.Available) {
-		t.Logf("Note: CJK availability changed between calls (may be normal if fonts installed/removed)")
+		t.Errorf("CheckCJKFonts() consistency: Available changed between calls (first=%v, second=%v)", status1.Available, status2.Available)
 	}
 }

@@ -329,8 +329,8 @@ func TestSetCodeTheme(t *testing.T) {
 	}
 }
 
-// TestGetHeadings tests retrieving heading list via Parse return value.
-func TestGetHeadings(t *testing.T) {
+// TestParseReturnsHeadings tests retrieving heading list via Parse return value.
+func TestParseReturnsHeadings(t *testing.T) {
 	parser := NewParser()
 	_, headings, err := parser.Parse([]byte("# A\n\n## B"))
 	if err != nil {

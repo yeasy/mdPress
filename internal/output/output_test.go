@@ -394,74 +394,6 @@ func TestChapterContent_Creation(t *testing.T) {
 	}
 }
 
-func TestChapterContent_EmptyFields(t *testing.T) {
-	chapter := ChapterContent{}
-
-	if chapter.Title != "" {
-		t.Error("expected empty title")
-	}
-	if chapter.ID != "" {
-		t.Error("expected empty id")
-	}
-	if chapter.HTML != "" {
-		t.Error("expected empty html")
-	}
-	if chapter.Filename != "" {
-		t.Error("expected empty filename")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Test cases: DocumentMeta
-// ---------------------------------------------------------------------------
-
-func TestDocumentMeta_Creation(t *testing.T) {
-	meta := DocumentMeta{
-		Title:    "My Book",
-		Author:   "John Doe",
-		Language: "en",
-		Version:  "1.0.0",
-	}
-
-	if meta.Title != "My Book" {
-		t.Error("title mismatch")
-	}
-	if meta.Author != "John Doe" {
-		t.Error("author mismatch")
-	}
-	if meta.Language != "en" {
-		t.Error("language mismatch")
-	}
-	if meta.Version != "1.0.0" {
-		t.Error("version mismatch")
-	}
-}
-
-func TestDocumentMeta_MultilingualContent(t *testing.T) {
-	tests := []struct {
-		title      string
-		author     string
-		language   string
-		shouldPass bool
-	}{
-		{"English Title", "Jane Smith", "en", true},
-		{"中文标题", "李明", "zh", true},
-		{"Título Español", "María García", "es", true},
-		{"", "", "", true}, // Empty values are allowed
-	}
-
-	for _, tt := range tests {
-		meta := DocumentMeta{
-			Title:    tt.title,
-			Author:   tt.author,
-			Language: tt.language,
-		}
-		if (meta.Title != tt.title) || (meta.Author != tt.author) {
-			t.Errorf("meta creation failed for %q", tt.title)
-		}
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Test cases: Concurrency
 // ---------------------------------------------------------------------------
@@ -563,7 +495,7 @@ func TestRegistry_CompleteWorkflow(t *testing.T) {
 	for _, fmt := range formats {
 		f, err := reg.Get(fmt)
 		if err != nil {
-			t.Errorf("failed to get %q: %v", fmt, err)
+			t.Fatalf("failed to get %q: %v", fmt, err)
 		}
 		if f.Name() != fmt {
 			t.Errorf("format name mismatch for %q", fmt)

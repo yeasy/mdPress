@@ -125,8 +125,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 
 	// Author
 	if cfg.Book.Author == "" {
-		results = append(results, validateResult{OK: false, Message: "Missing author (book.author) (recommended)"})
-		// Missing author is a warning, not a hard error.
+		results = append(results, validateResult{OK: true, Warning: true, Message: "Missing author (book.author) (recommended)"})
 	} else {
 		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Author: %s", cfg.Book.Author)})
 	}
@@ -202,7 +201,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		chapterDir := filepath.Dir(filePath)
 		for _, img := range images {
 			// Skip remote URLs.
-			if strings.HasPrefix(img, "http://") || strings.HasPrefix(img, "https://") {
+			if utils.IsRemoteURL(img) {
 				continue
 			}
 			imageChecked++
@@ -671,14 +670,14 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 		fmt.Println()
 		warnSuffix := ""
 		if warned > 0 {
-			warnSuffix = fmt.Sprintf(", %s warnings", utils.Yellow(fmt.Sprintf("%d", warned)))
+			warnSuffix = fmt.Sprintf(", %s warnings", utils.Yellow(strconv.Itoa(warned)))
 		}
 		if hasError {
 			fmt.Printf("  %s %d checks total, %s passed, %s failed%s\n",
 				utils.Red("Result:"),
 				len(results),
-				utils.Green(fmt.Sprintf("%d", passed)),
-				utils.Red(fmt.Sprintf("%d", failed)),
+				utils.Green(strconv.Itoa(passed)),
+				utils.Red(strconv.Itoa(failed)),
 				warnSuffix,
 			)
 			fmt.Println()
@@ -686,7 +685,7 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 			fmt.Printf("  %s %d checks passed, %s warnings ✓\n",
 				utils.Green("Result:"),
 				passed,
-				utils.Yellow(fmt.Sprintf("%d", warned)),
+				utils.Yellow(strconv.Itoa(warned)),
 			)
 			fmt.Println()
 		} else {

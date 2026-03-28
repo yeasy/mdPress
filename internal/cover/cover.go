@@ -12,6 +12,10 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// luminanceThreshold is the perceived luminance cutoff for distinguishing
+// light from dark colors (~73% brightness on a 0-255 scale, ITU-R BT.601).
+const luminanceThreshold = 186
+
 // cssColorPattern matches safe CSS color values (hex, rgb, rgba, hsl, hsla, named colors).
 var cssColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([\d\s,%.]+\)|[a-z]{1,30})$`)
 
@@ -289,7 +293,7 @@ func isLightColor(color string) bool {
 	b := hexVal(hex[4])*16 + hexVal(hex[5])
 	// Perceived luminance (ITU-R BT.601): Y = 0.299R + 0.587G + 0.114B.
 	luminance := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
-	return luminance > 186 // threshold: colors brighter than ~73% are "light"
+	return luminance > luminanceThreshold
 }
 
 func hexVal(c byte) int {

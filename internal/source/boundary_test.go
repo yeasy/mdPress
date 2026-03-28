@@ -104,7 +104,7 @@ func TestLocalSource_SymlinkPath(t *testing.T) {
 	src := NewLocalSource(linkDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("symlink path should work: %v", err)
+		t.Fatalf("symlink path should work: %v", err)
 	}
 	if result == "" {
 		t.Error("symlink path should return non-empty result")
@@ -153,7 +153,7 @@ func TestLocalSource_DeepNestedPath(t *testing.T) {
 	src := NewLocalSource(tempDir, Options{SubDir: "a/b/c/d/e/f"})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("deeply nested directory should work: %v", err)
+		t.Fatalf("deeply nested directory should work: %v", err)
 	}
 	if !strings.HasSuffix(result, filepath.Join("a", "b", "c", "d", "e", "f")) {
 		t.Errorf("path should contain full nested path, got: %q", result)
@@ -174,7 +174,7 @@ func TestLocalSource_SpecialCharsInPath(t *testing.T) {
 	src := NewLocalSource(specialDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("special character path should work: %v", err)
+		t.Fatalf("special character path should work: %v", err)
 	}
 	if result == "" {
 		t.Error("should return non-empty path")
@@ -192,7 +192,7 @@ func TestLocalSource_EmptyDirectory(t *testing.T) {
 	src := NewLocalSource(emptyDir, Options{})
 	result, err := src.Prepare()
 	if err != nil {
-		t.Errorf("empty directory should work as source: %v", err)
+		t.Fatalf("empty directory should work as source: %v", err)
 	}
 	if result == "" {
 		t.Error("empty directory should return a path")

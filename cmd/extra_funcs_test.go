@@ -109,6 +109,12 @@ func TestPredictedOutputLinks(t *testing.T) {
 		t.Errorf("site link does not end with index.html: %q", links["site"])
 	}
 
+	// typst produces a distinct PDF filename.
+	linksTypst := predictedOutputLinks(base, []string{"typst"})
+	if linksTypst["typst"] != "/out/mybook-typst.pdf" {
+		t.Errorf("typst link = %q, want %q", linksTypst["typst"], "/out/mybook-typst.pdf")
+	}
+
 	// Unknown format is ignored.
 	links2 := predictedOutputLinks(base, []string{"docx"})
 	if len(links2) != 0 {
@@ -244,6 +250,11 @@ func TestRewriteChapterLinksForSite(t *testing.T) {
 
 func TestRunPluginHook_NilManager(t *testing.T) {
 	// nil manager should be a no-op, not a panic.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("runPluginHook panicked with nil manager: %v", r)
+		}
+	}()
 	runPluginHook(nil, nil, slog.Default())
 }
 
@@ -410,11 +421,11 @@ func TestValidateRenderedMermaidHTML_EmptyContent(t *testing.T) {
 func TestGetAvailableThemes_Colors(t *testing.T) {
 	themes := getAvailableThemes()
 	for _, th := range themes {
-		if th.Colors.Background == "" {
-			t.Errorf("theme %q has empty background color", th.Name)
+		if th.colors.background == "" {
+			t.Errorf("theme %q has empty background color", th.name)
 		}
-		if th.Colors.CodeBg == "" {
-			t.Errorf("theme %q has empty code background color", th.Name)
+		if th.colors.codeBg == "" {
+			t.Errorf("theme %q has empty code background color", th.name)
 		}
 	}
 }
@@ -459,7 +470,7 @@ func TestNewBuildOrchestrator_MinimalConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	logger := slog.Default()
 
-	orch, err := NewBuildOrchestrator(cfg, logger)
+	orch, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -486,7 +497,7 @@ func TestNewBuildOrchestrator_InvalidThemeFallback(t *testing.T) {
 	logger := slog.Default()
 
 	// Should fall back to "technical" and succeed.
-	orch, err := NewBuildOrchestrator(cfg, logger)
+	orch, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

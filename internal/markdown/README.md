@@ -186,26 +186,17 @@ func (p *Parser) SetCodeTheme(theme string)
 - `solarized-light`
 - And others supported by goldmark-highlighting
 
-### GetHeadings
-
-Retrieves all collected heading information from the last parse.
-
-```go
-func (p *Parser) GetHeadings() []HeadingInfo
-```
-
-**Returns:**
-- `[]HeadingInfo`: Thread-safe copy of collected headings
-
 ### HeadingInfo
 
 Structure containing information about a heading.
 
 ```go
 type HeadingInfo struct {
-    Level int    // Heading level (1-6)
-    Text  string // Heading text content
-    ID    string // Custom heading ID for cross-referencing
+    Level  int    // Heading level (1-6)
+    Text   string // Heading text content
+    ID     string // Custom heading ID for cross-referencing
+    Line   int    // Line number of the heading
+    Column int    // Column number of the heading
 }
 ```
 
@@ -219,8 +210,6 @@ type ParserOption func(*Parser)
 
 **Built-in Options:**
 - `WithCodeTheme(theme string)`: Set code highlighting theme
-- `WithExtensions(exts ...goldmark.Extender)`: Add custom extensions
-- `WithParserOptions(opts ...parser.Option)`: Set goldmark parser options
 
 ## Examples
 
@@ -366,8 +355,6 @@ go test ./internal/markdown -v
 
 Potential improvements for future versions:
 - Custom renderer for PDF-specific formatting
-- Math equation support (KaTeX/MathJax)
-- Diagram support (Mermaid)
 - Custom CSS class insertion for styling
 - Metadata/front-matter extraction
 

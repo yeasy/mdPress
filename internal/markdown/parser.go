@@ -188,13 +188,6 @@ func (p *Parser) SetCodeTheme(theme string) {
 	p.initGoldmark()
 }
 
-// GetHeadings returns headings from the last Parse call.
-//
-// Deprecated: Use the headings returned directly by Parse instead.
-func (p *Parser) GetHeadings() []HeadingInfo {
-	return nil
-}
-
 // generateHeadingID generates a normalized heading ID.
 func generateHeadingID(text string) string {
 	id := bytes.ToLower([]byte(text))
