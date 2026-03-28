@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -115,7 +116,7 @@ func promptChoice(reader *bufio.Reader, question string, options []string, defau
 	}
 	// Try numeric selection first.
 	for i, opt := range options {
-		if answer == fmt.Sprintf("%d", i+1) {
+		if answer == strconv.Itoa(i+1) {
 			return opt
 		}
 	}

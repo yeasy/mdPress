@@ -623,6 +623,61 @@ func TestSlugify(t *testing.T) {
 	}
 }
 
+func TestHTMLGeneratorSlugCollision(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "site")
+
+	// Two chapters that slugify to the same value.
+	chapters := map[string]string{
+		"Introduction!": "<h1>First</h1>",
+		"Introduction?": "<h1>Second</h1>",
+	}
+
+	gen := NewHTMLGenerator()
+	err := gen.Generate("<html></html>", outDir, chapters)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+
+	htmlFiles := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".html") && e.Name() != "index.html" {
+			htmlFiles++
+		}
+	}
+
+	if htmlFiles != 2 {
+		t.Errorf("expected 2 chapter HTML files (deduplicated slugs), got %d", htmlFiles)
+	}
+}
+
+func TestHTMLGeneratorEmptySlugFallback(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "site")
+
+	// Chapter name with only special characters slugifies to empty.
+	chapters := map[string]string{
+		"!!!": "<h1>Special</h1>",
+	}
+
+	gen := NewHTMLGenerator()
+	err := gen.Generate("<html></html>", outDir, chapters)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Should create chapter.html as fallback.
+	pagePath := filepath.Join(outDir, "chapter.html")
+	if _, err := os.Stat(pagePath); err != nil {
+		t.Error("empty slug should fallback to chapter.html")
+	}
+}
+
 // Site generator tests
 
 func TestSiteGeneratorEmptyChapters(t *testing.T) {

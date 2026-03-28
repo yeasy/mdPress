@@ -7,11 +7,6 @@ import (
 	"testing"
 )
 
-// TestMockGeneratorSatisfiesInterface verifies that MockGenerator implements PDFRenderer.
-func TestMockGeneratorSatisfiesInterface(t *testing.T) {
-	var _ PDFRenderer = (*MockGenerator)(nil)
-}
-
 // TestMockGeneratorWritesPDF verifies that MockGenerator creates a file with a valid PDF header.
 func TestMockGeneratorWritesPDF(t *testing.T) {
 	tmpDir := t.TempDir()

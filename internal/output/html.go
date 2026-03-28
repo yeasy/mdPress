@@ -1,10 +1,11 @@
-// Package output implements non-PDF output generators such as HTML and ePub.
+// Package output implements non-PDF output generators such as HTML, ePub, and site.
 package output
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -31,8 +32,26 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 	}
 
 	// Write chapter pages when provided.
-	for name, html := range chapterHTMLs {
-		pageName := slugify(name) + ".html"
+	// Sort chapter names for deterministic output across builds.
+	names := make([]string, 0, len(chapterHTMLs))
+	for name := range chapterHTMLs {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Track seen slugs to avoid collisions (e.g. two chapters slugifying to the same name).
+	seenSlugs := make(map[string]int)
+	for _, name := range names {
+		html := chapterHTMLs[name]
+		slug := slugify(name)
+		if slug == "" {
+			slug = "chapter"
+		}
+		if count, ok := seenSlugs[slug]; ok {
+			slug = fmt.Sprintf("%s-%d", slug, count+1)
+		}
+		seenSlugs[slug]++
+		pageName := slug + ".html"
 		if err := validateFilename(outputDir, pageName); err != nil {
 			return fmt.Errorf("invalid chapter name %q: %w", name, err)
 		}

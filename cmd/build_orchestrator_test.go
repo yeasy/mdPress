@@ -25,7 +25,7 @@ func TestNewBuildOrchestrator_BasicInitialization(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestNewBuildOrchestrator_WithCodeThemeFromConfig(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestNewBuildOrchestrator_WithThemeFallback(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator should not fail with fallback: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestNewBuildOrchestrator_WithGlossary(t *testing.T) {
 		Chapters:     []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestNewBuildOrchestrator_WithoutGlossary(t *testing.T) {
 		Chapters:     []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestNewBuildOrchestrator_WithInvalidGlossary(t *testing.T) {
 		Chapters:     []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator should not fail with invalid glossary: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestProcessChapters_EmptyChapters(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestProcessChapters_WithRealChapter(t *testing.T) {
 	}
 	cfg.SetBaseDir(tmpDir)
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestProcessChapters_WithCanceledContext(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -306,13 +306,13 @@ func TestProcessChaptersWithOptions_EmptyChapters(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
 
 	ctx := context.Background()
-	options := ChapterPipelineOptions{}
+	options := chapterPipelineOptions{}
 
 	_, err = orchestrator.ProcessChaptersWithOptions(ctx, options)
 	if err == nil {
@@ -344,23 +344,23 @@ func TestProcessChaptersWithOptions_WithConcurrencyOption(t *testing.T) {
 	}
 	cfg.SetBaseDir(tmpDir)
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
 
 	ctx := context.Background()
-	options := ChapterPipelineOptions{
+	options := chapterPipelineOptions{
 		MaxConcurrency: 4,
 	}
 
 	result, err := orchestrator.ProcessChaptersWithOptions(ctx, options)
 	if err != nil {
-		t.Errorf("ProcessChaptersWithOptions with concurrency failed: %v", err)
+		t.Fatalf("ProcessChaptersWithOptions with concurrency failed: %v", err)
 	}
 
 	if result == nil {
-		t.Error("result should not be nil")
+		t.Fatal("result should not be nil")
 	}
 }
 
@@ -378,12 +378,12 @@ func TestProcessChaptersWithOptions_WithNilContext(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
 
-	options := ChapterPipelineOptions{}
+	options := chapterPipelineOptions{}
 
 	// Pass nil context - should be handled (returns error because no chapters)
 	//nolint:staticcheck // testing nil context handling
@@ -409,7 +409,7 @@ func TestLoadCustomCSS_NoCustomCSS(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestLoadCustomCSS_WithValidFile(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -474,7 +474,7 @@ func TestLoadCustomCSS_WithInvalidPath(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestLoadCustomCSS_MultipleInvocations(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -537,7 +537,7 @@ func TestBuildOrchestrator_ThemeFields(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestBuildOrchestrator_ParserFields(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -590,7 +590,7 @@ func TestBuildOrchestrator_LoggerPreservation(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestBuildOrchestrator_ConfigPreservation(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
@@ -647,7 +647,7 @@ func TestBuildOrchestrator_PluginManagerInitialized(t *testing.T) {
 		Chapters: []config.ChapterDef{},
 	}
 
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}

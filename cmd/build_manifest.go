@@ -24,8 +24,8 @@ type manifestEntry struct {
 	ModTime  time.Time `json:"mod_time"` // Chapter file modification time
 }
 
-// BuildManifest stores chapter compilation state for incremental builds.
-type BuildManifest struct {
+// buildManifest stores chapter compilation state for incremental builds.
+type buildManifest struct {
 	Version  string                   `json:"version"`
 	AppVer   string                   `json:"app_version"`
 	ConfigSH string                   `json:"config_sha256"`
@@ -33,34 +33,34 @@ type BuildManifest struct {
 	Chapters map[string]manifestEntry `json:"chapters"`
 }
 
-// LoadManifest loads the build manifest from the cache directory.
+// loadManifest loads the build manifest from the cache directory.
 // Returns an empty manifest if the file doesn't exist.
-func LoadManifest(cacheDir string) (*BuildManifest, error) {
+func loadManifest(cacheDir string) (*buildManifest, error) {
 	if utils.CacheDisabled() {
-		return NewBuildManifest(""), nil
+		return newBuildManifest(""), nil
 	}
 
 	manifestPath := filepath.Join(cacheDir, buildManifestFilename)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return NewBuildManifest(""), nil
+			return newBuildManifest(""), nil
 		}
 		return nil, fmt.Errorf("read build manifest: %w", err)
 	}
 
-	var manifest BuildManifest
+	var manifest buildManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		slog.Debug("build manifest unmarshal failed, starting fresh",
 			"path", manifestPath, "error", err)
-		return NewBuildManifest(""), nil
+		return newBuildManifest(""), nil
 	}
 
 	return &manifest, nil
 }
 
-// SaveManifest writes the manifest to disk atomically.
-func SaveManifest(cacheDir string, manifest *BuildManifest) error {
+// saveManifest writes the manifest to disk atomically.
+func saveManifest(cacheDir string, manifest *buildManifest) error {
 	if utils.CacheDisabled() {
 		return nil
 	}
@@ -99,8 +99,8 @@ func SaveManifest(cacheDir string, manifest *BuildManifest) error {
 	return nil
 }
 
-// ComputeChapterHash computes the SHA-256 hash of a chapter file.
-func ComputeChapterHash(filePath string) (string, error) {
+// computeChapterHash computes the SHA-256 hash of a chapter file.
+func computeChapterHash(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("open file: %w", err)
@@ -115,24 +115,19 @@ func ComputeChapterHash(filePath string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// ComputeConfigHash computes the SHA-256 hash of the config file.
-func ComputeConfigHash(filePath string) (string, error) {
-	return ComputeChapterHash(filePath)
-}
-
-// ComputeCSSHash computes the SHA-256 hash of CSS content.
-func ComputeCSSHash(content string) string {
+// computeCSSHash computes the SHA-256 hash of CSS content.
+func computeCSSHash(content string) string {
 	h := sha256.New()
 	_, _ = io.WriteString(h, content)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-// NewBuildManifest creates a fresh manifest with the current app version.
-func NewBuildManifest(appVer string) *BuildManifest {
+// newBuildManifest creates a fresh manifest with the current app version.
+func newBuildManifest(appVer string) *buildManifest {
 	if appVer == "" {
 		appVer = Version // Use the global Version from root.go
 	}
-	return &BuildManifest{
+	return &buildManifest{
 		Version:  buildManifestVersion,
 		AppVer:   appVer,
 		Chapters: make(map[string]manifestEntry),
@@ -143,7 +138,7 @@ func NewBuildManifest(appVer string) *BuildManifest {
 // - Version change
 // - Config file change
 // - CSS/theme change
-func (m *BuildManifest) IsStale(currentAppVer, currentConfigHash, currentCSSHash string) bool {
+func (m *buildManifest) IsStale(currentAppVer, currentConfigHash, currentCSSHash string) bool {
 	if m == nil || m.Chapters == nil {
 		return true
 	}
@@ -163,7 +158,7 @@ func (m *BuildManifest) IsStale(currentAppVer, currentConfigHash, currentCSSHash
 }
 
 // UpdateEntry updates a manifest entry for a chapter.
-func (m *BuildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingTexts []string, modTime time.Time) {
+func (m *buildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingTexts []string, modTime time.Time) {
 	m.Chapters[chapterPath] = manifestEntry{
 		SHA256:   hash,
 		HTMLPath: htmlPath,
@@ -173,43 +168,7 @@ func (m *BuildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingT
 }
 
 // GetEntry retrieves a manifest entry for a chapter.
-func (m *BuildManifest) GetEntry(chapterPath string) (manifestEntry, bool) {
+func (m *buildManifest) GetEntry(chapterPath string) (manifestEntry, bool) {
 	entry, ok := m.Chapters[chapterPath]
 	return entry, ok
-}
-
-// cacheStatistics tracks cache hit/miss counts.
-type cacheStatistics struct {
-	Total     int
-	Hits      int
-	Misses    int
-	Timestamp time.Time
-}
-
-// newCacheStatistics creates a new stats tracker.
-func newCacheStatistics() *cacheStatistics {
-	return &cacheStatistics{
-		Timestamp: time.Now(),
-	}
-}
-
-// RecordHit increments hit counter.
-func (s *cacheStatistics) RecordHit() {
-	s.Total++
-	s.Hits++
-}
-
-// RecordMiss increments miss counter.
-func (s *cacheStatistics) RecordMiss() {
-	s.Total++
-	s.Misses++
-}
-
-// String returns a human-readable summary.
-func (s *cacheStatistics) String() string {
-	if s.Total == 0 {
-		return "cache: no chapters processed"
-	}
-	percentage := int(float64(s.Hits) * 100 / float64(s.Total))
-	return fmt.Sprintf("cache: %d/%d hits (%d%%)", s.Hits, s.Total, percentage)
 }

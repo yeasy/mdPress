@@ -1,6 +1,12 @@
 package pdf
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
+
+// Compile-time interface check.
+var _ PDFRenderer = (*MockGenerator)(nil)
 
 // MockGenerator is a test double that writes a minimal valid PDF header
 // without requiring Chromium. Use it in tests to verify PDF generation
@@ -28,7 +34,7 @@ func (m *MockGenerator) Generate(htmlContent string, outputPath string) error {
 func (m *MockGenerator) GenerateFromFile(htmlFilePath string, outputPath string) error {
 	content, err := os.ReadFile(htmlFilePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read HTML for mock PDF: %w", err)
 	}
 	return m.Generate(string(content), outputPath)
 }

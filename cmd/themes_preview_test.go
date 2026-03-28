@@ -9,20 +9,20 @@ import (
 
 // TestGeneratePreviewHTML_Basic tests basic HTML generation for themes preview
 func TestGeneratePreviewHTML_Basic(t *testing.T) {
-	themes := []Theme{
+	themes := []themeInfo{
 		{
-			Name:        "test",
-			DisplayName: "Test Theme",
-			Description: "A test theme",
-			Author:      "Test Author",
-			Version:     "1.0.0",
-			Colors: themeColors{
-				Primary:    "#FF0000",
-				Secondary:  "#00FF00",
-				Accent:     "#0000FF",
-				Text:       "#000000",
-				Background: "#FFFFFF",
-				CodeBg:     "#F0F0F0",
+			name:        "test",
+			displayName: "Test Theme",
+			description: "A test theme",
+			author:      "Test Author",
+			version:     "1.0.0",
+			colors: themeColors{
+				primary:    "#FF0000",
+				secondary:  "#00FF00",
+				accent:     "#0000FF",
+				text:       "#000000",
+				background: "#FFFFFF",
+				codeBg:     "#F0F0F0",
 			},
 		},
 	}
@@ -54,7 +54,7 @@ func TestGeneratePreviewHTML_Basic(t *testing.T) {
 
 // TestGeneratePreviewHTML_EmptyThemes tests with no themes
 func TestGeneratePreviewHTML_EmptyThemes(t *testing.T) {
-	result := generatePreviewHTML([]Theme{})
+	result := generatePreviewHTML([]themeInfo{})
 
 	// Should still generate valid HTML structure
 	if !strings.Contains(result, "<!DOCTYPE html>") {
@@ -70,35 +70,35 @@ func TestGeneratePreviewHTML_EmptyThemes(t *testing.T) {
 
 // TestGeneratePreviewHTML_MultipleThemes tests with multiple themes
 func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
-	themes := []Theme{
+	themes := []themeInfo{
 		{
-			Name:        "tech",
-			DisplayName: "Technical",
-			Description: "Technical theme",
-			Author:      "Author1",
-			Version:     "1.0.0",
-			Colors: themeColors{
-				Primary:    "#1A5490",
-				Secondary:  "#0066CC",
-				Accent:     "#0066CC",
-				Text:       "#2C3E50",
-				Background: "#FFFFFF",
-				CodeBg:     "#F5F7F9",
+			name:        "tech",
+			displayName: "Technical",
+			description: "Technical theme",
+			author:      "Author1",
+			version:     "1.0.0",
+			colors: themeColors{
+				primary:    "#1A5490",
+				secondary:  "#0066CC",
+				accent:     "#0066CC",
+				text:       "#2C3E50",
+				background: "#FFFFFF",
+				codeBg:     "#F5F7F9",
 			},
 		},
 		{
-			Name:        "elegant",
-			DisplayName: "Elegant",
-			Description: "Elegant theme",
-			Author:      "Author2",
-			Version:     "1.0.0",
-			Colors: themeColors{
-				Primary:    "#34495e",
-				Secondary:  "#16a085",
-				Accent:     "#d35400",
-				Text:       "#2c3e50",
-				Background: "#ecf0f1",
-				CodeBg:     "#e8e8e8",
+			name:        "elegant",
+			displayName: "Elegant",
+			description: "Elegant theme",
+			author:      "Author2",
+			version:     "1.0.0",
+			colors: themeColors{
+				primary:    "#34495e",
+				secondary:  "#16a085",
+				accent:     "#d35400",
+				text:       "#2c3e50",
+				background: "#ecf0f1",
+				codeBg:     "#e8e8e8",
 			},
 		},
 	}
@@ -116,7 +116,7 @@ func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
 
 // TestGeneratePreviewHTML_ContainsStyles tests that CSS styles are present
 func TestGeneratePreviewHTML_ContainsStyles(t *testing.T) {
-	themes := []Theme{}
+	themes := []themeInfo{}
 	result := generatePreviewHTML(themes)
 
 	styleChecks := []string{
@@ -140,20 +140,20 @@ func TestGeneratePreviewHTML_ContainsStyles(t *testing.T) {
 
 // TestGeneratePreviewHTML_ValidHTML tests that generated HTML is well-formed
 func TestGeneratePreviewHTML_ValidHTML(t *testing.T) {
-	themes := []Theme{
+	themes := []themeInfo{
 		{
-			Name:        "test",
-			DisplayName: "Test",
-			Description: "Desc",
-			Author:      "Auth",
-			Version:     "1.0",
-			Colors: themeColors{
-				Primary:    "#111111",
-				Secondary:  "#222222",
-				Accent:     "#333333",
-				Text:       "#000000",
-				Background: "#FFFFFF",
-				CodeBg:     "#F0F0F0",
+			name:        "test",
+			displayName: "Test",
+			description: "Desc",
+			author:      "Auth",
+			version:     "1.0",
+			colors: themeColors{
+				primary:    "#111111",
+				secondary:  "#222222",
+				accent:     "#333333",
+				text:       "#000000",
+				background: "#FFFFFF",
+				codeBg:     "#F0F0F0",
 			},
 		},
 	}
@@ -182,19 +182,19 @@ func TestGeneratePreviewHTML_ValidHTML(t *testing.T) {
 
 // TestGenerateThemePreviewSection_Basic tests single theme section generation
 func TestGenerateThemePreviewSection_Basic(t *testing.T) {
-	theme := Theme{
-		Name:        "test",
-		DisplayName: "Test Theme",
-		Description: "Test Description",
-		Author:      "Test Author",
-		Version:     "1.0.0",
-		Colors: themeColors{
-			Primary:    "#FF0000",
-			Secondary:  "#00FF00",
-			Accent:     "#0000FF",
-			Text:       "#000000",
-			Background: "#FFFFFF",
-			CodeBg:     "#F0F0F0",
+	theme := themeInfo{
+		name:        "test",
+		displayName: "Test Theme",
+		description: "Test Description",
+		author:      "Test Author",
+		version:     "1.0.0",
+		colors: themeColors{
+			primary:    "#FF0000",
+			secondary:  "#00FF00",
+			accent:     "#0000FF",
+			text:       "#000000",
+			background: "#FFFFFF",
+			codeBg:     "#F0F0F0",
 		},
 	}
 
@@ -214,19 +214,19 @@ func TestGenerateThemePreviewSection_Basic(t *testing.T) {
 
 // TestGenerateThemePreviewSection_ContainsColors tests color display
 func TestGenerateThemePreviewSection_ContainsColors(t *testing.T) {
-	theme := Theme{
-		Name:        "colortest",
-		DisplayName: "Color Test",
-		Description: "Testing colors",
-		Author:      "Tester",
-		Version:     "1.0.0",
-		Colors: themeColors{
-			Primary:    "#123456",
-			Secondary:  "#ABCDEF",
-			Accent:     "#FEDCBA",
-			Text:       "#111111",
-			Background: "#EEEEEE",
-			CodeBg:     "#DDDDDD",
+	theme := themeInfo{
+		name:        "colortest",
+		displayName: "Color Test",
+		description: "Testing colors",
+		author:      "Tester",
+		version:     "1.0.0",
+		colors: themeColors{
+			primary:    "#123456",
+			secondary:  "#ABCDEF",
+			accent:     "#FEDCBA",
+			text:       "#111111",
+			background: "#EEEEEE",
+			codeBg:     "#DDDDDD",
 		},
 	}
 
@@ -255,19 +255,19 @@ func TestGenerateThemePreviewSection_ContainsColors(t *testing.T) {
 
 // TestGenerateThemePreviewSection_ContainsSampleContent tests sample content sections
 func TestGenerateThemePreviewSection_ContainsSampleContent(t *testing.T) {
-	theme := Theme{
-		Name:        "content",
-		DisplayName: "Content Test",
-		Description: "Testing content",
-		Author:      "Tester",
-		Version:     "1.0.0",
-		Colors: themeColors{
-			Primary:    "#000000",
-			Secondary:  "#111111",
-			Accent:     "#222222",
-			Text:       "#333333",
-			Background: "#FFFFFF",
-			CodeBg:     "#F0F0F0",
+	theme := themeInfo{
+		name:        "content",
+		displayName: "Content Test",
+		description: "Testing content",
+		author:      "Tester",
+		version:     "1.0.0",
+		colors: themeColors{
+			primary:    "#000000",
+			secondary:  "#111111",
+			accent:     "#222222",
+			text:       "#333333",
+			background: "#FFFFFF",
+			codeBg:     "#F0F0F0",
 		},
 	}
 
@@ -297,19 +297,19 @@ func TestGenerateThemePreviewSection_ContainsSampleContent(t *testing.T) {
 
 // TestGenerateThemePreviewSection_MetadataDisplay tests theme metadata
 func TestGenerateThemePreviewSection_MetadataDisplay(t *testing.T) {
-	theme := Theme{
-		Name:        "metadata",
-		DisplayName: "Metadata Test",
-		Description: "For testing metadata",
-		Author:      "John Doe",
-		Version:     "2.5.3",
-		Colors: themeColors{
-			Primary:    "#000000",
-			Secondary:  "#111111",
-			Accent:     "#222222",
-			Text:       "#333333",
-			Background: "#FFFFFF",
-			CodeBg:     "#F0F0F0",
+	theme := themeInfo{
+		name:        "metadata",
+		displayName: "Metadata Test",
+		description: "For testing metadata",
+		author:      "John Doe",
+		version:     "2.5.3",
+		colors: themeColors{
+			primary:    "#000000",
+			secondary:  "#111111",
+			accent:     "#222222",
+			text:       "#333333",
+			background: "#FFFFFF",
+			codeBg:     "#F0F0F0",
 		},
 	}
 
@@ -477,7 +477,7 @@ func TestExecuteThemesPreview_FileSize(t *testing.T) {
 
 // TestGeneratePreviewHTML_ContainsViewportMeta tests responsive design meta tag
 func TestGeneratePreviewHTML_ContainsViewportMeta(t *testing.T) {
-	result := generatePreviewHTML([]Theme{})
+	result := generatePreviewHTML([]themeInfo{})
 
 	if !strings.Contains(result, `<meta name="viewport"`) {
 		t.Error("generatePreviewHTML() should contain viewport meta tag for responsive design")
@@ -486,7 +486,7 @@ func TestGeneratePreviewHTML_ContainsViewportMeta(t *testing.T) {
 
 // TestGeneratePreviewHTML_MediaQueries tests responsive design media queries
 func TestGeneratePreviewHTML_MediaQueries(t *testing.T) {
-	result := generatePreviewHTML([]Theme{})
+	result := generatePreviewHTML([]themeInfo{})
 
 	if !strings.Contains(result, "@media (max-width: 768px)") {
 		t.Error("generatePreviewHTML() should contain media queries for responsive design")
@@ -495,19 +495,19 @@ func TestGeneratePreviewHTML_MediaQueries(t *testing.T) {
 
 // TestGenerateThemePreviewSection_GradientHeader tests gradient header styling
 func TestGenerateThemePreviewSection_GradientHeader(t *testing.T) {
-	theme := Theme{
-		Name:        "gradient",
-		DisplayName: "Gradient Test",
-		Description: "Testing gradient",
-		Author:      "Tester",
-		Version:     "1.0.0",
-		Colors: themeColors{
-			Primary:    "#667eea",
-			Secondary:  "#764ba2",
-			Accent:     "#999999",
-			Text:       "#000000",
-			Background: "#FFFFFF",
-			CodeBg:     "#F0F0F0",
+	theme := themeInfo{
+		name:        "gradient",
+		displayName: "Gradient Test",
+		description: "Testing gradient",
+		author:      "Tester",
+		version:     "1.0.0",
+		colors: themeColors{
+			primary:    "#667eea",
+			secondary:  "#764ba2",
+			accent:     "#999999",
+			text:       "#000000",
+			background: "#FFFFFF",
+			codeBg:     "#F0F0F0",
 		},
 	}
 
@@ -521,20 +521,20 @@ func TestGenerateThemePreviewSection_GradientHeader(t *testing.T) {
 
 // TestGeneratePreviewHTML_ThemeInformation tests theme information section
 func TestGeneratePreviewHTML_ThemeInformation(t *testing.T) {
-	themes := []Theme{
+	themes := []themeInfo{
 		{
-			Name:        "info",
-			DisplayName: "Info Test",
-			Description: "Description for info test",
-			Author:      "Info Author",
-			Version:     "1.2.3",
-			Colors: themeColors{
-				Primary:    "#000000",
-				Secondary:  "#111111",
-				Accent:     "#222222",
-				Text:       "#333333",
-				Background: "#FFFFFF",
-				CodeBg:     "#F0F0F0",
+			name:        "info",
+			displayName: "Info Test",
+			description: "Description for info test",
+			author:      "Info Author",
+			version:     "1.2.3",
+			colors: themeColors{
+				primary:    "#000000",
+				secondary:  "#111111",
+				accent:     "#222222",
+				text:       "#333333",
+				background: "#FFFFFF",
+				codeBg:     "#F0F0F0",
 			},
 		},
 	}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -20,6 +21,26 @@ var (
 	fontSizePattern   = regexp.MustCompile(`^\d+(\.\d+)?(px|pt|em|rem|%)$`)
 	codeThemePattern  = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 )
+
+// validPageSizes lists the accepted page size names (uppercase keys).
+var validPageSizes = map[string]bool{
+	"A4": true, "A5": true, "LETTER": true, "LEGAL": true, "B5": true,
+}
+
+// IsValidPageSize reports whether s is a recognized page size name (case-insensitive).
+func IsValidPageSize(s string) bool {
+	return validPageSizes[strings.ToUpper(s)]
+}
+
+// validPageSizeNames returns the list of accepted page size names in sorted order.
+func validPageSizeNames() []string {
+	names := make([]string, 0, len(validPageSizes))
+	for k := range validPageSizes {
+		names = append(names, k)
+	}
+	slices.Sort(names)
+	return names
+}
 
 // BookConfig is the top-level configuration for a book.
 type BookConfig struct {
@@ -221,17 +242,7 @@ func Load(path string) (*BookConfig, error) {
 		}
 	}
 
-	// Auto-detect GLOSSARY.md.
-	glossaryPath := filepath.Join(cfg.baseDir, "GLOSSARY.md")
-	if _, err := os.Stat(glossaryPath); err == nil {
-		cfg.GlossaryFile = glossaryPath
-	}
-
-	// Auto-detect LANGS.md.
-	langsPath := filepath.Join(cfg.baseDir, "LANGS.md")
-	if _, err := os.Stat(langsPath); err == nil {
-		cfg.LangsFile = langsPath
-	}
+	cfg.detectAuxFiles()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
@@ -251,6 +262,22 @@ func (c *BookConfig) SetBaseDir(dir string) {
 	c.baseDir = dir
 }
 
+// detectAuxFiles auto-detects GLOSSARY.md and LANGS.md in the base directory
+// and sets the corresponding config fields if the files exist.
+func (c *BookConfig) detectAuxFiles() {
+	if c.baseDir == "" {
+		return
+	}
+	glossaryPath := filepath.Join(c.baseDir, "GLOSSARY.md")
+	if _, err := os.Stat(glossaryPath); err == nil {
+		c.GlossaryFile = glossaryPath
+	}
+	langsPath := filepath.Join(c.baseDir, "LANGS.md")
+	if _, err := os.Stat(langsPath); err == nil {
+		c.LangsFile = langsPath
+	}
+}
+
 // Validate checks the configuration for completeness and validity.
 func (c *BookConfig) Validate() error {
 	if c.Book.Title == "" {
@@ -265,10 +292,7 @@ func (c *BookConfig) Validate() error {
 		return fmt.Errorf("chapter validation failed: %w", err)
 	}
 
-	validSizes := map[string]bool{
-		"A4": true, "A5": true, "Letter": true, "Legal": true, "B5": true,
-	}
-	if c.Style.PageSize != "" && !validSizes[c.Style.PageSize] {
+	if c.Style.PageSize != "" && !IsValidPageSize(c.Style.PageSize) {
 		return fmt.Errorf("unsupported page size: %q (supported: A4, A5, Letter, Legal, B5)", c.Style.PageSize)
 	}
 

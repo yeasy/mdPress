@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // errWriter is a writer that always returns an error.
@@ -328,6 +330,210 @@ func TestParseChromiumFlags(t *testing.T) {
 	}
 }
 
+// TestParseChromiumFlagsTableDriven exercises all branches of parseChromiumFlags:
+// allowlist filtering, boolean conversion ("true"/"false"), string values,
+// bare flags (no value), malformed/missing "--" prefixes, and empty input.
+func TestParseChromiumFlagsTableDriven(t *testing.T) {
+	tests := []struct {
+		name string
+		// input is the raw env-var string passed to parseChromiumFlags.
+		input string
+		// wantKeys is the set of flag names expected to be present in the result.
+		wantKeys []string
+		// wantAbsent is the set of flag names that must NOT appear in the result.
+		wantAbsent []string
+		// wantValues maps flag name -> expected value for precise value assertions.
+		wantValues map[string]any
+	}{
+		{
+			name:       "empty input returns empty map",
+			input:      "",
+			wantKeys:   nil,
+			wantAbsent: nil,
+			wantValues: map[string]any{},
+		},
+		{
+			name:       "whitespace-only input returns empty map",
+			input:      "   \t\n  ",
+			wantKeys:   nil,
+			wantValues: map[string]any{},
+		},
+		{
+			name:  "bare boolean flag with no value becomes true",
+			input: "--no-sandbox",
+			wantValues: map[string]any{
+				"no-sandbox": true,
+			},
+		},
+		{
+			name:  "multiple bare boolean flags",
+			input: "--no-sandbox --disable-gpu --headless",
+			wantValues: map[string]any{
+				"no-sandbox":  true,
+				"disable-gpu": true,
+				"headless":    true,
+			},
+		},
+		{
+			name:  "flag with value=true becomes bool true",
+			input: "--no-sandbox=true",
+			wantValues: map[string]any{
+				"no-sandbox": true,
+			},
+		},
+		{
+			name:  "flag with value=false becomes bool false",
+			input: "--no-sandbox=false",
+			wantValues: map[string]any{
+				"no-sandbox": false,
+			},
+		},
+		{
+			name:  "flag with value=TRUE is case-insensitive, becomes bool true",
+			input: "--disable-gpu=TRUE",
+			wantValues: map[string]any{
+				"disable-gpu": true,
+			},
+		},
+		{
+			name:  "flag with value=False is case-insensitive, becomes bool false",
+			input: "--headless=False",
+			wantValues: map[string]any{
+				"headless": false,
+			},
+		},
+		{
+			name:  "flag with arbitrary string value preserved",
+			input: "--font-render-hinting=none",
+			wantValues: map[string]any{
+				"font-render-hinting": "none",
+			},
+		},
+		{
+			name:  "flag with path value preserved",
+			input: "--user-data-dir=/tmp/chrome",
+			wantValues: map[string]any{
+				"user-data-dir": "/tmp/chrome",
+			},
+		},
+		{
+			name:  "value containing equals sign is split at first equals only",
+			input: "--user-data-dir=/tmp/a=b",
+			wantValues: map[string]any{
+				"user-data-dir": "/tmp/a=b",
+			},
+		},
+		{
+			name:       "disallowed flag is filtered out",
+			input:      "--remote-debugging-port=9222",
+			wantAbsent: []string{"remote-debugging-port"},
+			wantValues: map[string]any{},
+		},
+		{
+			name:       "disallowed bare flag is filtered out",
+			input:      "--single-process",
+			wantAbsent: []string{"single-process"},
+			wantValues: map[string]any{},
+		},
+		{
+			name:  "allowed and disallowed flags mixed: only allowed pass through",
+			input: "--no-sandbox --remote-debugging-port=9222 --disable-gpu --single-process",
+			wantValues: map[string]any{
+				"no-sandbox":  true,
+				"disable-gpu": true,
+			},
+			wantAbsent: []string{"remote-debugging-port", "single-process"},
+		},
+		{
+			name:       "item without -- prefix is ignored",
+			input:      "no-sandbox",
+			wantAbsent: []string{"no-sandbox"},
+			wantValues: map[string]any{},
+		},
+		{
+			name:       "bare double-dash is ignored",
+			input:      "--",
+			wantValues: map[string]any{},
+		},
+		{
+			name:       "single-dash prefix is ignored",
+			input:      "-no-sandbox",
+			wantAbsent: []string{"no-sandbox"},
+			wantValues: map[string]any{},
+		},
+		{
+			name:  "multiple spaces between flags are handled",
+			input: "--no-sandbox    --disable-gpu     --headless",
+			wantValues: map[string]any{
+				"no-sandbox":  true,
+				"disable-gpu": true,
+				"headless":    true,
+			},
+		},
+		{
+			name:  "disable-dev-shm-usage bare flag becomes true",
+			input: "--disable-dev-shm-usage",
+			wantValues: map[string]any{
+				"disable-dev-shm-usage": true,
+			},
+		},
+		{
+			name:  "mute-audio with string value preserved",
+			input: "--mute-audio=1",
+			wantValues: map[string]any{
+				"mute-audio": "1",
+			},
+		},
+		{
+			name:  "hide-scrollbars bare flag",
+			input: "--hide-scrollbars",
+			wantValues: map[string]any{
+				"hide-scrollbars": true,
+			},
+		},
+		{
+			name:  "print-to-pdf with path value",
+			input: "--print-to-pdf=/out/doc.pdf",
+			wantValues: map[string]any{
+				"print-to-pdf": "/out/doc.pdf",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseChromiumFlags(tt.input)
+
+			// Assert expected values.
+			for key, wantVal := range tt.wantValues {
+				gotVal, ok := got[key]
+				if !ok {
+					t.Errorf("flag %q missing from result; full map: %v", key, got)
+					continue
+				}
+				if gotVal != wantVal {
+					t.Errorf("flag %q: got value %v (%T), want %v (%T)",
+						key, gotVal, gotVal, wantVal, wantVal)
+				}
+			}
+
+			// Assert absent keys.
+			for _, key := range tt.wantAbsent {
+				if val, ok := got[key]; ok {
+					t.Errorf("flag %q should have been filtered out, but got value %v", key, val)
+				}
+			}
+
+			// Assert no extra keys beyond wantValues.
+			for key := range got {
+				if _, expected := tt.wantValues[key]; !expected {
+					t.Errorf("unexpected flag %q with value %v in result", key, got[key])
+				}
+			}
+		})
+	}
+}
+
 func TestPrepareChromiumRuntimeDirs(t *testing.T) {
 	t.Setenv("MDPRESS_CACHE_DIR", t.TempDir())
 
@@ -603,11 +809,11 @@ func TestDocumentOutlineDefault(t *testing.T) {
 	}
 }
 
-// TestChromeLimitedWriter tests the bounded writer used for Chrome output.
+// TestChromeLimitedWriter tests the shared utils.LimitedWriter used for Chrome output.
 func TestChromeLimitedWriter(t *testing.T) {
 	t.Run("writes within limit", func(t *testing.T) {
 		var buf bytes.Buffer
-		lw := &chromeLimitedWriter{w: &buf, n: 100}
+		lw := &utils.LimitedWriter{W: &buf, N: 100}
 		n, err := lw.Write([]byte("hello"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -622,7 +828,7 @@ func TestChromeLimitedWriter(t *testing.T) {
 
 	t.Run("truncates at limit", func(t *testing.T) {
 		var buf bytes.Buffer
-		lw := &chromeLimitedWriter{w: &buf, n: 3}
+		lw := &utils.LimitedWriter{W: &buf, N: 3}
 		n, err := lw.Write([]byte("hello"))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -637,7 +843,7 @@ func TestChromeLimitedWriter(t *testing.T) {
 
 	t.Run("discards after exhausted", func(t *testing.T) {
 		var buf bytes.Buffer
-		lw := &chromeLimitedWriter{w: &buf, n: 3}
+		lw := &utils.LimitedWriter{W: &buf, N: 3}
 		if _, err := lw.Write([]byte("abc")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -653,29 +859,23 @@ func TestChromeLimitedWriter(t *testing.T) {
 		}
 	})
 
-	t.Run("sets truncated flag", func(t *testing.T) {
+	t.Run("remaining bytes tracked", func(t *testing.T) {
 		var buf bytes.Buffer
-		lw := &chromeLimitedWriter{w: &buf, n: 3}
-		if lw.truncated {
-			t.Error("truncated should be false initially")
-		}
+		lw := &utils.LimitedWriter{W: &buf, N: 3}
 		if _, err := lw.Write([]byte("hello")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !lw.truncated {
-			t.Error("truncated should be true after exceeding limit")
+		if lw.N != 0 {
+			t.Errorf("remaining bytes should be 0 after exceeding limit, got %d", lw.N)
 		}
 	})
 
 	t.Run("underlying writer error", func(t *testing.T) {
 		ew := &errWriter{err: errors.New("disk full")}
-		lw := &chromeLimitedWriter{w: ew, n: 3}
-		n, err := lw.Write([]byte("hello"))
+		lw := &utils.LimitedWriter{W: ew, N: 3}
+		_, err := lw.Write([]byte("hello"))
 		if err == nil {
 			t.Fatal("expected error from underlying writer")
-		}
-		if n != 0 {
-			t.Errorf("expected n=0 on error, got %d", n)
 		}
 	})
 }

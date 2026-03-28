@@ -25,7 +25,7 @@ import (
 )
 
 // ChapterPipelineOptions controls expensive per-chapter processing behavior.
-type ChapterPipelineOptions struct {
+type chapterPipelineOptions struct {
 	ImageOptions *utils.ImageProcessingOptions
 	// MaxConcurrency controls how many chapters are parsed in parallel.
 	// If 0, defaults to runtime.NumCPU() (capped at 8).
@@ -48,7 +48,7 @@ type parsedChapterData struct {
 }
 
 // ChapterPipelineResult encapsulates the output of chapter processing.
-type ChapterPipelineResult struct {
+type chapterPipelineResult struct {
 	Chapters        []renderer.ChapterHTML
 	ChapterFiles    []string
 	ChapterMarkdown []string
@@ -59,7 +59,7 @@ type ChapterPipelineResult struct {
 }
 
 // ChapterPipeline orchestrates the complete chapter processing workflow.
-type ChapterPipeline struct {
+type chapterPipeline struct {
 	Config   *config.BookConfig
 	Theme    *theme.Theme
 	Parser   *markdown.Parser
@@ -71,11 +71,11 @@ type ChapterPipeline struct {
 }
 
 // NewChapterPipeline creates a new chapter pipeline with the given configuration.
-func NewChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdown.Parser, gloss *glossary.Glossary, logger *slog.Logger, mgr *plugin.Manager) *ChapterPipeline {
+func newChapterPipeline(cfg *config.BookConfig, thm *theme.Theme, parser *markdown.Parser, gloss *glossary.Glossary, logger *slog.Logger, mgr *plugin.Manager) *chapterPipeline {
 	if mgr == nil {
 		mgr = plugin.NewManager()
 	}
-	return &ChapterPipeline{
+	return &chapterPipeline{
 		Config:        cfg,
 		Theme:         thm,
 		Parser:        parser,
@@ -115,7 +115,7 @@ func computeMaxConcurrency(requested int) int {
 // parseChaptersParallel parses chapters in parallel using a worker pool.
 // It maintains chapter order by accepting results indexed by their position.
 // If any chapter fails, it returns the first error immediately.
-func (p *ChapterPipeline) parseChaptersParallel(
+func (p *chapterPipeline) parseChaptersParallel(
 	ctx context.Context,
 	flatChapters []flattenedChapter,
 	imageOptions utils.ImageProcessingOptions,
@@ -227,7 +227,7 @@ func (p *ChapterPipeline) parseChaptersParallel(
 // Returns with job.err != nil if the chapter could not be read or parsed.
 // Returns with job.err == nil on success.
 // parserCodeTheme returns the code highlighting theme from config or theme.
-func (p *ChapterPipeline) parserCodeTheme() string {
+func (p *chapterPipeline) parserCodeTheme() string {
 	codeTheme := p.Config.Style.CodeTheme
 	if codeTheme == "" && p.Theme != nil {
 		codeTheme = p.Theme.CodeTheme
@@ -238,7 +238,7 @@ func (p *ChapterPipeline) parserCodeTheme() string {
 	return codeTheme
 }
 
-func (p *ChapterPipeline) parseChapterWorker(
+func (p *chapterPipeline) parseChapterWorker(
 	ctx context.Context,
 	job *parsedChapterData,
 	imageOptions utils.ImageProcessingOptions,
@@ -252,7 +252,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 	// Read file
 	content, err := utils.ReadFile(chapterPath)
 	if err != nil {
-		p.Logger.Warn("Failed to read chapter", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		p.Logger.Warn("failed to read chapter", slog.String("file", chDef.File), slog.String("error", err.Error()))
 		job.err = fmt.Errorf("failed to read chapter %q: %w", chDef.File, err)
 		return
 	}
@@ -278,7 +278,7 @@ func (p *ChapterPipeline) parseChapterWorker(
 		var parseErr error
 		htmlContent, headings, diagnostics, parseErr = workerParser.ParseWithDiagnostics(content)
 		if parseErr != nil {
-			p.Logger.Warn("Failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
+			p.Logger.Warn("failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
 			job.err = fmt.Errorf("failed to parse chapter %q: %w", chDef.File, parseErr)
 			return
 		}
@@ -301,8 +301,8 @@ func (p *ChapterPipeline) parseChapterWorker(
 	imageOptions.Logger = p.Logger
 	processedHTML, err := utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
 	if err != nil {
-		p.Logger.Warn("Failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
-		p.Logger.Warn("Using original HTML without image processing", slog.String("file", chDef.File))
+		p.Logger.Warn("failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		p.Logger.Warn("using original HTML without image processing", slog.String("file", chDef.File))
 	} else {
 		htmlContent = processedHTML
 	}
@@ -315,13 +315,13 @@ func (p *ChapterPipeline) parseChapterWorker(
 // Process executes the complete chapter processing pipeline.
 // It returns processed chapters, chapter file paths, validation issues, and any error encountered.
 // Always uses ParseWithDiagnostics regardless of caller preference.
-func (p *ChapterPipeline) Process(ctx context.Context) (*ChapterPipelineResult, error) {
-	return p.ProcessWithOptions(ctx, ChapterPipelineOptions{})
+func (p *chapterPipeline) Process(ctx context.Context) (*chapterPipelineResult, error) {
+	return p.ProcessWithOptions(ctx, chapterPipelineOptions{})
 }
 
 // ProcessWithOptions executes the complete chapter processing pipeline with
 // caller-controlled image processing behavior.
-func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options ChapterPipelineOptions) (*ChapterPipelineResult, error) {
+func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapterPipelineOptions) (*chapterPipelineResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -356,7 +356,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 
 		// Bounds check: ensure flatChapters index is valid
 		if i >= len(flatChapters) {
-			p.Logger.Error("Internal error: chapter index out of bounds", slog.Int("index", i), slog.Int("flatChapters_len", len(flatChapters)))
+			p.Logger.Error("internal error: chapter index out of bounds", slog.Int("index", i), slog.Int("flatChapters_len", len(flatChapters)))
 			continue
 		}
 
@@ -420,7 +420,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 			Metadata:     make(map[string]any),
 		}
 		if err := p.PluginManager.RunHook(hookCtx); err != nil {
-			p.Logger.Warn("AfterParse plugin hook failed", slog.String("file", chDef.File), slog.String("error", err.Error()))
+			p.Logger.Warn("afterParse plugin hook failed", slog.String("file", chDef.File), slog.String("error", err.Error()))
 		} else if hookCtx.Content != "" {
 			htmlContent = hookCtx.Content
 		}
@@ -477,7 +477,7 @@ func (p *ChapterPipeline) ProcessWithOptions(ctx context.Context, options Chapte
 		}
 	}
 
-	return &ChapterPipelineResult{
+	return &chapterPipelineResult{
 		Chapters:        chaptersHTML,
 		ChapterFiles:    chapterFiles,
 		ChapterMarkdown: chapterMarkdown,
@@ -494,7 +494,7 @@ func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
 		EmbedRemoteAsBase64:    true,
 		DownloadRemote:         true,
 		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
-		MaxConcurrentDownloads: 4,
+		MaxConcurrentDownloads: utils.DefaultMaxConcurrentDownloads,
 	}
 }
 
@@ -550,7 +550,7 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 
 	// Extract inner text for comparison.
 	innerHTML := htmlContent[m[4]:m[5]]
-	innerText := strings.TrimSpace(stripHTMLTags(innerHTML))
+	innerText := strings.TrimSpace(utils.StripHTMLTags(innerHTML))
 	summaryText := strings.TrimSpace(summaryTitle)
 
 	shouldStrip := false
@@ -570,10 +570,4 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 		return strings.TrimSpace(htmlContent[:m[0]] + htmlContent[m[1]:])
 	}
 	return htmlContent
-}
-
-// stripHTMLTags removes HTML tags for plain-text comparison.
-// Delegates to the shared pattern in pkg/utils to avoid duplication.
-func stripHTMLTags(s string) string {
-	return utils.StripHTMLTags(s)
 }

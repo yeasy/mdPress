@@ -19,18 +19,18 @@ var (
 	tableCaptionRegexp   = regexp.MustCompile(`(?s)<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
 )
 
-// ReferenceType defines reference type constants.
-type ReferenceType string
+// referenceType defines reference type constants.
+type referenceType string
 
 const (
-	TypeFigure  ReferenceType = "figure"  // Figure
-	TypeTable   ReferenceType = "table"   // Table
-	TypeSection ReferenceType = "section" // Section
+	typeFigure  referenceType = "figure"  // Figure
+	typeTable   referenceType = "table"   // Table
+	typeSection referenceType = "section" // Section
 )
 
 // Reference represents a tracked reference object.
 type Reference struct {
-	Type      ReferenceType // Reference type (figure, table, or section)
+	Type      referenceType // Reference type (figure, table, or section)
 	ID        string        // Unique identifier
 	Number    int           // Auto-assigned number
 	Title     string        // Title or description
@@ -73,7 +73,7 @@ func (r *Resolver) RegisterFigure(id, title string) int {
 
 	r.figCount++
 	ref := &Reference{
-		Type:   TypeFigure,
+		Type:   typeFigure,
 		ID:     id,
 		Number: r.figCount,
 		Title:  title,
@@ -98,7 +98,7 @@ func (r *Resolver) RegisterTable(id, title string) int {
 
 	r.tabCount++
 	ref := &Reference{
-		Type:   TypeTable,
+		Type:   typeTable,
 		ID:     id,
 		Number: r.tabCount,
 		Title:  title,
@@ -149,7 +149,7 @@ func (r *Resolver) RegisterSection(id, title string, level int) {
 	numberStr := strings.Join(numbers, ".")
 
 	ref := &Reference{
-		Type:      TypeSection,
+		Type:      typeSection,
 		ID:        id,
 		Number:    r.sectionCounts[level],
 		Title:     title,
@@ -206,11 +206,11 @@ func (r *Resolver) ProcessHTML(html string) string {
 
 		// Generate reference text based on type.
 		switch ref.Type {
-		case TypeFigure:
+		case typeFigure:
 			return fmt.Sprintf(`<a href="#%s" class="ref-figure">图%d</a>`, utils.EscapeAttr(ref.ID), ref.Number)
-		case TypeTable:
+		case typeTable:
 			return fmt.Sprintf(`<a href="#%s" class="ref-table">表%d</a>`, utils.EscapeAttr(ref.ID), ref.Number)
-		case TypeSection:
+		case typeSection:
 			label := fmt.Sprintf("第%d节", ref.Number)
 			if ref.NumberStr != "" {
 				label = "§" + ref.NumberStr
