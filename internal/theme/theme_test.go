@@ -281,7 +281,7 @@ margins:
 	// Should be retrievable by name
 	retrieved, err := tm.Get("custom-theme")
 	if err != nil {
-		t.Errorf("should be able to get theme by name after loading: %v", err)
+		t.Fatalf("should be able to get theme by name after loading: %v", err)
 	}
 	if retrieved.FontSize != 14 {
 		t.Error("theme properties retrieved by name should be correct")
@@ -1024,7 +1024,7 @@ func TestGetThemeDescription_CaseSensitive(t *testing.T) {
 func TestGetThemeDescription_AllKnownThemes(t *testing.T) {
 	expectedDefault := "Unknown theme"
 
-	for themeName := range ThemeVariants {
+	for themeName := range themeVariants {
 		desc := GetThemeDescription(themeName)
 		if desc == "" {
 			t.Errorf("GetThemeDescription(%q) returned empty string", themeName)

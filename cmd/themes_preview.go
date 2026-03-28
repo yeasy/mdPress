@@ -41,7 +41,7 @@ func executeThemesPreview(outputPath string) error {
 }
 
 // generatePreviewHTML creates a self-contained HTML document showcasing all themes.
-func generatePreviewHTML(themes []Theme) string {
+func generatePreviewHTML(themes []themeInfo) string {
 	var sb strings.Builder
 	sb.WriteString(`<!DOCTYPE html>
 <html lang="en">
@@ -283,7 +283,7 @@ func generatePreviewHTML(themes []Theme) string {
 }
 
 // generateThemePreviewSection creates an HTML section for a single theme.
-func generateThemePreviewSection(theme Theme) string {
+func generateThemePreviewSection(theme themeInfo) string {
 	section := fmt.Sprintf(`            <div class="theme-section">
                 <div class="theme-header" style="background: linear-gradient(135deg, %s 0%%, %s 100%%);">
                     <div class="theme-name">%s</div>
@@ -346,35 +346,35 @@ func greet(name string) string {
                 </div>
             </div>
 `,
-		theme.Colors.Primary,
-		theme.Colors.Secondary,
-		theme.DisplayName,
-		theme.Name,
-		theme.Description,
-		theme.Colors.Primary,
-		theme.Colors.Primary,
-		theme.Colors.Secondary,
-		theme.Colors.Secondary,
-		theme.Colors.Accent,
-		theme.Colors.Accent,
-		theme.Colors.Text,
-		theme.Colors.Background,
-		theme.Colors.Primary,
-		theme.Colors.Accent,
-		theme.Colors.Text,
-		theme.Colors.CodeBg,
-		theme.Colors.Text,
-		theme.Colors.CodeBg,
-		theme.Colors.Secondary,
-		theme.Colors.Secondary,
-		theme.Colors.Secondary,
-		theme.Colors.CodeBg,
-		theme.Colors.Secondary,
-		theme.Author,
-		theme.Colors.Secondary,
-		theme.Version,
-		theme.Colors.Accent,
-		theme.Colors.Text,
+		theme.colors.primary,
+		theme.colors.secondary,
+		theme.displayName,
+		theme.name,
+		theme.description,
+		theme.colors.primary,
+		theme.colors.primary,
+		theme.colors.secondary,
+		theme.colors.secondary,
+		theme.colors.accent,
+		theme.colors.accent,
+		theme.colors.text,
+		theme.colors.background,
+		theme.colors.primary,
+		theme.colors.accent,
+		theme.colors.text,
+		theme.colors.codeBg,
+		theme.colors.text,
+		theme.colors.codeBg,
+		theme.colors.secondary,
+		theme.colors.secondary,
+		theme.colors.secondary,
+		theme.colors.codeBg,
+		theme.colors.secondary,
+		theme.author,
+		theme.colors.secondary,
+		theme.version,
+		theme.colors.accent,
+		theme.colors.text,
 	)
 
 	return section

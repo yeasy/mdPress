@@ -63,8 +63,8 @@ func TestRegisterSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to resolve 'intro': %v", err)
 	}
-	if ref.Type != TypeSection {
-		t.Errorf("wrong reference type: got %v, want %v", ref.Type, TypeSection)
+	if ref.Type != typeSection {
+		t.Errorf("wrong reference type: got %v, want %v", ref.Type, typeSection)
 	}
 }
 
@@ -77,12 +77,12 @@ func TestResolve(t *testing.T) {
 
 	tests := []struct {
 		id       string
-		wantType ReferenceType
+		wantType referenceType
 		wantErr  bool
 	}{
-		{"fig_arch", TypeFigure, false},
-		{"tab_compare", TypeTable, false},
-		{"ch1", TypeSection, false},
+		{"fig_arch", typeFigure, false},
+		{"tab_compare", typeTable, false},
+		{"ch1", typeSection, false},
 		{"nonexistent", "", true},
 	}
 
@@ -386,8 +386,8 @@ func TestRegisterSectionDeepNesting(t *testing.T) {
 			t.Errorf("NumberStr for %q = %q, want %q", tt.id, ref.NumberStr, tt.wantNum)
 		}
 
-		if ref.Type != TypeSection {
-			t.Errorf("Type for %q = %v, want %v", tt.id, ref.Type, TypeSection)
+		if ref.Type != typeSection {
+			t.Errorf("Type for %q = %v, want %v", tt.id, ref.Type, typeSection)
 		}
 	}
 }
@@ -477,7 +477,7 @@ func TestResolveSearchOrder(t *testing.T) {
 	r.Reset()
 	r.RegisterFigure(id, "这是一张图")
 	ref, err := r.Resolve(id)
-	if err != nil || ref.Type != TypeFigure {
+	if err != nil || ref.Type != typeFigure {
 		t.Error("should find figure reference")
 	}
 
@@ -486,7 +486,7 @@ func TestResolveSearchOrder(t *testing.T) {
 	r.RegisterTable(id, "这是一张表")
 	r.RegisterFigure(id, "这是一张图")
 	ref, err = r.Resolve(id)
-	if err != nil || ref.Type != TypeFigure {
+	if err != nil || ref.Type != typeFigure {
 		t.Error("when both figure and table exist, figure should be returned first")
 	}
 
@@ -494,7 +494,7 @@ func TestResolveSearchOrder(t *testing.T) {
 	r.Reset()
 	r.RegisterSection(id, "这是一章", 1)
 	ref, err = r.Resolve(id)
-	if err != nil || ref.Type != TypeSection {
+	if err != nil || ref.Type != typeSection {
 		t.Error("should find section reference")
 	}
 
@@ -504,7 +504,7 @@ func TestResolveSearchOrder(t *testing.T) {
 	r.RegisterTable(id, "表")
 	r.RegisterFigure(id, "图")
 	ref, err = r.Resolve(id)
-	if err != nil || ref.Type != TypeFigure {
+	if err != nil || ref.Type != typeFigure {
 		t.Error("when all three types exist, figure should be returned first")
 	}
 }

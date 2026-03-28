@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -40,6 +41,10 @@ type Term struct {
 // Glossary stores parsed glossary terms.
 type Glossary struct {
 	Terms []Term
+
+	prepareOnce  sync.Once
+	sortedTerms  []Term
+	termPatterns map[string]*regexp.Regexp
 }
 
 // ParseFile parses a glossary from GLOSSARY.md.
@@ -103,33 +108,37 @@ func ParseFile(path string) (*Glossary, error) {
 	return g, nil
 }
 
+// prepare sorts terms and pre-compiles regex patterns once.
+func (g *Glossary) prepare() {
+	g.prepareOnce.Do(func() {
+		g.sortedTerms = make([]Term, len(g.Terms))
+		copy(g.sortedTerms, g.Terms)
+		sort.Slice(g.sortedTerms, func(i, j int) bool {
+			return len(g.sortedTerms[i].Name) > len(g.sortedTerms[j].Name)
+		})
+
+		g.termPatterns = make(map[string]*regexp.Regexp, len(g.sortedTerms))
+		for _, term := range g.sortedTerms {
+			escapedName := regexp.QuoteMeta(term.Name)
+			if utils.ContainsCJK(term.Name) {
+				g.termPatterns[term.Name] = regexp.MustCompile(`(?i)` + escapedName)
+			} else {
+				g.termPatterns[term.Name] = regexp.MustCompile(`(?i)\b` + escapedName + `\b`)
+			}
+		}
+	})
+}
+
 // ProcessHTML highlights glossary terms in HTML body text.
 func (g *Glossary) ProcessHTML(html string) string {
 	if len(g.Terms) == 0 {
 		return html
 	}
 
-	// Match longer terms first.
-	sorted := make([]Term, len(g.Terms))
-	copy(sorted, g.Terms)
-	sort.Slice(sorted, func(i, j int) bool {
-		return len(sorted[i].Name) > len(sorted[j].Name)
-	})
+	g.prepare()
 
-	// Pre-compile regex patterns to avoid recompilation in the loop.
-	patterns := make(map[string]*regexp.Regexp)
-	for _, term := range sorted {
-		escapedName := regexp.QuoteMeta(term.Name)
-		// CJK characters have no word boundaries (\b), so match them without anchors.
-		if utils.ContainsCJK(term.Name) {
-			patterns[term.Name] = regexp.MustCompile(`(?i)` + escapedName)
-		} else {
-			patterns[term.Name] = regexp.MustCompile(`(?i)\b` + escapedName + `\b`)
-		}
-	}
-
-	for _, term := range sorted {
-		html = highlightTerm(html, term, patterns[term.Name])
+	for _, term := range g.sortedTerms {
+		html = highlightTerm(html, term, g.termPatterns[term.Name])
 	}
 
 	return html

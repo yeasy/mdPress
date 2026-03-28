@@ -102,8 +102,8 @@ func builtinMinimal() *Theme {
 	}
 }
 
-// ThemeVariants lists available theme variants and their descriptions.
-var ThemeVariants = map[string]string{
+// themeVariants lists available theme variants and their descriptions.
+var themeVariants = map[string]string{
 	"technical": "Clean, professional style for technical documentation and IT books",
 	"elegant":   "Elegant serif-based style for fiction, essays, and publishing",
 	"minimal":   "Minimal style with generous whitespace and high readability",
@@ -111,7 +111,7 @@ var ThemeVariants = map[string]string{
 
 // GetThemeDescription returns the human-readable description for a theme.
 func GetThemeDescription(themeName string) string {
-	if desc, ok := ThemeVariants[themeName]; ok {
+	if desc, ok := themeVariants[themeName]; ok {
 		return desc
 	}
 	return "Unknown theme"

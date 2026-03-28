@@ -23,6 +23,9 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// gitCmdTimeout is the maximum time to wait for git commands.
+const gitCmdTimeout = 5 * time.Second
+
 // Discover auto-discovers project configuration in a directory.
 // Priority: book.yaml > book.json (GitBook compat) > SUMMARY.md > Markdown file scanning.
 // The context is used for potentially long-running operations like git commands.
@@ -95,17 +98,7 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 				cfg.Book.Author = gitConfigAuthor(ctx, absDir)
 			}
 
-			// Detect GLOSSARY.md.
-			glossaryPath := filepath.Join(absDir, "GLOSSARY.md")
-			if _, err := os.Stat(glossaryPath); err == nil {
-				cfg.GlossaryFile = glossaryPath
-			}
-
-			// Detect LANGS.md.
-			langsPath := filepath.Join(absDir, "LANGS.md")
-			if _, err := os.Stat(langsPath); err == nil {
-				cfg.LangsFile = langsPath
-			}
+			cfg.detectAuxFiles()
 
 			if err := cfg.Validate(); err != nil {
 				return nil, fmt.Errorf("SUMMARY.md config validation failed: %w", err)
@@ -207,11 +200,7 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 	}
 
-	// Auto-detect GLOSSARY.md.
-	glossaryPath := filepath.Join(dir, "GLOSSARY.md")
-	if _, err := os.Stat(glossaryPath); err == nil {
-		cfg.GlossaryFile = glossaryPath
-	}
+	cfg.detectAuxFiles()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("auto-discovered config validation failed: %w", err)
@@ -268,7 +257,7 @@ func fileNameToTitle(path string) string {
 // or an empty string when git is unavailable or no tags exist.
 func gitLatestTag(ctx context.Context, dir string) string {
 	// Enforce a short timeout to prevent blocking on SSH passphrase prompts etc.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
 	// Use describe to find the most recent tag reachable from HEAD.
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "describe", "--tags", "--abbrev=0").Output()
@@ -283,7 +272,7 @@ func gitLatestTag(ctx context.Context, dir string) string {
 // or an empty string when git is unavailable or no name is set.
 // The context is used to allow cancellation of the git command.
 func gitConfigAuthor(ctx context.Context, dir string) string {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "config", "user.name").Output()
 	if err != nil {

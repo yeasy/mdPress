@@ -211,6 +211,56 @@ func TestValidateValidPageSizes(t *testing.T) {
 	}
 }
 
+// TestIsValidPageSize tests the page size validator function.
+func TestIsValidPageSize(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"A4", true},
+		{"A5", true},
+		{"Letter", true},
+		{"Legal", true},
+		{"B5", true},
+		{"a4", true},
+		{"LETTER", true},
+		{"letter", true},
+		{"legal", true},
+		{"A3", false},
+		{"Tabloid", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := IsValidPageSize(tt.input); got != tt.want {
+				t.Errorf("IsValidPageSize(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// Test_validPageSizeNames tests that all expected page sizes are returned.
+func Test_validPageSizeNames(t *testing.T) {
+	names := validPageSizeNames()
+	if len(names) != 5 {
+		t.Fatalf("expected 5 page sizes, got %d: %v", len(names), names)
+	}
+	for _, name := range names {
+		if !IsValidPageSize(name) {
+			t.Errorf("validPageSizeNames() returned %q which is not valid", name)
+		}
+	}
+	// Verify returns a fresh slice each call.
+	a := validPageSizeNames()
+	b := validPageSizeNames()
+	a[0] = "MUTATED"
+	for _, name := range b {
+		if name == "MUTATED" {
+			t.Error("validPageSizeNames should return a new slice each time")
+		}
+	}
+}
+
 // TestResolvePath tests path resolution
 func TestResolvePath(t *testing.T) {
 	cfg := DefaultConfig()

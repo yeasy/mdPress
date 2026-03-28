@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // Generator converts HTML/Markdown content to PDF using Typst.
@@ -36,6 +37,7 @@ type GeneratorOption func(*Generator)
 
 const (
 	defaultTimeout    = 60 * time.Second
+	typstCheckTimeout = 30 * time.Second
 	defaultPageSize   = "A4"
 	defaultMargin     = "20mm"
 	defaultFontSize   = "12pt"
@@ -146,8 +148,8 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 		Version:      g.version,
 		Language:     g.language,
 		Content:      typstContent,
-		PageWidth:    strings.TrimSuffix(width, "mm"),
-		PageHeight:   strings.TrimSuffix(height, "mm"),
+		PageWidth:    width,
+		PageHeight:   height,
 		MarginTop:    g.marginTop,
 		MarginRight:  g.marginRight,
 		MarginBottom: g.marginBottom,
@@ -226,8 +228,8 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 
 	// Limit captured output to prevent OOM from malicious/buggy Typst documents.
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &limitedWriter{w: &stdout, n: maxTypstOutput}
-	cmd.Stderr = &limitedWriter{w: &stderr, n: maxTypstOutput}
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxTypstOutput}
+	cmd.Stderr = &utils.LimitedWriter{W: &stderr, N: maxTypstOutput}
 
 	err = cmd.Run()
 	if err != nil {
@@ -257,7 +259,7 @@ func (g *Generator) checkTypstAvailable() error {
 		)
 	}
 	// Verify it's actually a working typst binary by checking version
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), typstCheckTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, "--version")
 	if err := cmd.Run(); err != nil {
@@ -273,27 +275,3 @@ func checkTypstAvailable() error {
 
 // maxTypstOutput is the maximum bytes captured from typst's stdout/stderr.
 const maxTypstOutput = 1 << 20 // 1 MB
-
-// limitedWriter wraps an io.Writer and silently discards writes beyond n bytes.
-type limitedWriter struct {
-	w io.Writer
-	n int64
-}
-
-func (lw *limitedWriter) Write(p []byte) (int, error) {
-	if lw.n <= 0 {
-		return len(p), nil // discard entirely
-	}
-	if int64(len(p)) > lw.n {
-		// Write what fits, discard the rest, report all consumed.
-		_, err := lw.w.Write(p[:lw.n])
-		lw.n = 0
-		if err != nil {
-			return 0, err
-		}
-		return len(p), nil
-	}
-	n, err := lw.w.Write(p)
-	lw.n -= int64(n)
-	return n, err
-}

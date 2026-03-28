@@ -61,7 +61,7 @@ Some subsection text.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Create and run pipeline
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -139,7 +139,7 @@ func TestChapterPipelineNoChapters(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	// Should return an error about no chapters processed
@@ -192,7 +192,7 @@ Just some regular paragraph text.
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -249,7 +249,7 @@ This is the second chapter.
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	_, err = pipeline.Process(context.Background())
 
 	// Should fail because one chapter file is missing.
@@ -299,7 +299,7 @@ This chapter mentions a term that should be glossarized.
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Run pipeline with nil glossary (most tests will use nil)
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -351,8 +351,8 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
-		filepath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filepath, []byte(ch.content), 0644); err != nil {
+		filePath := filepath.Join(tmpDir, ch.filename)
+		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -377,7 +377,7 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -450,7 +450,7 @@ Final section.
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -516,7 +516,7 @@ Details here.
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -580,7 +580,7 @@ Section content.
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	result, err := pipeline.Process(context.Background())
 
 	if err != nil {
@@ -631,7 +631,7 @@ func TestChapterPipelineCanceledContext(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -679,8 +679,8 @@ func TestParallelChapterParsingProducesSameResults(t *testing.T) {
 
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
-		filepath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filepath, []byte(ch.content), 0644); err != nil {
+		filePath := filepath.Join(tmpDir, ch.filename)
+		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -706,15 +706,15 @@ func TestParallelChapterParsingProducesSameResults(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Run sequential parsing
-	seqPipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	seqResult, err := seqPipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 1})
+	seqPipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	seqResult, err := seqPipeline.ProcessWithOptions(context.Background(), chapterPipelineOptions{MaxConcurrency: 1})
 	if err != nil {
 		t.Fatalf("Sequential pipeline failed: %v", err)
 	}
 
 	// Run parallel parsing with max concurrency
-	parPipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	parResult, err := parPipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+	parPipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	parResult, err := parPipeline.ProcessWithOptions(context.Background(), chapterPipelineOptions{MaxConcurrency: 4})
 	if err != nil {
 		t.Fatalf("Parallel pipeline failed: %v", err)
 	}
@@ -771,8 +771,8 @@ func TestParallelChapterParsingErrorHandling(t *testing.T) {
 
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
-		filepath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filepath, []byte(ch.content), 0644); err != nil {
+		filePath := filepath.Join(tmpDir, ch.filename)
+		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -803,8 +803,8 @@ func TestParallelChapterParsingErrorHandling(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-	_, err = pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: 4})
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	_, err = pipeline.ProcessWithOptions(context.Background(), chapterPipelineOptions{MaxConcurrency: 4})
 
 	// The missing chapter should now cause the pipeline to fail.
 	if err == nil {
@@ -857,8 +857,8 @@ func TestParallelChapterParsingWithDifferentConcurrency(t *testing.T) {
 	concurrencyLevels := []int{0, 1, 2, 4, 8, 16} // 0 = default, negative = sequential
 
 	for _, conc := range concurrencyLevels {
-		pipeline := NewChapterPipeline(cfg, thm, parser, nil, logger, nil)
-		result, err := pipeline.ProcessWithOptions(context.Background(), ChapterPipelineOptions{MaxConcurrency: conc})
+		pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+		result, err := pipeline.ProcessWithOptions(context.Background(), chapterPipelineOptions{MaxConcurrency: conc})
 
 		if err != nil {
 			t.Errorf("Concurrency level %d failed: %v", conc, err)

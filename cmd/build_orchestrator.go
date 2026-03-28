@@ -14,7 +14,7 @@ import (
 
 // BuildOrchestrator encapsulates the shared build initialization workflow
 // used by both `build` and `serve` commands.
-type BuildOrchestrator struct {
+type buildOrchestrator struct {
 	Config *config.BookConfig
 	Theme  *theme.Theme
 	Parser *markdown.Parser
@@ -27,12 +27,12 @@ type BuildOrchestrator struct {
 
 // NewBuildOrchestrator creates a fully initialized orchestrator from config.
 // It loads the theme (with fallback), creates the parser, and loads the glossary.
-func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOrchestrator, error) {
+func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOrchestrator, error) {
 	// Initialize the theme.
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get(cfg.Style.Theme)
 	if err != nil {
-		logger.Warn("Theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.String("error", err.Error()))
+		logger.Warn("theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.String("error", err.Error()))
 		thm, err = tm.Get("technical")
 		if err != nil {
 			return nil, fmt.Errorf("failed to load default theme: %w", err)
@@ -51,7 +51,7 @@ func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOr
 	if cfg.GlossaryFile != "" {
 		gloss, err = glossary.ParseFile(cfg.GlossaryFile)
 		if err != nil {
-			logger.Warn("Failed to parse GLOSSARY.md", slog.String("error", err.Error()))
+			logger.Warn("failed to parse GLOSSARY.md", slog.String("error", err.Error()))
 		}
 	}
 
@@ -61,7 +61,7 @@ func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOr
 		logger.Warn(msg)
 	})
 
-	return &BuildOrchestrator{
+	return &buildOrchestrator{
 		Config:        cfg,
 		Theme:         thm,
 		Parser:        parser,
@@ -72,24 +72,24 @@ func NewBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*BuildOr
 }
 
 // ProcessChapters runs the ChapterPipeline and returns results.
-func (o *BuildOrchestrator) ProcessChapters(ctxOpts ...context.Context) (*ChapterPipelineResult, error) {
+func (o *buildOrchestrator) ProcessChapters(ctxOpts ...context.Context) (*chapterPipelineResult, error) {
 	ctx := context.Background()
 	if len(ctxOpts) > 0 && ctxOpts[0] != nil {
 		ctx = ctxOpts[0]
 	}
-	return o.ProcessChaptersWithOptions(ctx, ChapterPipelineOptions{})
+	return o.ProcessChaptersWithOptions(ctx, chapterPipelineOptions{})
 }
 
 // ProcessChaptersWithOptions runs the ChapterPipeline with caller-provided options.
-func (o *BuildOrchestrator) ProcessChaptersWithOptions(ctx context.Context, options ChapterPipelineOptions) (*ChapterPipelineResult, error) {
+func (o *buildOrchestrator) ProcessChaptersWithOptions(ctx context.Context, options chapterPipelineOptions) (*chapterPipelineResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	pipeline := NewChapterPipeline(o.Config, o.Theme, o.Parser, o.Gloss, o.Logger, o.PluginManager)
+	pipeline := newChapterPipeline(o.Config, o.Theme, o.Parser, o.Gloss, o.Logger, o.PluginManager)
 	return pipeline.ProcessWithOptions(ctx, options)
 }
 
 // LoadCustomCSS loads user-provided CSS.
-func (o *BuildOrchestrator) LoadCustomCSS() string {
+func (o *buildOrchestrator) LoadCustomCSS() string {
 	return loadCustomCSS(o.Config, o.Logger)
 }

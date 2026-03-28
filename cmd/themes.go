@@ -89,95 +89,95 @@ func init() {
 	themesPreviewCmd.Flags().StringP("output", "o", "themes-preview.html", "Output file path for the HTML preview")
 }
 
-// Theme describes a built-in theme.
-type Theme struct {
-	Name        string
-	DisplayName string
-	Description string
-	Author      string
-	Version     string
-	License     string
-	Features    []string
-	Colors      themeColors
+// themeInfo describes a built-in theme.
+type themeInfo struct {
+	name        string
+	displayName string
+	description string
+	author      string
+	version     string
+	license     string
+	features    []string
+	colors      themeColors
 }
 
 // themeColors stores theme color values.
 type themeColors struct {
-	Primary    string
-	Secondary  string
-	Accent     string
-	Text       string
-	Background string
-	CodeBg     string
+	primary    string
+	secondary  string
+	accent     string
+	text       string
+	background string
+	codeBg     string
 }
 
 // getAvailableThemes returns the built-in themes.
-func getAvailableThemes() []Theme {
-	return []Theme{
+func getAvailableThemes() []themeInfo {
+	return []themeInfo{
 		{
-			Name:        "technical",
-			DisplayName: "Technical",
-			Description: "A clean and professional style for technical books and documentation.",
-			Author:      "mdpress Team",
-			Version:     "1.0.0",
-			License:     "MIT",
-			Features: []string{
+			name:        "technical",
+			displayName: "Technical",
+			description: "A clean and professional style for technical books and documentation.",
+			author:      "mdpress Team",
+			version:     "1.0.0",
+			license:     "MIT",
+			features: []string{
 				"Clear typography",
 				"Code highlighting support",
 				"Responsive layout",
 				"Professional font pairing",
 			},
-			Colors: themeColors{
-				Primary:    "#1A5490",
-				Secondary:  "#0066CC",
-				Accent:     "#0066CC",
-				Text:       "#2C3E50",
-				Background: "#FFFFFF",
-				CodeBg:     "#F5F7F9",
+			colors: themeColors{
+				primary:    "#1A5490",
+				secondary:  "#0066CC",
+				accent:     "#0066CC",
+				text:       "#2C3E50",
+				background: "#FFFFFF",
+				codeBg:     "#F5F7F9",
 			},
 		},
 		{
-			Name:        "elegant",
-			DisplayName: "Elegant",
-			Description: "A refined style suited for essays, academic writing, and literary work.",
-			Author:      "mdpress Team",
-			Version:     "1.0.0",
-			License:     "MIT",
-			Features: []string{
+			name:        "elegant",
+			displayName: "Elegant",
+			description: "A refined style suited for essays, academic writing, and literary work.",
+			author:      "mdpress Team",
+			version:     "1.0.0",
+			license:     "MIT",
+			features: []string{
 				"Classic typography",
 				"Decorative accents",
 				"Careful spacing",
 				"Chapter dividers",
 			},
-			Colors: themeColors{
-				Primary:    "#34495e",
-				Secondary:  "#16a085",
-				Accent:     "#d35400",
-				Text:       "#2c3e50",
-				Background: "#ecf0f1",
-				CodeBg:     "#e8e8e8",
+			colors: themeColors{
+				primary:    "#34495e",
+				secondary:  "#16a085",
+				accent:     "#d35400",
+				text:       "#2c3e50",
+				background: "#ecf0f1",
+				codeBg:     "#e8e8e8",
 			},
 		},
 		{
-			Name:        "minimal",
-			DisplayName: "Minimal",
-			Description: "A minimal design focused on clarity and efficient reading.",
-			Author:      "mdpress Team",
-			Version:     "1.0.0",
-			License:     "MIT",
-			Features: []string{
+			name:        "minimal",
+			displayName: "Minimal",
+			description: "A minimal design focused on clarity and efficient reading.",
+			author:      "mdpress Team",
+			version:     "1.0.0",
+			license:     "MIT",
+			features: []string{
 				"Minimal styling",
 				"High contrast",
 				"Fast loading",
 				"Print-friendly",
 			},
-			Colors: themeColors{
-				Primary:    "#000000",
-				Secondary:  "#555555",
-				Accent:     "#0066cc",
-				Text:       "#000000",
-				Background: "#ffffff",
-				CodeBg:     "#f0f0f0",
+			colors: themeColors{
+				primary:    "#000000",
+				secondary:  "#555555",
+				accent:     "#0066cc",
+				text:       "#000000",
+				background: "#ffffff",
+				codeBg:     "#f0f0f0",
 			},
 		},
 	}
@@ -195,14 +195,14 @@ func executeThemesList() error {
 	fmt.Println()
 
 	for i, theme := range themes {
-		fmt.Printf("%d. %s (%s)\n", i+1, theme.DisplayName, theme.Name)
-		fmt.Printf("   Description: %s\n", theme.Description)
-		fmt.Printf("   Author: %s | Version: %s | License: %s\n", theme.Author, theme.Version, theme.License)
-		fmt.Printf("   Colors: %s (primary) / %s (secondary) / %s (accent)\n", theme.Colors.Primary, theme.Colors.Secondary, theme.Colors.Accent)
+		fmt.Printf("%d. %s (%s)\n", i+1, theme.displayName, theme.name)
+		fmt.Printf("   Description: %s\n", theme.description)
+		fmt.Printf("   Author: %s | Version: %s | License: %s\n", theme.author, theme.version, theme.license)
+		fmt.Printf("   Colors: %s (primary) / %s (secondary) / %s (accent)\n", theme.colors.primary, theme.colors.secondary, theme.colors.accent)
 
-		if len(theme.Features) > 0 {
+		if len(theme.features) > 0 {
 			fmt.Printf("   Features:\n")
-			for _, feature := range theme.Features {
+			for _, feature := range theme.features {
 				fmt.Printf("     - %s\n", feature)
 			}
 		}
@@ -222,53 +222,53 @@ func executeThemesShow(themeName string) error {
 
 	themes := getAvailableThemes()
 
-	var theme *Theme
+	var thm *themeInfo
 	for i := range themes {
-		if themes[i].Name == themeName {
-			theme = &themes[i]
+		if themes[i].name == themeName {
+			thm = &themes[i]
 			break
 		}
 	}
 
-	if theme == nil {
+	if thm == nil {
 		return fmt.Errorf("theme not found: %q\n\nRun 'mdpress themes list' to view available themes", themeName)
 	}
 
 	// Print theme details.
 	fmt.Println()
 	fmt.Println("═════════════════════════════════════════════════════════════")
-	fmt.Printf("Theme: %s (%s)\n", theme.DisplayName, theme.Name)
+	fmt.Printf("Theme: %s (%s)\n", thm.displayName, thm.name)
 	fmt.Println("═════════════════════════════════════════════════════════════")
 	fmt.Println()
 
-	fmt.Printf("Description: %s\n", theme.Description)
-	fmt.Printf("Author:      %s\n", theme.Author)
-	fmt.Printf("Version:     %s\n", theme.Version)
-	fmt.Printf("License:     %s\n", theme.License)
+	fmt.Printf("Description: %s\n", thm.description)
+	fmt.Printf("Author:      %s\n", thm.author)
+	fmt.Printf("Version:     %s\n", thm.version)
+	fmt.Printf("License:     %s\n", thm.license)
 	fmt.Println()
 
 	fmt.Println("Features:")
-	for _, feature := range theme.Features {
+	for _, feature := range thm.features {
 		fmt.Printf("  ✓ %s\n", feature)
 	}
 	fmt.Println()
 
 	fmt.Println("Colors:")
-	fmt.Printf("  Primary:    %s\n", theme.Colors.Primary)
-	fmt.Printf("  Secondary:  %s\n", theme.Colors.Secondary)
-	fmt.Printf("  Accent:     %s\n", theme.Colors.Accent)
-	fmt.Printf("  Text:       %s\n", theme.Colors.Text)
-	fmt.Printf("  Background: %s\n", theme.Colors.Background)
-	fmt.Printf("  CodeBg:     %s\n", theme.Colors.CodeBg)
+	fmt.Printf("  Primary:    %s\n", thm.colors.primary)
+	fmt.Printf("  Secondary:  %s\n", thm.colors.secondary)
+	fmt.Printf("  Accent:     %s\n", thm.colors.accent)
+	fmt.Printf("  Text:       %s\n", thm.colors.text)
+	fmt.Printf("  Background: %s\n", thm.colors.background)
+	fmt.Printf("  CodeBg:     %s\n", thm.colors.codeBg)
 	fmt.Println()
 
 	fmt.Println("Configuration:")
 	fmt.Printf("  Use this theme in book.yaml:\n")
-	fmt.Printf("    theme: \"%s\"\n", theme.Name)
+	fmt.Printf("    theme: \"%s\"\n", thm.name)
 	fmt.Println()
 
 	fmt.Println("Customization:")
-	fmt.Printf("  Create 'themes/%s/' in your project to customize this theme.\n", theme.Name)
+	fmt.Printf("  Create 'themes/%s/' in your project to customize this theme.\n", thm.name)
 	fmt.Printf("  Reference: https://github.com/yeasy/mdpress/tree/main/docs/themes\n")
 	fmt.Println()
 

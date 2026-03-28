@@ -85,17 +85,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		ctx = context.Background()
 	}
 
-	// Set log level based on quiet/verbose flags.
-	logLevel := slog.LevelInfo
-	switch {
-	case quiet:
-		logLevel = slog.LevelError
-	case verbose:
-		logLevel = slog.LevelDebug
-	}
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	logger := initLogger()
 
 	// ========== 1. Resolve the input source ==========
 	var workDir string
@@ -209,7 +199,10 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 			return fmt.Errorf("reload config: %w", err)
 		}
 		// Build to a temporary directory first, then swap on success.
-		tempOutput := outputDir + ".tmp"
+		tempOutput, err := os.MkdirTemp(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
+		if err != nil {
+			return fmt.Errorf("create temp output dir: %w", err)
+		}
 		if buildErr := buildSiteForServe(ctx, newCfg, tempOutput, logger); buildErr != nil {
 			// Clean up the failed temp build, keep the previous good output.
 			if err := os.RemoveAll(tempOutput); err != nil {
@@ -261,7 +254,7 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 	}
 
 	// Initialize the orchestrator.
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create build orchestrator: %w", err)
 	}

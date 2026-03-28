@@ -128,8 +128,8 @@ func TestGetAvailableThemes_ExpectedSet(t *testing.T) {
 	}
 
 	for _, theme := range themes {
-		if _, exists := expectedThemes[theme.Name]; exists {
-			expectedThemes[theme.Name] = true
+		if _, exists := expectedThemes[theme.name]; exists {
+			expectedThemes[theme.name] = true
 		}
 	}
 
@@ -146,12 +146,12 @@ func TestTheme_Structure(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		check func(*Theme) error
+		check func(*themeInfo) error
 	}{
 		{
 			name: "has name",
-			check: func(th *Theme) error {
-				if th.Name == "" {
+			check: func(th *themeInfo) error {
+				if th.name == "" {
 					return fmt.Errorf("theme should have a non-empty name")
 				}
 				return nil
@@ -159,8 +159,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has display name",
-			check: func(th *Theme) error {
-				if th.DisplayName == "" {
+			check: func(th *themeInfo) error {
+				if th.displayName == "" {
 					return fmt.Errorf("theme should have a non-empty display name")
 				}
 				return nil
@@ -168,8 +168,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has description",
-			check: func(th *Theme) error {
-				if th.Description == "" {
+			check: func(th *themeInfo) error {
+				if th.description == "" {
 					return fmt.Errorf("theme should have a non-empty description")
 				}
 				return nil
@@ -177,8 +177,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has author",
-			check: func(th *Theme) error {
-				if th.Author == "" {
+			check: func(th *themeInfo) error {
+				if th.author == "" {
 					return fmt.Errorf("theme should have a non-empty author")
 				}
 				return nil
@@ -186,8 +186,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has version",
-			check: func(th *Theme) error {
-				if th.Version == "" {
+			check: func(th *themeInfo) error {
+				if th.version == "" {
 					return fmt.Errorf("theme should have a non-empty version")
 				}
 				return nil
@@ -195,8 +195,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has license",
-			check: func(th *Theme) error {
-				if th.License == "" {
+			check: func(th *themeInfo) error {
+				if th.license == "" {
 					return fmt.Errorf("theme should have a non-empty license")
 				}
 				return nil
@@ -204,8 +204,8 @@ func TestTheme_Structure(t *testing.T) {
 		},
 		{
 			name: "has features",
-			check: func(th *Theme) error {
-				if len(th.Features) == 0 {
+			check: func(th *themeInfo) error {
+				if len(th.features) == 0 {
 					return fmt.Errorf("theme should have at least one feature")
 				}
 				return nil
@@ -216,7 +216,7 @@ func TestTheme_Structure(t *testing.T) {
 	for _, theme := range themes {
 		for _, tt := range tests {
 			if err := tt.check(&theme); err != nil {
-				t.Errorf("theme %q: %s failed: %v", theme.Name, tt.name, err)
+				t.Errorf("theme %q: %s failed: %v", theme.name, tt.name, err)
 			}
 		}
 	}
@@ -230,22 +230,22 @@ func TestThemeColorsStructure(t *testing.T) {
 		name string
 		get  func(*themeColors) string
 	}{
-		{"primary", func(tc *themeColors) string { return tc.Primary }},
-		{"secondary", func(tc *themeColors) string { return tc.Secondary }},
-		{"accent", func(tc *themeColors) string { return tc.Accent }},
-		{"text", func(tc *themeColors) string { return tc.Text }},
-		{"background", func(tc *themeColors) string { return tc.Background }},
-		{"code background", func(tc *themeColors) string { return tc.CodeBg }},
+		{"primary", func(tc *themeColors) string { return tc.primary }},
+		{"secondary", func(tc *themeColors) string { return tc.secondary }},
+		{"accent", func(tc *themeColors) string { return tc.accent }},
+		{"text", func(tc *themeColors) string { return tc.text }},
+		{"background", func(tc *themeColors) string { return tc.background }},
+		{"code background", func(tc *themeColors) string { return tc.codeBg }},
 	}
 
 	for _, theme := range themes {
 		for _, field := range colorFields {
-			color := field.get(&theme.Colors)
+			color := field.get(&theme.colors)
 			if color == "" {
-				t.Errorf("theme %q: color field %q should not be empty", theme.Name, field.name)
+				t.Errorf("theme %q: color field %q should not be empty", theme.name, field.name)
 			}
 			if !strings.HasPrefix(color, "#") {
-				t.Errorf("theme %q: color field %q should be hex format, got %q", theme.Name, field.name, color)
+				t.Errorf("theme %q: color field %q should be hex format, got %q", theme.name, field.name, color)
 			}
 		}
 	}
@@ -350,7 +350,7 @@ func TestExecuteThemesShow_MatchesThemeData(t *testing.T) {
 	// Test with the first theme
 	testTheme := themes[0]
 
-	err := executeThemesShow(testTheme.Name)
+	err := executeThemesShow(testTheme.name)
 	if err != nil {
 		t.Fatalf("executeThemesShow failed for valid theme: %v", err)
 	}
@@ -423,10 +423,10 @@ func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 	// Should not panic; verify it either succeeds or returns a known error.
 	err := themesCmd.Execute()
 	// The command may succeed (printing help) or error -- both are acceptable.
-	// The key assertion is that it doesn't panic.
-	if err != nil && !strings.Contains(err.Error(), "required") {
-		// Only flag truly unexpected errors, not missing-subcommand errors.
-		t.Logf("themes command returned: %v", err)
+	// The key assertion is that it doesn't panic. Shared-state fd errors
+	// (e.g. "bad file descriptor" from suppressOutput) are benign.
+	if err != nil && !strings.Contains(err.Error(), "required") && !strings.Contains(err.Error(), "bad file descriptor") {
+		t.Errorf("themes command returned unexpected error: %v", err)
 	}
 }
 

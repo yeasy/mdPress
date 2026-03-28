@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -15,9 +14,9 @@ func TestComputeChapterHash(t *testing.T) {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
 
-	hash, err := ComputeChapterHash(tmpFile)
+	hash, err := computeChapterHash(tmpFile)
 	if err != nil {
-		t.Fatalf("ComputeChapterHash failed: %v", err)
+		t.Fatalf("computeChapterHash failed: %v", err)
 	}
 
 	if hash == "" {
@@ -30,39 +29,18 @@ func TestComputeChapterHash(t *testing.T) {
 	}
 
 	// Verify same content produces same hash
-	hash2, err := ComputeChapterHash(tmpFile)
+	hash2, err := computeChapterHash(tmpFile)
 	if err != nil {
-		t.Fatalf("second ComputeChapterHash failed: %v", err)
+		t.Fatalf("second computeChapterHash failed: %v", err)
 	}
 	if hash != hash2 {
 		t.Error("same file produced different hashes")
 	}
 }
 
-func TestComputeConfigHash(t *testing.T) {
-	tmpFile := filepath.Join(t.TempDir(), "test-config.yaml")
-	config := "title: Test Book\nauthor: Test Author"
-	if err := os.WriteFile(tmpFile, []byte(config), 0644); err != nil {
-		t.Fatalf("failed to write temp file: %v", err)
-	}
-
-	hash, err := ComputeConfigHash(tmpFile)
-	if err != nil {
-		t.Fatalf("ComputeConfigHash failed: %v", err)
-	}
-
-	if hash == "" {
-		t.Error("expected non-empty hash")
-	}
-
-	if len(hash) != 64 {
-		t.Errorf("expected 64-char hex hash, got %d chars", len(hash))
-	}
-}
-
 func TestComputeCSSHash(t *testing.T) {
 	css := "body { color: black; }"
-	hash := ComputeCSSHash(css)
+	hash := computeCSSHash(css)
 
 	if hash == "" {
 		t.Error("expected non-empty hash")
@@ -73,13 +51,13 @@ func TestComputeCSSHash(t *testing.T) {
 	}
 
 	// Verify consistency
-	hash2 := ComputeCSSHash(css)
+	hash2 := computeCSSHash(css)
 	if hash != hash2 {
 		t.Error("same CSS produced different hashes")
 	}
 
 	// Verify different CSS produces different hash
-	hash3 := ComputeCSSHash("body { color: red; }")
+	hash3 := computeCSSHash("body { color: red; }")
 	if hash == hash3 {
 		t.Error("different CSS produced same hash")
 	}
@@ -89,7 +67,7 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a manifest
-	manifest := NewBuildManifest("1.0.0")
+	manifest := newBuildManifest("1.0.0")
 	manifest.ConfigSH = "config-hash-123"
 	manifest.CSSHash = "css-hash-456"
 
@@ -100,14 +78,14 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 		[]string{"Heading 3"}, modTime)
 
 	// Save it
-	if err := SaveManifest(tmpDir, manifest); err != nil {
-		t.Fatalf("SaveManifest failed: %v", err)
+	if err := saveManifest(tmpDir, manifest); err != nil {
+		t.Fatalf("saveManifest failed: %v", err)
 	}
 
 	// Load it back
-	loaded, err := LoadManifest(tmpDir)
+	loaded, err := loadManifest(tmpDir)
 	if err != nil {
-		t.Fatalf("LoadManifest failed: %v", err)
+		t.Fatalf("loadManifest failed: %v", err)
 	}
 
 	// Verify contents
@@ -153,7 +131,7 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 func TestManifestIsStale(t *testing.T) {
 	tests := []struct {
 		name        string
-		manifest    *BuildManifest
+		manifest    *buildManifest
 		appVer      string
 		configHash  string
 		cssHash     string
@@ -168,7 +146,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "no chapters",
-			manifest:    NewBuildManifest("1.0.0"),
+			manifest:    newBuildManifest("1.0.0"),
 			appVer:      "1.0.0",
 			configHash:  "",
 			cssHash:     "",
@@ -177,14 +155,14 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "version mismatch",
-			manifest:    NewBuildManifest("1.0.0"),
+			manifest:    newBuildManifest("1.0.0"),
 			appVer:      "2.0.0",
 			expectStale: true,
 			description: "version mismatch should be stale",
 		},
 		{
 			name:        "config hash mismatch",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "old-hash", Chapters: map[string]manifestEntry{}},
+			manifest:    &buildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "old-hash", Chapters: map[string]manifestEntry{}},
 			appVer:      "1.0.0",
 			configHash:  "new-hash",
 			cssHash:     "",
@@ -193,7 +171,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "css hash mismatch",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "same-hash", CSSHash: "old-css", Chapters: map[string]manifestEntry{}},
+			manifest:    &buildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "same-hash", CSSHash: "old-css", Chapters: map[string]manifestEntry{}},
 			appVer:      "1.0.0",
 			configHash:  "same-hash",
 			cssHash:     "new-css",
@@ -202,7 +180,7 @@ func TestManifestIsStale(t *testing.T) {
 		},
 		{
 			name:        "all match",
-			manifest:    &BuildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "hash1", CSSHash: "hash2", Chapters: map[string]manifestEntry{"ch01.md": {SHA256: "h1"}}},
+			manifest:    &buildManifest{Version: buildManifestVersion, AppVer: "1.0.0", ConfigSH: "hash1", CSSHash: "hash2", Chapters: map[string]manifestEntry{"ch01.md": {SHA256: "h1"}}},
 			appVer:      "1.0.0",
 			configHash:  "hash1",
 			cssHash:     "hash2",
@@ -221,35 +199,8 @@ func TestManifestIsStale(t *testing.T) {
 	}
 }
 
-func TestCacheStatistics(t *testing.T) {
-	stats := newCacheStatistics()
-
-	if stats.Total != 0 {
-		t.Errorf("expected 0 total, got %d", stats.Total)
-	}
-
-	stats.RecordHit()
-	if stats.Total != 1 || stats.Hits != 1 || stats.Misses != 0 {
-		t.Errorf("after hit: total=%d, hits=%d, misses=%d", stats.Total, stats.Hits, stats.Misses)
-	}
-
-	stats.RecordMiss()
-	if stats.Total != 2 || stats.Hits != 1 || stats.Misses != 1 {
-		t.Errorf("after miss: total=%d, hits=%d, misses=%d", stats.Total, stats.Hits, stats.Misses)
-	}
-
-	stats.RecordHit()
-	str := stats.String()
-	if str == "" {
-		t.Error("expected non-empty stats string")
-	}
-	if !strings.Contains(str, "2/3") {
-		t.Errorf("expected '2/3' in stats string, got: %s", str)
-	}
-}
-
 func TestManifestUpdateEntry(t *testing.T) {
-	manifest := NewBuildManifest("1.0.0")
+	manifest := newBuildManifest("1.0.0")
 	modTime := time.Now().UTC()
 
 	manifest.UpdateEntry("chapter.md", "somehash", "/output/chapter.html",
@@ -274,12 +225,12 @@ func TestManifestUpdateEntry(t *testing.T) {
 func TestManifestFileCreation(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	manifest := NewBuildManifest("1.0.0")
+	manifest := newBuildManifest("1.0.0")
 	manifest.ConfigSH = "test-config"
 	manifest.UpdateEntry("test.md", "testhash", "/out/test.html", []string{}, time.Now())
 
-	if err := SaveManifest(tmpDir, manifest); err != nil {
-		t.Fatalf("SaveManifest failed: %v", err)
+	if err := saveManifest(tmpDir, manifest); err != nil {
+		t.Fatalf("saveManifest failed: %v", err)
 	}
 
 	manifestPath := filepath.Join(tmpDir, buildManifestFilename)
@@ -288,9 +239,9 @@ func TestManifestFileCreation(t *testing.T) {
 	}
 
 	// Verify it's valid JSON by loading it
-	loaded, err := LoadManifest(tmpDir)
+	loaded, err := loadManifest(tmpDir)
 	if err != nil {
-		t.Fatalf("LoadManifest failed: %v", err)
+		t.Fatalf("loadManifest failed: %v", err)
 	}
 	if loaded.AppVer != "1.0.0" {
 		t.Errorf("loaded app version mismatch: expected 1.0.0, got %q", loaded.AppVer)
@@ -309,14 +260,14 @@ func TestComputeHashDifferentFiles(t *testing.T) {
 		t.Fatalf("failed to write second temp file: %v", err)
 	}
 
-	hash1, err := ComputeChapterHash(tmpFile1)
+	hash1, err := computeChapterHash(tmpFile1)
 	if err != nil {
-		t.Fatalf("ComputeChapterHash failed: %v", err)
+		t.Fatalf("computeChapterHash failed: %v", err)
 	}
 
-	hash2, err := ComputeChapterHash(tmpFile2)
+	hash2, err := computeChapterHash(tmpFile2)
 	if err != nil {
-		t.Fatalf("ComputeChapterHash failed: %v", err)
+		t.Fatalf("computeChapterHash failed: %v", err)
 	}
 
 	if hash1 == hash2 {
@@ -325,7 +276,7 @@ func TestComputeHashDifferentFiles(t *testing.T) {
 }
 
 func TestManifestEmptyChaptersMap(t *testing.T) {
-	manifest := NewBuildManifest("1.0.0")
+	manifest := newBuildManifest("1.0.0")
 
 	if len(manifest.Chapters) != 0 {
 		t.Errorf("expected empty chapters map, got %d entries", len(manifest.Chapters))
@@ -341,48 +292,21 @@ func TestManifestEmptyChaptersMap(t *testing.T) {
 func TestManifestVersionMismatch(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	manifest := NewBuildManifest("1.0.0")
+	manifest := newBuildManifest("1.0.0")
 	manifest.Version = "wrong-version"
 	manifest.UpdateEntry("ch01.md", "hash1", "/path/ch01.html", []string{}, time.Now())
 
-	if err := SaveManifest(tmpDir, manifest); err != nil {
-		t.Fatalf("SaveManifest failed: %v", err)
+	if err := saveManifest(tmpDir, manifest); err != nil {
+		t.Fatalf("saveManifest failed: %v", err)
 	}
 
-	loaded, err := LoadManifest(tmpDir)
+	loaded, err := loadManifest(tmpDir)
 	if err != nil {
-		t.Fatalf("LoadManifest failed: %v", err)
+		t.Fatalf("loadManifest failed: %v", err)
 	}
 
 	// Version should be loaded as-is
 	if loaded.Version != "wrong-version" {
 		t.Errorf("expected wrong-version, got %q", loaded.Version)
-	}
-}
-
-func TestCacheStatisticsPercentage(t *testing.T) {
-	stats := newCacheStatistics()
-
-	// Record 7 hits and 3 misses
-	for i := 0; i < 7; i++ {
-		stats.RecordHit()
-	}
-	for i := 0; i < 3; i++ {
-		stats.RecordMiss()
-	}
-
-	if stats.Total != 10 {
-		t.Errorf("expected 10 total, got %d", stats.Total)
-	}
-	if stats.Hits != 7 {
-		t.Errorf("expected 7 hits, got %d", stats.Hits)
-	}
-	if stats.Misses != 3 {
-		t.Errorf("expected 3 misses, got %d", stats.Misses)
-	}
-
-	str := stats.String()
-	if !strings.Contains(str, "70%") {
-		t.Errorf("expected 70%% in stats, got: %s", str)
 	}
 }

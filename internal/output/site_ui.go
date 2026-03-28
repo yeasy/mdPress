@@ -160,6 +160,12 @@ func populateUIStrings(d *pageData) {
 	d.UIbuiltWith = uiString(lang, "built_with")
 }
 
+// Meta description length limits (in runes).
+const (
+	maxMetaDescriptionRunes   = 160
+	minMetaDescriptionTruncAt = 80
+)
+
 // extractDescription returns the first ~160 characters of plain text from HTML
 // content, suitable for use as a meta description.
 func extractDescription(htmlContent string) string {
@@ -167,10 +173,10 @@ func extractDescription(htmlContent string) string {
 	text = strings.Join(strings.Fields(text), " ")
 	text = strings.TrimSpace(text)
 	runes := []rune(text)
-	if len(runes) > 160 {
+	if len(runes) > maxMetaDescriptionRunes {
 		// Truncate at word boundary.
-		truncated := string(runes[:160])
-		if idx := strings.LastIndex(truncated, " "); idx > 80 {
+		truncated := string(runes[:maxMetaDescriptionRunes])
+		if idx := strings.LastIndex(truncated, " "); idx > minMetaDescriptionTruncAt {
 			text = truncated[:idx] + "…"
 		} else {
 			text = truncated + "…"

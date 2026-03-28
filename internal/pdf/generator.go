@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,7 +24,7 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// allowedChromiumFlags is a whitelist of safe Chromium command-line flags
+// allowedChromiumFlags is an allowlist of safe Chromium command-line flags
 // that users are permitted to set via the CHROME_FLAGS environment variable.
 var allowedChromiumFlags = map[string]bool{
 	"no-sandbox":                       true,
@@ -349,10 +348,15 @@ type chromiumRuntimeDirs struct {
 type GeneratorOption func(*Generator)
 
 const (
-	defaultTimeout    = 60 * time.Second
-	defaultPageWidth  = 210.0 // A4
-	defaultPageHeight = 297.0
-	defaultMargin     = 20.0
+	defaultTimeout           = 60 * time.Second
+	chromiumPrintTimeout     = 120 * time.Second
+	defaultPageWidth         = 210.0 // A4
+	defaultPageHeight        = 297.0
+	defaultMargin            = 20.0
+	fontSrvReadHeaderTimeout = 10 * time.Second
+	fontSrvReadTimeout       = 30 * time.Second
+	fontSrvWriteTimeout      = 60 * time.Second
+	fontSrvIdleTimeout       = 60 * time.Second
 )
 
 // parseMarginString converts a margin string (e.g., "20mm", "1in", "2.5cm") to millimeters.
@@ -558,10 +562,10 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 	}
 	server := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: fontSrvReadHeaderTimeout,
+		ReadTimeout:       fontSrvReadTimeout,
+		WriteTimeout:      fontSrvWriteTimeout,
+		IdleTimeout:       fontSrvIdleTimeout,
 	}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -722,7 +726,10 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 					slog.Debug("mermaid rendering status", slog.String("result", status))
 				}
 			}
-			return err
+			if err != nil {
+				return fmt.Errorf("mermaid wait evaluation: %w", err)
+			}
+			return nil
 		}),
 		// Wait for all @font-face sources to finish loading.
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -732,7 +739,10 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 			if exp != nil {
 				slog.Warn("font loading exception", slog.String("text", exp.Text))
 			}
-			return err
+			if err != nil {
+				return fmt.Errorf("font-face loading wait: %w", err)
+			}
+			return nil
 		}),
 		// Log font loading diagnostics for CJK debugging.
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -790,7 +800,10 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 				}
 			}
 			pdfBuf, _, err = cmd.Do(ctx)
-			return err
+			if err != nil {
+				return fmt.Errorf("chromedp print to PDF: %w", err)
+			}
+			return nil
 		}),
 	)
 	if err != nil {
@@ -818,8 +831,10 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 // It first checks the MDPRESS_CHROME_PATH environment variable, then looks
 // for common Chrome/Chromium executables in PATH and standard install locations.
 func (g *Generator) checkChromiumAvailable() error {
-	_, err := resolveChromiumPath()
-	return err
+	if _, err := resolveChromiumPath(); err != nil {
+		return fmt.Errorf("chromium not available: %w", err)
+	}
+	return nil
 }
 
 // CheckChromiumAvailable reports whether Chrome or Chromium is installed.
@@ -900,7 +915,7 @@ func parseChromiumFlags(raw string) map[string]any {
 			flagName = parts[0]
 		}
 
-		// Validate against whitelist
+		// Validate against allowlist
 		if !allowedChromiumFlags[flagName] {
 			sanitized := newlineStripper.Replace(flagName)
 			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
@@ -925,7 +940,7 @@ func parseChromiumFlags(raw string) map[string]any {
 }
 
 // filterChromiumCLIFlags filters command-line arguments from CHROME_FLAGS environment variable
-// to only include whitelisted flags, preventing command injection.
+// to only include allowlisted flags, preventing command injection.
 func filterChromiumCLIFlags(flagsString string) []string {
 	var filtered []string
 	for _, item := range strings.Fields(flagsString) {
@@ -940,7 +955,7 @@ func filterChromiumCLIFlags(flagsString string) []string {
 			flagName = parts[0]
 		}
 
-		// Validate against whitelist
+		// Validate against allowlist
 		if !allowedChromiumFlags[flagName] {
 			sanitized := newlineStripper.Replace(flagName)
 			slog.Warn("Rejecting disallowed Chromium flag", slog.String("flag", sanitized))
@@ -958,12 +973,12 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 		rootBase = filepath.Join(os.TempDir(), "mdpress-chrome-runtime")
 	}
 	if err := os.MkdirAll(rootBase, 0o755); err != nil {
-		return chromiumRuntimeDirs{}, err
+		return chromiumRuntimeDirs{}, fmt.Errorf("create chrome runtime base dir: %w", err)
 	}
 
 	root, err := os.MkdirTemp(rootBase, "run-*")
 	if err != nil {
-		return chromiumRuntimeDirs{}, err
+		return chromiumRuntimeDirs{}, fmt.Errorf("create chrome runtime temp dir: %w", err)
 	}
 
 	runtime := chromiumRuntimeDirs{
@@ -982,7 +997,7 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 	for _, dir := range []string{runtime.homeDir, runtime.userData, runtime.tmpDir, runtime.xdgConfig, runtime.xdgCache} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			runtime.cleanup()
-			return chromiumRuntimeDirs{}, err
+			return chromiumRuntimeDirs{}, fmt.Errorf("create chrome runtime subdir %q: %w", filepath.Base(dir), err)
 		}
 	}
 	return runtime, nil
@@ -1026,14 +1041,14 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	args = append(args, filterChromiumCLIFlags(os.Getenv("CHROME_FLAGS"))...)
 	args = append(args, fileURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), chromiumPrintTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, chromePath, args...)
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
 	// Limit captured output to prevent OOM from misbehaving Chrome process.
 	const maxChromeOutput = 10 << 20 // 10 MB
 	var combinedBuf bytes.Buffer
-	lw := &chromeLimitedWriter{w: &combinedBuf, n: maxChromeOutput}
+	lw := &utils.LimitedWriter{W: &combinedBuf, N: maxChromeOutput}
 	cmd.Stdout = lw
 	cmd.Stderr = lw
 	err := cmd.Run()
@@ -1054,35 +1069,4 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		return fmt.Errorf("failed to finalize fallback PDF output: %w", err)
 	}
 	return nil
-}
-
-// chromeLimitedWriter wraps an io.Writer and silently discards writes beyond n bytes,
-// preventing unbounded memory growth when capturing Chrome process output.
-type chromeLimitedWriter struct {
-	w         io.Writer
-	n         int64
-	truncated bool
-}
-
-func (lw *chromeLimitedWriter) Write(p []byte) (int, error) {
-	if lw.n <= 0 {
-		if !lw.truncated {
-			lw.truncated = true
-			slog.Warn("chrome output truncated, exceeds capture limit")
-		}
-		return len(p), nil // discard entirely
-	}
-	if int64(len(p)) > lw.n {
-		_, err := lw.w.Write(p[:lw.n])
-		lw.n = 0
-		lw.truncated = true
-		slog.Warn("chrome output truncated, exceeds capture limit")
-		if err != nil {
-			return 0, err
-		}
-		return len(p), nil
-	}
-	n, err := lw.w.Write(p)
-	lw.n -= int64(n)
-	return n, err
 }

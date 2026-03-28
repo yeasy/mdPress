@@ -13,7 +13,7 @@ import (
 
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.6.9"
+	Version = "0.7.0"
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// rootCmd is the root command for the mdpress application.
@@ -100,6 +100,22 @@ func Execute() error {
 		return err
 	}
 	return nil
+}
+
+// initLogger creates a logger based on the global quiet/verbose flags.
+// Used by executeBuild and executeServe to avoid duplicating the setup.
+func initLogger() *slog.Logger {
+	logLevel := slog.LevelInfo
+	switch {
+	case quiet:
+		logLevel = slog.LevelError
+	case verbose:
+		logLevel = slog.LevelDebug
+	}
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+	return logger
 }
 
 func configureRuntimeCacheEnv() {

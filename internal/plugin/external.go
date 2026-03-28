@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -21,6 +20,7 @@ import (
 	"time"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 const (
@@ -294,8 +294,8 @@ func (p *ExternalPlugin) Execute(hookCtx *HookContext) (*HookResult, error) {
 	// malicious or buggy plugins that write excessive output.
 	const maxPluginOutput = 10 * 1024 * 1024
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &limitedWriter{w: &stdout, n: maxPluginOutput}
-	cmd.Stderr = &limitedWriter{w: &stderr, n: maxPluginOutput}
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginOutput}
+	cmd.Stderr = &utils.LimitedWriter{W: &stderr, N: maxPluginOutput}
 
 	if err := cmd.Run(); err != nil {
 		stderrStr := strings.TrimSpace(stderr.String())
@@ -341,30 +341,4 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen]) + "..."
-}
-
-// limitedWriter wraps an io.Writer and silently discards writes that would
-// exceed the configured byte limit. This prevents unbounded memory growth
-// when capturing output from external processes.
-type limitedWriter struct {
-	w io.Writer
-	n int64 // remaining bytes allowed
-}
-
-func (lw *limitedWriter) Write(p []byte) (int, error) {
-	if lw.n <= 0 {
-		return len(p), nil // silently discard
-	}
-	orig := len(p)
-	if int64(len(p)) > lw.n {
-		p = p[:lw.n]
-	}
-	n, err := lw.w.Write(p)
-	lw.n -= int64(n)
-	if err != nil {
-		return n, err
-	}
-	// Report the original length to callers so that io.Copy does not
-	// treat a truncated write as io.ErrShortWrite.
-	return orig, nil
 }

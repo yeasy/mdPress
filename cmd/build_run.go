@@ -44,13 +44,13 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 	const maxCustomCSSSize = 1 * 1024 * 1024
 	info, err := os.Stat(cssPath)
 	if err != nil {
-		logger.Warn("Failed to stat custom CSS file, falling back to default theme styles",
+		logger.Warn("failed to stat custom CSS file, falling back to default theme styles",
 			slog.String("path", cssPath),
 			slog.String("error", err.Error()))
 		return ""
 	}
 	if info.Size() > int64(maxCustomCSSSize) {
-		logger.Warn("Custom CSS file exceeds 1MB size limit, ignoring",
+		logger.Warn("custom CSS file exceeds 1MB size limit, ignoring",
 			slog.String("path", cssPath),
 			slog.Int64("size", info.Size()))
 		return ""
@@ -58,7 +58,7 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 
 	cssData, err := utils.ReadFile(cssPath)
 	if err != nil {
-		logger.Warn("Failed to load custom CSS, falling back to default theme styles",
+		logger.Warn("failed to load custom CSS, falling back to default theme styles",
 			slog.String("path", cssPath),
 			slog.String("error", err.Error()))
 		return ""
@@ -68,7 +68,7 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 }
 
 func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.LangDef, formats []string, outputOverride string, logger *slog.Logger) error {
-	logger.Info("Detected multi-language project", slog.Int("languages", len(langs)))
+	logger.Info("detected multi-language project", slog.Int("languages", len(langs)))
 	for _, lang := range langs {
 		logger.Info("  Language", slog.String("name", lang.Name), slog.String("dir", lang.Dir))
 	}
@@ -76,7 +76,7 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 	summaries := make([]languageBuildSummary, 0, len(langs))
 	for _, lang := range langs {
 		langDir := filepath.Join(rootDir, lang.Dir)
-		logger.Info("Building language variant", slog.String("name", lang.Name), slog.String("dir", langDir))
+		logger.Info("building language variant", slog.String("name", lang.Name), slog.String("dir", langDir))
 
 		langCfg, err := config.Discover(ctx, langDir)
 		if err != nil {
@@ -119,7 +119,7 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 }
 
 func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {
-	logger.Info("Configuration loaded",
+	logger.Info("configuration loaded",
 		slog.String("title", cfg.Book.Title),
 		slog.String("author", cfg.Book.Author),
 		slog.String("base_dir", cfg.BaseDir()),
@@ -131,22 +131,22 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Initialize incremental build system
 	cacheDir := filepath.Join(utils.CacheRootDir(), "build")
-	manifest, manifestErr := LoadManifest(cacheDir)
+	manifest, manifestErr := loadManifest(cacheDir)
 	if manifestErr != nil {
-		slog.Warn("Failed to load build manifest, starting fresh", slog.String("error", manifestErr.Error()))
+		slog.Warn("failed to load build manifest, starting fresh", slog.String("error", manifestErr.Error()))
 	}
 	if manifest == nil {
-		manifest = NewBuildManifest(Version)
+		manifest = newBuildManifest(Version)
 	}
 	// Compute hashes for cache invalidation
 	configPath := filepath.Join(cfg.BaseDir(), "book.yaml")
 	configHash := ""
-	if hash, err := ComputeConfigHash(configPath); err == nil {
+	if hash, err := computeChapterHash(configPath); err == nil {
 		configHash = hash
 	}
 
 	progress.Start("Initializing theme system")
-	orchestrator, err := NewBuildOrchestrator(cfg, logger)
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("initialize theme: %w", err)
 	}
@@ -154,12 +154,12 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Compute CSS hash for cache invalidation
 	customCSS := orchestrator.LoadCustomCSS()
-	cssHash := ComputeCSSHash(customCSS)
+	cssHash := computeCSSHash(customCSS)
 
 	// Check if manifest is stale and invalidate if needed
 	if manifest.IsStale(Version, configHash, cssHash) {
 		logger.Debug("Build manifest is stale, invalidating cache")
-		manifest = NewBuildManifest(Version)
+		manifest = newBuildManifest(Version)
 		manifest.ConfigSH = configHash
 		manifest.CSSHash = cssHash
 	}
@@ -176,7 +176,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	}, logger)
 
 	progress.Start(fmt.Sprintf("Parsing chapters (%d top-level)", len(cfg.Chapters)))
-	primaryPipelineOptions := ChapterPipelineOptions{ImageOptions: func() *utils.ImageProcessingOptions {
+	primaryPipelineOptions := chapterPipelineOptions{ImageOptions: func() *utils.ImageProcessingOptions {
 		if needsPDF && !needsNonPDF {
 			opts := pdfChapterImageOptions()
 			return &opts
@@ -203,7 +203,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	if needsPDF && needsNonPDF {
 		pdfOpts := pdfChapterImageOptions()
-		pdfResult, pdfErr := orchestrator.ProcessChaptersWithOptions(ctx, ChapterPipelineOptions{ImageOptions: &pdfOpts})
+		pdfResult, pdfErr := orchestrator.ProcessChaptersWithOptions(ctx, chapterPipelineOptions{ImageOptions: &pdfOpts})
 		if pdfErr != nil {
 			progress.Fail()
 			return pdfErr
@@ -311,7 +311,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	}
 	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
 
-	buildCtx := &BuildContext{
+	buildCtx := &buildContext{
 		Config:             cfg,
 		Theme:              orchestrator.Theme,
 		SinglePageParts:    singlePageParts,
@@ -322,7 +322,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		CustomCSS:          customCSS,
 		Logger:             logger,
 	}
-	registry := NewFormatBuilderRegistry()
+	registry := newFormatBuilderRegistry()
 
 	// Build formats in parallel (but not PDF with others, as PDF generation is memory-intensive)
 	if err := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger); err != nil {
@@ -345,7 +345,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	// Save the build manifest for incremental builds
 	manifest.ConfigSH = configHash
 	manifest.CSSHash = cssHash
-	if err := SaveManifest(cacheDir, manifest); err != nil {
+	if err := saveManifest(cacheDir, manifest); err != nil {
 		logger.Warn("failed to save build manifest", slog.String("error", err.Error()))
 	}
 
@@ -356,14 +356,14 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 // buildFormatsInParallel builds multiple output formats in parallel.
 // PDF formats are built sequentially (they're memory-intensive), while other formats build in parallel.
-func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry, buildCtx *BuildContext, baseName string, formats []string, logger *slog.Logger) error {
+func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry, buildCtx *buildContext, baseName string, formats []string, logger *slog.Logger) error {
 	// Separate PDF from other formats
 	var pdfFormats []string
 	var otherFormats []string
 
 	for _, format := range formats {
 		lower := strings.ToLower(strings.TrimSpace(format))
-		if lower == "pdf" {
+		if lower == "pdf" || lower == "typst" {
 			pdfFormats = append(pdfFormats, format)
 		} else {
 			otherFormats = append(otherFormats, format)
@@ -378,11 +378,11 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 			format := format // capture for closure
 			eg.Go(func() error {
 				if err := egCtx.Err(); err != nil {
-					return err
+					return fmt.Errorf("parallel build canceled: %w", err)
 				}
 				builder := registry.Get(strings.ToLower(format))
 				if builder == nil {
-					logger.Warn("Unsupported output format, skipping", slog.String("format", format))
+					logger.Warn("unsupported output format, skipping", slog.String("format", format))
 					return nil
 				}
 				return builder.Build(buildCtx, baseName)
@@ -397,11 +397,11 @@ func buildFormatsInParallel(ctx context.Context, registry *FormatBuilderRegistry
 	// Build PDF formats sequentially (they're resource-intensive)
 	for _, format := range pdfFormats {
 		if err := ctx.Err(); err != nil {
-			return err
+			return fmt.Errorf("pdf build canceled: %w", err)
 		}
 		builder := registry.Get(strings.ToLower(format))
 		if builder == nil {
-			logger.Warn("Unsupported output format, skipping", slog.String("format", format))
+			logger.Warn("unsupported output format, skipping", slog.String("format", format))
 			continue
 		}
 		if err := builder.Build(buildCtx, baseName); err != nil {
@@ -423,7 +423,8 @@ func containsBuildFormat(formats []string, target string) bool {
 
 func containsAnyNonPDFFormat(formats []string) bool {
 	for _, format := range formats {
-		if !strings.EqualFold(strings.TrimSpace(format), "pdf") {
+		lower := strings.ToLower(strings.TrimSpace(format))
+		if lower != "pdf" && lower != "typst" {
 			return true
 		}
 	}
@@ -687,11 +688,9 @@ func normalizeChapterTitle(title string) string {
 	}
 	if matches := decimalTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
 		title = strings.TrimSpace(title[matches[1]:])
-	}
-	if matches := englishTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
+	} else if matches := englishTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
 		title = strings.TrimSpace(title[matches[1]:])
-	}
-	if matches := chineseTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
+	} else if matches := chineseTitleSequencePattern.FindStringSubmatchIndex(title); matches != nil {
 		title = strings.TrimSpace(title[matches[1]:])
 	}
 	title = strings.TrimLeft(title, ":-：.、)） \t")
@@ -833,6 +832,8 @@ func predictedOutputLinks(baseOutput string, formats []string) map[string]string
 			links["site"] = filepath.Join(baseName+"_site", "index.html")
 		case "epub":
 			links["epub"] = baseName + ".epub"
+		case "typst":
+			links["typst"] = baseName + "-typst.pdf"
 		}
 	}
 	return links
@@ -909,14 +910,28 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 		// Use Go's %q for safe JS string quoting, then prevent </script> tag injection.
 		quoted := fmt.Sprintf("%q", defaultTarget)
 		quoted = strings.ReplaceAll(quoted, "</", `<\/`)
-		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %s; }, 1200);</script>\n", quoted)
+		const autoRedirectDelayMS = 1200
+		fmt.Fprintf(&b, "<script>setTimeout(function(){ window.location.href = %s; }, %d);</script>\n", quoted, autoRedirectDelayMS)
 	}
 	b.WriteString("</div>\n</div>\n</body>\n</html>\n")
-	tmpPath := landingPath + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(b.String()), 0644); err != nil {
+	tmpFile, err := os.CreateTemp(filepath.Dir(landingPath), "landing-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp landing page: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.WriteString(b.String()); err != nil {
+		tmpFile.Close()    //nolint:errcheck
+		os.Remove(tmpPath) //nolint:errcheck
 		return fmt.Errorf("write landing page: %w", err)
 	}
-	return os.Rename(tmpPath, landingPath)
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath) //nolint:errcheck
+		return fmt.Errorf("close temp landing page: %w", err)
+	}
+	if err := os.Rename(tmpPath, landingPath); err != nil {
+		return fmt.Errorf("install landing page: %w", err)
+	}
+	return nil
 }
 
 func defaultLanguageTarget(landingDir string, summaries []languageBuildSummary) string {
@@ -1019,8 +1034,11 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 
 func injectBannerIntoSite(siteDir string, bannerHTML string) error {
 	return filepath.WalkDir(siteDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
-			return err
+		if err != nil {
+			return fmt.Errorf("walking site dir %s: %w", path, err)
+		}
+		if d.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
+			return nil
 		}
 		return injectBannerIntoOutput(path, bannerHTML)
 	})
