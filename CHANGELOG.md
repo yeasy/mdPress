@@ -8,6 +8,14 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.6.9] - 2026-03-28
+
+### Fixed
+
+- **Eliminate duplicate H1 bookmarks in PDF**: Always strip the leading `<h1>` from chapter content since the template already renders the SUMMARY title as `<h1 class="chapter-title">`. Previously, the content H1 was only removed when its text exactly matched the SUMMARY title; now it is removed unconditionally for H1, fixing the "前言" + "区块链技术指南" double-bookmark issue that affected all books where the SUMMARY entry name differs from the file's H1 heading
+
+---
+
 ## [0.6.8] - 2026-03-28
 
 ### Improved
@@ -599,7 +607,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.8...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.9...HEAD
+[0.6.9]: https://github.com/yeasy/mdpress/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/yeasy/mdpress/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/yeasy/mdpress/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/yeasy/mdpress/compare/v0.6.5...v0.6.6
