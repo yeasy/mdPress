@@ -6,15 +6,21 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 )
 
 // TestVersionComparison tests the version comparison logic.
@@ -892,4 +898,253 @@ func mustCreateZipArchive(t *testing.T, files map[string][]byte) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+// redirectTransport intercepts HTTP requests and routes them to a local test server
+// instead of the real host. This allows tests to use github.com URLs (passing
+// isGitHubDownloadURL validation) while actually hitting an httptest server.
+type redirectTransport struct {
+	targetURL string // base URL of the httptest server
+}
+
+func (rt *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Rewrite the request URL to point at the test server, preserving the path.
+	target, _ := url.Parse(rt.targetURL)
+	req.URL.Scheme = target.Scheme
+	req.URL.Host = target.Host
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+// newTestRelease is a helper that builds a gitHubRelease with the given assets.
+func newTestRelease(assets ...struct {
+	Name string
+	URL  string
+}) *gitHubRelease {
+	release := &gitHubRelease{
+		TagName: "v1.0.0",
+		Assets: make([]struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		}, len(assets)),
+	}
+	for i, a := range assets {
+		release.Assets[i].Name = a.Name
+		release.Assets[i].URL = a.URL
+	}
+	return release
+}
+
+// TestVerifyChecksum tests the verifyChecksum function.
+func TestVerifyChecksum(t *testing.T) {
+	// Compute a real SHA256 hash for test binary data.
+	binaryData := []byte("test binary content for checksum verification")
+	hash := sha256.Sum256(binaryData)
+	correctHash := hex.EncodeToString(hash[:])
+	wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
+
+	t.Run("no checksum file in release", func(t *testing.T) {
+		release := newTestRelease() // empty assets
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error for release with no checksum file")
+		}
+		if !strings.Contains(err.Error(), "no checksum file found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("no checksum file when assets exist but none match", func(t *testing.T) {
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"mdpress-linux-amd64", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/mdpress-linux-amd64"})
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error when no checksum asset in release")
+		}
+		if !strings.Contains(err.Error(), "no checksum file found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("checksum file with non-GitHub URL", func(t *testing.T) {
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://evil.example.com/checksums.txt"})
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error for non-GitHub checksum URL")
+		}
+		if !strings.Contains(err.Error(), "unexpected host") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("checksum file with http URL", func(t *testing.T) {
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "http://github.com/checksums.txt"})
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error for http (non-https) checksum URL")
+		}
+		if !strings.Contains(err.Error(), "unexpected host") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	// For tests that require downloading the checksum file, set up an httptest server
+	// and swap the upgradeHTTPClient to redirect github.com requests to it.
+	setupDownloadTest := func(t *testing.T, checksumContent string) *httptest.Server {
+		t.Helper()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte(checksumContent)) //nolint:errcheck
+		}))
+		t.Cleanup(server.Close)
+
+		origClient := upgradeHTTPClient
+		upgradeHTTPClient = &http.Client{
+			Timeout:   5 * time.Second,
+			Transport: &redirectTransport{targetURL: server.URL},
+		}
+		t.Cleanup(func() { upgradeHTTPClient = origClient })
+
+		return server
+	}
+
+	t.Run("valid checksum match", func(t *testing.T) {
+		checksumContent := fmt.Sprintf("%s  mdpress-linux-amd64\n", correctHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err != nil {
+			t.Errorf("expected nil error for valid checksum, got: %v", err)
+		}
+	})
+
+	t.Run("checksum mismatch", func(t *testing.T) {
+		checksumContent := fmt.Sprintf("%s  mdpress-linux-amd64\n", wrongHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error for checksum mismatch")
+		}
+		if !errors.Is(err, errChecksumMismatch) {
+			t.Errorf("expected errChecksumMismatch, got: %v", err)
+		}
+	})
+
+	t.Run("no matching entry in checksum file", func(t *testing.T) {
+		checksumContent := fmt.Sprintf("%s  mdpress-darwin-arm64\n", correctHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error when asset not found in checksum file")
+		}
+		if !errors.Is(err, errNoChecksumEntry) {
+			t.Errorf("expected errNoChecksumEntry, got: %v", err)
+		}
+	})
+
+	t.Run("case-insensitive hash comparison", func(t *testing.T) {
+		upperHash := strings.ToUpper(correctHash)
+		checksumContent := fmt.Sprintf("%s  mdpress-linux-amd64\n", upperHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err != nil {
+			t.Errorf("expected nil error for case-insensitive hash match, got: %v", err)
+		}
+	})
+
+	t.Run("sha256 file extension recognized", func(t *testing.T) {
+		checksumContent := fmt.Sprintf("%s  mdpress-linux-amd64\n", correctHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.sha256", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.sha256"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err != nil {
+			t.Errorf("expected nil error for .sha256 checksum file, got: %v", err)
+		}
+	})
+
+	t.Run("multiple entries in checksum file", func(t *testing.T) {
+		checksumContent := fmt.Sprintf(
+			"%s  mdpress-darwin-arm64\n%s  mdpress-linux-amd64\n%s  mdpress-windows-amd64.exe\n",
+			wrongHash, correctHash, wrongHash,
+		)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err != nil {
+			t.Errorf("expected nil error when correct entry exists among many, got: %v", err)
+		}
+	})
+
+	t.Run("single-space separator in checksum line", func(t *testing.T) {
+		// The parser uses strings.Fields, so single space should also work.
+		checksumContent := fmt.Sprintf("%s mdpress-linux-amd64\n", correctHash)
+		setupDownloadTest(t, checksumContent)
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err != nil {
+			t.Errorf("expected nil error for single-space separator, got: %v", err)
+		}
+	})
+
+	t.Run("empty checksum file", func(t *testing.T) {
+		setupDownloadTest(t, "")
+
+		release := newTestRelease(struct {
+			Name string
+			URL  string
+		}{"checksums.txt", "https://github.com/yeasy/mdpress/releases/download/v1.0.0/checksums.txt"})
+
+		err := verifyChecksum(context.Background(), release, "mdpress-linux-amd64", binaryData)
+		if err == nil {
+			t.Fatal("expected error for empty checksum file")
+		}
+		if !errors.Is(err, errNoChecksumEntry) {
+			t.Errorf("expected errNoChecksumEntry, got: %v", err)
+		}
+	})
 }
