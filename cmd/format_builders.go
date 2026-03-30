@@ -266,15 +266,25 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		markdownContent.WriteString("\n\n")
 	}
 
-	// Add chapters
-	for _, ch := range ctx.ChaptersHTML {
-		if ch.Title != "" {
+	// Add chapters using original Markdown content.
+	// Skip injecting the chapter title heading when the raw Markdown
+	// already starts with a level-1 or level-2 heading, to avoid
+	// duplicate headings in the output.  Lower-level headings (###, etc.)
+	// do not conflict with the injected ## title and are kept as-is.
+	for i, ch := range ctx.ChaptersHTML {
+		md := ""
+		if i < len(ctx.ChapterMarkdown) {
+			md = ctx.ChapterMarkdown[i]
+		}
+		mdTrimmed := strings.TrimSpace(md)
+		startsWithH1orH2 := (strings.HasPrefix(mdTrimmed, "# ") || strings.HasPrefix(mdTrimmed, "#\t") ||
+			strings.HasPrefix(mdTrimmed, "## ") || strings.HasPrefix(mdTrimmed, "##\t"))
+		if ch.Title != "" && !startsWithH1orH2 {
 			markdownContent.WriteString("## ")
 			markdownContent.WriteString(ch.Title)
 			markdownContent.WriteString("\n\n")
 		}
-		// Use the HTML content as-is; a future improvement could convert HTML to Markdown.
-		markdownContent.WriteString(ch.Content)
+		markdownContent.WriteString(md)
 		markdownContent.WriteString("\n\n")
 	}
 
