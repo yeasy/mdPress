@@ -19,7 +19,7 @@ func suppressOutput(t *testing.T) func() {
 	t.Helper()
 	origStdout := os.Stdout
 	origStderr := os.Stderr
-	devNull, err := os.Open(os.DevNull)
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatalf("failed to open %s: %v", os.DevNull, err)
 	}

@@ -354,11 +354,15 @@ func TestLoadPlugins_ErrorWrapping(t *testing.T) {
 
 // TestLoadPlugins_RejectAbsolutePath tests LoadPlugins rejects absolute plugin paths.
 func TestLoadPlugins_RejectAbsolutePath(t *testing.T) {
+	absPluginPath := "/usr/bin/some-binary"
+	if runtime.GOOS == "windows" {
+		absPluginPath = `C:\usr\bin\some-binary`
+	}
 	cfg := config.DefaultConfig()
 	cfg.Plugins = []config.PluginConfig{
 		{
 			Name: "evil-plugin",
-			Path: "/usr/bin/some-binary",
+			Path: absPluginPath,
 		},
 	}
 
