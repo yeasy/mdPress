@@ -142,7 +142,7 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	}
 
 	// Check disk space in output directory
-	checkDiskSpace(absDir, doctorCfg, &report)
+	checkDiskSpace(ctx, absDir, doctorCfg, &report)
 
 	// Check CJK font availability for PDF rendering of Chinese/Japanese/Korean content.
 	cjkStatus := utils.CheckCJKFonts()
@@ -338,7 +338,7 @@ func checkNetworkConnectivity(parentCtx context.Context, report *doctorReport) {
 	utils.Success("Network connectivity to github.com available")
 }
 
-func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorReport) {
+func checkDiskSpace(ctx context.Context, targetDir string, cfg *config.BookConfig, report *doctorReport) {
 	outputDir := filepath.Join(targetDir, "output")
 
 	// Use loaded config to get the output directory if available.
@@ -366,7 +366,7 @@ func checkDiskSpace(targetDir string, cfg *config.BookConfig, report *doctorRepo
 
 	// Get disk space using the df command (works on macOS, Linux, and most Unix systems).
 	// On Windows this will fail gracefully and we skip the check.
-	dfCtx, dfCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dfCtx, dfCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer dfCancel()
 	// Sanitize: if outputDir starts with "-", prefix with "./" to avoid flag injection.
 	// Note: "--" is not portable to macOS/BSD df.
@@ -560,8 +560,35 @@ func hasPlantUMLBlocks(targetDir string) bool {
 	return searchPlantUMLInDir(targetDir)
 }
 
+// scanFileForPlantUML reads a single file and checks for ```plantuml blocks.
+// Reads at most maxPlantUMLScanSize bytes to prevent OOM on very large files.
+func scanFileForPlantUML(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	content, err := func() ([]byte, error) {
+		defer f.Close() //nolint:errcheck
+		return io.ReadAll(io.LimitReader(f, maxPlantUMLScanSize))
+	}()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(content), "```plantuml")
+}
+
 // searchPlantUMLInDir recursively searches for ```plantuml blocks in markdown files.
+// maxDepth prevents infinite recursion from symlink loops.
 func searchPlantUMLInDir(dir string) bool {
+	return searchPlantUMLInDirDepth(dir, 0)
+}
+
+const maxPlantUMLSearchDepth = 20
+
+func searchPlantUMLInDirDepth(dir string, depth int) bool {
+	if depth > maxPlantUMLSearchDepth {
+		return false
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
@@ -579,25 +606,24 @@ func searchPlantUMLInDir(dir string) bool {
 		path := filepath.Join(dir, entry.Name())
 
 		if entry.IsDir() {
-			if searchPlantUMLInDir(path) {
+			if searchPlantUMLInDirDepth(path, depth+1) {
 				return true
 			}
-		} else if strings.HasSuffix(entry.Name(), ".md") {
-			// Limit read to 1 MB to prevent OOM on very large files.
-			f, err := os.Open(path)
+		} else if entry.Type()&os.ModeSymlink != 0 {
+			// Resolve symlinks: follow directories, scan .md files.
+			info, err := os.Stat(path)
 			if err != nil {
 				continue
 			}
-			content, err := func() ([]byte, error) {
-				defer f.Close() //nolint:errcheck
-				return io.ReadAll(io.LimitReader(f, maxPlantUMLScanSize))
-			}()
-			if err != nil {
-				continue
-			}
-			if strings.Contains(string(content), "```plantuml") {
+			if info.IsDir() {
+				if searchPlantUMLInDirDepth(path, depth+1) {
+					return true
+				}
+			} else if strings.HasSuffix(entry.Name(), ".md") && scanFileForPlantUML(path) {
 				return true
 			}
+		} else if strings.HasSuffix(entry.Name(), ".md") && scanFileForPlantUML(path) {
+			return true
 		}
 	}
 

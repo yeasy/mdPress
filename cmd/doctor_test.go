@@ -697,7 +697,7 @@ func TestCheckDiskSpace(t *testing.T) {
 	tmpDir := t.TempDir()
 	report := &doctorReport{}
 
-	checkDiskSpace(tmpDir, nil, report)
+	checkDiskSpace(context.Background(), tmpDir, nil, report)
 
 	// Verify report fields were populated
 	if !report.DiskSpaceOK && report.DiskSpaceGB >= 0.1 {
@@ -866,4 +866,34 @@ func TestIsExecutable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScanFileForPlantUML(t *testing.T) {
+	t.Run("file with plantuml block", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "test.md")
+		if err := os.WriteFile(path, []byte("# Title\n\n```plantuml\nAlice -> Bob\n```\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if !scanFileForPlantUML(path) {
+			t.Error("expected true for file with plantuml block")
+		}
+	})
+
+	t.Run("file without plantuml", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "test.md")
+		if err := os.WriteFile(path, []byte("# Title\n\nJust text.\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if scanFileForPlantUML(path) {
+			t.Error("expected false for file without plantuml block")
+		}
+	})
+
+	t.Run("nonexistent file", func(t *testing.T) {
+		if scanFileForPlantUML("/nonexistent/file.md") {
+			t.Error("expected false for nonexistent file")
+		}
+	})
 }
