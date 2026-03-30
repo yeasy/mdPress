@@ -8,6 +8,52 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.1] - 2026-03-29
+
+### Fixed
+
+- **Heading regex correct tag matching**: Fix heading regex to match the correct heading level tag
+- **Typst converter skips code spans**: Prevent Typst markup conversion inside inline code spans
+- **SVG inlining for nested SVGs**: Fix SVG inlining when SVGs contain nested SVG elements
+- **Typst builder uses raw Markdown**: Fix Typst builder to pass raw Markdown instead of HTML
+- **Windows path separator in test**: Fix path separator handling for Windows compatibility
+
+### Security
+
+- **PlantUML directive and SVG sanitization hardened**: Strengthen PlantUML directive parsing and SVG content sanitization
+- **Internal paths removed from serve debug panel**: Remove internal filesystem paths from the serve debug panel output
+
+### Added
+
+- **Filename sanitization in init command**: Sanitize filenames during project initialization
+- **Force flag for migrate command**: Add `--force` flag to overwrite existing files during migration
+- **Post-install verification for upgrade**: Verify binary integrity after upgrade installation
+- **Site UX features**: Add selection highlighting, pending navigation, and improved client-side navigation
+- **Typst promoted to first-class output format**: Typst PDF generation available as `--format typst`
+
+### Improved
+
+- **Doctor context and symlink handling**: Improve doctor command with better context reporting and symlink-aware checks
+- **PDF generator error handling**: Check tmpFile.Close error in PDF generator
+
+---
+
+## [0.7.0] - 2026-03-28
+
+### Added
+
+- **Typst as first-class output format**: Promote Typst PDF backend alongside Chromium; available via `--format typst`
+
+### Improved
+
+- **Security hardening across output paths**: Harden security across all output generation paths
+- **Scroll jump and live reload UX**: Fix scroll jump behavior and improve live reload user experience
+- **Internal API cleanup**: Unexport internal types and deduplicate code
+- **Test coverage and code quality**: Improve test coverage and overall code quality
+- **Documentation updates**: Fix documentation errors and add Typst documentation
+
+---
+
 ## [0.6.9] - 2026-03-28
 
 ### Fixed
@@ -607,7 +653,9 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.6.9...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/yeasy/mdpress/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/yeasy/mdpress/compare/v0.6.9...v0.7.0
 [0.6.9]: https://github.com/yeasy/mdpress/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/yeasy/mdpress/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/yeasy/mdpress/compare/v0.6.6...v0.6.7
