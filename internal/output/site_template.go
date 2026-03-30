@@ -313,6 +313,8 @@ html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
 .content p { margin: 0.6em 0; text-align: left; }
 .content img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
 .content p:has(> img), .content p:has(> a > img) { text-align: center; }
+.content p:has(> img) + p, .content p:has(> a > img) + p { text-align: center; font-size: 0.84rem; color: #666; }
+html.dark .content p:has(> img) + p, html.dark .content p:has(> a > img) + p { color: #a6adc8; }
 .content p > a:not(:only-child) > img,
 .content p > a:not(:only-child) > svg { max-height: 20px; width: auto; vertical-align: middle; display: inline; }
 .content p > img:only-child,
@@ -372,6 +374,10 @@ html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
 .copy-btn.copied { background: #2ea44f; color: #fff; border-color: #2ea44f; }
 html.dark .code-wrapper .copy-btn { background: rgba(30,30,46,.8); border-color: #45475a; color: #a6adc8; }
 html.dark .copy-btn.copied { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
+
+/* Selection highlight: matching keywords in code blocks */
+pre .selection-highlight { background: rgba(255, 140, 0, 0.35); border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 140, 0, 0.2); }
+html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-shadow: 0 0 0 1px rgba(255, 180, 50, 0.15); }
 
 .content table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; border-radius: 6px; overflow: hidden; border: 1px solid #e8e8e8; }
 .content th, .content td { border: 1px solid #e8e8e8; padding: 10px 16px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
@@ -819,6 +825,28 @@ html.dark .search-footer kbd { background: #313244; border-color: #45475a; }
 html.dark .header-search-btn { background: #313244; border-color: #45475a; color: #6c7086; }
 html.dark .header-search-btn:hover { border-color: #585b70; background: #3b3d52; color: #a6adc8; }
 html.dark .header-search-btn kbd { background: #45475a; border-color: #585b70; color: #6c7086; }
+html.dark .content .mermaid text,
+html.dark .content .mermaid tspan,
+html.dark .content .mermaid .nodeLabel,
+html.dark .content .mermaid .edgeLabel,
+html.dark .content .mermaid .label,
+html.dark .content .mermaid .cluster-label,
+html.dark .content .mermaid .titleText,
+html.dark .content .mermaid [class*="Label"] { color: #cdd6f4 !important; fill: #cdd6f4 !important; }
+html.dark .content .mermaid .edgePath .path,
+html.dark .content .mermaid .flowchart-link,
+html.dark .content .mermaid .relation,
+html.dark .content .mermaid line,
+html.dark .content .mermaid path.path { stroke: #a6adc8 !important; }
+html.dark .content .mermaid marker path { fill: #a6adc8 !important; stroke: #a6adc8 !important; }
+html.dark .content .mermaid .node rect,
+html.dark .content .mermaid .node circle,
+html.dark .content .mermaid .node polygon,
+html.dark .content .mermaid .node path { stroke: #585b70 !important; }
+html.dark .content .mermaid .edgeLabel rect,
+html.dark .content .mermaid .edgeLabel span,
+html.dark .content .mermaid span.edgeLabel { background-color: #1e1e2e !important; }
+html.dark .content .mermaid .cluster rect { fill: #262637 !important; stroke: #45475a !important; }
 html.dark .theme-toggle { background: #313244; border-color: #45475a; }
 html.dark .theme-toggle button { color: #a6adc8; }
 html.dark .theme-toggle button:hover { background: #45475a; color: #cdd6f4; }
@@ -1039,11 +1067,30 @@ body {
     var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
 
     function applyTheme(mode) {
+      var wasDark = document.documentElement.classList.contains('dark');
       if (mode === 'dark' || (mode !== 'light' && prefersDark.matches)) {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
+      var isDark = document.documentElement.classList.contains('dark');
+      if (wasDark !== isDark) { reRenderMermaid(); }
+    }
+
+    function reRenderMermaid() {
+      if (!window.mermaid) return;
+      var nodes = document.querySelectorAll('.mermaid');
+      if (!nodes.length) return;
+      // Restore original source so mermaid can re-render from text
+      for (var i = 0; i < nodes.length; i++) {
+        var src = nodes[i].getAttribute('data-mermaid-src');
+        if (src) { nodes[i].removeAttribute('data-processed'); nodes[i].textContent = src; }
+      }
+      try {
+        window.mermaid.initialize({ startOnLoad: false, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default', securityLevel: 'strict', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
+        if (window.mermaid.run) { window.mermaid.run({ nodes: nodes }); }
+        else if (window.mermaid.init) { window.mermaid.init(undefined, nodes); }
+      } catch (e) { console.warn('[mdpress] Mermaid re-render failed', e); }
     }
 
     function setTheme(mode) {
@@ -1114,6 +1161,8 @@ body {
   var lastActiveLink = null;
   var prefetchedPages = Object.create(null);
   var pageCache = Object.create(null);
+  var pageCacheOrder = [];
+  var pageCacheLimit = 50;
   var pendingNavigation = null;
   var internalNavStateKey = 'mdpress-site-nav';
   var scrollStoreKey = 'mdpress-site-scroll';
@@ -1178,9 +1227,10 @@ body {
   }
 
   function refreshPageContext() {
-    navLinksByCurrentFile = Array.from(document.querySelectorAll('.nav-item[data-file="' + currentFile + '"]'));
-    navChapterLinks = Array.from(document.querySelectorAll('.nav-chapter[data-file="' + currentFile + '"]'));
-    navHeadingLinks = Array.from(document.querySelectorAll('.nav-heading[data-file="' + currentFile + '"]'));
+    var esc = CSS.escape ? CSS.escape(currentFile) : currentFile.replace(/["\\]/g, '\\$&');
+    navLinksByCurrentFile = Array.from(document.querySelectorAll('.nav-item[data-file="' + esc + '"]'));
+    navChapterLinks = Array.from(document.querySelectorAll('.nav-chapter[data-file="' + esc + '"]'));
+    navHeadingLinks = Array.from(document.querySelectorAll('.nav-heading[data-file="' + esc + '"]'));
     headings = Array.from(document.querySelectorAll('.content h1[id], .content h2[id], .content h3[id], .content h4[id], .content h5[id], .content h6[id]'));
   }
 
@@ -1373,6 +1423,7 @@ body {
 
   // --- Heading tracking via IntersectionObserver ---
   var headingObserver = null;
+  var headingScrollHandler = null;
   var visibleHeadings = Object.create(null); // id -> true/false
 
   function activateNavForHeading(headingId) {
@@ -1421,13 +1472,13 @@ body {
 
   function setupHeadingObserver() {
     if (headingObserver) { headingObserver.disconnect(); }
+    if (headingScrollHandler) { window.removeEventListener('scroll', headingScrollHandler); headingScrollHandler = null; }
     visibleHeadings = Object.create(null);
 
     if (typeof IntersectionObserver === 'undefined') {
       // Fallback for older browsers: use scroll event.
-      window.addEventListener('scroll', function() {
-        activateNavForHeading(pickActiveHeading());
-      }, { passive: true });
+      headingScrollHandler = function() { activateNavForHeading(pickActiveHeading()); };
+      window.addEventListener('scroll', headingScrollHandler, { passive: true });
       return;
     }
 
@@ -1497,7 +1548,8 @@ body {
       var h = tocHeadings[i];
       var tag = h.tagName.toLowerCase();
       var depthClass = tag === 'h3' ? ' toc-depth-2' : tag === 'h4' ? ' toc-depth-3' : '';
-      html += '<a href="#' + h.id + '" data-toc-target="' + h.id + '" class="toc-link' + depthClass + '">' + headingTextForTOC(h) + '</a>';
+      var safeId = h.id.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html += '<a href="#' + safeId + '" data-toc-target="' + safeId + '" class="toc-link' + depthClass + '">' + headingTextForTOC(h) + '</a>';
     }
     pageTocNav.innerHTML = html;
     setupTocObserver(tocHeadings);
@@ -1578,6 +1630,10 @@ body {
     document.body.appendChild(s);
   }
 
+  function getMermaidTheme() {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'default';
+  }
+
   function ensureMermaid() {
     var nodes = document.querySelectorAll('.mermaid');
     if (!nodes.length) return;
@@ -1585,7 +1641,13 @@ body {
     function runMermaid() {
       if (!window.mermaid) return;
       try {
-        window.mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'strict', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
+        // Save original source for re-rendering on theme toggle
+        for (var j = 0; j < nodes.length; j++) {
+          if (!nodes[j].getAttribute('data-mermaid-src')) {
+            nodes[j].setAttribute('data-mermaid-src', nodes[j].textContent);
+          }
+        }
+        window.mermaid.initialize({ startOnLoad: true, theme: getMermaidTheme(), securityLevel: 'strict', themeVariables: { fontFamily: '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif' } });
         if (window.mermaid.run) {
           window.mermaid.run({ nodes: nodes });
         } else if (window.mermaid.init) {
@@ -1608,7 +1670,8 @@ body {
     function runKaTeX() {
       if (typeof renderMathInElement !== 'function') return;
       try {
-        renderMathInElement(document.body, {
+        var katexRoot = document.querySelector('.content') || document.body;
+        renderMathInElement(katexRoot, {
           delimiters: [
             {left: '$$', right: '$$', display: true},
             {left: '$',  right: '$',  display: false}
@@ -1669,10 +1732,33 @@ body {
   }
 
   function getCachedPage(cacheKey) {
-    return pageCache[cacheKey] || null;
+    var entry = pageCache[cacheKey];
+    if (!entry) return null;
+    // Move to end of access order (most recently used).
+    var idx = pageCacheOrder.indexOf(cacheKey);
+    if (idx !== -1) {
+      pageCacheOrder.splice(idx, 1);
+    }
+    pageCacheOrder.push(cacheKey);
+    return entry;
   }
 
   function cachePage(cacheKey, payload) {
+    if (!pageCache[cacheKey]) {
+      // New entry: evict the least recently used if over limit.
+      if (pageCacheOrder.length >= pageCacheLimit) {
+        var evict = pageCacheOrder.shift();
+        delete pageCache[evict];
+      }
+      pageCacheOrder.push(cacheKey);
+    } else {
+      // Existing entry: refresh access order.
+      var idx = pageCacheOrder.indexOf(cacheKey);
+      if (idx !== -1) {
+        pageCacheOrder.splice(idx, 1);
+      }
+      pageCacheOrder.push(cacheKey);
+    }
     pageCache[cacheKey] = payload;
     return payload;
   }
@@ -1753,6 +1839,7 @@ body {
       buildPageTOC();
     }
 
+    if (window.__clearSelectionHighlights) window.__clearSelectionHighlights();
     applySwap();
     finalizeNavigation(targetURL, options);
     return Promise.resolve();
@@ -1773,12 +1860,13 @@ body {
       scrollToTopImmediate();
     }
     pendingNavigation = new AbortController();
+    var navSignal = pendingNavigation.signal;
     setNavigating(true);
     beginRouteProgress();
 
-    return fetchPagePayload(target.url, pendingNavigation.signal)
+    return fetchPagePayload(target.url, navSignal)
       .then(function(payload) {
-        if (pendingNavigation.signal.aborted) return;
+        if (navSignal.aborted) return;
         var targetURL = new URL(target.url.toString(), window.location.href);
         return swapPageContent(payload, targetURL, {
           updateHistory: options.updateHistory || 'push',
@@ -1793,6 +1881,7 @@ body {
         window.location.href = target.url.toString();
       })
       .finally(function() {
+        pendingNavigation = null;
         setNavigating(false);
         endRouteProgress();
       });
@@ -1815,7 +1904,9 @@ body {
   window.__mdpressLiveReload = function() {
     // Invalidate all cached pages since any content may have changed.
     for (var key in pageCache) { delete pageCache[key]; }
+    pageCacheOrder.length = 0;
     for (var pk in prefetchedPages) { delete prefetchedPages[pk]; }
+    if (window.__clearSelectionHighlights) window.__clearSelectionHighlights();
     var savedScroll = window.scrollY || document.documentElement.scrollTop;
     var targetURL = new URL(window.location.href);
     return fetchPagePayload(targetURL)
@@ -1939,13 +2030,14 @@ body {
       if (navLinks[i].classList.contains('next')) nextLink = navLinks[i];
     }
 
-    if (e.key === 'ArrowLeft' && prevLink && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    var inEditable = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+    if (e.key === 'ArrowLeft' && prevLink && !e.ctrlKey && !e.metaKey && !e.altKey && !inEditable) {
       e.preventDefault();
       prevLink.click();
-    } else if (e.key === 'ArrowRight' && nextLink && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    } else if (e.key === 'ArrowRight' && nextLink && !e.ctrlKey && !e.metaKey && !e.altKey && !inEditable) {
       e.preventDefault();
       nextLink.click();
-    } else if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA' && !e.target.isContentEditable) {
+    } else if ((e.key === '/' || (e.key === 'k' && (e.metaKey || e.ctrlKey))) && !inEditable) {
       e.preventDefault();
       openSearch('');
     }
@@ -1995,7 +2087,8 @@ body {
   if (sidebarClose) {
     sidebarClose.addEventListener('click', function(e) {
       e.preventDefault();
-      toggleSidebar(true);
+      // On mobile, false removes 'open'; on desktop, true sets 'collapsed'.
+      toggleSidebar(isMobile() ? false : true);
     });
   }
 
@@ -2248,7 +2341,7 @@ body {
     });
 
     function escapeHTML(s) {
-      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     function buildSnippet(text, query, maxLen) {
@@ -2259,9 +2352,12 @@ body {
       var start = Math.max(0, idx - 40);
       var end = Math.min(text.length, idx + query.length + 80);
       var snippet = (start > 0 ? '\u2026' : '') + text.slice(start, end) + (end < text.length ? '\u2026' : '');
-      // Highlight matches
-      var re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-      return escapeHTML(snippet).replace(re, '<mark>$1</mark>');
+      // Highlight matches — escape both snippet and query so HTML entities
+      // in the query (e.g. & -> &amp;) still match their escaped counterparts.
+      var escaped = escapeHTML(snippet);
+      var escapedQuery = escapeHTML(query);
+      var re = new RegExp('(' + escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      return escaped.replace(re, '<mark>$1</mark>');
     }
 
     function doSearch() {
@@ -2348,8 +2444,12 @@ body {
       } catch (e) {}
       // Use SPA navigation if available
       if (typeof navigateClientSide === 'function') {
-        var url = new URL(href, window.location.href);
-        navigateClientSide({ url: url });
+        var target = getClientNavigation({ href: href });
+        if (target) {
+          navigateClientSide(target, { updateHistory: 'push', scrollToTop: !target.hash });
+        } else {
+          window.location.href = href;
+        }
       } else {
         window.location.href = href;
       }
@@ -2392,10 +2492,130 @@ body {
         btn.textContent = __ui.copied;
         btn.classList.add('copied');
         setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
-      });
+      }).catch(function() {});
     });
     addCopyButtons();
     window.__addCopyButtons = addCopyButtons;
+  })();
+
+  /* ===== Selection Highlight ===== */
+  (function() {
+    var highlightClass = 'selection-highlight';
+    var minLen = 2;
+    var maxLen = 100;
+    var debounceTimer = null;
+    var updating = false;
+
+    function clearHighlights() {
+      var marks = document.querySelectorAll('.' + highlightClass);
+      for (var i = marks.length - 1; i >= 0; i--) {
+        var mark = marks[i];
+        var parent = mark.parentNode;
+        parent.replaceChild(document.createTextNode(mark.textContent), mark);
+        parent.normalize();
+      }
+    }
+
+    function escapeRegExp(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function highlightInNode(node, regex) {
+      if (node.nodeType === 3) {
+        regex.lastIndex = 0;
+        var match = regex.exec(node.textContent);
+        if (match) {
+          var span = document.createElement('span');
+          span.className = highlightClass;
+          var mid = node.splitText(match.index);
+          mid.splitText(match[0].length);
+          span.appendChild(mid.cloneNode(true));
+          mid.parentNode.replaceChild(span, mid);
+          return true;
+        }
+        return false;
+      }
+      if (node.nodeType === 1) {
+        var tag = node.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA' || tag === 'INPUT' ||
+            node.classList.contains(highlightClass) || node.classList.contains('copy-btn') ||
+            node.isContentEditable) return false;
+        for (var i = 0; i < node.childNodes.length; i++) {
+          if (highlightInNode(node.childNodes[i], regex)) {
+            i++; // skip the newly inserted span
+          }
+        }
+      }
+      return false;
+    }
+
+    // Compute character offset of selection start within a <pre>.
+    function getSelOffset(pre, sel) {
+      var range = sel.getRangeAt(0);
+      var r2 = document.createRange();
+      r2.selectNodeContents(pre);
+      r2.setEnd(range.startContainer, range.startOffset);
+      return { pre: pre, offset: r2.toString().length, length: sel.toString().length };
+    }
+
+    // Restore selection by character offset after DOM was restructured.
+    function restoreSelOffset(info) {
+      var walker = document.createTreeWalker(info.pre, NodeFilter.SHOW_TEXT);
+      var pos = 0, startNode, startOff, endNode, endOff;
+      var target = info.offset, end = info.offset + info.length;
+      while (walker.nextNode()) {
+        var n = walker.currentNode, len = n.textContent.length;
+        if (!startNode && pos + len > target) { startNode = n; startOff = target - pos; }
+        if (!endNode && pos + len >= end) { endNode = n; endOff = end - pos; break; }
+        pos += len;
+      }
+      if (startNode && endNode) {
+        var sel = window.getSelection();
+        var r = document.createRange();
+        r.setStart(startNode, startOff);
+        r.setEnd(endNode, endOff);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
+
+    function onSelectionChange() {
+      if (updating) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function() {
+        updating = true;
+        try {
+          clearHighlights();
+          var sel = window.getSelection();
+          if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+          // Only activate when selection originates inside a code block
+          var anchor = sel.anchorNode;
+          var selPre = anchor && anchor.parentElement && anchor.parentElement.closest('pre');
+          if (!selPre) return;
+          var text = sel.toString().trim();
+          if (text.length < minLen || text.length > maxLen) return;
+          if (/^\s*$/.test(text)) return;
+          // Save selection as character offset (survives DOM restructuring)
+          var saved = getSelOffset(selPre, sel);
+          // Highlight in all code blocks on the page
+          var pres = document.querySelectorAll('.content pre');
+          var regex = new RegExp(escapeRegExp(text), 'gi');
+          for (var i = 0; i < pres.length; i++) {
+            highlightInNode(pres[i], regex);
+          }
+          // Restore selection by offset
+          try { restoreSelOffset(saved); } catch(e) {}
+        } finally {
+          updating = false;
+        }
+      }, 300);
+    }
+
+    document.addEventListener('selectionchange', onSelectionChange);
+    window.__clearSelectionHighlights = function() {
+      clearHighlights();
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   })();
   </script>
 </body>
