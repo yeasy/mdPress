@@ -814,3 +814,166 @@ func TestPromptChoiceBasic(t *testing.T) {
 		t.Errorf("promptChoice() with empty input = %q, want Option2", result)
 	}
 }
+
+// TestSanitizeFilenameBasic tests normal titles.
+func TestSanitizeFilenameBasic(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"My Book Title", "My_Book_Title"},
+		{"simple", "simple"},
+		{"hello world", "hello_world"},
+		{"Already_Underscore", "Already_Underscore"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSanitizeFilenamePathTraversal tests that path traversal is neutralized.
+func TestSanitizeFilenamePathTraversal(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"../../evil", "evil"},
+		{"foo/bar", "bar"},
+		{"foo\\bar", "foobar"},
+		{"/absolute/path", "path"},
+		{"../../../etc/passwd", "passwd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSanitizeFilenameUnsafeChars tests removal of filesystem-unsafe characters.
+func TestSanitizeFilenameUnsafeChars(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"file:name", "filename"},
+		{"file*name", "filename"},
+		{"file?name", "filename"},
+		{"file<name>", "filename"},
+		{"file|name", "filename"},
+		{`file"name`, "filename"},
+		{"all:*?\"<>|bad", "allbad"},
+		{"null\x00byte", "nullbyte"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSanitizeFilenameTruncation tests that long titles are truncated to 200 bytes.
+func TestSanitizeFilenameTruncation(t *testing.T) {
+	// ASCII string longer than 200 bytes
+	longASCII := strings.Repeat("a", 250)
+	result := sanitizeFilename(longASCII)
+	if len(result) > 200 {
+		t.Errorf("sanitizeFilename(250 ASCII chars) produced %d bytes, want <= 200", len(result))
+	}
+	if len(result) != 200 {
+		t.Errorf("sanitizeFilename(250 ASCII chars) = %d bytes, want 200", len(result))
+	}
+
+	// CJK string: each character is 3 bytes in UTF-8.
+	// 70 CJK chars = 210 bytes > 200, so truncation must happen.
+	longCJK := strings.Repeat("中", 70)
+	result = sanitizeFilename(longCJK)
+	if len(result) > 200 {
+		t.Errorf("sanitizeFilename(70 CJK chars) produced %d bytes, want <= 200", len(result))
+	}
+	// Should not split a multi-byte character.
+	for i := 0; i < len(result); {
+		r, size := []rune(result[i:])[0], len(string([]rune(result[i:])[0]))
+		if r == 0xFFFD {
+			t.Errorf("sanitizeFilename produced invalid UTF-8 at byte %d", i)
+		}
+		i += size
+	}
+
+	// Short CJK string under 200 bytes should be preserved.
+	shortCJK := strings.Repeat("中", 10) // 30 bytes
+	result = sanitizeFilename(shortCJK)
+	if result != shortCJK {
+		t.Errorf("sanitizeFilename(10 CJK chars) = %q, want %q", result, shortCJK)
+	}
+}
+
+// TestSanitizeFilenameEmptyAndDots tests edge cases that should return empty.
+func TestSanitizeFilenameEmptyAndDots(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{".", ""},
+		{"..", ""},
+		{"...", ""},
+		{"/", ""},
+		{"///", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSanitizeFilenameInGenerateBookYAML verifies that generateBookYAMLWithMeta
+// uses sanitized filenames for output.
+func TestSanitizeFilenameInGenerateBookYAML(t *testing.T) {
+	tests := []struct {
+		title    string
+		wantFile string
+	}{
+		{"My Book", "My_Book.pdf"},
+		{"../../evil", "evil.pdf"},
+		{"foo/bar", "bar.pdf"},
+		{"", "output.pdf"},
+		{"...", "output.pdf"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			answers := initAnswers{
+				Title:    tt.title,
+				Author:   "Test Author",
+				Language: "en",
+				Theme:    "default",
+			}
+			yaml := generateBookYAMLWithMeta(answers, "", nil)
+			expected := fmt.Sprintf("filename: %q", tt.wantFile)
+			if !strings.Contains(yaml, expected) {
+				t.Errorf("generateBookYAMLWithMeta() with title %q: output missing %q\nGot:\n%s",
+					tt.title, expected, yaml)
+			}
+		})
+	}
+}

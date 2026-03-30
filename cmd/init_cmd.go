@@ -492,7 +492,7 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 
 	b.WriteString("\noutput:\n")
 	// Use a sanitized filename based on the title.
-	outName := strings.ReplaceAll(answers.Title, " ", "_")
+	outName := sanitizeFilename(answers.Title)
 	if outName == "" {
 		outName = "output"
 	}
@@ -501,6 +501,47 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 	b.WriteString("  cover: true\n")
 
 	return b.String()
+}
+
+// sanitizeFilename derives a safe output filename from a book title.
+// It replaces spaces with underscores, strips path separators and other
+// filesystem-unsafe characters, and applies filepath.Base to remove any
+// remaining directory components. If the result is empty or consists only
+// of dots it returns an empty string so that the caller can fall back to
+// a default name.
+func sanitizeFilename(title string) string {
+	name := strings.ReplaceAll(title, " ", "_")
+
+	// Strip directory components first so that "../../evil" becomes "evil".
+	name = filepath.Base(name)
+
+	// Remove filesystem-unsafe characters (including any leftover separators).
+	// Null bytes are universally forbidden on all filesystems.
+	unsafe := []string{"\x00", "/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
+	for _, ch := range unsafe {
+		name = strings.ReplaceAll(name, ch, "")
+	}
+
+	// Truncate to a safe filesystem length (most filesystems cap at 255 bytes).
+	// Use rune-aware truncation to avoid splitting multi-byte UTF-8 characters.
+	const maxFilenameLen = 200
+	if len(name) > maxFilenameLen {
+		runes := []rune(name)
+		for len(string(runes)) > maxFilenameLen {
+			runes = runes[:len(runes)-1]
+		}
+		name = string(runes)
+	}
+
+	// filepath.Base returns "." for empty input; treat that as empty.
+	if name == "." || name == ".." {
+		return ""
+	}
+	// Guard against names that are only dots (e.g. "...").
+	if strings.Trim(name, ".") == "" {
+		return ""
+	}
+	return name
 }
 
 // inferTitleFromPath derives a chapter title from a file path.
