@@ -142,25 +142,57 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// convertInline processes inline Markdown formatting.
+// convertInline processes inline Markdown formatting, skipping code spans.
 func (c *MarkdownToTypstConverter) convertInline(text string) string {
-	// Process in order to avoid conflicts
-	// 1. Code spans (backticks) — Typst uses the same syntax, no conversion needed.
+	return c.processOutsideCodeSpans(text, func(segment string) string {
+		segment = c.convertImages(segment)
+		segment = c.convertLinks(segment)
+		segment = c.convertItalic(segment)
+		segment = c.convertBold(segment)
+		return segment
+	})
+}
 
-	// 2. Convert images
-	text = c.convertImages(text)
+// processOutsideCodeSpans splits text on backtick-delimited code spans
+// (any number of consecutive backticks), applies fn only to non-code regions,
+// and preserves code span content unchanged. Unmatched backticks are
+// treated as regular text and passed through fn.
+func (c *MarkdownToTypstConverter) processOutsideCodeSpans(text string, fn func(string) string) string {
+	var result strings.Builder
+	i := 0
+	for i < len(text) {
+		// Count consecutive backticks starting at position i.
+		backtickLen := 0
+		for i+backtickLen < len(text) && text[i+backtickLen] == '`' {
+			backtickLen++
+		}
 
-	// 3. Convert links
-	text = c.convertLinks(text)
+		if backtickLen == 0 {
+			// Not a backtick — accumulate regular text until next backtick or end.
+			start := i
+			for i < len(text) && text[i] != '`' {
+				i++
+			}
+			result.WriteString(fn(text[start:i]))
+			continue
+		}
 
-	// 4. Convert italic (* or _) - must come BEFORE bold so that
-	// single *text* is converted to _text_ before ** is processed.
-	text = c.convertItalic(text)
+		// We found an opening backtick sequence of length backtickLen.
+		// Look for the matching closing sequence.
+		delimiter := text[i : i+backtickLen]
+		closeIdx := strings.Index(text[i+backtickLen:], delimiter)
+		if closeIdx == -1 {
+			// No matching close — treat the rest as regular text.
+			result.WriteString(fn(text[i:]))
+			return result.String()
+		}
 
-	// 5. Convert bold (** or __)
-	text = c.convertBold(text)
-
-	return text
+		// Emit the code span verbatim (including backticks).
+		spanEnd := i + backtickLen + closeIdx + backtickLen
+		result.WriteString(text[i:spanEnd])
+		i = spanEnd
+	}
+	return result.String()
 }
 
 // convertImages converts ![alt](url) to #image("url")

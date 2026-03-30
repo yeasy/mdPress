@@ -1817,3 +1817,86 @@ func TestIsOrderedListItemUnicode(t *testing.T) {
 		})
 	}
 }
+
+// TestCodeSpanProtection tests that inline conversions skip code spans.
+func TestCodeSpanProtection(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "link inside code span is not converted",
+			input:    "`[foo](bar)`",
+			expected: "`[foo](bar)`",
+		},
+		{
+			name:     "bold inside code span is not converted",
+			input:    "`**bold**`",
+			expected: "`**bold**`",
+		},
+		{
+			name:     "link outside code span is still converted",
+			input:    "[click](url)",
+			expected: `#link("url")[click]`,
+		},
+		{
+			name:     "mixed content with code span protecting link",
+			input:    "some text [link](url) and `code [link](url)`",
+			expected: `some text #link("url")[link] and ` + "`code [link](url)`",
+		},
+		{
+			name:     "double backtick code span protects link",
+			input:    "``[foo](bar)``",
+			expected: "``[foo](bar)``",
+		},
+		{
+			name:     "double backtick code span protects bold",
+			input:    "``**bold**``",
+			expected: "``**bold**``",
+		},
+		{
+			name:     "italic inside code span is not converted",
+			input:    "`*italic*`",
+			expected: "`*italic*`",
+		},
+		{
+			name:     "image inside code span is not converted",
+			input:    "`![alt](img.png)`",
+			expected: "`![alt](img.png)`",
+		},
+		{
+			name:     "unmatched backtick treated as regular text",
+			input:    "text with ` unmatched",
+			expected: "text with ` unmatched",
+		},
+		{
+			name:     "code span between converted regions",
+			input:    "**bold** `code [link](url)` **more**",
+			expected: "*bold* `code [link](url)` *more*",
+		},
+		{
+			name:     "triple backtick inline code span protects link",
+			input:    "text ```[foo](bar)``` end",
+			expected: "text ```[foo](bar)``` end",
+		},
+		{
+			name:     "triple backtick inline code span protects bold",
+			input:    "text ```**bold**``` end",
+			expected: "text ```**bold**``` end",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := converter.Convert(tt.input)
+			// Convert adds trailing newlines for paragraphs; trim for comparison.
+			result = strings.TrimSpace(result)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
