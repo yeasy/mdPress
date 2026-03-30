@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -322,6 +323,19 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 		return fmt.Errorf("failed to install binary (backup restored): %w", err)
 	}
 
+	// Verify the new binary is functional before removing the backup.
+	verifyCtx, verifyCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer verifyCancel()
+	if out, err := exec.CommandContext(verifyCtx, currentPath, "version").CombinedOutput(); err != nil {
+		slog.Error("new binary verification failed", slog.String("output", string(out)), slog.String("error", err.Error()))
+		// Restore the backup since the new binary is broken.
+		if restoreErr := os.Rename(backupPath, currentPath); restoreErr != nil {
+			return fmt.Errorf("new binary verification failed (%w), and restore failed (%w); backup at %s", err, restoreErr, backupPath)
+		}
+		return fmt.Errorf("new binary verification failed (backup restored): %w", err)
+	}
+
+	slog.Info("new binary verified successfully")
 	utils.Success("Installed to %s", currentPath)
 
 	// Try to clean up the backup (non-fatal if it fails).
