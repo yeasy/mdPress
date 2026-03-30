@@ -35,10 +35,13 @@ What migrate does:
   3. Keeps SUMMARY.md intact (mdpress already supports this format).
   4. Prints a migration report listing all changes made.
 
+If book.yaml already exists, it will not be overwritten unless --force is set.
+
 Examples:
   mdpress migrate
   mdpress migrate ./my-gitbook
-  mdpress migrate --dry-run ./my-gitbook`,
+  mdpress migrate --dry-run ./my-gitbook
+  mdpress migrate --force ./my-gitbook`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dir := "."
 		if len(args) > 0 {
@@ -48,12 +51,17 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to read --dry-run flag: %w", err)
 		}
-		return executeMigrate(dir, dryRun)
+		force, err := cmd.Flags().GetBool("force")
+		if err != nil {
+			return fmt.Errorf("failed to read --force flag: %w", err)
+		}
+		return executeMigrate(dir, dryRun, force)
 	},
 }
 
 func init() {
 	migrateCmd.Flags().Bool("dry-run", false, "Preview changes without writing any files")
+	migrateCmd.Flags().Bool("force", false, "Overwrite existing book.yaml instead of skipping")
 }
 
 // ---- GitBook config model ----
@@ -118,7 +126,7 @@ func (r *migrateReport) print() {
 
 // ---- Main migration logic ----
 
-func executeMigrate(dir string, dryRun bool) error {
+func executeMigrate(dir string, dryRun, force bool) error {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return fmt.Errorf("cannot resolve directory %q: %w", dir, err)
@@ -144,7 +152,7 @@ func executeMigrate(dir string, dryRun bool) error {
 		report.addSkipped("book.json not found — skipping config conversion")
 	} else {
 		var err error
-		gb, err = migrateBookJSON(bookJSONPath, absDir, dryRun, report)
+		gb, err = migrateBookJSON(bookJSONPath, absDir, dryRun, force, report)
 		if err != nil {
 			return fmt.Errorf("migrate book.json: %w", err)
 		}
@@ -176,7 +184,7 @@ func executeMigrate(dir string, dryRun bool) error {
 
 // migrateBookJSON converts book.json → book.yaml.
 // Returns the parsed gitBookConfig for further processing or error if parsing fails.
-func migrateBookJSON(bookJSONPath, projectDir string, dryRun bool, report *migrateReport) (*gitBookConfig, error) {
+func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report *migrateReport) (*gitBookConfig, error) {
 	const maxBookJSONSize = 10 * 1024 * 1024 // 10 MB
 	info, err := os.Stat(bookJSONPath)
 	if err != nil {
@@ -223,14 +231,24 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun bool, report *migra
 		"# Review and adjust as needed.\n\n"
 
 	outPath := filepath.Join(projectDir, "book.yaml")
-	if dryRun {
+	if utils.FileExists(outPath) {
+		if !force {
+			if dryRun {
+				fmt.Printf("[dry-run] Skipping: book.yaml already exists (use --force to overwrite)\n")
+			}
+			report.addSkipped("book.yaml already exists (use --force to overwrite)")
+			return &gb, nil
+		}
+		if dryRun {
+			fmt.Printf("[dry-run] Would overwrite existing %s\n", outPath)
+			report.addModified("book.yaml (dry-run, overwrite)")
+			return &gb, nil
+		}
+		slog.Warn("overwriting existing book.yaml", slog.String("path", outPath))
+	} else if dryRun {
 		fmt.Printf("[dry-run] Would write %s\n", outPath)
 		report.addCreated("book.yaml (dry-run)")
 		return &gb, nil
-	}
-
-	if utils.FileExists(outPath) {
-		slog.Warn("overwriting existing book.yaml", slog.String("path", outPath))
 	}
 
 	if err := os.WriteFile(outPath, []byte(header+string(yamlBytes)), 0644); err != nil {
