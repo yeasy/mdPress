@@ -509,7 +509,7 @@ func TestResolvePluginExecutablePath_WindowsSuffixResolution(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create plugins with different extensions
-	_ = writeScript(t, dir, "myplugin", "echo test")
+	writeScript(t, dir, "myplugin", "echo test")
 
 	// Try to resolve without extension (should find .bat or .exe)
 	basePath := filepath.Join(dir, "myplugin")
