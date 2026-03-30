@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -590,10 +591,10 @@ func (fs *fontServer) Close() {
 // Generate renders an HTML string to a PDF file.
 func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if outputPath == "" {
-		return errors.New("generateFromHTML: output path cannot be empty")
+		return errors.New("generate: output path cannot be empty")
 	}
 	if htmlContent == "" {
-		return errors.New("generateFromHTML: HTML content cannot be empty")
+		return errors.New("generate: HTML content cannot be empty")
 	}
 
 	// Find a CJK font and inject @font-face CSS into the HTML.
@@ -1026,7 +1027,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		Path:   filepath.ToSlash(htmlFilePath),
 	}).String()
 	tmpOutput := outputPath + ".tmp"
-	if err := os.Remove(tmpOutput); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(tmpOutput); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		slog.Debug("Failed to remove temporary PDF output file", slog.String("file", tmpOutput), slog.String("error", err.Error()))
 	}
 
