@@ -509,15 +509,21 @@ func TestCheckForChanges(t *testing.T) {
 	}
 
 	// Detect change
-	changed, _ = srv.checkForChanges(modTimes)
+	changed, changedFile := srv.checkForChanges(modTimes)
 	if !changed {
 		t.Error("should return true after file modification")
 	}
+	if changedFile != mdFile {
+		t.Errorf("changed file should be %q, got %q", mdFile, changedFile)
+	}
 
 	// Check again (modTimes updated) should return false
-	changed, _ = srv.checkForChanges(modTimes)
+	changed, changedFile = srv.checkForChanges(modTimes)
 	if changed {
 		t.Error("should return false after modTimes updated")
+	}
+	if changedFile != "" {
+		t.Errorf("changed file should be empty when no changes, got %q", changedFile)
 	}
 }
 
