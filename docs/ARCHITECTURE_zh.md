@@ -2,8 +2,8 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.6.4
-> 更新日期: 2026-03-26
+> 版本: v0.7.0
+> 更新日期: 2026-03-28
 
 ## 1. 系统架构总览
 
@@ -161,8 +161,8 @@ graph TB
 | `root.go` | Cobra 根命令，全局 flag（`--config`, `--verbose`） |
 | `build.go` | 构建命令：源解析、配置加载、格式分发 |
 | `build_run.go` | 核心构建执行：渲染流水线、输出生成 |
-| `build_orchestrator.go` | `BuildOrchestrator` 并发章节处理 |
-| `format_builders.go` | `FormatBuilderRegistry` 输出格式分发 |
+| `build_orchestrator.go` | `buildOrchestrator` 并发章节处理 |
+| `format_builders.go` | `formatBuilderRegistry` 输出格式分发 |
 | `serve.go` | 构建 HTML 站点并启动 HTTP 服务器 |
 | `init_cmd.go` | 扫描目录，生成 book.yaml 骨架 |
 | `quickstart.go` | 创建示例项目并立即构建预览 |
@@ -172,7 +172,7 @@ graph TB
 **关键函数：**
 - `executeBuild()` — 分发到 `executeBuildForConfig()` 处理每种语言
 - `executeBuildForConfig()` — 运行完整的渲染和输出流水线
-- `BuildOrchestrator.ProcessChapters()` — 并发章节解析
+- `buildOrchestrator.ProcessChapters()` — 并发章节解析
 - `executeServe()` — 构建站点 + 启动 HTTP server
 
 ### 3.2 internal/config — 配置管理
@@ -336,32 +336,26 @@ type Target struct {
 **核心组件：**
 
 ```go
-type DevServer struct {
-    config    *config.BookConfig
-    outputDir string
-    port      int
-    watcher   *fsnotify.Watcher
-    hub       *WSHub
-    builder   *IncrementalBuilder
+type Server struct {
+    Host      string
+    Port      int
+    WatchDir  string
+    OutputDir string
+    AutoOpen  bool
+    BuildFunc func() error
+    clients   map[*wsClient]struct{}
+    clientsMu sync.RWMutex
 }
 
-type WSHub struct {
-    clients    map[*websocket.Conn]bool
-    broadcast  chan []byte
-    register   chan *websocket.Conn
-    unregister chan *websocket.Conn
-}
-
-type IncrementalBuilder struct {
-    source   source.Source
-    cache    map[string]*BuildCache
-    debounce time.Duration
+type wsClient struct {
+    conn *websocket.Conn
+    send chan []byte
 }
 ```
 
 **关键功能：**
-- 初始构建（复用现有 `buildSite()`）
-- 启动 fsnotify 监听 .md / .yaml / .css 文件变更
+- 初始构建（复用现有 site 构建流程）
+- 使用 fsnotify 监听 .md / .yaml / .css 文件变更
 - 注入 WebSocket 客户端脚本到生成的 HTML 页面
 - 变更时触发增量重建并通知浏览器刷新
 
@@ -432,7 +426,7 @@ chapter.md (原始 Markdown)
 
 ### 4.3 并行章节处理
 
-章节解析（`ChapterPipeline`）使用 worker pool 并发处理多个章节：
+章节解析（`chapterPipeline`）使用 worker pool 并发处理多个章节：
 
 - `computeMaxConcurrency()` 确定 worker 数量：默认使用 `runtime.NumCPU()`（上限为 8），或遵循配置中的明确 `MaxConcurrency` 设置。
 - `parseChaptersParallel()` 通过 job 和 result 通道将章节分配给 worker 处理。
@@ -485,7 +479,7 @@ classDiagram
 
     class LocalSource {
         -rootDir string
-        -opts SourceOptions
+        -opts Options
         +Prepare() (string, error)
         +Cleanup() error
         +Type() string
@@ -495,7 +489,7 @@ classDiagram
         -owner string
         -repo string
         -tempDir string
-        -opts SourceOptions
+        -opts Options
         +Prepare() (string, error)
         +Cleanup() error
         +Type() string
@@ -519,7 +513,7 @@ classDiagram
 
 ### 5.2 Config 发现链（已实现）
 
-**目标：** 实现 `book.yaml → SUMMARY.md → 自动发现` 的优先级配置发现链。
+**目标：** 实现 `book.yaml → book.json → SUMMARY.md → 自动发现` 的优先级配置发现链。
 
 **发现优先级：**
 
@@ -527,10 +521,13 @@ classDiagram
 1. book.yaml 中显式定义 chapters      ← 最高优先级
    │ (如果 chapters 为空)
    ▼
-2. 同目录下的 SUMMARY.md              ← Gitbook 兼容
+2. 同目录下的 book.json                ← GitBook JSON 格式兼容
+   │ (如果 book.json 不存在)
+   ▼
+3. 同目录下的 SUMMARY.md              ← GitBook 兼容
    │ (如果 SUMMARY.md 不存在)
    ▼
-3. 自动扫描 *.md 文件                  ← 零配置体验
+4. 自动扫描 *.md 文件                  ← 零配置体验
    按目录结构 + 文件名排序
    如果存在 README.md 则作为第一章
    排除: SUMMARY.md, GLOSSARY.md, LANGS.md
@@ -563,17 +560,17 @@ type Discoverer interface {
 
 ### 5.3 输出格式抽象（已实现）
 
-**目标：** 将输出格式统一为 OutputFormat 接口，使新增格式（如 ePub 3、MOBI）更加简单。
+所有输出格式通过 `formatBuilder` 接口（位于 `cmd/format_builders.go`）和 `formatBuilderRegistry` 进行注册和分发。构建流水线使用注册表替代 switch-case 逻辑。
 
-**接口定义：** 见 `internal/output/output.go`
+**接口定义：** 见 `cmd/format_builders.go`
 
 ```go
-// FormatBuilder 定义输出格式的统一接口
-type FormatBuilder interface {
+// formatBuilder 定义输出格式的统一接口
+type formatBuilder interface {
     // Name 返回格式名称（如 "pdf", "html", "site", "epub"）
     Name() string
     // Build 在给定基础路径生成输出文件
-    Build(ctx *BuildContext, baseName string) error
+    Build(ctx *buildContext, baseName string) error
 }
 ```
 
@@ -581,17 +578,18 @@ type FormatBuilder interface {
 
 | 接口实现 | 对应现有代码 |
 |---------|------------|
-| `PDFOutput` | `internal/pdf.Generator` |
-| `HTMLOutput` | `internal/output.HTMLGenerator` |
-| `SiteOutput` | `internal/output.SiteGenerator` |
-| `EpubOutput` | `internal/output.EpubGenerator` |
+| `pdfBuilder` | `internal/pdf.Generator` |
+| `htmlBuilder` | `internal/output.HTMLGenerator` |
+| `siteBuilder` | `internal/output.SiteGenerator` |
+| `epubBuilder` | `internal/output.EpubGenerator` |
+| `typstBuilder` | `internal/typst.Generator` |
 
 **注册机制：**
 
 ```go
-// FormatBuilderRegistry 输出格式注册表
-type FormatBuilderRegistry struct {
-    builders map[string]FormatBuilder
+// formatBuilderRegistry 输出格式注册表
+type formatBuilderRegistry struct {
+    builders map[string]formatBuilder
 }
 ```
 
@@ -622,37 +620,38 @@ graph LR
 **核心组件：**
 
 ```go
-// DevServer 开发服务器
-type DevServer struct {
-    config    *config.BookConfig
-    outputDir string
-    port      int
-    watcher   *fsnotify.Watcher
-    hub       *WSHub
-    builder   *IncrementalBuilder
+// Server 开发服务器，支持实时重载
+type Server struct {
+    Host      string
+    Port      int
+    WatchDir  string
+    OutputDir string
+    AutoOpen  bool
+    BuildFunc func() error
+
+    clients   map[*wsClient]struct{}
+    clientsMu sync.RWMutex
+    logger    *slog.Logger
+    upgrader  websocket.Upgrader
+
+    // 文件变更重建的防抖状态
+    debounceTimer *time.Timer
+    debounceMu    sync.Mutex
 }
 
-// WSHub WebSocket 连接管理
-type WSHub struct {
-    clients    map[*websocket.Conn]bool
-    broadcast  chan []byte
-    register   chan *websocket.Conn
-    unregister chan *websocket.Conn
-}
-
-// IncrementalBuilder 增量构建器
-type IncrementalBuilder struct {
-    source    Source
-    cache     map[string]*BuildCache  // 文件路径 → 构建缓存
-    debounce  time.Duration
+// wsClient 表示单个 WebSocket 连接
+type wsClient struct {
+    conn *websocket.Conn
+    send chan []byte
 }
 ```
 
-**与现有代码的关系：** 现有 `serve.go` 是单次构建 + 静态服务，需要扩展为：
-1. 初始构建（复用现有 `buildSite()`）
-2. 启动 fsnotify 监听 .md / .yaml / .css 文件变更
-3. 注入 WebSocket 客户端脚本到生成的 HTML 页面
-4. 变更时触发增量重建并通知浏览器刷新
+**实现功能：**
+1. 初始构建（复用现有 site 构建流程）
+2. 使用 fsnotify 监听 .md / .yaml / .css 文件变更
+3. 通过中间件注入 WebSocket 客户端脚本到生成的 HTML 页面
+4. 防抖处理文件变更事件并触发重建
+5. 向所有已连接的 WebSocket 客户端广播刷新消息
 
 ### 5.5 插件系统预留
 
@@ -715,24 +714,25 @@ graph TD
 
 #### 6.2.1 构建 Pipeline 拆分（已完成）
 
-`BuildOrchestrator`（`cmd/build_orchestrator.go`）和 `ChapterPipeline`（`cmd/chapter_pipeline.go`）现已封装共享的构建工作流。`build` 和 `serve` 两个命令都委托给这些类型：
+`buildOrchestrator`（`cmd/build_orchestrator.go`）和 `chapterPipeline`（`cmd/chapter_pipeline.go`）现已封装共享的构建工作流。`build` 和 `serve` 两个命令都委托给这些类型：
 
 ```go
-type BuildOrchestrator struct {
-    Config *config.BookConfig
-    Theme  *theme.Theme
-    Parser *markdown.Parser
-    Gloss  *glossary.Glossary
-    Logger *slog.Logger
+type buildOrchestrator struct {
+    Config        *config.BookConfig
+    Theme         *theme.Theme
+    Parser        *markdown.Parser
+    Gloss         *glossary.Glossary
+    Logger        *slog.Logger
+    PluginManager *plugin.Manager
 }
 
-func (o *BuildOrchestrator) ProcessChapters() (*ChapterPipelineResult, error)
-func (o *BuildOrchestrator) LoadCustomCSS() string
+func (o *buildOrchestrator) ProcessChapters(ctxOpts ...context.Context) (*chapterPipelineResult, error)
+func (o *buildOrchestrator) LoadCustomCSS() string
 ```
 
 #### 6.2.2 消除代码重复（已完成）
 
-`ChapterPipeline` 消除了 `build` 和 `serve` 之间约 135 行重复的章节处理代码。
+`chapterPipeline` 消除了 `build` 和 `serve` 之间约 135 行重复的章节处理代码。
 
 #### 6.2.3 硬编码值提取（已完成）
 

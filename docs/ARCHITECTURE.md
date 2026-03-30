@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.6.4
-> Updated: 2026-03-26
+> Version: v0.7.0
+> Updated: 2026-03-28
 
 ## 1. System Overview
 
@@ -162,8 +162,8 @@ graph TB
 | `root.go` | Cobra root command and global flags such as `--config` and `--verbose` |
 | `build.go` | Build command: source resolution, config loading, format dispatch |
 | `build_run.go` | Core build execution: rendering pipeline, output generation |
-| `build_orchestrator.go` | `BuildOrchestrator` for concurrent chapter processing |
-| `format_builders.go` | `FormatBuilderRegistry` for output format dispatch |
+| `build_orchestrator.go` | `buildOrchestrator` for concurrent chapter processing |
+| `format_builders.go` | `formatBuilderRegistry` for output format dispatch |
 | `serve.go` | Build the preview site and start the HTTP server |
 | `init_cmd.go` | Scan a directory and generate a `book.yaml` skeleton |
 | `quickstart.go` | Create a sample project and make it previewable immediately |
@@ -174,7 +174,7 @@ Key functions:
 
 - `executeBuild()` dispatches to `executeBuildForConfig()` per language
 - `executeBuildForConfig()` runs the full render-and-output pipeline
-- `BuildOrchestrator.ProcessChapters()` for concurrent chapter parsing
+- `buildOrchestrator.ProcessChapters()` for concurrent chapter parsing
 - `executeServe()` as build-plus-server orchestration
 
 ### 3.2 `internal/config` - Config Management
@@ -458,7 +458,7 @@ chapter.md (raw Markdown)
 
 ### 4.3 Parallel Chapter Processing
 
-Chapter parsing (`ChapterPipeline`) uses worker pools to process chapters concurrently:
+Chapter parsing (`chapterPipeline`) uses worker pools to process chapters concurrently:
 
 - `computeMaxConcurrency()` determines worker count: uses `runtime.NumCPU()` (capped at 8) by default, or respects explicit `MaxConcurrency` config.
 - `parseChaptersParallel()` distributes chapters to workers via job and result channels.
@@ -511,7 +511,7 @@ classDiagram
 
     class LocalSource {
         -rootDir string
-        -opts SourceOptions
+        -opts Options
         +Prepare() (string, error)
         +Cleanup() error
         +Type() string
@@ -521,7 +521,7 @@ classDiagram
         -owner string
         -repo string
         -tempDir string
-        -opts SourceOptions
+        -opts Options
         +Prepare() (string, error)
         +Cleanup() error
         +Type() string
@@ -590,14 +590,14 @@ Implemented strategies:
 
 ### 5.3 Output Format Abstraction (Implemented)
 
-All output formats are normalized behind the `FormatBuilder` interface (in `cmd/format_builders.go`) with a `FormatBuilderRegistry` for registration and dispatch. The build pipeline uses the registry instead of switch-case logic.
+All output formats are normalized behind the `formatBuilder` interface (in `cmd/format_builders.go`) with a `formatBuilderRegistry` for registration and dispatch. The build pipeline uses the registry instead of switch-case logic.
 
 Interface:
 
 ```go
-type FormatBuilder interface {
+type formatBuilder interface {
     Name() string
-    Build(ctx *BuildContext, baseName string) error
+    Build(ctx *buildContext, baseName string) error
 }
 ```
 
@@ -605,16 +605,17 @@ Mappings:
 
 | Implementation | Existing Code |
 | --- | --- |
-| `PDFOutput` | `internal/pdf.Generator` |
-| `HTMLOutput` | `internal/output.HTMLGenerator` |
-| `SiteOutput` | `internal/output.SiteGenerator` |
-| `EpubOutput` | `internal/output.EpubGenerator` |
+| `pdfBuilder` | `internal/pdf.Generator` |
+| `htmlBuilder` | `internal/output.HTMLGenerator` |
+| `siteBuilder` | `internal/output.SiteGenerator` |
+| `epubBuilder` | `internal/output.EpubGenerator` |
+| `typstBuilder` | `internal/typst.Generator` |
 
-The `FormatBuilderRegistry` is created at startup with all built-in builders pre-registered:
+The `formatBuilderRegistry` is created at startup with all built-in builders pre-registered:
 
 ```go
-type FormatBuilderRegistry struct {
-    builders map[string]FormatBuilder
+type formatBuilderRegistry struct {
+    builders map[string]formatBuilder
 }
 ```
 
@@ -645,38 +646,39 @@ graph LR
 Key components:
 
 ```go
-// DevServer is the development server
-type DevServer struct {
-    config    *config.BookConfig
-    outputDir string
-    port      int
-    watcher   *fsnotify.Watcher
-    hub       *WSHub
-    builder   *IncrementalBuilder
+// Server is the development server with live reload.
+type Server struct {
+    Host      string
+    Port      int
+    WatchDir  string
+    OutputDir string
+    AutoOpen  bool
+    BuildFunc func() error
+
+    clients   map[*wsClient]struct{}
+    clientsMu sync.RWMutex
+    logger    *slog.Logger
+    upgrader  websocket.Upgrader
+
+    // Debounce state for file-change rebuilds.
+    debounceTimer *time.Timer
+    debounceMu    sync.Mutex
 }
 
-// WSHub manages WebSocket connections
-type WSHub struct {
-    clients    map[*websocket.Conn]bool
-    broadcast  chan []byte
-    register   chan *websocket.Conn
-    unregister chan *websocket.Conn
-}
-
-// IncrementalBuilder handles incremental builds
-type IncrementalBuilder struct {
-    source    Source
-    cache     map[string]*BuildCache  // file path → build cache
-    debounce  time.Duration
+// wsClient represents a single WebSocket connection.
+type wsClient struct {
+    conn *websocket.Conn
+    send chan []byte
 }
 ```
 
-Expansion from current behavior:
+The server performs:
 
-1. Reuse the existing site build for the initial render
-2. Watch `.md`, `.yaml`, and `.css` files with `fsnotify`
-3. Inject WebSocket client code into generated HTML
-4. Trigger rebuilds and browser refresh messages when files change
+1. Reuses the existing site build for the initial render
+2. Watches `.md`, `.yaml`, and `.css` files with `fsnotify`
+3. Injects WebSocket client code into generated HTML via middleware
+4. Debounces file change events and triggers rebuilds
+5. Broadcasts reload messages to connected WebSocket clients
 
 ### 5.5 Plugin Extension Points
 
@@ -737,24 +739,25 @@ The following refactors from the original plan have been completed:
 
 #### 6.2.1 Build Pipeline Split (Completed)
 
-`BuildOrchestrator` (`cmd/build_orchestrator.go`) and `ChapterPipeline` (`cmd/chapter_pipeline.go`) now encapsulate the shared build workflow. Both `build` and `serve` delegate to these types:
+`buildOrchestrator` (`cmd/build_orchestrator.go`) and `chapterPipeline` (`cmd/chapter_pipeline.go`) now encapsulate the shared build workflow. Both `build` and `serve` delegate to these types:
 
 ```go
-type BuildOrchestrator struct {
-    Config *config.BookConfig
-    Theme  *theme.Theme
-    Parser *markdown.Parser
-    Gloss  *glossary.Glossary
-    Logger *slog.Logger
+type buildOrchestrator struct {
+    Config        *config.BookConfig
+    Theme         *theme.Theme
+    Parser        *markdown.Parser
+    Gloss         *glossary.Glossary
+    Logger        *slog.Logger
+    PluginManager *plugin.Manager
 }
 
-func (o *BuildOrchestrator) ProcessChapters() (*ChapterPipelineResult, error)
-func (o *BuildOrchestrator) LoadCustomCSS() string
+func (o *buildOrchestrator) ProcessChapters(ctxOpts ...context.Context) (*chapterPipelineResult, error)
+func (o *buildOrchestrator) LoadCustomCSS() string
 ```
 
 #### 6.2.2 Duplicate Logic Removal (Completed)
 
-`ChapterPipeline` eliminated approximately 135 lines of duplicate chapter processing code between `build` and `serve`.
+`chapterPipeline` eliminated approximately 135 lines of duplicate chapter processing code between `build` and `serve`.
 
 #### 6.2.3 Hard-Coded Values Extraction (Completed)
 

@@ -99,12 +99,45 @@ style:
     center: "Page {{.PageNum}}"
 ```
 
-## 2.5 Footnotes[^1]
+## 2.5 Mermaid Diagrams
+
+mdpress supports Mermaid diagrams for visualizing workflows and architectures:
+
+```mermaid
+graph TD
+    A[Write Markdown] -->|mdpress build| B(Parse Chapters)
+    B --> C{Output Format}
+    C -->|PDF| D[Chromium Render]
+    C -->|Typst| I[Typst CLI Render]
+    C -->|HTML| E[Single File]
+    C -->|Site| F[Static Site]
+    C -->|ePub| G[eBook Format]
+    D --> H[Final Output]
+    I --> H
+    E --> H
+    F --> H
+    G --> H
+```
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant Parser
+    participant Renderer
+    User->>CLI: mdpress build
+    CLI->>Parser: Parse Markdown
+    Parser-->>CLI: HTML + Headings
+    CLI->>Renderer: Generate Output
+    Renderer-->>User: Output Files
+```
+
+## 2.6 Footnotes[^1]
 
 mdpress fully supports Markdown footnote syntax. Footnotes are automatically numbered and displayed at the bottom of the page or end of the chapter.
 
 [^1]: This is a footnote example.
 
-## 2.6 Summary
+## 2.7 Summary
 
 After this chapter, you have mastered most of the advanced features of mdpress. For more details, refer to the project documentation.
