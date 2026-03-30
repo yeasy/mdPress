@@ -116,7 +116,7 @@ mdpress build --config ./configs/book.yaml --verbose
 | `html` | 自包含单页 HTML 文件 |
 | `site` | 多页静态站点目录 |
 | `epub` | 单个 ePub 文件 |
-| `typst` | 通过 Typst CLI 生成的 PDF 文件（实验性，无需 Chromium） |
+| `typst` | 通过 Typst CLI 生成的 PDF 文件（无需 Chromium） |
 
 ## 注意事项
 
