@@ -99,7 +99,7 @@ func TestRewriteGitBookSyntax_NoChange(t *testing.T) {
 
 func TestExecuteMigrate_NoGitBookProject(t *testing.T) {
 	dir := t.TempDir()
-	err := executeMigrate(dir, true)
+	err := executeMigrate(dir, true, false)
 	if err == nil {
 		t.Fatal("expected an error for a directory with no GitBook files")
 	}
@@ -112,7 +112,7 @@ func TestExecuteMigrate_OnlySummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Should succeed (SUMMARY.md is enough for detection) in dry-run mode.
-	if err := executeMigrate(dir, true); err != nil {
+	if err := executeMigrate(dir, true, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -131,7 +131,7 @@ func TestExecuteMigrate_BookJSON(t *testing.T) {
 	}
 
 	// Run in dry-run mode so no files are written.
-	if err := executeMigrate(dir, true); err != nil {
+	if err := executeMigrate(dir, true, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -143,7 +143,7 @@ func TestExecuteMigrate_CreatesBookYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -161,6 +161,66 @@ func TestExecuteMigrate_CreatesBookYAML(t *testing.T) {
 	}
 }
 
+func TestExecuteMigrate_SkipsExistingBookYAML(t *testing.T) {
+	dir := t.TempDir()
+	bookJSON := `{"title":"New Book","author":"Alice","language":"en"}`
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-create book.yaml with recognizable content.
+	existingContent := "# Existing book.yaml - should not be overwritten\nbook:\n  title: Old Book\n"
+	outPath := filepath.Join(dir, "book.yaml")
+	if err := os.WriteFile(outPath, []byte(existingContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run without --force: book.yaml must NOT be overwritten.
+	if err := executeMigrate(dir, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("failed to read book.yaml: %v", err)
+	}
+	if string(data) != existingContent {
+		t.Errorf("book.yaml was overwritten without --force; got:\n%s", string(data))
+	}
+}
+
+func TestExecuteMigrate_ForceOverwritesBookYAML(t *testing.T) {
+	dir := t.TempDir()
+	bookJSON := `{"title":"New Book","author":"Alice","language":"en"}`
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pre-create book.yaml with recognizable content.
+	existingContent := "# Existing book.yaml - should be overwritten with --force\nbook:\n  title: Old Book\n"
+	outPath := filepath.Join(dir, "book.yaml")
+	if err := os.WriteFile(outPath, []byte(existingContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run with --force: book.yaml must be overwritten.
+	if err := executeMigrate(dir, false, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("failed to read book.yaml: %v", err)
+	}
+	content := string(data)
+	if content == existingContent {
+		t.Error("book.yaml was not overwritten even with --force")
+	}
+	if !strings.Contains(content, "New Book") {
+		t.Errorf("expected new title in book.yaml, got:\n%s", content)
+	}
+}
+
 func TestExecuteMigrate_RewritesMarkdown(t *testing.T) {
 	dir := t.TempDir()
 	// Minimal SUMMARY.md so detection works.
@@ -173,7 +233,7 @@ func TestExecuteMigrate_RewritesMarkdown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -383,7 +443,7 @@ func TestMigrateBookJSON_MalformedJSON(t *testing.T) {
 	}
 
 	// Should fail during parsing
-	err := executeMigrate(dir, false)
+	err := executeMigrate(dir, false, false)
 	if err == nil {
 		t.Fatal("expected an error for malformed JSON")
 	}
@@ -401,7 +461,7 @@ func TestMigrateBookJSON_EmptyJSON(t *testing.T) {
 	}
 
 	// Should succeed with defaults
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -432,7 +492,7 @@ func TestMigrateMarkdownFiles_SkipsNonMarkdownFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -464,7 +524,7 @@ func TestMigrateMarkdownFiles_SkipsHiddenDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -496,7 +556,7 @@ func TestMigrateMarkdownFiles_SkipsNodeModules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -528,7 +588,7 @@ func TestMigrateMarkdownFiles_SkipsBookDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := executeMigrate(dir, false); err != nil {
+	if err := executeMigrate(dir, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
