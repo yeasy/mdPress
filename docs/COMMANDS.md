@@ -103,7 +103,7 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 
 - If `build` is called without `--format`, it first checks `output.formats`.
 - If `output.formats` is also absent, the default output is `pdf`.
-- The special value `--format all` builds all supported formats (site, PDF, HTML, ePub, and Typst).
+- The special value `--format all` builds all supported formats (PDF, HTML, site, ePub, and Typst).
 - The default output filename is derived from the book title (with filesystem-unsafe characters replaced). If the title is empty or "Untitled Book", the project directory name is used instead. You can override this with `output.filename`.
 - `serve` writes preview output to `_book/` under the project directory by default.
 

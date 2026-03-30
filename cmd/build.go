@@ -47,7 +47,7 @@ Output formats:
   html  - Self-contained single-page HTML
   site  - Multi-page static site
   epub  - ePub ebook
-  typst - Experimental PDF via Typst CLI
+  typst - PDF via Typst CLI (Chromium-free)
 
 Zero-config mode:
   If neither book.yaml nor SUMMARY.md exists, mdpress auto-discovers .md files.

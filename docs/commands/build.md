@@ -116,7 +116,7 @@ mdpress build --config ./configs/book.yaml --verbose
 | `html` | A self-contained single-page HTML file |
 | `site` | A multi-page static site directory |
 | `epub` | A single ePub file |
-| `typst` | A PDF file generated via the Typst CLI (experimental, Chromium-free) |
+| `typst` | A PDF file generated via the Typst CLI (Chromium-free) |
 
 ## Notes
 

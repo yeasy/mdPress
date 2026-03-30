@@ -160,7 +160,7 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. Zero-co
 | HTML | `mdpress build --format html` | A single self-contained `.html` file you can email or upload |
 | Site | `mdpress build --format site` | A multi-page website ready for GitHub Pages or Netlify |
 | ePub | `mdpress build --format epub` | An ebook for Kindle, Apple Books, etc. |
-| Typst | `mdpress build --format typst` | Experimental PDF backend via the Typst CLI when you want a Chromium-free alternative |
+| Typst | `mdpress build --format typst` | PDF backend via the Typst CLI as a Chromium-free alternative |
 | Preview | `mdpress serve` | A local website with live reload |
 
 ### HTML vs Site: What's the difference?
