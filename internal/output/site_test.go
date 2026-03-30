@@ -2,7 +2,9 @@ package output
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -587,7 +589,7 @@ func TestSiteGeneratorMarkdownAndLLMSOutputs(t *testing.T) {
 	}
 
 	for _, path := range []string{"ch1.html.md", "index.html.md", "llms.txt", "llms-full.txt"} {
-		if _, err := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(dir, path)); !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("%s should not be generated anymore", path)
 		}
 	}

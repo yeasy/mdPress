@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -1020,7 +1021,7 @@ func buildLanguageSwitcherHTML(currentDir, landingPath string, summaries []langu
 func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 	content, err := os.ReadFile(targetPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil // File does not exist yet; skip silently.
 		}
 		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)

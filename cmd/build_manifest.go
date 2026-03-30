@@ -3,8 +3,10 @@ package cmd
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -43,7 +45,7 @@ func loadManifest(cacheDir string) (*buildManifest, error) {
 	manifestPath := filepath.Join(cacheDir, buildManifestFilename)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return newBuildManifest(""), nil
 		}
 		return nil, fmt.Errorf("read build manifest: %w", err)

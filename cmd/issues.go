@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -75,7 +75,7 @@ func formatIssueSummary(issues []projectIssue) string {
 	for key := range counts {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {

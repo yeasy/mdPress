@@ -4,7 +4,9 @@
 package golden
 
 import (
+	"errors"
 	"flag"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -67,7 +69,7 @@ func checkGolden(t *testing.T, path, got string) {
 	}
 
 	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// First run: write the golden file and skip so the developer can review.
 		if err2 := os.WriteFile(path, []byte(normalized), 0o644); err2 != nil {
 			t.Fatalf("failed to create golden file %s: %v", path, err2)

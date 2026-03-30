@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -408,7 +410,7 @@ func TestLocalPlantumlCmdNoneAvailable(t *testing.T) {
 // TestLocalPlantumlCmdWithJar verifies PLANTUML_JAR is respected.
 func TestLocalPlantumlCmdWithJar(t *testing.T) {
 	jarPath := "/opt/plantuml.jar"
-	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+	if _, err := os.Stat(jarPath); errors.Is(err, fs.ErrNotExist) {
 		t.Skip("plantuml.jar not found, skipping")
 	}
 	t.Setenv("PLANTUML_JAR", jarPath)

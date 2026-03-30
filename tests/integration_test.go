@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -801,7 +803,7 @@ style:
 	// Verify all chapter files exist
 	for _, ch := range cfg.Chapters {
 		resolvedPath := cfg.ResolvePath(ch.File)
-		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
+		if _, err := os.Stat(resolvedPath); errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("chapter file does not exist: %s", resolvedPath)
 		}
 	}

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -338,7 +340,7 @@ func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
 	}
 
 	// Verify file was created with default name
-	if _, err := os.Stat("themes-preview.html"); os.IsNotExist(err) {
+	if _, err := os.Stat("themes-preview.html"); errors.Is(err, fs.ErrNotExist) {
 		t.Error("executeThemesPreview(\"\") should create themes-preview.html")
 	}
 }
@@ -354,7 +356,7 @@ func TestExecuteThemesPreview_CustomPath(t *testing.T) {
 	}
 
 	// Verify file was created at custom path
-	if _, err := os.Stat(customPath); os.IsNotExist(err) {
+	if _, err := os.Stat(customPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("executeThemesPreview(%q) should create file at custom path", customPath)
 	}
 }
@@ -427,7 +429,7 @@ func TestExecuteThemesPreview_AbsolutePath(t *testing.T) {
 	}
 
 	// Verify file was created
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+	if _, err := os.Stat(absPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("executeThemesPreview with absolute path should create file: %v", err)
 	}
 }
@@ -444,7 +446,7 @@ func TestExecuteThemesPreview_RelativePath(t *testing.T) {
 	}
 
 	// Verify file was created
-	if _, err := os.Stat(relPath); os.IsNotExist(err) {
+	if _, err := os.Stat(relPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("executeThemesPreview with relative path should create file: %v", err)
 	}
 }

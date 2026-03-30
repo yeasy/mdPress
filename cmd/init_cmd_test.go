@@ -3,8 +3,10 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -625,12 +627,12 @@ func TestCreateStarterTemplateBasic(t *testing.T) {
 
 	// Check that required files were created
 	prefacePath := filepath.Join(tmpDir, "preface.md")
-	if _, err := os.Stat(prefacePath); os.IsNotExist(err) {
+	if _, err := os.Stat(prefacePath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("createStarterTemplate() did not create preface.md")
 	}
 
 	ch01ReadmePath := filepath.Join(tmpDir, "chapter01", "README.md")
-	if _, err := os.Stat(ch01ReadmePath); os.IsNotExist(err) {
+	if _, err := os.Stat(ch01ReadmePath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("createStarterTemplate() did not create chapter01/README.md")
 	}
 }
@@ -681,12 +683,12 @@ func TestCreateStarterTemplateDirectoryExists(t *testing.T) {
 	}
 
 	// Original file should still exist
-	if _, err := os.Stat(filepath.Join(tmpDir, "existing.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(tmpDir, "existing.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("existing file was removed")
 	}
 
 	// New files should be created
-	if _, err := os.Stat(filepath.Join(tmpDir, "preface.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(tmpDir, "preface.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("preface.md was not created")
 	}
 }

@@ -2,8 +2,10 @@ package utils
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -57,7 +59,7 @@ const maxReadFileSize = 100 * 1024 * 1024 // 100 MB
 func ReadFile(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("file does not exist %q: %w", path, err)
 		}
 		return nil, fmt.Errorf("failed to open file %q: %w", path, err)
