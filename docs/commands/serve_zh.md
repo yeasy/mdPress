@@ -30,6 +30,8 @@ mdpress serve [source] [flags]
 | `--config <path>` | `book.yaml` | 本地项目使用的配置文件路径。 |
 | `-v, --verbose` | 关闭 | 输出详细日志。 |
 | `-q, --quiet` | 关闭 | 只输出错误。 |
+| `--cache-dir <path>` | 系统默认 | 自定义构建缓存目录。 |
+| `--no-cache` | 关闭 | 禁用所有构建缓存。 |
 
 ## 用法说明
 

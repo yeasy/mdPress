@@ -1,7 +1,7 @@
 book:
   title: "mdPress User Manual"
   author: "mdPress Contributors"
-  version: "0.6.0"
+  version: "0.7.1"
   language: "en"
   description: "The complete guide to mdPress — a modern Markdown-to-book publishing toolkit."
 

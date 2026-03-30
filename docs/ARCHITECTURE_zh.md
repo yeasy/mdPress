@@ -325,9 +325,36 @@ type Target struct {
 
 **职责：** 通过 Typst 命令行工具将 Markdown 或中间格式转换为原生 PDF。
 
+Typst 是基于标记语言的 PDF 引擎。`Generator` 类型：
+
+- 接受 Markdown 或原始 Typst 内容
+- 使用 `MarkdownToTypstConverter` 将 Markdown 转换为 Typst 语法
+- 使用文档元数据、页面尺寸、边距和字体渲染 Typst 模板
+- 调用 `typst compile` 生成最终 PDF
+
+配置选项：
+
+```go
+type Generator struct {
+    timeout, pageSize, margins, fontFamily, fontSize, lineHeight, language, author, title, version, date
+}
+```
+
+相比 Chromium 的优势：编译更快、原生 PDF 输出、无浏览器依赖。
+
 ### 3.17 internal/plantuml — PlantUML 处理
 
 **职责：** 处理 PlantUML 图表，支持本地 `plantuml` CLI 命令或通过 `PLANTUML_JAR` 环境变量指定本地 JAR 文件，以及远程 PlantUML 服务生成图像。
+
+`Renderer` 类型：
+
+- 在 HTML 中搜索 `language-plantuml` 代码块
+- 使用 deflate + 自定义 base64 字母表编码 PlantUML 语法
+- 从 PlantUML 在线服务器获取 SVG 或通过本地 `plantuml` CLI / `PLANTUML_JAR` 渲染
+- 缓存已渲染的 SVG 以避免重复网络请求
+- 将每个 SVG 包装在 div 中以便样式设置
+
+关键方法：`RenderHTML(html) -> (string, error)` 将所有 PlantUML 代码块替换为 SVG 输出。本地渲染会检测 PATH 中的 `plantuml` 或使用 `PLANTUML_JAR` 环境变量。
 
 ### 3.18 internal/server — 开发服务器
 
@@ -355,9 +382,14 @@ type wsClient struct {
 
 **关键功能：**
 - 初始构建（复用现有 site 构建流程）
-- 使用 fsnotify 监听 .md / .yaml / .css 文件变更
+- 使用 fsnotify 监听 `.md`、`.yaml`、`.yml` 和 `.css` 文件变更
 - 注入 WebSocket 客户端脚本到生成的 HTML 页面
-- 变更时触发增量重建并通知浏览器刷新
+- 维护 WebSocket 连接池，向已连接的客户端推送通知
+- 文件变更防抖（500ms），避免重复构建
+- 支持仅 CSS 更新（重新加载样式表）与全页面刷新
+- 当 fsnotify 不可用时回退到轮询模式
+
+重新加载通过 WebSocket 消息触发；浏览器端脚本监听 `{"type":"reload"}` 并执行全页面导航。
 
 ## 4. 数据流说明
 
@@ -584,10 +616,9 @@ type formatBuilder interface {
 | `epubBuilder` | `internal/output.EpubGenerator` |
 | `typstBuilder` | `internal/typst.Generator` |
 
-**注册机制：**
+`formatBuilderRegistry` 在启动时创建，所有内置构建器预先注册：
 
 ```go
-// formatBuilderRegistry 输出格式注册表
 type formatBuilderRegistry struct {
     builders map[string]formatBuilder
 }

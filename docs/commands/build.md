@@ -30,6 +30,8 @@ mdpress build [source] [flags]
 | `--config <path>` | `book.yaml` | Config file path for local builds. |
 | `-v, --verbose` | off | Print detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
+| `--cache-dir <path>` | system default | Custom cache directory for build artifacts. |
+| `--no-cache` | off | Disable all build caching. |
 
 ## Behavior
 

@@ -261,7 +261,7 @@ $ mdpress themes list
 | `mdpress validate [directory]` | 检查配置和文件是否有错误 |
 | `mdpress doctor [directory]` | 检查环境是否配置正确 |
 | `mdpress upgrade` | 检查并安装 mdpress 的新版本 |
-| `mdpress completion [shell]` | 生成 Shell 补全脚本 |
+| `mdpress completion <shell>` | 生成 Shell 补全脚本 |
 | `mdpress themes list\|show\|preview` | 浏览内置主题 |
 | `mdpress version` | 打印当前版本 |
 

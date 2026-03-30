@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-03-26
+> Updated: 2026-03-29
 > Maintainer: mdPress product team
 
 ---
@@ -117,7 +117,7 @@ v0.3.0 expanded mdPress into a true multi-format publishing platform with a plug
 | ePub 3 output | P0 | Standard ePub 3 books with cover, TOC, and metadata |
 | Plugin system | P0 | Full plugin lifecycle with external process loading and hook registration |
 | KaTeX math support | P1 | Inline (`$...$`) and block (`$$...$$`) LaTeX math via KaTeX |
-| Mermaid diagram support | P1 | Native Mermaid rendering in all HTML-based outputs; `validate --mermaid` syntax checks |
+| Mermaid diagram support | P1 | Native Mermaid rendering in all HTML-based outputs; automatic Mermaid syntax checks in `validate` |
 | GitBook migration tool | P1 | `mdpress migrate` converts GitBook projects to mdPress format |
 | Multi-format `all` shorthand | P1 | `--format all` builds PDF, HTML, site, and ePub in one command |
 | GitHub Actions template | P2 | Pre-built workflow for automated book builds in CI |
@@ -163,10 +163,10 @@ v0.3.0 expanded mdPress into a true multi-format publishing platform with a plug
 | Binary size | Small without Chromium | Likely larger if Typst is bundled |
 | CSS compatibility | Full | Requires adaptation into Typst styling |
 
-Planned CLI direction:
+CLI direction (implemented):
 
-- `--backend chromium` as the default
-- `--backend typst` as the alternative
+- `--format pdf` uses Chromium (default PDF backend)
+- `--format typst` uses Typst as an alternative PDF backend
 
 ### Incremental Build Plan
 
@@ -555,7 +555,7 @@ v0.6.4 fixes critical PDF rendering issues including missing images, broken Merm
 | --- | --- |
 | Official theme registry | Community-contributed theme distribution |
 | Official plugin registry | Community-contributed plugin distribution |
-| Migration tooling | Automated migration from GitBook, HonKit, and mdBook |
+| Migration tooling | Automated migration from mdBook (GitBook/HonKit migration already available via `mdpress migrate`) |
 
 ### LTS Policy
 
