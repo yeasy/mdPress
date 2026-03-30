@@ -640,7 +640,9 @@ func (g *Generator) generateFromString(htmlContent string, outputPath string) er
 		tmpFile.Close() //nolint:errcheck
 		return fmt.Errorf("failed to write temporary file: %w", err)
 	}
-	tmpFile.Close() //nolint:errcheck
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
 
 	return g.GenerateFromFile(tmpPath, outputPath)
 }
