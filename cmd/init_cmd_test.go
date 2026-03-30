@@ -839,13 +839,20 @@ func TestSanitizeFilenameBasic(t *testing.T) {
 
 // TestSanitizeFilenamePathTraversal tests that path traversal is neutralized.
 func TestSanitizeFilenamePathTraversal(t *testing.T) {
+	// On Windows, backslash is a path separator so filepath.Base("foo\\bar")
+	// returns "bar". On Unix, it is not a separator so the backslash is
+	// stripped as an unsafe character, yielding "foobar".
+	wantBackslash := "foobar"
+	if filepath.Separator == '\\' {
+		wantBackslash = "bar"
+	}
 	tests := []struct {
 		input    string
 		expected string
 	}{
 		{"../../evil", "evil"},
 		{"foo/bar", "bar"},
-		{"foo\\bar", "foobar"},
+		{"foo\\bar", wantBackslash},
 		{"/absolute/path", "path"},
 		{"../../../etc/passwd", "passwd"},
 	}
