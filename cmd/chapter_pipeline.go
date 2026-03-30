@@ -505,11 +505,42 @@ func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
 // Currently identical to defaultEmbeddedChapterImageOptions.
 var pdfChapterImageOptions = defaultEmbeddedChapterImageOptions
 
-// firstHeadingPattern matches the first heading (<h1>–<h6>) anywhere in
-// the content. Many README files start with non-heading HTML (e.g.
-// <div align="center">, badge images) before the title heading, so we
-// cannot require the heading to be at the very start.
-var firstHeadingPattern = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
+// firstHeadingPatterns matches the first heading (<h1>–<h6>) anywhere in
+// the content. Each pattern ensures the closing tag matches the opening
+// level (e.g. <h2> is closed by </h2>, not </h3>). Go's RE2 engine does
+// not support backreferences, so we use one pattern per level.
+// Many README files start with non-heading HTML (e.g. <div align="center">,
+// badge images) before the title heading, so we cannot require the heading
+// to be at the very start.
+var firstHeadingPatterns = [6]*regexp.Regexp{
+	regexp.MustCompile(`(?is)<h1[^>]*>(.*?)</h1>`),
+	regexp.MustCompile(`(?is)<h2[^>]*>(.*?)</h2>`),
+	regexp.MustCompile(`(?is)<h3[^>]*>(.*?)</h3>`),
+	regexp.MustCompile(`(?is)<h4[^>]*>(.*?)</h4>`),
+	regexp.MustCompile(`(?is)<h5[^>]*>(.*?)</h5>`),
+	regexp.MustCompile(`(?is)<h6[^>]*>(.*?)</h6>`),
+}
+
+// firstHeadingMatch finds the first heading in htmlContent, returning the
+// full-match start/end indices, the heading level (1–6), and the inner HTML.
+// Returns found=false if no heading is found.
+func firstHeadingMatch(htmlContent string) (fullMatch [2]int, level int, innerHTML string, found bool) {
+	bestStart := -1
+	for i, pat := range firstHeadingPatterns {
+		loc := pat.FindStringSubmatchIndex(htmlContent)
+		if loc == nil {
+			continue
+		}
+		if bestStart == -1 || loc[0] < bestStart {
+			bestStart = loc[0]
+			fullMatch = [2]int{loc[0], loc[1]}
+			level = i + 1
+			innerHTML = htmlContent[loc[2]:loc[3]]
+			found = true
+		}
+	}
+	return
+}
 
 // stripDuplicateLeadingH1 removes the leading h1 from htmlContent to prevent
 // duplicate headings in PDF bookmarks. The template already renders the
@@ -534,27 +565,20 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 		return htmlContent
 	}
 
-	m := firstHeadingPattern.FindStringSubmatchIndex(htmlContent)
-	if m == nil {
+	fullMatch, headingLevel, inner, found := firstHeadingMatch(htmlContent)
+	if !found {
 		return htmlContent
 	}
 
-	// Verify that no other heading appears before this one.
-	prefix := htmlContent[:m[0]]
-	if firstHeadingPattern.MatchString(prefix) {
-		return htmlContent // another heading precedes this one; not leading
-	}
-
-	// m[2]:m[3] is the heading level (capture group 1).
-	headingLevel := htmlContent[m[2]:m[3]]
+	// firstHeadingMatch already returns the earliest heading, so no
+	// separate prefix check is needed — nothing can precede it.
 
 	// Extract inner text for comparison.
-	innerHTML := htmlContent[m[4]:m[5]]
-	innerText := strings.TrimSpace(utils.StripHTMLTags(innerHTML))
+	innerText := strings.TrimSpace(utils.StripHTMLTags(inner))
 	summaryText := strings.TrimSpace(summaryTitle)
 
 	shouldStrip := false
-	if headingLevel == "1" {
+	if headingLevel == 1 {
 		// Always strip leading h1 — the template already renders the chapter
 		// title as <h1 class="chapter-title">. A second h1 in the content
 		// creates a duplicate (or misleading) PDF bookmark entry regardless
@@ -567,7 +591,7 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 	}
 
 	if shouldStrip {
-		return strings.TrimSpace(htmlContent[:m[0]] + htmlContent[m[1]:])
+		return strings.TrimSpace(htmlContent[:fullMatch[0]] + htmlContent[fullMatch[1]:])
 	}
 	return htmlContent
 }
