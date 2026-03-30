@@ -7,12 +7,12 @@ import (
 	"testing"
 )
 
-// TestMockGeneratorWritesPDF verifies that MockGenerator creates a file with a valid PDF header.
+// TestMockGeneratorWritesPDF verifies that mockGenerator creates a file with a valid PDF header.
 func TestMockGeneratorWritesPDF(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "output.pdf")
 
-	mock := &MockGenerator{}
+	mock := &mockGenerator{}
 	htmlContent := "<html><body>Test</body></html>"
 
 	err := mock.Generate(htmlContent, outputPath)
@@ -37,13 +37,13 @@ func TestMockGeneratorWritesPDF(t *testing.T) {
 	}
 }
 
-// TestMockGeneratorRecordsArgs verifies that MockGenerator records HTML content and output path.
+// TestMockGeneratorRecordsArgs verifies that mockGenerator records HTML content and output path.
 func TestMockGeneratorRecordsArgs(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "output.pdf")
 	htmlContent := "<html><body>Test Content</body></html>"
 
-	mock := &MockGenerator{}
+	mock := &mockGenerator{}
 	err := mock.Generate(htmlContent, outputPath)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -68,7 +68,7 @@ func TestMockGeneratorSimulatesError(t *testing.T) {
 	outputPath := filepath.Join(tmpDir, "output.pdf")
 
 	testError := "simulated error"
-	mock := &MockGenerator{
+	mock := &mockGenerator{
 		GenerateError: &mockError{message: testError},
 	}
 
