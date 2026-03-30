@@ -1212,8 +1212,12 @@ func TestExtractBinaryFromZip_PathTraversal(t *testing.T) {
 
 // TestExtractBinaryFromTarGz_AbsolutePath verifies entries with absolute paths are skipped.
 func TestExtractBinaryFromTarGz_AbsolutePath(t *testing.T) {
+	absPath := "/usr/local/bin/mdpress"
+	if runtime.GOOS == "windows" {
+		absPath = `C:\temp\mdpress.exe`
+	}
 	archive := mustCreateTarGzArchive(t, map[string][]byte{
-		"/usr/local/bin/mdpress": []byte("evil"),
+		absPath: []byte("evil"),
 	})
 	_, err := extractBinaryFromTarGz(archive)
 	if err == nil {
@@ -1223,8 +1227,12 @@ func TestExtractBinaryFromTarGz_AbsolutePath(t *testing.T) {
 
 // TestExtractBinaryFromZip_AbsolutePath verifies entries with absolute paths are skipped.
 func TestExtractBinaryFromZip_AbsolutePath(t *testing.T) {
+	absPath := "/usr/local/bin/mdpress"
+	if runtime.GOOS == "windows" {
+		absPath = `C:\temp\mdpress.exe`
+	}
 	archive := mustCreateZipArchive(t, map[string][]byte{
-		"/usr/local/bin/mdpress": []byte("evil"),
+		absPath: []byte("evil"),
 	})
 	_, err := extractBinaryFromZip(archive)
 	if err == nil {
@@ -1258,7 +1266,11 @@ func TestWriteBinaryFile_Success(t *testing.T) {
 
 // TestWriteBinaryFile_InvalidPath verifies error when parent dir cannot be created.
 func TestWriteBinaryFile_InvalidPath(t *testing.T) {
-	err := writeBinaryFile("/dev/null/impossible/mdpress", []byte("data"))
+	impossiblePath := "/dev/null/impossible/mdpress"
+	if runtime.GOOS == "windows" {
+		impossiblePath = `C:\nul\impossible?\mdpress`
+	}
+	err := writeBinaryFile(impossiblePath, []byte("data"))
 	if err == nil {
 		t.Fatal("expected error writing to impossible path")
 	}
