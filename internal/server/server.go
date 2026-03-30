@@ -381,9 +381,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 	// Browser-side script: connect over WebSocket and reload on change.
 	serveInfoJSON, _ := json.Marshal(map[string]string{ //nolint:errchkjson // map[string]string cannot fail
-		"address":   s.browserURL(),
-		"watchDir":  s.WatchDir,
-		"outputDir": s.OutputDir,
+		"address": s.browserURL(),
 	})
 	reloadScript := `
 <!-- mdpress live reload (WebSocket) -->
@@ -446,11 +444,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
       '<div class="line"><span class="label">Status</span><span class="value" data-field="status"></span></div>' +
       '<div class="line"><span class="label">Page</span><span class="value" data-field="page"></span></div>' +
       '<div class="line"><span class="label">WebSocket</span><span class="value" data-field="ws"></span></div>' +
-      '<details><summary>Paths</summary>' +
       '<div class="line"><span class="label">Address</span><span class="value" data-field="address"></span></div>' +
-      '<div class="line"><span class="label">Watching</span><span class="value" data-field="watch"></span></div>' +
-      '<div class="line"><span class="label">Output</span><span class="value" data-field="output"></span></div>' +
-      '</details>' +
       '<div class="hint">Serve-only tools and rebuild state live here. Static site output is unchanged.</div>';
     document.body.appendChild(panel);
 
@@ -474,8 +468,6 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
       panel: panel,
       statusField: panel.querySelector('[data-field="status"]'),
       addressField: panel.querySelector('[data-field="address"]'),
-      watchField: panel.querySelector('[data-field="watch"]'),
-      outputField: panel.querySelector('[data-field="output"]'),
       pageField: panel.querySelector('[data-field="page"]'),
       wsField: panel.querySelector('[data-field="ws"]')
     };
@@ -488,8 +480,6 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
     var ui = ensureServeUI();
     ui.statusField.textContent = serveState.last || 'Waiting for changes';
     ui.addressField.textContent = serveInfo.address;
-    ui.watchField.textContent = serveInfo.watchDir;
-    ui.outputField.textContent = serveInfo.outputDir;
     ui.pageField.textContent = window.location.pathname + window.location.hash;
     ui.wsField.textContent = serveState.ws;
   }
