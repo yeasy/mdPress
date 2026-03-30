@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -31,7 +33,7 @@ func loadParsedChapterCache(chapterPath, expandedContent, codeTheme string) (*ca
 	cachePath := parsedChapterCachePath(chapterPath, expandedContent, codeTheme)
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, false, nil
 		}
 		return nil, false, fmt.Errorf("read parsed chapter cache: %w", err)

@@ -15,7 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -162,7 +162,7 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 	}
 
 	// Sort files in lexical order.
-	sort.Strings(otherFiles)
+	slices.Sort(otherFiles)
 
 	// Use top-level README.md as the first chapter when present.
 	if readmeFile != "" {

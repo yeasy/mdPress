@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -431,7 +432,7 @@ func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string,
 			return fmt.Errorf("chapter %s: path escapes project directory: %s", label, ch.File)
 		}
 		// Check whether the referenced chapter file exists.
-		if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
+		if _, err := os.Stat(resolvedPath); errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("chapter %s references a missing file: %s (paths are relative to book.yaml)", label, ch.File)
 		}
 		// Recursively validate nested sections.

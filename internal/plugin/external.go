@@ -10,7 +10,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -135,7 +137,7 @@ func resolvePluginExecutablePath(execPath string) (string, error) {
 			return "", fmt.Errorf("plugin %q is not executable (missing execute permission)", absPath)
 		}
 		return absPath, nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return "", fmt.Errorf("plugin executable not found at %q: %w", absPath, err)
 	}
 

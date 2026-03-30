@@ -6,13 +6,14 @@ package cmd
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -403,11 +404,11 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 	}
 
 	// Sort by depth first, then path name.
-	sort.Slice(files, func(i, j int) bool {
-		if files[i].Depth != files[j].Depth {
-			return files[i].Depth < files[j].Depth
+	slices.SortFunc(files, func(a, b discoveredFile) int {
+		if n := cmp.Compare(a.Depth, b.Depth); n != 0 {
+			return n
 		}
-		return files[i].RelPath < files[j].RelPath
+		return cmp.Compare(a.RelPath, b.RelPath)
 	})
 
 	return files, nil

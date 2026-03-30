@@ -5,7 +5,9 @@ package tests
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -479,7 +481,7 @@ func TestE2E_GlossaryIntegration(t *testing.T) {
 	glossaryPath := filepath.Join(testDataDir, "GLOSSARY.md")
 
 	// Check if GLOSSARY.md exists
-	if _, err := os.Stat(glossaryPath); os.IsNotExist(err) {
+	if _, err := os.Stat(glossaryPath); errors.Is(err, fs.ErrNotExist) {
 		t.Skip("no GLOSSARY.md in test data")
 	}
 
@@ -647,7 +649,7 @@ func TestE2E_SiteOutput(t *testing.T) {
 
 	// Verify site output
 	indexPath := filepath.Join(outputDir, "index.html")
-	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+	if _, err := os.Stat(indexPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("site should generate index.html")
 	}
 

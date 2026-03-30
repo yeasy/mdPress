@@ -664,7 +664,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		// Check file size before reading to prevent memory exhaustion.
 		info, statErr := os.Stat(absFilePath)
 		if statErr != nil || info.IsDir() {
-			if os.IsNotExist(statErr) && r.URL.Path != "/" {
+			if errors.Is(statErr, fs.ErrNotExist) && r.URL.Path != "/" {
 				ext := filepath.Ext(r.URL.Path)
 				if ext == "" || ext == ".html" {
 					s.logger.Warn("Page not found, redirecting to /", slog.String("path", r.URL.Path))

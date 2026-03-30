@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -37,7 +37,7 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 	for name := range chapterHTMLs {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	// Track seen slugs to avoid collisions (e.g. two chapters slugifying to the same name).
 	seenSlugs := make(map[string]int)

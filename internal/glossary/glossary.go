@@ -13,10 +13,11 @@ package glossary
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"os"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -113,8 +114,8 @@ func (g *Glossary) prepare() {
 	g.prepareOnce.Do(func() {
 		g.sortedTerms = make([]Term, len(g.Terms))
 		copy(g.sortedTerms, g.Terms)
-		sort.Slice(g.sortedTerms, func(i, j int) bool {
-			return len(g.sortedTerms[i].Name) > len(g.sortedTerms[j].Name)
+		slices.SortFunc(g.sortedTerms, func(a, b Term) int {
+			return cmp.Compare(len(b.Name), len(a.Name))
 		})
 
 		g.termPatterns = make(map[string]*regexp.Regexp, len(g.sortedTerms))
@@ -153,8 +154,8 @@ func (g *Glossary) RenderHTML() string {
 	// Sort terms alphabetically.
 	sorted := make([]Term, len(g.Terms))
 	copy(sorted, g.Terms)
-	sort.Slice(sorted, func(i, j int) bool {
-		return strings.ToLower(sorted[i].Name) < strings.ToLower(sorted[j].Name)
+	slices.SortFunc(sorted, func(a, b Term) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 	})
 
 	var b strings.Builder

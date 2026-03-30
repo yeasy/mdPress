@@ -486,7 +486,7 @@ func extractBinaryFromTarGz(data []byte) ([]byte, error) {
 	tr := tar.NewReader(gzr)
 	for {
 		header, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

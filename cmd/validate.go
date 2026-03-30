@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -547,7 +548,7 @@ func validateChapterSequence(chapters []config.ChapterDef) []string {
 				if prevStyle == style && len(prevSeq) == len(seq) && len(seq) > 0 {
 					expected := append([]int(nil), prevSeq...)
 					expected[len(expected)-1]++
-					if !equalIntSlices(expected, seq) {
+					if !slices.Equal(expected, seq) {
 						issues = append(issues, fmt.Sprintf("Chapter sequence gap or mismatch at depth %d: expected %s after %q, got %q",
 							depth, formatSequenceParts(expected), prevTitle, ch.Title))
 					}
@@ -603,21 +604,6 @@ func splitSequenceParts(raw string) ([]int, bool) {
 		out = append(out, value)
 	}
 	return out, true
-}
-
-func equalIntSlices(a, b []int) bool {
-	if (a == nil) != (b == nil) {
-		return false
-	}
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func formatSequenceParts(parts []int) string {

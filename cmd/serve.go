@@ -4,7 +4,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -217,12 +219,12 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		if err := os.RemoveAll(backupDir); err != nil {
 			logger.Debug("Failed to remove previous backup directory", slog.String("dir", backupDir), slog.String("error", err.Error()))
 		}
-		if err := os.Rename(outputDir, backupDir); err != nil && !os.IsNotExist(err) {
+		if err := os.Rename(outputDir, backupDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			logger.Debug("Failed to move previous output aside", slog.String("error", err.Error()))
 		}
 		if renameErr := os.Rename(tempOutput, outputDir); renameErr != nil {
 			// Restore the previous build if the swap failed.
-			if err := os.Rename(backupDir, outputDir); err != nil && !os.IsNotExist(err) {
+			if err := os.Rename(backupDir, outputDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				logger.Debug("Failed to restore previous output", slog.String("error", err.Error()))
 			}
 			if err := os.RemoveAll(tempOutput); err != nil {

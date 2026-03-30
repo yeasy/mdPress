@@ -1,9 +1,10 @@
 package markdown
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -81,9 +82,10 @@ func (s *sourceIndex) lineCol(offset int) (int, int) {
 	if offset > len(s.source) {
 		offset = len(s.source)
 	}
-	lineIdx := sort.Search(len(s.lineStarts), func(i int) bool {
-		return s.lineStarts[i] > offset
-	}) - 1
+	lineIdx, found := slices.BinarySearchFunc(s.lineStarts, offset, cmp.Compare)
+	if !found {
+		lineIdx--
+	}
 	if lineIdx < 0 {
 		lineIdx = 0
 	}
@@ -99,14 +101,14 @@ func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	diagnostics := collectOrderedListDiagnostics(lines, index)
 	diagnostics = append(diagnostics, collectMermaidDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
-	sort.SliceStable(diagnostics, func(i, j int) bool {
-		if diagnostics[i].Line != diagnostics[j].Line {
-			return diagnostics[i].Line < diagnostics[j].Line
+	slices.SortStableFunc(diagnostics, func(a, b Diagnostic) int {
+		if c := cmp.Compare(a.Line, b.Line); c != 0 {
+			return c
 		}
-		if diagnostics[i].Column != diagnostics[j].Column {
-			return diagnostics[i].Column < diagnostics[j].Column
+		if c := cmp.Compare(a.Column, b.Column); c != 0 {
+			return c
 		}
-		return diagnostics[i].Rule < diagnostics[j].Rule
+		return cmp.Compare(a.Rule, b.Rule)
 	})
 	return diagnostics
 }
