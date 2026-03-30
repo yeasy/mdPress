@@ -278,7 +278,27 @@ func isDangerousPlantUMLDirective(lower string) bool {
 	}
 	// Built-in functions that leak filesystem or environment info
 	if strings.Contains(lower, "%load_json") || strings.Contains(lower, "%getenv") ||
-		strings.Contains(lower, "%filename") || strings.Contains(lower, "%dirpath") {
+		strings.Contains(lower, "%filename") || strings.Contains(lower, "%dirpath") ||
+		strings.Contains(lower, "%file_exists") || strings.Contains(lower, "%fileexists") {
+		return true
+	}
+	// Allow safe control-flow directives that do not access the
+	// filesystem, network, or environment. These must be checked before
+	// the catch-all below so that legitimate conditional/loop syntax
+	// in PlantUML diagrams is preserved.
+	safeControlFlow := []string{
+		"!if", "!ifdef", "!ifndef", "!elseif", "!else", "!endif",
+		"!while", "!endwhile", "!foreach", "!endfor", "!endforeach",
+		"!return", "!assert",
+		"!endfunction", "!endprocedure",
+	}
+	for _, safe := range safeControlFlow {
+		if lower == safe || strings.HasPrefix(lower, safe+" ") || strings.HasPrefix(lower, safe+"\t") {
+			return false
+		}
+	}
+	// Catch-all: block unknown preprocessor directives (future-proofing)
+	if len(lower) > 1 && lower[0] == '!' && lower[1] >= 'a' && lower[1] <= 'z' {
 		return true
 	}
 	return false
@@ -428,6 +448,12 @@ var (
 	svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*(?:"(?:javascript|data|vbscript):[^"]*"|'(?:javascript|data|vbscript):[^']*')`)
 	svgForeignObjectPattern = regexp.MustCompile(`(?i)<foreignObject[\s>][\s\S]*?</foreignObject>`)
 	svgUsePattern           = regexp.MustCompile(`(?i)<use[^>]+xlink:href\s*=\s*"[^"#][^"]*"[^>]*>`)
+	// Strip <style> blocks that could exfiltrate data via @import/url().
+	svgStylePattern = regexp.MustCompile(`(?i)<style[\s>][\s\S]*?</style>`)
+	// Strip SVG animation elements that could alter attributes post-sanitization.
+	svgAnimatePattern = regexp.MustCompile(`(?i)<(?:animate|set|animateTransform|animateMotion)[\s>][\s\S]*?</(?:animate|set|animateTransform|animateMotion)>`)
+	// Self-closing animation/iframe elements.
+	svgAnimateSCPattern = regexp.MustCompile(`(?i)<(?:animate|set|animateTransform|animateMotion|iframe)\b[^>]*/?>`)
 )
 
 // sanitizeSVG strips potentially dangerous elements from SVG content
@@ -435,6 +461,9 @@ var (
 func sanitizeSVG(svg string) string {
 	svg = svgScriptPattern.ReplaceAllString(svg, "")
 	svg = svgForeignObjectPattern.ReplaceAllString(svg, "")
+	svg = svgStylePattern.ReplaceAllString(svg, "")
+	svg = svgAnimatePattern.ReplaceAllString(svg, "")
+	svg = svgAnimateSCPattern.ReplaceAllString(svg, "")
 	svg = svgEventHandlerPattern.ReplaceAllString(svg, "")
 	svg = svgJavascriptURLPattern.ReplaceAllString(svg, "")
 	svg = svgUsePattern.ReplaceAllString(svg, "")
