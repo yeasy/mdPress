@@ -60,8 +60,6 @@ const (
 	imageDownloadRetryDelay = 1 * time.Second
 	// mimeSniffMaxBytes is the maximum number of bytes used for MIME type detection.
 	mimeSniffMaxBytes = 512
-	// svgHeaderScanBytes is how many bytes at the start of an SVG to scan for a width attribute.
-	svgHeaderScanBytes = 200
 )
 
 // ssrfSafeTransport validates resolved IP addresses at connection time to prevent
@@ -395,9 +393,6 @@ var svgTextLengthPattern = regexp.MustCompile(` textLength="[^"]*"`)
 // imgWidthPattern extracts width from an <img> tag's attributes.
 var imgWidthPattern = regexp.MustCompile(`width=["'](\d+)["']`)
 
-// svgStartPattern matches the opening <svg tag to inject attributes.
-var svgStartPattern = regexp.MustCompile(`<svg\b`)
-
 // tryInlineCJKSVG reads an SVG file and, if it contains CJK characters,
 // returns the SVG content inlined directly into the HTML (replacing the <img>
 // tag).  Inlining allows the SVG to inherit the page's CJK @font-face rules
@@ -435,17 +430,42 @@ func tryInlineCJKSVG(path string, originalImgTag string) string {
 	}
 	svg := content[svgIdx:]
 
-	// Transfer width from <img> to <svg> for consistent sizing.
+	// Transfer width from <img> to <svg> for consistent sizing, and ensure the
+	// SVG renders inline (like the <img> it replaces) rather than as a block
+	// element which would break inline layouts such as badge rows.
+	// Only modify the outermost <svg> tag (use count=1) to avoid corrupting
+	// nested <svg> elements that may appear in complex SVGs.
+	// Inject display:inline so the SVG renders like the <img> it replaces.
+	// Merge into an existing style attribute to avoid producing invalid HTML
+	// with duplicate style attributes (only the first is honored by browsers).
+	//
+	// Scope attribute checks to the opening <svg ...> tag only (up to the
+	// first '>') so that child element attributes are never accidentally
+	// modified.
+	svgCloseIdx := strings.Index(svg, ">")
+	if svgCloseIdx < 0 {
+		return ""
+	}
+	svgOpenTag := svg[:svgCloseIdx+1]
+	if strings.Contains(svgOpenTag, "style=\"") {
+		newOpen := strings.Replace(svgOpenTag, "style=\"", "style=\"display:inline; ", 1)
+		svg = newOpen + svg[svgCloseIdx+1:]
+	} else {
+		svg = strings.Replace(svg, "<svg", `<svg style="display:inline"`, 1)
+	}
+
 	if wm := imgWidthPattern.FindStringSubmatch(originalImgTag); len(wm) >= 2 {
 		w := wm[1]
-		// Only add width if the SVG doesn't already have one.
-		if !strings.Contains(svg[:min(len(svg), svgHeaderScanBytes)], "width=") {
-			svg = svgStartPattern.ReplaceAllString(svg, `<svg width="`+w+`"`)
+		// Re-check the opening tag after style injection.
+		svgCloseIdx = strings.Index(svg, ">")
+		if svgCloseIdx >= 0 {
+			svgOpenTag = svg[:svgCloseIdx+1]
+		}
+		// Only add width if the <svg> tag doesn't already have one.
+		if !strings.Contains(svgOpenTag, "width=") {
+			svg = strings.Replace(svg, "<svg", `<svg width="`+w+`"`, 1)
 		}
 	}
-	// Ensure the SVG renders inline (like the <img> it replaces) rather than
-	// as a block element which would break inline layouts such as badge rows.
-	svg = svgStartPattern.ReplaceAllString(svg, `<svg style="display:inline"`)
 	return svg
 }
 
