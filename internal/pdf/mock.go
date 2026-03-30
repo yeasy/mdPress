@@ -6,12 +6,12 @@ import (
 )
 
 // Compile-time interface check.
-var _ PDFRenderer = (*MockGenerator)(nil)
+var _ PDFRenderer = (*mockGenerator)(nil)
 
-// MockGenerator is a test double that writes a minimal valid PDF header
+// mockGenerator is a test double that writes a minimal valid PDF header
 // without requiring Chromium. Use it in tests to verify PDF generation
 // flow without external dependencies.
-type MockGenerator struct {
+type mockGenerator struct {
 	GenerateCalled  bool
 	LastHTMLContent string
 	LastOutputPath  string
@@ -19,7 +19,7 @@ type MockGenerator struct {
 }
 
 // Generate records the call arguments and writes a minimal PDF file.
-func (m *MockGenerator) Generate(htmlContent string, outputPath string) error {
+func (m *mockGenerator) Generate(htmlContent string, outputPath string) error {
 	m.GenerateCalled = true
 	m.LastHTMLContent = htmlContent
 	m.LastOutputPath = outputPath
@@ -31,7 +31,7 @@ func (m *MockGenerator) Generate(htmlContent string, outputPath string) error {
 }
 
 // GenerateFromFile reads the HTML file and calls Generate with its content.
-func (m *MockGenerator) GenerateFromFile(htmlFilePath string, outputPath string) error {
+func (m *mockGenerator) GenerateFromFile(htmlFilePath string, outputPath string) error {
 	content, err := os.ReadFile(htmlFilePath)
 	if err != nil {
 		return fmt.Errorf("read HTML for mock PDF: %w", err)

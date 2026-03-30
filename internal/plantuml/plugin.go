@@ -120,9 +120,9 @@ func (p *Plugin) Cleanup() error {
 	return nil
 }
 
-// EnableIfNeeded checks if any chapter contains PlantUML diagrams and returns
+// enableIfNeeded checks if any chapter contains PlantUML diagrams and returns
 // true if the plugin should be auto-enabled.
-func EnableIfNeeded(chapters []string) bool {
+func enableIfNeeded(chapters []string) bool {
 	for _, content := range chapters {
 		if strings.Contains(content, "```plantuml") {
 			return true

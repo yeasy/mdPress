@@ -324,77 +324,77 @@ func TestPluginCleanup(t *testing.T) {
 	}
 }
 
-// TestEnableIfNeeded_Empty tests EnableIfNeeded with empty chapter list.
+// TestEnableIfNeeded_Empty tests enableIfNeeded with empty chapter list.
 func TestEnableIfNeeded_Empty(t *testing.T) {
 	chapters := []string{}
-	if EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should return false for empty chapters")
+	if enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should return false for empty chapters")
 	}
 }
 
-// TestEnableIfNeeded_NoPlantUML tests EnableIfNeeded with chapters that have no PlantUML.
+// TestEnableIfNeeded_NoPlantUML tests enableIfNeeded with chapters that have no PlantUML.
 func TestEnableIfNeeded_NoPlantUML(t *testing.T) {
 	chapters := []string{
 		"# Chapter 1\nSome content",
 		"# Chapter 2\nMore content\n```python\ncode\n```",
 	}
-	if EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should return false when no PlantUML blocks found")
+	if enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should return false when no PlantUML blocks found")
 	}
 }
 
-// TestEnableIfNeeded_WithPlantUML tests EnableIfNeeded detects PlantUML blocks.
+// TestEnableIfNeeded_WithPlantUML tests enableIfNeeded detects PlantUML blocks.
 func TestEnableIfNeeded_WithPlantUML(t *testing.T) {
 	chapters := []string{
 		"# Chapter 1\nSome content",
 		"# Chapter 2\n```plantuml\nAlice -> Bob\n```",
 	}
-	if !EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should return true when PlantUML block is found")
+	if !enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should return true when PlantUML block is found")
 	}
 }
 
-// TestEnableIfNeeded_FirstChapter tests EnableIfNeeded when first chapter has PlantUML.
+// TestEnableIfNeeded_FirstChapter tests enableIfNeeded when first chapter has PlantUML.
 func TestEnableIfNeeded_FirstChapter(t *testing.T) {
 	chapters := []string{
 		"```plantuml\nAlice -> Bob\n```",
 		"# Chapter 2\nMore content",
 	}
-	if !EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should return true for PlantUML in first chapter")
+	if !enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should return true for PlantUML in first chapter")
 	}
 }
 
-// TestEnableIfNeeded_MultipleBlocks tests EnableIfNeeded with multiple PlantUML blocks.
+// TestEnableIfNeeded_MultipleBlocks tests enableIfNeeded with multiple PlantUML blocks.
 func TestEnableIfNeeded_MultipleBlocks(t *testing.T) {
 	chapters := []string{
 		"```plantuml\nAlice -> Bob\n```\nContent\n```plantuml\nC -> D\n```",
 	}
-	if !EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should return true with multiple PlantUML blocks")
+	if !enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should return true with multiple PlantUML blocks")
 	}
 }
 
-// TestEnableIfNeeded_SimilarButNotPlantUML tests EnableIfNeeded doesn't match partial strings.
+// TestEnableIfNeeded_SimilarButNotPlantUML tests enableIfNeeded doesn't match partial strings.
 func TestEnableIfNeeded_SimilarButNotPlantUML(t *testing.T) {
 	chapters := []string{
 		"Here's some plantuml documentation",
 		"Use code blocks like ```python or ```bash, but not plantuml",
 	}
 	// These should not match the exact ```plantuml marker
-	if EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should not match 'plantuml' in general text or partial markers")
+	if enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should not match 'plantuml' in general text or partial markers")
 	}
 }
 
-// TestEnableIfNeeded_CaseSensitive tests EnableIfNeeded is case-sensitive.
+// TestEnableIfNeeded_CaseSensitive tests enableIfNeeded is case-sensitive.
 func TestEnableIfNeeded_CaseSensitive(t *testing.T) {
 	chapters := []string{
 		"```PLANTUML\nAlice -> Bob\n```",
 		"```PlantUML\nAlice -> Bob\n```",
 	}
-	if EnableIfNeeded(chapters) {
-		t.Error("EnableIfNeeded should be case-sensitive and only match lowercase ```plantuml")
+	if enableIfNeeded(chapters) {
+		t.Error("enableIfNeeded should be case-sensitive and only match lowercase ```plantuml")
 	}
 }
 

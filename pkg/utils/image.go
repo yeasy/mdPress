@@ -481,8 +481,8 @@ var mimeTypesByExt = map[string]string{
 	".ico":  "image/x-icon",
 }
 
-// GetImageMIME returns a MIME type from the file extension.
-func GetImageMIME(path string) string {
+// getImageMIME returns a MIME type from the file extension.
+func getImageMIME(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 
 	// Handle .jpeg as an alias for .jpg
@@ -517,7 +517,7 @@ func DetectImageMIME(path string, data []byte) string {
 		}
 	}
 
-	return GetImageMIME(path)
+	return getImageMIME(path)
 }
 
 func looksLikeSVG(data []byte) bool {

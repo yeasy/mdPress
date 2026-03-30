@@ -64,9 +64,9 @@ func TestGetImageMIME(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := GetImageMIME(tt.path)
+		got := getImageMIME(tt.path)
 		if got != tt.want {
-			t.Errorf("GetImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
+			t.Errorf("getImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
 		}
 	}
 }
@@ -556,9 +556,9 @@ func TestGetImageMIMETableDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetImageMIME(tt.path)
+			got := getImageMIME(tt.path)
 			if got != tt.want {
-				t.Errorf("GetImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
+				t.Errorf("getImageMIME(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}
