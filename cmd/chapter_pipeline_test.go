@@ -878,3 +878,187 @@ func TestParallelChapterParsingWithDifferentConcurrency(t *testing.T) {
 		}
 	}
 }
+
+func TestFirstHeadingMatch(t *testing.T) {
+	tests := []struct {
+		name      string
+		html      string
+		wantFound bool
+		wantLevel int
+		wantInner string
+	}{
+		{
+			name:      "simple h1",
+			html:      `<h1>Title</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "Title",
+		},
+		{
+			name:      "h2 before h1",
+			html:      `<h2>Sub</h2><h1>Main</h1>`,
+			wantFound: true,
+			wantLevel: 2,
+			wantInner: "Sub",
+		},
+		{
+			name:      "h1 with attributes",
+			html:      `<h1 class="title" id="top">Hello</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "Hello",
+		},
+		{
+			name:      "no headings",
+			html:      `<p>Just a paragraph</p>`,
+			wantFound: false,
+		},
+		{
+			name:      "heading with inner HTML",
+			html:      `<h3><a href="#">Link Title</a></h3>`,
+			wantFound: true,
+			wantLevel: 3,
+			wantInner: `<a href="#">Link Title</a>`,
+		},
+		{
+			name:      "mismatched tags not matched",
+			html:      `<h2>Content</h3><h1>Real</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "Real",
+		},
+		{
+			name:      "div before heading",
+			html:      `<div align="center"><img src="logo.png"></div><h1>Project</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "Project",
+		},
+		{
+			name:      "case insensitive",
+			html:      `<H1>UPPER</H1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "UPPER",
+		},
+		{
+			name:      "multiline heading content",
+			html:      "<h1>Multi\nLine\nTitle</h1>",
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "Multi\nLine\nTitle",
+		},
+		{
+			name:      "multiple h1 returns first",
+			html:      `<h1>First</h1><h1>Second</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "First",
+		},
+		{
+			name:      "CJK heading text",
+			html:      `<h1>区块链技术指南</h1>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "区块链技术指南",
+		},
+		{
+			name:      "empty heading",
+			html:      `<h1></h1><p>text</p>`,
+			wantFound: true,
+			wantLevel: 1,
+			wantInner: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, level, inner, found := firstHeadingMatch(tt.html)
+			if found != tt.wantFound {
+				t.Fatalf("found = %v, want %v", found, tt.wantFound)
+			}
+			if !found {
+				return
+			}
+			if level != tt.wantLevel {
+				t.Errorf("level = %d, want %d", level, tt.wantLevel)
+			}
+			if inner != tt.wantInner {
+				t.Errorf("inner = %q, want %q", inner, tt.wantInner)
+			}
+		})
+	}
+}
+
+func TestStripDuplicateLeadingH1(t *testing.T) {
+	tests := []struct {
+		name         string
+		html         string
+		summaryTitle string
+		want         string
+	}{
+		{
+			name:         "empty summary title",
+			html:         `<h1>Title</h1><p>content</p>`,
+			summaryTitle: "",
+			want:         `<h1>Title</h1><p>content</p>`,
+		},
+		{
+			name:         "matching h1 stripped",
+			html:         `<h1>Chapter One</h1><p>content</p>`,
+			summaryTitle: "Chapter One",
+			want:         `<p>content</p>`,
+		},
+		{
+			name:         "non-matching h1 also stripped",
+			html:         `<h1>Different Title</h1><p>content</p>`,
+			summaryTitle: "Chapter One",
+			want:         `<p>content</p>`,
+		},
+		{
+			name:         "matching h2 stripped",
+			html:         `<h2>Section</h2><p>content</p>`,
+			summaryTitle: "Section",
+			want:         `<p>content</p>`,
+		},
+		{
+			name:         "non-matching h2 kept",
+			html:         `<h2>Different</h2><p>content</p>`,
+			summaryTitle: "Section",
+			want:         `<h2>Different</h2><p>content</p>`,
+		},
+		{
+			name:         "div before h1",
+			html:         `<div align="center"><img src="badge.svg"></div><h1>Project</h1><p>content</p>`,
+			summaryTitle: "Project",
+			want:         `<div align="center"><img src="badge.svg"></div><p>content</p>`,
+		},
+		{
+			name:         "no headings",
+			html:         `<p>Just paragraphs</p>`,
+			summaryTitle: "Title",
+			want:         `<p>Just paragraphs</p>`,
+		},
+		{
+			name:         "h1 with inline code matches stripped summary",
+			html:         `<h1><code>Project</code></h1><p>content</p>`,
+			summaryTitle: "Project",
+			want:         `<p>content</p>`,
+		},
+		{
+			name:         "whitespace-padded summary title matches",
+			html:         `<h1>Chapter One</h1><p>content</p>`,
+			summaryTitle: "  Chapter One  ",
+			want:         `<p>content</p>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripDuplicateLeadingH1(tt.html, tt.summaryTitle)
+			if got != tt.want {
+				t.Errorf("stripDuplicateLeadingH1() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
