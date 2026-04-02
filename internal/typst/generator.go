@@ -172,7 +172,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 		return fmt.Errorf("failed to create temporary Typst file: %w", err)
 	}
 	tmpTypFile := f.Name()
-	defer os.Remove(tmpTypFile)
+	defer func() { _ = os.Remove(tmpTypFile) }()
 
 	if _, err := f.WriteString(typstDocument); err != nil {
 		f.Close() //nolint:errcheck

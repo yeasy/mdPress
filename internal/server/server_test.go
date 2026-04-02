@@ -157,7 +157,7 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 <h1>Hello</h1>
 </body>
 </html>`
-	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(htmlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(htmlContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,7 +213,7 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 func TestInjectLiveReload_NonHTML(t *testing.T) {
 	outputDir := t.TempDir()
 	cssContent := `body { color: red; }`
-	if err := os.WriteFile(filepath.Join(outputDir, "style.css"), []byte(cssContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(outputDir, "style.css"), []byte(cssContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -237,11 +237,11 @@ func TestInjectLiveReload_NonHTML(t *testing.T) {
 func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	outputDir := t.TempDir()
 	subDir := filepath.Join(outputDir, "chapter1")
-	if err := os.MkdirAll(subDir, 0755); err != nil {
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
 		t.Fatalf("mkdir subdir failed: %v", err)
 	}
 	htmlContent := `<!DOCTYPE html><html><body><p>Chapter</p></body></html>`
-	if err := os.WriteFile(filepath.Join(subDir, "index.html"), []byte(htmlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(subDir, "index.html"), []byte(htmlContent), 0o644); err != nil {
 		t.Fatalf("write index.html failed: %v", err)
 	}
 
@@ -441,17 +441,17 @@ func TestScanModTimes(t *testing.T) {
 		"style.css":   "body{}",
 		"image.png":   "png",
 	} {
-		if err := os.WriteFile(filepath.Join(watchDir, name), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(watchDir, name), []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", name, err)
 		}
 	}
 
 	// Create hidden directory (should be skipped)
 	hiddenDir := filepath.Join(watchDir, ".git")
-	if err := os.MkdirAll(hiddenDir, 0755); err != nil {
+	if err := os.MkdirAll(hiddenDir, 0o755); err != nil {
 		t.Fatalf("mkdir hidden dir failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(hiddenDir, "config.yml"), []byte("git"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(hiddenDir, "config.yml"), []byte("git"), 0o644); err != nil {
 		t.Fatalf("write hidden config failed: %v", err)
 	}
 
@@ -479,7 +479,7 @@ func TestScanModTimes(t *testing.T) {
 func TestCheckForChanges(t *testing.T) {
 	watchDir := t.TempDir()
 	mdFile := filepath.Join(watchDir, "test.md")
-	if err := os.WriteFile(mdFile, []byte("# Test"), 0644); err != nil {
+	if err := os.WriteFile(mdFile, []byte("# Test"), 0o644); err != nil {
 		t.Fatalf("write test.md failed: %v", err)
 	}
 
@@ -500,7 +500,7 @@ func TestCheckForChanges(t *testing.T) {
 	if !ok {
 		t.Fatalf("initial scan did not record %s", mdFile)
 	}
-	if err := os.WriteFile(mdFile, []byte("# Test Modified"), 0644); err != nil {
+	if err := os.WriteFile(mdFile, []byte("# Test Modified"), 0o644); err != nil {
 		t.Fatalf("rewrite test.md failed: %v", err)
 	}
 	updatedModTime := originalModTime.Add(2 * time.Second)
@@ -530,7 +530,7 @@ func TestCheckForChanges(t *testing.T) {
 // TestCheckForChanges_NewFile tests new file detection
 func TestCheckForChanges_NewFile(t *testing.T) {
 	watchDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(watchDir, "existing.md"), []byte("# Existing"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "existing.md"), []byte("# Existing"), 0o644); err != nil {
 		t.Fatalf("write existing.md failed: %v", err)
 	}
 
@@ -539,7 +539,7 @@ func TestCheckForChanges_NewFile(t *testing.T) {
 	srv.scanModTimes(modTimes)
 
 	// Add a new file
-	if err := os.WriteFile(filepath.Join(watchDir, "new_file.md"), []byte("# New"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "new_file.md"), []byte("# New"), 0o644); err != nil {
 		t.Fatalf("write new_file.md failed: %v", err)
 	}
 
@@ -553,7 +553,7 @@ func TestCheckForChanges_NewFile(t *testing.T) {
 func TestCheckForChanges_DeleteFile(t *testing.T) {
 	watchDir := t.TempDir()
 	toDelete := filepath.Join(watchDir, "to_delete.md")
-	if err := os.WriteFile(toDelete, []byte("# Delete Me"), 0644); err != nil {
+	if err := os.WriteFile(toDelete, []byte("# Delete Me"), 0o644); err != nil {
 		t.Fatalf("write to_delete.md failed: %v", err)
 	}
 
@@ -575,7 +575,7 @@ func TestCheckForChanges_DeleteFile(t *testing.T) {
 // TestStartContextCancel tests stopping the server via context cancellation
 func TestStartContextCancel(t *testing.T) {
 	outputDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte("<html><body></body></html>"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte("<html><body></body></html>"), 0o644); err != nil {
 		t.Fatalf("write index.html failed: %v", err)
 	}
 	watchDir := t.TempDir()
@@ -597,15 +597,15 @@ func TestScanModTimes_SkipNodeModules(t *testing.T) {
 
 	// Create node_modules directory
 	nmDir := filepath.Join(watchDir, "node_modules")
-	if err := os.MkdirAll(nmDir, 0755); err != nil {
+	if err := os.MkdirAll(nmDir, 0o755); err != nil {
 		t.Fatalf("mkdir node_modules failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(nmDir, "package.md"), []byte("# Package"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(nmDir, "package.md"), []byte("# Package"), 0o644); err != nil {
 		t.Fatalf("write package.md failed: %v", err)
 	}
 
 	// Create normal file
-	if err := os.WriteFile(filepath.Join(watchDir, "chapter.md"), []byte("# Chapter"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "chapter.md"), []byte("# Chapter"), 0o644); err != nil {
 		t.Fatalf("write chapter.md failed: %v", err)
 	}
 
@@ -624,14 +624,14 @@ func TestScanModTimes_SkipBookDir(t *testing.T) {
 	watchDir := t.TempDir()
 
 	bookDir := filepath.Join(watchDir, "_book")
-	if err := os.MkdirAll(bookDir, 0755); err != nil {
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
 		t.Fatalf("mkdir _book failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(bookDir, "output.md"), []byte("# Output"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bookDir, "output.md"), []byte("# Output"), 0o644); err != nil {
 		t.Fatalf("write output.md failed: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(watchDir, "source.md"), []byte("# Source"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "source.md"), []byte("# Source"), 0o644); err != nil {
 		t.Fatalf("write source.md failed: %v", err)
 	}
 
@@ -648,10 +648,10 @@ func TestScanModTimes_SkipBookDir(t *testing.T) {
 func TestScanModTimes_YAMLAndYML(t *testing.T) {
 	watchDir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(watchDir, "config.yaml"), []byte("a: 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "config.yaml"), []byte("a: 1"), 0o644); err != nil {
 		t.Fatalf("write config.yaml failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(watchDir, "data.yml"), []byte("b: 2"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(watchDir, "data.yml"), []byte("b: 2"), 0o644); err != nil {
 		t.Fatalf("write data.yml failed: %v", err)
 	}
 
@@ -1136,7 +1136,7 @@ func TestInjectLiveReload_PathTraversal(t *testing.T) {
 
 	// Create a legitimate HTML file
 	htmlFile := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(htmlFile, []byte("<html><body>OK</body></html>"), 0644); err != nil {
+	if err := os.WriteFile(htmlFile, []byte("<html><body>OK</body></html>"), 0o644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
@@ -1453,7 +1453,7 @@ func TestListenWithDynamicPortSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
 	}
-	defer ln.Close()
+	defer ln.Close() //nolint:errcheck
 
 	// Port should be assigned automatically
 	if srv.Port <= 0 || srv.Port >= 65536 {
@@ -1475,7 +1475,7 @@ func TestInjectLiveReload_HTMLWithoutBodyTag(t *testing.T) {
 	// Create an HTML file without </body> tag
 	htmlFile := filepath.Join(outputDir, "test.html")
 	htmlContent := `<html><head><title>Test</title></head><body>Content</body>`
-	if err := os.WriteFile(htmlFile, []byte(htmlContent), 0644); err != nil {
+	if err := os.WriteFile(htmlFile, []byte(htmlContent), 0o644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
@@ -1507,7 +1507,7 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 
 	// Create index.html
 	indexFile := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(indexFile, []byte("<html><body>Index</body></html>"), 0644); err != nil {
+	if err := os.WriteFile(indexFile, []byte("<html><body>Index</body></html>"), 0o644); err != nil {
 		t.Fatalf("Failed to write index file: %v", err)
 	}
 
@@ -1538,7 +1538,7 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 
 	// Create only the root index.html – no subdirectory pages.
 	indexFile := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(indexFile, []byte("<html><body>Home</body></html>"), 0644); err != nil {
+	if err := os.WriteFile(indexFile, []byte("<html><body>Home</body></html>"), 0o644); err != nil {
 		t.Fatalf("Failed to write index file: %v", err)
 	}
 
@@ -1598,13 +1598,13 @@ func TestScanModTimes_CSSFiles(t *testing.T) {
 	mdFile := filepath.Join(watchDir, "readme.md")
 	txtFile := filepath.Join(watchDir, "notes.txt")
 
-	if err := os.WriteFile(cssFile, []byte("body { }"), 0644); err != nil {
+	if err := os.WriteFile(cssFile, []byte("body { }"), 0o644); err != nil {
 		t.Fatalf("Failed to write CSS file: %v", err)
 	}
-	if err := os.WriteFile(mdFile, []byte("# Title"), 0644); err != nil {
+	if err := os.WriteFile(mdFile, []byte("# Title"), 0o644); err != nil {
 		t.Fatalf("Failed to write MD file: %v", err)
 	}
-	if err := os.WriteFile(txtFile, []byte("text"), 0644); err != nil {
+	if err := os.WriteFile(txtFile, []byte("text"), 0o644); err != nil {
 		t.Fatalf("Failed to write TXT file: %v", err)
 	}
 

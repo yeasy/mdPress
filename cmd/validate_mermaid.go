@@ -45,7 +45,7 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 		return fmt.Errorf("failed to create temporary Mermaid validation file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	fullHTML := buildMermaidValidationHTML(htmlContent)
 	if _, err := tmpFile.WriteString(fullHTML); err != nil {

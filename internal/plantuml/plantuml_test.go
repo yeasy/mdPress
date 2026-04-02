@@ -93,7 +93,7 @@ func TestEncodeForServerRoundtrip(t *testing.T) {
 
 	// Decompress with raw deflate.
 	r := flate.NewReader(bytes.NewReader(raw))
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	decompressed, err := io.ReadAll(r)
 	if err != nil {
