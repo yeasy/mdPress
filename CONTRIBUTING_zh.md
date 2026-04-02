@@ -42,7 +42,7 @@
 
 ### 前置要求
 
-- Go 1.25 或更高版本
+- Go 1.26 或更高版本
 - Chrome 或 Chromium 浏览器（用于 PDF 生成相关的测试）
 - GNU Make
 - （可选）[golangci-lint](https://golangci-lint.run/) 用于代码检查

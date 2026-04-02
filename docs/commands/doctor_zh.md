@@ -35,13 +35,13 @@ mdpress doctor [directory] [flags]
 环境信息：
 
 - Go 运行平台信息
-- Go 版本（建议 >= 1.25）
+- Go 版本（建议 >= 1.26）
 - 缓存目录状态
 
 可用性检查：
 
 - Chrome / Chromium 是否可用（用于 PDF 输出）
-- Go 版本检查（>= 1.25）
+- Go 版本检查（>= 1.26）
 - Git 是否可用（用于远程源构建）
 - github.com 网络连通性
 - 输出目录磁盘空间

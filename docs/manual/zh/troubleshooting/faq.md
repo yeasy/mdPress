@@ -11,7 +11,7 @@
 - Homebrew (macOS)：`brew install mdpress`
 - 手动：提取二进制文件并添加到 PATH
 
-如果要从源代码构建，你需要 Go 1.25+。
+如果要从源代码构建，你需要 Go 1.26+。
 
 ### mdPress 需要网络吗？
 
@@ -39,7 +39,7 @@ mdpress build --format pdf
 **答：** 使用官方 Docker 镜像或创建你自己的：
 
 ```dockerfile
-FROM golang:1.25-alpine
+FROM golang:1.26-alpine
 RUN apk add --no-cache chromium font-noto-cjk
 RUN go install github.com/yeasy/mdpress@latest
 WORKDIR /workspace
@@ -199,13 +199,13 @@ git push origin gh-pages
 deploy:
   runs-on: ubuntu-latest
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - run: go install github.com/yeasy/mdpress@latest
     - run: mdpress build --format site
-    - uses: actions/upload-pages-artifact@v2
+    - uses: actions/upload-pages-artifact@v4
       with:
         path: '_book/'
-    - uses: actions/deploy-pages@v2
+    - uses: actions/deploy-pages@v4
 ```
 
 网站出现在：`https://username.github.io/repo-name/`

@@ -4,7 +4,7 @@ mdPress is a Go CLI. Install it with Go or build it from source.
 
 ## Requirements
 
-- Go 1.25 or newer if you want to build from source.
+- Go 1.26 or newer if you want to build from source.
 - Chrome or Chromium for PDF output.
 - Typst if you want to try `mdpress build --format typst`.
 - PlantUML and Java only if you use `plantuml` code blocks.

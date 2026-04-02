@@ -35,13 +35,13 @@ The current implementation has two categories of output:
 Environment information:
 
 - Go runtime platform information
-- Go version (>= 1.25 recommended)
+- Go version (>= 1.26 recommended)
 - Cache directory status
 
 Readiness checks:
 
 - Chrome/Chromium availability (for PDF output)
-- Go version check (>= 1.25)
+- Go version check (>= 1.26)
 - Git availability (for remote source builds)
 - Network connectivity to github.com
 - Disk space in output directory

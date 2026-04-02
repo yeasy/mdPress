@@ -4,7 +4,7 @@
   <img src="docs/assets/logo.png" alt="mdPress Logo" width="200" />
 </p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational)](https://github.com/yeasy/mdpress)
 
@@ -267,7 +267,7 @@ Set `style.theme` in `book.yaml` to switch themes.
 
 ## Requirements
 
-- **Go 1.25+** for installation
+- **Go 1.26+** for installation
 - **Chrome or Chromium** — only needed for PDF output with the default backend. HTML, site, and ePub work without it.
 - **Typst CLI** (optional) — enables the `--format typst` backend as a Chromium-free alternative when Typst is installed.
 

@@ -16,7 +16,7 @@ For large books (50+ chapters), parsing is typically the bottleneck. mdPress aut
 
 ### How Build Cache Works
 
-mdPress maintains a `.mdpress-cache/` directory (default location) that stores:
+mdPress maintains a cache directory (default: `$TMPDIR/mdpress-cache`, e.g. `/tmp/mdpress-cache`) that stores:
 
 - **Chapter hashes**: MD5 checksums of chapter content
 - **Compiled content**: Pre-processed Markdown for unchanged chapters
@@ -49,11 +49,11 @@ mdpress build --format pdf
 ### View Cache Directory
 
 ```bash
-# Default cache location
-ls -la .mdpress-cache/
+# Default cache location (OS temp directory)
+ls -la /tmp/mdpress-cache/
 
 # Change cache directory
-mdpress build --cache-dir /tmp/mdpress-cache --format pdf
+mdpress build --cache-dir /path/to/custom-cache --format pdf
 ```
 
 The cache directory is safe to delete—it will be regenerated on the next build.
@@ -328,31 +328,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       # Cache Go modules
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
       # Cache mdPress cache directory
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: .mdpress-cache
           key: ${{ runner.os }}-mdpress-${{ hashFiles('**/*.md') }}
 
       # Install mdPress
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
 
       # Build book
       - run: mdpress build --format pdf
 
       # Upload artifact
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: pdf-output
           path: output.pdf

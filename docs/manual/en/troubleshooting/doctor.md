@@ -10,7 +10,7 @@ mdpress doctor
 # Example output:
 # Checking environment...
 # ✓ Platform: Linux
-# ✓ Go: 1.25.0
+# ✓ Go: 1.26.0
 # ✓ Chrome/Chromium: /usr/bin/chromium
 # ✓ CJK fonts: Noto Sans CJK SC
 # ✓ PlantUML: not installed (optional)
@@ -34,7 +34,7 @@ Identifies your operating system for system-specific guidance.
 
 **Go Installation:**
 ```
-✓ Go: 1.25.0 installed
+✓ Go: 1.26.0 installed
 ✓ go binary: /usr/local/go/bin/go
 ```
 
@@ -142,19 +142,19 @@ Diagnoses a project in a different directory.
 
 ```bash
 # JSON format (for parsing)
-mdpress doctor --report json > report.json
+mdpress doctor --report report.json
 
 # Markdown format (for documentation)
-mdpress doctor --report markdown > report.md
+mdpress doctor --report report.md
 
-# Plain text (default)
+# Plain text (default, printed to stdout)
 mdpress doctor
 ```
 
 ### Example: Generate Markdown Report
 
 ```bash
-mdpress doctor --report markdown > DOCTOR_REPORT.md
+mdpress doctor --report DOCTOR_REPORT.md
 ```
 
 Report includes:
@@ -171,7 +171,7 @@ Everything is working correctly:
 
 ```
 ✓ Platform: Linux
-✓ Go: 1.25.0
+✓ Go: 1.26.0
 ✓ Chrome: /usr/bin/chromium
 ```
 
@@ -351,10 +351,10 @@ mdpress validate
 
 - name: Generate doctor report
   if: always()
-  run: mdpress doctor --report markdown > doctor-report.md
+  run: mdpress doctor --report doctor-report.md
 
 - name: Upload report as artifact
-  uses: actions/upload-artifact@v3
+  uses: actions/upload-artifact@v4
   with:
     name: doctor-report
     path: doctor-report.md
@@ -367,7 +367,7 @@ doctor:
   stage: validate
   script:
     - mdpress doctor
-    - mdpress doctor --report markdown > doctor-report.md
+    - mdpress doctor --report doctor-report.md
   artifacts:
     paths:
       - doctor-report.md
@@ -396,7 +396,7 @@ mdpress build --format pdf
 
 ## Doctor Report Fields
 
-When using `--report json`:
+When using `--report report.json`:
 
 ```json
 {
@@ -404,7 +404,7 @@ When using `--report json`:
   "osVersion": "6.8.0",
   "go": {
     "installed": true,
-    "version": "1.25.0",
+    "version": "1.26.0",
     "path": "/usr/local/go/bin/go"
   },
   "chrome": {
@@ -433,13 +433,13 @@ Parse programmatically:
 
 ```bash
 # Get Chrome version
-mdpress doctor --report json | jq '.chrome.version'
+mdpress doctor --report report.json && jq '.chrome.version' report.json
 
 # Check if project ready
-mdpress doctor --report json | jq '.project.configValid'
+mdpress doctor --report report.json && jq '.project.configValid' report.json
 
 # List recommendations
-mdpress doctor --report json | jq '.recommendations[]'
+mdpress doctor --report report.json && jq '.recommendations[]' report.json
 ```
 
 ## Continuous Monitoring
@@ -453,7 +453,7 @@ echo "=== mdPress Health Check ==="
 echo ""
 
 echo "1. Running doctor..."
-mdpress doctor --report json > /tmp/doctor.json
+mdpress doctor --report /tmp/doctor.json
 
 if ! jq empty /tmp/doctor.json 2>/dev/null; then
   echo "✗ Doctor check failed"
