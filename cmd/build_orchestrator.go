@@ -32,7 +32,7 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 	tm := theme.NewThemeManager()
 	thm, err := tm.Get(cfg.Style.Theme)
 	if err != nil {
-		logger.Warn("theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.String("error", err.Error()))
+		logger.Warn("theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.Any("error", err))
 		thm, err = tm.Get("technical")
 		if err != nil {
 			return nil, fmt.Errorf("failed to load default theme: %w", err)
@@ -51,7 +51,7 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 	if cfg.GlossaryFile != "" {
 		gloss, err = glossary.ParseFile(cfg.GlossaryFile)
 		if err != nil {
-			logger.Warn("failed to parse GLOSSARY.md", slog.String("error", err.Error()))
+			logger.Warn("failed to parse GLOSSARY.md", slog.Any("error", err))
 		}
 	}
 

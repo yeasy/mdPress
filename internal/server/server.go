@@ -235,7 +235,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			s.logger.Debug("Server shutdown returned error", slog.String("error", err.Error()))
+			s.logger.Debug("Server shutdown returned error", slog.Any("error", err))
 		}
 	}()
 
@@ -286,7 +286,7 @@ func (s *Server) notifyClients() {
 	msg := buildWSMessage(msgTypeReload)
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
-			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
+			s.logger.Debug("Failed to send WebSocket message", slog.Any("error", err))
 		}
 	}
 }
@@ -296,7 +296,7 @@ func (s *Server) notifyBuildStart() {
 	msg := buildWSMessage(msgTypeBuildStart)
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
-			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
+			s.logger.Debug("Failed to send WebSocket message", slog.Any("error", err))
 		}
 	}
 }
@@ -306,7 +306,7 @@ func (s *Server) notifyCSSUpdate() {
 	msg := buildWSMessage(msgTypeCSSUpdate)
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
-			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
+			s.logger.Debug("Failed to send WebSocket message", slog.Any("error", err))
 		}
 	}
 }
@@ -315,12 +315,12 @@ func (s *Server) notifyCSSUpdate() {
 func (s *Server) notifyBuildError(errMsg string) {
 	msg, err := buildWSErrorMessage(errMsg)
 	if err != nil {
-		s.logger.Error("Failed to marshal build error message", slog.String("error", err.Error()))
+		s.logger.Error("Failed to marshal build error message", slog.Any("error", err))
 		return
 	}
 	for _, client := range s.snapshotClients() {
 		if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
-			s.logger.Debug("Failed to send WebSocket message", slog.String("error", err.Error()))
+			s.logger.Debug("Failed to send WebSocket message", slog.Any("error", err))
 		}
 	}
 }
@@ -333,7 +333,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade first, then atomically check-and-register under a single lock.
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.logger.Error("WebSocket upgrade failed", slog.String("error", err.Error()))
+		s.logger.Error("WebSocket upgrade failed", slog.Any("error", err))
 		return
 	}
 
@@ -355,7 +355,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Send the connection acknowledgment.
 	if err := client.writeMessage(websocket.TextMessage, []byte("connected")); err != nil {
-		s.logger.Debug("Failed to send WebSocket ack", slog.String("error", err.Error()))
+		s.logger.Debug("Failed to send WebSocket ack", slog.Any("error", err))
 	}
 
 	// Keep reading to detect disconnects.
@@ -694,7 +694,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		if _, err := w.Write([]byte(injected)); err != nil {
-			s.logger.Debug("Failed to write HTTP response", slog.String("error", err.Error()))
+			s.logger.Debug("Failed to write HTTP response", slog.Any("error", err))
 		}
 	})
 }
@@ -767,7 +767,7 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 		s.notifyBuildStart()
 		if s.BuildFunc != nil {
 			if err := s.BuildFunc(); err != nil {
-				s.logger.Error("Rebuild failed", slog.String("error", err.Error()))
+				s.logger.Error("Rebuild failed", slog.Any("error", err))
 				s.notifyBuildError(err.Error())
 				return
 			}
@@ -796,7 +796,7 @@ func isWatchedExtension(ext string) bool {
 func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		s.logger.Error("Failed to create fsnotify watcher, falling back to polling", slog.String("error", err.Error()))
+		s.logger.Error("Failed to create fsnotify watcher, falling back to polling", slog.Any("error", err))
 		s.watchFilesPolling(ctx)
 		return
 	}
@@ -805,7 +805,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	// Recursively add watched directories.
 	err = filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			s.logger.Warn("failed to access path during watch setup", slog.String("path", path), slog.String("error", err.Error()))
+			s.logger.Warn("failed to access path during watch setup", slog.String("path", path), slog.Any("error", err))
 			return nil
 		}
 		if d.IsDir() {
@@ -813,14 +813,14 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 				return filepath.SkipDir
 			}
 			if addErr := watcher.Add(path); addErr != nil {
-				s.logger.Warn("failed to watch directory", slog.String("path", path), slog.String("error", addErr.Error()))
+				s.logger.Warn("failed to watch directory", slog.String("path", path), slog.Any("error", addErr))
 			}
 			return nil
 		}
 		return nil
 	})
 	if err != nil {
-		s.logger.Error("Failed to add watch directory", slog.String("error", err.Error()))
+		s.logger.Error("Failed to add watch directory", slog.Any("error", err))
 		return
 	}
 
@@ -859,7 +859,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 					if !isSkippedDir(filepath.Base(event.Name)) {
 						if addErr := watcher.Add(event.Name); addErr != nil {
-							s.logger.Warn("Failed to watch new directory", slog.String("dir", event.Name), slog.String("error", addErr.Error()))
+							s.logger.Warn("Failed to watch new directory", slog.String("dir", event.Name), slog.Any("error", addErr))
 						} else {
 							s.logger.Debug("Added new directory to watcher", slog.String("dir", event.Name))
 						}
@@ -875,7 +875,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			if !ok {
 				return
 			}
-			s.logger.Error("fsnotify error", slog.String("error", err.Error()))
+			s.logger.Error("fsnotify error", slog.Any("error", err))
 		}
 	}
 }
@@ -933,7 +933,7 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 		}
 		return nil
 	}); err != nil {
-		s.logger.Debug("Failed to scan modification times", slog.String("error", err.Error()))
+		s.logger.Debug("Failed to scan modification times", slog.Any("error", err))
 	}
 }
 
@@ -970,7 +970,7 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) (bool, string) {
 		}
 		return nil
 	}); err != nil {
-		s.logger.Debug("Failed to walk watch directory", slog.String("error", err.Error()))
+		s.logger.Debug("Failed to walk watch directory", slog.Any("error", err))
 	}
 
 	// Detect deleted files.

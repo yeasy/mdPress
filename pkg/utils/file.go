@@ -22,7 +22,7 @@ func FileExists(path string) bool {
 // EnsureDir creates a directory when it does not already exist.
 // MkdirAll is idempotent, so we call it directly to avoid a TOCTOU race.
 func EnsureDir(path string) error {
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("failed to create directory %q: %w", path, err)
 	}
 	return nil
@@ -99,7 +99,7 @@ func WriteFile(path string, data []byte) error {
 	}
 
 	// Write the file content.
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write file %q: %w", path, err)
 	}
 
@@ -216,7 +216,7 @@ func ExtractTitleFromFile(path string) string {
 
 	// Best-effort title extraction — log scan errors for debugging.
 	if err := scanner.Err(); err != nil {
-		slog.Debug("scanner error during title extraction", slog.String("error", err.Error()))
+		slog.Debug("scanner error during title extraction", slog.Any("error", err))
 	}
 	return ""
 }

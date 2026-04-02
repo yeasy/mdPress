@@ -121,12 +121,12 @@ func initLogger() *slog.Logger {
 func configureRuntimeCacheEnv() {
 	if cacheDir != "" {
 		if err := os.Setenv("MDPRESS_CACHE_DIR", cacheDir); err != nil {
-			slog.Debug("Failed to set MDPRESS_CACHE_DIR environment variable", slog.String("error", err.Error()))
+			slog.Debug("Failed to set MDPRESS_CACHE_DIR environment variable", slog.Any("error", err))
 		}
 	}
 	if noCache {
 		if err := os.Setenv("MDPRESS_DISABLE_CACHE", "1"); err != nil {
-			slog.Debug("Failed to set MDPRESS_DISABLE_CACHE environment variable", slog.String("error", err.Error()))
+			slog.Debug("Failed to set MDPRESS_DISABLE_CACHE environment variable", slog.Any("error", err))
 		}
 	}
 }
