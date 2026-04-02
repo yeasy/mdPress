@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM golang:1.25.0-alpine AS builder
+FROM golang:1.26.1-alpine AS builder
 
 RUN apk add --no-cache ca-certificates
 
@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 go build \
     -o /usr/local/bin/mdpress .
 
 # ---- Minimal image (HTML, site, ePub — no PDF) ----
-FROM alpine:3.21 AS minimal
+FROM alpine:3.23 AS minimal
 
 RUN apk add --no-cache ca-certificates
 
@@ -36,7 +36,7 @@ ENTRYPOINT ["mdpress"]
 CMD ["--help"]
 
 # ---- Full image (all formats including PDF via Chromium) ----
-FROM alpine:3.21 AS full
+FROM alpine:3.23 AS full
 
 RUN apk add --no-cache \
     ca-certificates \
