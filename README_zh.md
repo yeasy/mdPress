@@ -4,7 +4,7 @@
   <img src="docs/assets/logo.png" alt="mdPress Logo" width="200" />
 </p>
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-informational)](https://github.com/yeasy/mdpress)
 
@@ -267,7 +267,7 @@ $ mdpress themes list
 
 ## 环境要求
 
-- **Go 1.25+** 用于安装
+- **Go 1.26+** 用于安装
 - **Chrome 或 Chromium** — 仅 PDF 默认后端需要。HTML、站点和 ePub 不依赖它。
 - **Typst CLI**（可选） — 安装 Typst 后，可启用 `--format typst`，作为 Chromium-free 的 PDF 替代方案。
 

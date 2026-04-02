@@ -397,7 +397,7 @@ mdpress --version
 
 ### 常见问题
 
-参见 [upgrade 故障排除](../commands/upgrade_zh.md#常见问题和解决方案) 了解解决方案。
+参见 [upgrade 故障排除](../../../commands/upgrade_zh.md#常见问题和解决方案) 了解解决方案。
 
 ## migrate
 
@@ -571,12 +571,10 @@ autoload -Uz compinit && compinit
 mdpress version
 # 或
 mdpress --version
-# 或
-mdpress -v
 
 # 输出：
-# mdPress version 1.2.3
-# Go version: go1.25.0
+# mdpress version 0.7.2
+# Go version: go1.26.1
 # Platform: linux/amd64
 ```
 

@@ -28,6 +28,11 @@ v0.6.1 ████████████████████████�
 v0.6.2 ██████████████████████████████████████████ released (2026-03-25)
 v0.6.3 ██████████████████████████████████████████ released (2026-03-25)
 v0.6.4 ██████████████████████████████████████████ released (2026-03-26)
+v0.6.5 ██████████████████████████████████████████ released (2026-03-27)
+v0.6.6 ██████████████████████████████████████████ released (2026-03-27)
+v0.6.7 ██████████████████████████████████████████ released (2026-03-27)
+v0.6.8 ██████████████████████████████████████████ released (2026-03-28)
+v0.6.9 ██████████████████████████████████████████ released (2026-03-28)
 v0.7.0 ██████████████████████████████████████████ released (2026-03-28)
 v0.7.1 ██████████████████████████████████████████ released (2026-03-29)
 v0.7.2 ██████████████████████████████████████████ released (2026-03-30)
@@ -98,8 +103,6 @@ v0.2.0 moves mdPress from a PDF-first generator toward a multi-format publishing
 ### Milestones
 
 ```
-2026-04-01  feature development complete, internal testing starts ✓
-2026-04-15  public beta ✓
 2026-03-19  v0.2.0 release ✓
 ```
 
@@ -342,7 +345,7 @@ v0.6.0 bridges the gap between feature-driven development (v0.1–v0.5) and the 
 | Feature | Priority | Description |
 | --- | --- | --- |
 | `mdpress upgrade` command | P0 | Self-upgrade from GitHub releases with platform detection, SHA-256 checksum verification, and `--check` dry-run mode |
-| Enhanced `mdpress doctor` | P0 | Six new environment checks: Go version (≥1.25), Git availability, network connectivity, disk space, CJK font detection, and plugin health; new `--verbose` flag |
+| Enhanced `mdpress doctor` | P0 | Six new environment checks: Go version (≥1.26), Git availability, network connectivity, disk space, CJK font detection, and plugin health; new `--verbose` flag |
 | Bilingual user manual | P0 | Complete Chinese + English user manual (60+ Markdown files) built with mdPress itself |
 | `ParseVersionPart` utility | P2 | Reusable version-string parser for `doctor` and `upgrade` commands |
 
@@ -515,6 +518,125 @@ v0.6.4 fixes critical PDF rendering issues including missing images, broken Merm
 
 ---
 
+## v0.6.5 - Security Hardening And Bug Fixes
+
+**Release date**: 2026-03-27
+**Theme**: security defense-in-depth and correctness
+
+v0.6.5 adds five security hardening measures across the plugin system, Mermaid renderer, Typst backend, upgrade pipeline, and git integration. It also fixes GitBook migration errors and search index performance.
+
+### Security Fixes
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Plugin path traversal enforced | P0 | Relative plugin paths resolving outside the project directory are now rejected instead of only logging a warning |
+| Mermaid XSS defense-in-depth | P1 | Strip `<script>` tags and event handler attributes from Mermaid diagram content after HTML unescaping |
+| Typst output capture bounded | P1 | Limit captured stdout/stderr from `typst compile` to 1 MB, preventing OOM from malicious documents |
+| Upgrade redirect SSRF protection | P1 | Validate HTTP redirect targets during upgrade downloads to prevent SSRF via DNS poisoning |
+| Git command timeouts | P1 | Add 5-second timeout to `git describe` and `git config` calls in auto-discovery to prevent indefinite blocking |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| GitBook plugin migration errors | P1 | Skip GitBook npm plugins during `book.json` migration instead of generating invalid configs with missing paths |
+| Search index heading snippets | P1 | Compute rune slice once per chapter instead of per heading, fixing O(N*M) allocation for chapters with many headings |
+| Inline SVG badge height | P2 | Fix badge height mismatch between inline SVG and `<img>` rendering |
+
+### Changed
+
+| Change | Description |
+| --- | --- |
+| Removed tautological tests | Remove tests that produced false coverage |
+
+---
+
+## v0.6.6 - Chapter Title Deduplication And SUMMARY Parsing
+
+**Release date**: 2026-03-27
+**Theme**: rendering correctness
+
+v0.6.6 fixes duplicate chapter titles in PDF output and improves SUMMARY.md parsing to correctly handle inline links.
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Duplicate chapter title in PDF | P0 | Sub-chapters using h2-h6 in Markdown had their heading duplicated because the deduplication logic only matched h1 tags; now matches any heading level |
+| SUMMARY.md parsing picks up inline links | P0 | Navigation prose lines were incorrectly parsed as chapter entries; now only list items with a direct link are accepted |
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Title mismatch warning | P1 | New `book-title-mismatch` rule warns when a SUMMARY.md title differs from the file's first heading; SUMMARY title takes precedence in rendered output |
+
+---
+
+## v0.6.7 - PDF Bookmark And Mermaid Rendering Fixes
+
+**Release date**: 2026-03-27
+**Theme**: PDF rendering correctness and security
+
+v0.6.7 fixes duplicate PDF bookmarks from cover titles, README title deduplication for centered layouts, and ensures Mermaid diagrams fully render before PDF generation.
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Cover title duplicate PDF bookmark | P0 | Cover page title changed from `<h1>` to styled `<div>`, preventing Chrome's outline generator from creating a bookmark that duplicates the first chapter entry |
+| README title deduplication handles wrapped headings | P0 | `stripDuplicateLeadingH1` now finds the first heading even when preceded by non-heading HTML (e.g., `<div align="center">`, badge images) |
+| Mermaid diagrams fully render in PDF | P0 | Added a wait step (up to 15s) for mermaid.js to finish rendering all diagrams before Chrome prints to PDF |
+
+### Security Fixes
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Chrome CLI output capture bounded | P1 | Chrome CLI fallback limits captured stdout/stderr to 10 MB via `chromeLimitedWriter`, preventing OOM |
+| Symlink-aware image path containment | P1 | `resolveLocalImagePath` and EPUB `buildImageAssetFromSource` resolve symlinks via `filepath.EvalSymlinks` before the containment check |
+| Git argument injection hardened | P1 | `discover.go` git commands validated against flag injection |
+
+---
+
+## v0.6.8 - Thread Safety And Test Coverage
+
+**Release date**: 2026-03-28
+**Theme**: correctness and test coverage
+
+v0.6.8 improves Markdown parser thread safety, error wrapping in the upgrade pipeline, and GitHub source hardening. It also adds comprehensive test suites for checksum verification and SSRF redirect validation.
+
+### Improvements
+
+| Improvement | Priority | Description |
+| --- | --- | --- |
+| Markdown parser thread safety | P1 | Remove unnecessary `sync.RWMutex` from parser; headings collected via local state, making concurrent `Parse` calls safe without locking |
+| Error wrapping in upgrade | P2 | Use `%w` instead of `%v` for inner errors so callers can unwrap them |
+| GitHub source hardening | P1 | Guard `.gitattributes` read with stat + size check to avoid reading oversized files |
+
+### Tests
+
+| Test | Description |
+| --- | --- |
+| Checksum verification tests | Comprehensive test suite for upgrade binary checksum verification (valid match, mismatch, missing entry, case-insensitive hash, multiple formats) |
+| SSRF redirect validation tests | Test coverage for PlantUML redirect target validation (localhost, loopback IP, .local suffix, empty hostname) |
+
+---
+
+## v0.6.9 - Duplicate Bookmark Fix
+
+**Release date**: 2026-03-28
+**Theme**: PDF rendering correctness
+
+v0.6.9 eliminates duplicate H1 bookmarks in PDF output by unconditionally stripping the leading `<h1>` from chapter content, since the template already renders the SUMMARY title as the chapter heading.
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Eliminate duplicate H1 bookmarks in PDF | P0 | Always strip the leading `<h1>` from chapter content since the template already renders the SUMMARY title as `<h1 class="chapter-title">`. Previously, the content H1 was only removed when its text exactly matched the SUMMARY title; now it is removed unconditionally for H1 |
+
+---
+
 ## v0.7.0 - Site UX Enhancements (Released 2026-03-28)
 
 **Theme**: site output UX improvements
@@ -532,6 +654,79 @@ v0.6.4 fixes critical PDF rendering issues including missing images, broken Merm
 | Feature | Priority | Description |
 | --- | --- | --- |
 | Sidebar chapter grouping | P2 | Support `parts` in `book.yaml` to group chapters under collapsible section headers (e.g. "Part 1: Getting Started") |
+
+---
+
+## v0.7.1 - Bug Fixes, Security, And Typst Promotion
+
+**Release date**: 2026-03-29
+**Theme**: correctness, security, and format promotion
+
+v0.7.1 fixes rendering bugs in heading regex matching, Typst code span conversion, and SVG inlining. It hardens PlantUML directive parsing and removes internal paths from the serve debug panel. It also promotes Typst to a first-class output format and adds site UX improvements.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Typst promoted to first-class output format | P0 | Typst PDF generation available as `--format typst` |
+| Force flag for migrate command | P1 | Add `--force` flag to overwrite existing files during migration |
+| Filename sanitization in init command | P1 | Sanitize filenames during project initialization |
+| Post-install verification for upgrade | P1 | Verify binary integrity after upgrade installation |
+| Site UX features | P1 | Add selection highlighting, pending navigation, and improved client-side navigation |
+
+### Security Fixes
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| PlantUML directive and SVG sanitization hardened | P0 | Strengthen PlantUML directive parsing and SVG content sanitization |
+| Internal paths removed from serve debug panel | P1 | Remove internal filesystem paths from the serve debug panel output |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Heading regex correct tag matching | P0 | Fix heading regex to match the correct heading level tag |
+| Typst converter skips code spans | P0 | Prevent Typst markup conversion inside inline code spans |
+| SVG inlining for nested SVGs | P1 | Fix SVG inlining when SVGs contain nested SVG elements |
+| Typst builder uses raw Markdown | P1 | Fix Typst builder to pass raw Markdown instead of HTML |
+| Windows path separator in test | P2 | Fix path separator handling for Windows compatibility |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Doctor context and symlink handling | Improve doctor command with better context reporting and symlink-aware checks |
+| PDF generator error handling | Check tmpFile.Close error in PDF generator |
+
+---
+
+## v0.7.2 - Go Idiom Modernization And CI Fixes
+
+**Release date**: 2026-03-30
+**Theme**: code modernization and cross-platform reliability
+
+v0.7.2 modernizes Go idioms across the codebase, migrating from deprecated APIs to modern equivalents and fixing Windows CI test failures.
+
+### Changed
+
+| Change | Description |
+| --- | --- |
+| Modernize Go idioms | Migrate `os.IsNotExist` to `errors.Is(err, fs.ErrNotExist)`, `sort` to `slices` package, `== io.EOF` to `errors.Is` |
+| Remove redundant helper | Replace custom `equalIntSlices` with `slices.Equal` |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Stale error message in PDF generator | P1 | Fix error messages referencing old function name |
+| Windows test failures in CI | P0 | Fix path handling in tests for Windows compatibility |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Test assertions strengthened | Add missing assertions for return values in server and plugin tests |
+| Documentation sync | Update ARCHITECTURE, ROADMAP, command docs, and manual versions |
 
 ---
 

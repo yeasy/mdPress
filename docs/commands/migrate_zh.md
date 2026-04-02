@@ -23,6 +23,7 @@ mdpress migrate [directory] [flags]
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `--dry-run` | 关闭 | 预览会进行哪些变更但不写入文件。用于在正式迁移前检查影响范围。 |
+| `--force` | 关闭 | 覆盖已有的 `book.yaml` 而不是跳过。 |
 
 ## 用法说明
 
@@ -79,7 +80,7 @@ mdpress migrate --dry-run ./my-gitbook
 
 ```
 Warnings:
-  ! GitBook plugin "disqus" has no direct mdpress equivalent — check the mdpress plugin registry
+  ! GitBook plugin "disqus" has no direct mdpress equivalent — you may need to manually implement equivalent features
 ```
 
 已知的原生支持或会被跳过的插件包括：
@@ -153,12 +154,12 @@ echo "Hello"
 
 - 此命令最好作为**第一步**，在克隆 GitBook 项目后立即使用。
 - 务必检查生成的 `book.yaml`，确保其中的元数据符合你的预期。
-- 没有 mdPress 等效功能的 GitBook 插件会生成警告；你可能需要手动实现等效功能，或者查看 [mdPress 插件注册表](../plugins)。
+- 没有 mdPress 等效功能的 GitBook 插件会生成警告；你可能需要手动实现等效功能。
 - 迁移后，运行 `mdpress validate` 检查结果结构。
 - 运行 `mdpress build` 生成你需要的输出格式。
 
 ## 相关命令
 
-- [MIGRATION_FROM_GITBOOK.md](../MIGRATION_FROM_GITBOOK.md) 提供逐步迁移指南
+- [MIGRATION_FROM_GITBOOK_zh.md](../MIGRATION_FROM_GITBOOK_zh.md) 提供逐步迁移指南
 - [build](build_zh.md) 用于构建已迁移的项目
 - [validate](validate_zh.md) 用于检查已迁移的项目

@@ -27,22 +27,24 @@ jobs:
       contents: read
       pages: write
       id-token: write
+    env:
+      MDPRESS_CACHE_DIR: .mdpress-cache
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache: 'go'
 
       - name: Install mdPress
         run: go install github.com/yeasy/mdpress@latest
 
       - name: Cache mdPress cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .mdpress-cache
           key: ${{ runner.os }}-mdpress-${{ hashFiles('**/*.md', 'book.yaml') }}
@@ -56,7 +58,7 @@ jobs:
         run: mdpress build --format pdf
 
       - name: Upload PDF artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: book-pdf
           path: output.pdf
@@ -67,14 +69,14 @@ jobs:
 
       - name: Deploy to GitHub Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v4
         with:
           path: '_book/'
 
       - name: Deploy Pages
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 ```
 
 ### Pull Request Preview
@@ -94,11 +96,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache: 'go'
 
       - name: Install mdPress
@@ -119,7 +121,7 @@ jobs:
             })
 
       - name: Upload preview
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: pr-preview-${{ github.event.number }}
           path: pr-preview.html
@@ -140,18 +142,20 @@ jobs:
     strategy:
       matrix:
         format: [pdf, html, epub, site]
+    env:
+      MDPRESS_CACHE_DIR: .mdpress-cache
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache: 'go'
 
       - run: go install github.com/yeasy/mdpress@latest
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: .mdpress-cache
           key: ${{ runner.os }}-mdpress-${{ matrix.format }}-${{ hashFiles('**/*.md') }}
@@ -160,7 +164,7 @@ jobs:
         run: mdpress build --format ${{ matrix.format }}
 
       - name: Upload ${{ matrix.format }} artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: book-${{ matrix.format }}
           path: |
@@ -182,6 +186,7 @@ stages:
 
 variables:
   CACHE_COMPRESSION_LEVEL: fastest
+  MDPRESS_CACHE_DIR: .mdpress-cache
 
 before_script:
   - apt-get update && apt-get install -y golang-go
@@ -262,8 +267,8 @@ build-protected:
 **Linux (Ubuntu/Debian):**
 ```bash
 # Install Go
-wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.26.0.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 # Install mdPress
@@ -281,7 +286,7 @@ go install github.com/yeasy/mdpress@latest
 
 **Docker:**
 ```dockerfile
-FROM golang:1.25-alpine
+FROM golang:1.26-alpine
 
 # Install Chrome for PDF rendering
 RUN apk add --no-cache chromium
@@ -352,9 +357,9 @@ brew install font-noto-sans-cjk
 ### GitHub Actions
 
 ```yaml
-- uses: actions/setup-go@v4
+- uses: actions/setup-go@v6
   with:
-    go-version: '1.25'
+    go-version: '1.26'
     cache: 'go'  # Automatically caches Go modules
 
 - name: Download modules
@@ -381,7 +386,7 @@ Preserve mdPress build cache across CI/CD runs to speed up rebuilds:
 ### GitHub Actions
 
 ```yaml
-- uses: actions/cache@v3
+- uses: actions/cache@v4
   with:
     path: .mdpress-cache
     key: mdpress-${{ hashFiles('**/*.md', 'book.yaml') }}
@@ -414,11 +419,11 @@ Automatic deployment of HTML site to GitHub Pages:
 - name: Build site
   run: mdpress build --format site
 
-- uses: actions/upload-pages-artifact@v2
+- uses: actions/upload-pages-artifact@v4
   with:
     path: '_book/'
 
-- uses: actions/deploy-pages@v2
+- uses: actions/deploy-pages@v4
   if: github.ref == 'refs/heads/main'
 ```
 
@@ -520,7 +525,7 @@ Upload PDF to GitHub Releases:
 ```yaml
 - name: Create Release
   if: startsWith(github.ref, 'refs/tags/')
-  uses: softprops/action-gh-release@v1
+  uses: softprops/action-gh-release@v2
   with:
     files: output.pdf
   env:
@@ -648,10 +653,10 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress validate
 
@@ -660,13 +665,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress build --format html
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: pr-preview
           path: output.html
@@ -678,18 +683,20 @@ jobs:
     strategy:
       matrix:
         format: [pdf, html, epub]
+    env:
+      MDPRESS_CACHE_DIR: .mdpress-cache
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: .mdpress-cache
           key: mdpress-${{ matrix.format }}-${{ hashFiles('**/*.md') }}
       - run: mdpress build --format ${{ matrix.format }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: book-${{ matrix.format }}
           path: output.*
@@ -699,16 +706,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-release
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
       - run: mdpress build --format site
-      - uses: actions/upload-pages-artifact@v2
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: '_book/'
-      - uses: actions/deploy-pages@v2
+      - uses: actions/deploy-pages@v4
 ```
 
 This pipeline:
@@ -744,7 +751,7 @@ Ensure cache path exists:
 
 ```yaml
 - run: mkdir -p .mdpress-cache
-- uses: actions/cache@v3
+- uses: actions/cache@v4
   with:
     path: .mdpress-cache
 ```
@@ -754,7 +761,7 @@ Ensure cache path exists:
 Increase timeout for large books:
 
 ```yaml
-timeout-minutes: 30  # Increase from default 360
+timeout-minutes: 30  # Decrease from default 360
 steps:
   - run: mdpress build --format pdf
 ```
@@ -766,8 +773,7 @@ Reduce parallelism by limiting resources:
 ```yaml
 jobs:
   build:
-    runs-on: ubuntu-latest
-    # GitHub provides up to 7 GB RAM by default
-    # For very large books, use a larger runner
+    # runs-on: ubuntu-latest  # Default: 7 GB RAM
+    # For very large books, use a larger runner:
     runs-on: ubuntu-latest-xl  # 14 GB RAM
 ```

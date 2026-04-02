@@ -668,7 +668,7 @@ mdpress --version
 mdpress doctor
 ```
 
-详细故障排除，参见 [upgrade.md](../commands/upgrade_zh.md#常见问题和解决方案)。
+详细故障排除，参见 [upgrade.md](../../../commands/upgrade_zh.md#常见问题和解决方案)。
 
 ## 性能故障排除
 

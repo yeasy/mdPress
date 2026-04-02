@@ -6,7 +6,7 @@ This chapter helps you get started with mdpress, from installation to generating
 
 ### Install with Go
 
-Ensure you have Go 1.25 or later installed, then run:
+Ensure you have Go 1.26 or later installed, then run:
 
 ```bash
 go install github.com/yeasy/mdpress@latest

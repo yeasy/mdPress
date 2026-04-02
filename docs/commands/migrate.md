@@ -23,6 +23,7 @@ mdpress migrate [directory] [flags]
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--dry-run` | off | Preview changes without writing any files. Useful for checking what will be modified before committing to the migration. |
+| `--force` | off | Overwrite existing `book.yaml` instead of skipping. |
 
 ## Behavior
 
@@ -79,7 +80,7 @@ The command reads `book.json` and warns about plugins that have no direct mdPres
 
 ```
 Warnings:
-  ! GitBook plugin "disqus" has no direct mdpress equivalent — check the mdpress plugin registry
+  ! GitBook plugin "disqus" has no direct mdpress equivalent — you may need to manually implement equivalent features
 ```
 
 Known plugins that are handled natively or skipped:
@@ -153,7 +154,7 @@ echo "Hello"
 
 - The command is best used as the **first step** after cloning a GitBook project.
 - Always review the generated `book.yaml` and ensure it matches your intended metadata.
-- GitBook plugins that have no mdPress equivalent will generate warnings; you may need to manually implement equivalent features or check the [mdPress plugin registry](../plugins).
+- GitBook plugins that have no mdPress equivalent will generate warnings; you may need to manually implement equivalent features.
 - After migration, run `mdpress validate` to check the resulting structure.
 - Run `mdpress build` to generate the output in your preferred format.
 

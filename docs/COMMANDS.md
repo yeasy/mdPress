@@ -195,7 +195,7 @@ PlantUML diagrams are rendered as SVG or PNG in HTML-based outputs and embedded 
 mdPress automatically uses multiple CPU cores when building multi-chapter books:
 
 - **Automatic parallelization**: No configuration needed. Chapter parsing automatically uses available CPU cores.
-- **Build cache**: mdPress maintains a `.mdpress-cache/` directory with chapter hashes and compiled content. Unchanged chapters are reused on subsequent builds.
+- **Build cache**: mdPress maintains a cache directory (default: `$TMPDIR/mdpress-cache`) with chapter hashes and compiled content. Unchanged chapters are reused on subsequent builds. Use `--cache-dir` to override.
 - **Force full rebuild**: Use `mdpress build --no-cache` to skip the cache and rebuild all chapters.
 
 This can reduce rebuild times significantly, especially for large books with many chapters.

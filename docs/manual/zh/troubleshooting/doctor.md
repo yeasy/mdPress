@@ -10,7 +10,7 @@ mdpress doctor
 # 示例输出：
 # Checking environment...
 # ✓ Platform: Linux
-# ✓ Go: 1.25.0
+# ✓ Go: 1.26.0
 # ✓ Chrome/Chromium: /usr/bin/chromium
 # ✓ CJK fonts: Noto Sans CJK SC
 # ✓ PlantUML: not installed (optional)
@@ -34,7 +34,7 @@ mdpress doctor
 
 **Go 安装：**
 ```
-✓ Go: 1.25.0 installed
+✓ Go: 1.26.0 installed
 ✓ go binary: /usr/local/go/bin/go
 ```
 
@@ -142,19 +142,19 @@ mdpress doctor /path/to/book
 
 ```bash
 # JSON 格式（用于解析）
-mdpress doctor --report json > report.json
+mdpress doctor --report report.json
 
 # Markdown 格式（用于文档）
-mdpress doctor --report markdown > report.md
+mdpress doctor --report report.md
 
-# 纯文本（默认）
+# 纯文本（默认，输出到终端）
 mdpress doctor
 ```
 
 ### 示例：生成 Markdown 报告
 
 ```bash
-mdpress doctor --report markdown > DOCTOR_REPORT.md
+mdpress doctor --report DOCTOR_REPORT.md
 ```
 
 报告包括：
@@ -171,7 +171,7 @@ mdpress doctor --report markdown > DOCTOR_REPORT.md
 
 ```
 ✓ Platform: Linux
-✓ Go: 1.25.0
+✓ Go: 1.26.0
 ✓ Chrome: /usr/bin/chromium
 ```
 
@@ -351,10 +351,10 @@ mdpress validate
 
 - name: Generate doctor report
   if: always()
-  run: mdpress doctor --report markdown > doctor-report.md
+  run: mdpress doctor --report doctor-report.md
 
 - name: Upload report as artifact
-  uses: actions/upload-artifact@v3
+  uses: actions/upload-artifact@v4
   with:
     name: doctor-report
     path: doctor-report.md
@@ -367,7 +367,7 @@ doctor:
   stage: validate
   script:
     - mdpress doctor
-    - mdpress doctor --report markdown > doctor-report.md
+    - mdpress doctor --report doctor-report.md
   artifacts:
     paths:
       - doctor-report.md
@@ -396,7 +396,7 @@ mdpress build --format pdf
 
 ## Doctor 报告字段
 
-使用 `--report json` 时：
+使用 `--report report.json` 时：
 
 ```json
 {
@@ -404,7 +404,7 @@ mdpress build --format pdf
   "osVersion": "6.8.0",
   "go": {
     "installed": true,
-    "version": "1.25.0",
+    "version": "1.26.0",
     "path": "/usr/local/go/bin/go"
   },
   "chrome": {
@@ -433,13 +433,13 @@ mdpress build --format pdf
 
 ```bash
 # 获取 Chrome 版本
-mdpress doctor --report json | jq '.chrome.version'
+mdpress doctor --report report.json && jq '.chrome.version' report.json
 
 # 检查项目是否就绪
-mdpress doctor --report json | jq '.project.configValid'
+mdpress doctor --report report.json && jq '.project.configValid' report.json
 
 # 列出建议
-mdpress doctor --report json | jq '.recommendations[]'
+mdpress doctor --report report.json && jq '.recommendations[]' report.json
 ```
 
 ## 持续监控
@@ -453,7 +453,7 @@ echo "=== mdPress Health Check ==="
 echo ""
 
 echo "1. Running doctor..."
-mdpress doctor --report json > /tmp/doctor.json
+mdpress doctor --report /tmp/doctor.json
 
 if ! jq empty /tmp/doctor.json 2>/dev/null; then
   echo "✗ Doctor check failed"

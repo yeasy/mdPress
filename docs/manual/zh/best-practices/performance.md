@@ -16,7 +16,7 @@ mdPress 构建包含三个主要阶段：
 
 ### 构建缓存如何工作
 
-mdPress 维护一个 `.mdpress-cache/` 目录（默认位置），其中存储：
+mdPress 维护一个缓存目录（默认：`$TMPDIR/mdpress-cache`，例如 `/tmp/mdpress-cache`），其中存储：
 
 - **章节哈希**：章节内容的 MD5 校验和
 - **已编译内容**：未变章节的预处理 Markdown
@@ -49,11 +49,11 @@ mdpress build --format pdf
 ### 查看缓存目录
 
 ```bash
-# 默认缓存位置
-ls -la .mdpress-cache/
+# 默认缓存位置（系统临时目录）
+ls -la /tmp/mdpress-cache/
 
 # 更改缓存目录
-mdpress build --cache-dir /tmp/mdpress-cache --format pdf
+mdpress build --cache-dir /path/to/custom-cache --format pdf
 ```
 
 缓存目录安全删除，下次构建时将重新生成。
@@ -328,31 +328,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       # 缓存 Go 模块
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/go-build
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
       # 缓存 mdPress 缓存目录
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: .mdpress-cache
           key: ${{ runner.os }}-mdpress-${{ hashFiles('**/*.md') }}
 
       # 安装 mdPress
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
       - run: go install github.com/yeasy/mdpress@latest
 
       # 构建书籍
       - run: mdpress build --format pdf
 
       # 上传工件
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: pdf-output
           path: output.pdf

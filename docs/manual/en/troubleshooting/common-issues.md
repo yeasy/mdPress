@@ -668,7 +668,7 @@ mdpress --version
 mdpress doctor
 ```
 
-For detailed troubleshooting, see [upgrade.md](../commands/upgrade.md#common-issues-and-solutions).
+For detailed troubleshooting, see [upgrade.md](../../../commands/upgrade.md#common-issues-and-solutions).
 
 ## Performance Troubleshooting
 
