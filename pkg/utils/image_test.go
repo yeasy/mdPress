@@ -78,7 +78,7 @@ func TestImageToBase64(t *testing.T) {
 	// Create a fake PNG file (PNG header)
 	pngHeader := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 	imgPath := filepath.Join(tmpDir, "test.png")
-	if err := os.WriteFile(imgPath, pngHeader, 0644); err != nil {
+	if err := os.WriteFile(imgPath, pngHeader, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,7 +96,7 @@ func TestImageToBase64(t *testing.T) {
 func TestImageToBase64JPEG(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "test.jpg")
-	if err := os.WriteFile(imgPath, []byte{0xFF, 0xD8, 0xFF}, 0644); err != nil {
+	if err := os.WriteFile(imgPath, []byte{0xFF, 0xD8, 0xFF}, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -114,7 +114,7 @@ func TestImageToBase64SVGWithoutExtension(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "badge")
 	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>`)
-	if err := os.WriteFile(imgPath, svg, 0644); err != nil {
+	if err := os.WriteFile(imgPath, svg, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -142,7 +142,7 @@ func TestProcessImagesLocalEmbed(t *testing.T) {
 
 	// Create image file
 	imgPath := filepath.Join(tmpDir, "image.png")
-	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644); err != nil {
+	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
 		t.Fatalf("write image failed: %v", err)
 	}
 
@@ -164,7 +164,7 @@ func TestProcessImagesLocalEmbed(t *testing.T) {
 func TestProcessImagesNoEmbed(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "image.png")
-	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0644); err != nil {
+	if err := os.WriteFile(imgPath, []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
 		t.Fatalf("write image failed: %v", err)
 	}
 
@@ -227,7 +227,7 @@ func TestProcessImagesMultiple(t *testing.T) {
 
 	// Create two images
 	for _, name := range []string{"a.png", "b.jpg"} {
-		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte{1, 2, 3}, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte{1, 2, 3}, 0o644); err != nil {
 			t.Fatalf("write image %s failed: %v", name, err)
 		}
 	}
@@ -247,7 +247,7 @@ func TestProcessImagesMultiple(t *testing.T) {
 // TestProcessImagesWithAttributes tests img tags with attributes
 func TestProcessImagesWithAttributes(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "img.png"), []byte{1, 2}, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "img.png"), []byte{1, 2}, 0o644); err != nil {
 		t.Fatalf("write image failed: %v", err)
 	}
 
@@ -278,7 +278,7 @@ func TestProcessImagesNoImages(t *testing.T) {
 func TestProcessImagesAbsolutePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	imgPath := filepath.Join(tmpDir, "abs.png")
-	if err := os.WriteFile(imgPath, []byte{1, 2, 3}, 0644); err != nil {
+	if err := os.WriteFile(imgPath, []byte{1, 2, 3}, 0o644); err != nil {
 		t.Fatalf("write image failed: %v", err)
 	}
 
@@ -1037,6 +1037,14 @@ func TestCheckURLNotPrivate(t *testing.T) {
 		{"IPv4-mapped IPv6 private 172.16.x", "http://[::ffff:172.16.0.1]/file", true},
 		// Unspecified address (0.0.0.0) must be blocked.
 		{"unspecified address 0.0.0.0", "http://0.0.0.0/file", true},
+		// "This network" (0.0.0.0/8) — non-zero addresses in 0.x.x.x reach
+		// localhost on Linux; must be blocked.
+		{"this-network 0.0.0.1", "http://0.0.0.1/file", true},
+		{"this-network 0.1.2.3", "http://0.1.2.3/file", true},
+		// IPv6-mapped "this network" must also be blocked.
+		{"IPv6-mapped this-network", "http://[::ffff:0.0.0.1]/file", true},
+		// Boundary: 1.x.x.x is public and must NOT be blocked.
+		{"public 1.0.0.1 not blocked", "http://1.0.0.1/file", false},
 		// Link-local addresses must be blocked.
 		{"link-local unicast 169.254.x", "http://169.254.1.1/file", true},
 		// DNS resolution failure should block, not allow.
