@@ -8,6 +8,30 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.3] - 2026-04-01
+
+### Security
+
+- **Block SSRF via 0.0.0.0/8 range**: Prevent server-side requests to "this network" addresses that reach localhost on Linux
+- **Guard SUMMARY.md parsing against TOCTOU**: Detect silent truncation when file grows between stat and read
+
+### Changed
+
+- **Upgrade Go to 1.26.1**: Update minimum Go version and all dependencies
+- **Use explicit octal literals**: Migrate `0644`/`0755` to `0o644`/`0o755` across codebase
+- **Use slog.Any for error logging**: Preserve error type information in structured logs
+- **Update CI to Go 1.26**: Bump GitHub Actions, GitLab CI, and Docker to Go 1.26 and latest action versions
+- **Update Dockerfile to Alpine 3.23**: Use latest Alpine base image
+
+### Fixed
+
+- **Handle deferred cleanup errors**: Properly acknowledge discarded error returns in deferred cleanup calls
+- **Fix CI cache path consistency**: Add `MDPRESS_CACHE_DIR` env var to CI documentation examples
+- **Fix stale plugin registry reference**: Remove non-existent "plugin registry" link from migrate docs
+- **Improve cmd and internal error handling**: Better panic recovery, cleanup logging, and HTML escaping
+
+---
+
 ## [0.7.2] - 2026-03-30
 
 ### Changed
