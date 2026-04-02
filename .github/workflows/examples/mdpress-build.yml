@@ -32,8 +32,6 @@ on:
 # Restrict default permissions for security; grant only what is needed.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Cancel in-progress runs for the same branch to avoid queueing duplicate builds.
 concurrency:
@@ -55,7 +53,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install mdpress
         run: |
@@ -99,6 +97,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      pages: write
+      id-token: write
 
     environment:
       name: github-pages
@@ -106,7 +107,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install mdpress
         run: |
@@ -131,7 +132,7 @@ jobs:
           mdpress build --format site --output ${{ env.OUTPUT_DIR }}/book
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ env.BOOK_DIR }}/${{ env.OUTPUT_DIR }}/book_site/
 
