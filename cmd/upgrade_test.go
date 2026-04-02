@@ -648,7 +648,7 @@ func TestInstallNewVersionFlow(t *testing.T) {
 	// Create a mock current binary
 	currentBinary := filepath.Join(tmpDir, "mdpress")
 	originalData := []byte("original binary content")
-	if err := os.WriteFile(currentBinary, originalData, 0755); err != nil {
+	if err := os.WriteFile(currentBinary, originalData, 0o755); err != nil {
 		t.Fatalf("failed to create mock binary: %v", err)
 	}
 
@@ -681,7 +681,7 @@ func TestInstallNewVersionFlow(t *testing.T) {
 			t.Fatalf("failed to stat binary: %v", err)
 		}
 		mode := info.Mode()
-		if runtime.GOOS != "windows" && mode&0100 == 0 {
+		if runtime.GOOS != "windows" && mode&0o100 == 0 {
 			t.Errorf("binary is not executable by owner")
 		}
 	})
@@ -689,7 +689,7 @@ func TestInstallNewVersionFlow(t *testing.T) {
 	// Test backup creation
 	t.Run("backup creation and restoration", func(t *testing.T) {
 		// Reset binary
-		if err := os.WriteFile(currentBinary, originalData, 0755); err != nil {
+		if err := os.WriteFile(currentBinary, originalData, 0o755); err != nil {
 			t.Fatalf("failed to reset binary: %v", err)
 		}
 
@@ -856,7 +856,7 @@ func mustCreateTarGzArchive(t *testing.T, files map[string][]byte) []byte {
 	for name, content := range files {
 		header := &tar.Header{
 			Name: name,
-			Mode: 0755,
+			Mode: 0o755,
 			Size: int64(len(content)),
 		}
 		if err := tw.WriteHeader(header); err != nil {
@@ -1252,7 +1252,7 @@ func TestWriteBinaryFile_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("binary not created: %v", err)
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		t.Error("binary is not executable")
 	}
 	content, err := os.ReadFile(binPath)

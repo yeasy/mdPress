@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"html"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -348,9 +349,9 @@ func greet(name string) string {
 `,
 		theme.colors.primary,
 		theme.colors.secondary,
-		theme.displayName,
-		theme.name,
-		theme.description,
+		html.EscapeString(theme.displayName),
+		html.EscapeString(theme.name),
+		html.EscapeString(theme.description),
 		theme.colors.primary,
 		theme.colors.primary,
 		theme.colors.secondary,
@@ -370,9 +371,9 @@ func greet(name string) string {
 		theme.colors.secondary,
 		theme.colors.codeBg,
 		theme.colors.secondary,
-		theme.author,
+		html.EscapeString(theme.author),
 		theme.colors.secondary,
-		theme.version,
+		html.EscapeString(theme.version),
 		theme.colors.accent,
 		theme.colors.text,
 	)

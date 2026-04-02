@@ -61,6 +61,8 @@ var upgradeHTTPClient = &http.Client{
 const (
 	maxBinarySize        = 500 << 20 // 500 MB
 	upgradeClientTimeout = 5 * time.Minute
+	// binaryVerifyTimeout is the timeout for verifying the new binary after upgrade.
+	binaryVerifyTimeout = 10 * time.Second
 )
 
 var upgradeCheckOnly bool
@@ -273,7 +275,7 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 		if errors.Is(err, errChecksumMismatch) || errors.Is(err, errNoChecksumEntry) {
 			return fmt.Errorf("checksum verification failed: %w", err)
 		}
-		slog.Warn("checksum verification", slog.String("warning", err.Error()))
+		slog.Warn("checksum verification", slog.Any("warning", err))
 	}
 
 	binaryData, err := extractBinaryData(assetName, assetData)
@@ -324,10 +326,10 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 	}
 
 	// Verify the new binary is functional before removing the backup.
-	verifyCtx, verifyCancel := context.WithTimeout(ctx, 10*time.Second)
+	verifyCtx, verifyCancel := context.WithTimeout(ctx, binaryVerifyTimeout)
 	defer verifyCancel()
 	if out, err := exec.CommandContext(verifyCtx, currentPath, "version").CombinedOutput(); err != nil {
-		slog.Error("new binary verification failed", slog.String("output", string(out)), slog.String("error", err.Error()))
+		slog.Error("new binary verification failed", slog.String("output", string(out)), slog.Any("error", err))
 		// Restore the backup since the new binary is broken.
 		if restoreErr := os.Rename(backupPath, currentPath); restoreErr != nil {
 			return fmt.Errorf("new binary verification failed (%w), and restore failed (%w); backup at %s", err, restoreErr, backupPath)
@@ -340,7 +342,7 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 
 	// Try to clean up the backup (non-fatal if it fails).
 	if err := os.Remove(backupPath); err != nil {
-		slog.Debug("failed to remove backup", slog.String("path", backupPath), slog.String("error", err.Error()))
+		slog.Debug("failed to remove backup", slog.String("path", backupPath), slog.Any("error", err))
 	}
 
 	fmt.Println()
@@ -641,7 +643,7 @@ func writeBinaryFile(path string, data []byte) error {
 	}
 
 	// Write with executable permissions.
-	if err := os.WriteFile(path, data, 0755); err != nil {
+	if err := os.WriteFile(path, data, 0o755); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

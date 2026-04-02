@@ -269,7 +269,7 @@ func executeThemesShow(themeName string) error {
 
 	fmt.Println("Customization:")
 	fmt.Printf("  Create 'themes/%s/' in your project to customize this theme.\n", thm.name)
-	fmt.Printf("  Reference: https://github.com/yeasy/mdpress/tree/main/docs/themes\n")
+	fmt.Printf("  Reference: https://github.com/yeasy/mdpress/tree/main/docs/manual/en/themes\n")
 	fmt.Println()
 
 	return nil
