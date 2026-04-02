@@ -15,7 +15,7 @@ func TestParseSummaryBasic(t *testing.T) {
 * [Chapter 1](ch01.md)
 * [Chapter 2](ch02.md)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -45,7 +45,7 @@ func TestParseSummaryNested(t *testing.T) {
     * [Sub 1.2.1](part1/sub.md)
 * [Part 2](part2/README.md)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -67,7 +67,7 @@ func TestParseSummaryNested(t *testing.T) {
 func TestParseSummaryEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
-	if err := os.WriteFile(path, []byte("# Summary\n\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("# Summary\n\n"), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestParseSummarySkipAnchors(t *testing.T) {
 	content := `* [Intro](#intro)
 * [Chapter 1](ch01.md)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -110,7 +110,7 @@ func TestParseSummaryWithTabs(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "SUMMARY.md")
 	content := "* [A](a.md)\n\t* [B](b.md)\n"
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -133,19 +133,19 @@ func TestLoadWithSummary(t *testing.T) {
 	yaml := `book:
   title: "Test"
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 		t.Fatalf("write book.yaml failed: %v", err)
 	}
 
 	// SUMMARY.md provides chapters
 	summary := "* [Intro](intro.md)\n* [Ch1](ch1.md)\n"
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 			t.Fatalf("write chapter file failed: %v", err)
 		}
 	}
@@ -162,15 +162,15 @@ func TestLoadWithSummary(t *testing.T) {
 func TestLoadDetectsGlossary(t *testing.T) {
 	dir := t.TempDir()
 	yaml := "book:\n  title: Test\nchapters:\n  - title: ch\n    file: ch.md\n"
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 		t.Fatalf("write book.yaml failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nfoo\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nfoo\n"), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0o644); err != nil {
 		t.Fatalf("write chapter file failed: %v", err)
 	}
 
@@ -194,7 +194,7 @@ func TestParseSummarySpecialChars(t *testing.T) {
 * [Quote "marks"](ch3.md)
 * [Math: a & b](ch4.md)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -231,7 +231,7 @@ func TestParseSummaryDeepNesting(t *testing.T) {
       * [Level 4](l4.md)
         * [Level 5](l5.md)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -286,7 +286,7 @@ func TestParseSummaryMixedIndent(t *testing.T) {
 	path := filepath.Join(dir, "SUMMARY.md")
 	// Mixed spaces and tabs - first level 2 spaces, second level 1 tab (counts as 2 spaces)
 	content := "* [Part A](a.md)\n  * [Section A1](a1.md)\n\t* [Section A2](a2.md)\n* [Part B](b.md)\n"
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -380,7 +380,7 @@ Another item
 
 And some more content...
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 

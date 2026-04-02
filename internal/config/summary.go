@@ -14,6 +14,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -28,6 +29,17 @@ var listItemLinkPattern = regexp.MustCompile(`^[*+\-]\s+\[([^\]]+)\]\(([^)]+)\)\
 // ParseSummary parses chapter definitions from SUMMARY.md.
 // Nesting is expressed with indentation: two spaces or one tab per level.
 func ParseSummary(path string) ([]ChapterDef, error) {
+	// Limit file size to guard against malformed or malicious inputs.
+	// Check size via os.Stat before reading to avoid loading large files into memory.
+	const maxSummarySize = 10 * 1024 * 1024 // 10MB
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat SUMMARY.md: %w", err)
+	}
+	if info.Size() > int64(maxSummarySize) {
+		return nil, fmt.Errorf("SUMMARY.md is too large (%d bytes; max allowed is %d bytes)", info.Size(), maxSummarySize)
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SUMMARY.md: %w", err)
@@ -42,7 +54,9 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 	}
 	stack := []stackFrame{{indent: -1, list: &chapters}}
 
-	scanner := bufio.NewScanner(f)
+	// Belt-and-suspenders: also limit the reader to guard against TOCTOU
+	// races where the file could grow between Stat and Open.
+	scanner := bufio.NewScanner(io.LimitReader(f, int64(maxSummarySize)+1))
 	lineNum := 0
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -96,6 +110,13 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read SUMMARY.md: %w", err)
+	}
+
+	// Detect silent truncation from LimitReader: if we consumed exactly the
+	// limit, the file may have grown between Stat and Open (TOCTOU).
+	var probe [1]byte
+	if _, readErr := io.ReadFull(io.LimitReader(f, 1), probe[:]); readErr == nil {
+		return nil, fmt.Errorf("SUMMARY.md exceeds size limit (%d bytes)", maxSummarySize)
 	}
 
 	return chapters, nil
