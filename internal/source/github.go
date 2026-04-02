@@ -63,12 +63,20 @@ func (s *GitHubSource) Prepare() (string, error) {
 
 	// Validate owner and repo names to avoid command injection.
 	if !safeNameRegex.MatchString(s.owner) {
-		os.RemoveAll(s.tempDir)
+		if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
+			slog.Warn("Failed to clean up temporary directory",
+				slog.String("dir", s.tempDir),
+				slog.Any("error", rmErr))
+		}
 		s.tempDir = ""
 		return "", fmt.Errorf("invalid repository owner: %q", s.owner)
 	}
 	if !safeNameRegex.MatchString(s.repo) {
-		os.RemoveAll(s.tempDir)
+		if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
+			slog.Warn("Failed to clean up temporary directory",
+				slog.String("dir", s.tempDir),
+				slog.Any("error", rmErr))
+		}
 		s.tempDir = ""
 		return "", fmt.Errorf("invalid repository name: %q", s.repo)
 	}
@@ -90,7 +98,11 @@ func (s *GitHubSource) Prepare() (string, error) {
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
 		if !branchRegex.MatchString(s.opts.Branch) {
-			os.RemoveAll(s.tempDir)
+			if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
+				slog.Warn("Failed to clean up temporary directory",
+					slog.String("dir", s.tempDir),
+					slog.Any("error", rmErr))
+			}
 			s.tempDir = ""
 			return "", fmt.Errorf("invalid branch name: %q", s.opts.Branch)
 		}
@@ -125,7 +137,7 @@ func (s *GitHubSource) Prepare() (string, error) {
 		}
 		// Clean up the clone directory on failure.
 		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-			slog.Warn("Failed to clean up temporary directory after clone failure", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+			slog.Warn("Failed to clean up temporary directory after clone failure", slog.String("dir", tempDir), slog.Any("error", rmErr))
 		}
 		s.tempDir = ""
 		hint := ""
@@ -163,7 +175,7 @@ func (s *GitHubSource) Prepare() (string, error) {
 		cleanSubDir := filepath.Clean(s.opts.SubDir)
 		if filepath.IsAbs(cleanSubDir) || strings.HasPrefix(cleanSubDir, "..") {
 			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
 			}
 			s.tempDir = ""
 			return "", fmt.Errorf("unsafe subdirectory path: %q", s.opts.SubDir)
@@ -172,14 +184,14 @@ func (s *GitHubSource) Prepare() (string, error) {
 		info, err := os.Stat(targetDir)
 		if err != nil {
 			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
 			}
 			s.tempDir = ""
 			return "", fmt.Errorf("requested subdirectory does not exist in the repository: %s", s.opts.SubDir)
 		}
 		if !info.IsDir() {
 			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.String("error", rmErr.Error()))
+				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
 			}
 			s.tempDir = ""
 			return "", fmt.Errorf("requested subdirectory is not a directory: %s", s.opts.SubDir)

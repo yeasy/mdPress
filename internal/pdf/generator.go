@@ -570,7 +570,7 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 	}
 	go func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Debug("Font server error", slog.String("error", err.Error()))
+			slog.Debug("Font server error", slog.Any("error", err))
 		}
 	}()
 	return &fontServer{
@@ -584,7 +584,7 @@ func (fs *fontServer) Close() {
 	// server.Close() already closes the underlying listener, so we only
 	// need to close the server itself.
 	if err := fs.server.Close(); err != nil {
-		slog.Debug("Failed to close font server", slog.String("error", err.Error()))
+		slog.Debug("Failed to close font server", slog.Any("error", err))
 	}
 }
 
@@ -620,7 +620,7 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	if err != nil {
 		// Fall back to file-based approach if HTTP server fails.
 		slog.Warn("Failed to start font server, falling back to file:// approach",
-			slog.String("error", err.Error()))
+			slog.Any("error", err))
 		return g.generateFromString(htmlContent, outputPath)
 	}
 	defer srv.Close() //nolint:errcheck
@@ -635,7 +635,7 @@ func (g *Generator) generateFromString(htmlContent string, outputPath string) er
 		return fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := tmpFile.WriteString(htmlContent); err != nil {
 		tmpFile.Close() //nolint:errcheck
@@ -823,7 +823,7 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 		return fmt.Errorf("failed to generate PDF with Chrome at %q: %w", chromePath, err)
 	}
 
-	if err := os.WriteFile(outputPath, pdfBuf, 0644); err != nil {
+	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
 		return fmt.Errorf("failed to write PDF file: %w", err)
 	}
 
@@ -993,7 +993,7 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 		xdgCache:  filepath.Join(root, "xdg-cache"),
 		cleanup: func() {
 			if err := os.RemoveAll(root); err != nil {
-				slog.Debug("Failed to clean up Chrome runtime directory", slog.String("dir", root), slog.String("error", err.Error()))
+				slog.Debug("Failed to clean up Chrome runtime directory", slog.String("dir", root), slog.Any("error", err))
 			}
 		},
 	}
@@ -1028,7 +1028,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	}).String()
 	tmpOutput := outputPath + ".tmp"
 	if err := os.Remove(tmpOutput); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		slog.Debug("Failed to remove temporary PDF output file", slog.String("file", tmpOutput), slog.String("error", err.Error()))
+		slog.Debug("Failed to remove temporary PDF output file", slog.String("file", tmpOutput), slog.Any("error", err))
 	}
 
 	args := []string{
@@ -1056,7 +1056,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	cmd.Stderr = lw
 	err := cmd.Run()
 	if err != nil {
-		os.Remove(tmpOutput) // clean up temp file on failure
+		_ = os.Remove(tmpOutput) // clean up temp file on failure
 		details := strings.TrimSpace(combinedBuf.String())
 		if details != "" {
 			return fmt.Errorf("chrome CLI fallback failed: %w\nchrome output:\n%s", err, details)
@@ -1065,7 +1065,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	}
 	info, err := os.Stat(tmpOutput)
 	if err != nil || info.Size() == 0 {
-		os.Remove(tmpOutput) // clean up empty/missing temp file
+		_ = os.Remove(tmpOutput) // clean up empty/missing temp file
 		return errors.New("chrome CLI fallback did not produce a PDF")
 	}
 	if err := os.Rename(tmpOutput, outputPath); err != nil {
