@@ -24,6 +24,8 @@ const (
 	maxPlantUMLScanSize = 1024 * 1024
 	// networkCheckTimeout is the timeout for the network connectivity check.
 	networkCheckTimeout = 5 * time.Second
+	// dfCommandTimeout is the timeout for the local df command used to check disk space.
+	dfCommandTimeout = 5 * time.Second
 )
 
 var doctorReportPath string
@@ -35,7 +37,7 @@ var doctorCmd = &cobra.Command{
   - Runtime platform information
   - Go runtime version (informational)
   - Chrome/Chromium availability for PDF output
-  - Go version (>=1.25 recommended)
+  - Go version (>=1.26 recommended)
   - Git availability for remote source builds
   - Network connectivity to github.com
   - Disk space in output directory
@@ -261,7 +263,7 @@ func checkGoVersion(report *doctorReport) {
 	version := runtime.Version()
 	report.GoVersionCheck = version
 
-	// Extract version number (e.g., "go1.25.0" -> "1.25.0")
+	// Extract version number (e.g., "go1.26.0" -> "1.26.0")
 	versionStr := strings.TrimPrefix(version, "go")
 	parts := strings.Split(versionStr, ".")
 	if len(parts) < 2 {
@@ -269,28 +271,28 @@ func checkGoVersion(report *doctorReport) {
 		return
 	}
 
-	// Check if major.minor >= 1.25
-	major, minorErr := utils.ParseVersionPart(parts[0])
+	// Check if major.minor >= 1.26
+	major, majorErr := utils.ParseVersionPart(parts[0])
+	if majorErr != nil {
+		if verbose {
+			utils.Warning("Could not parse Go major version: %v", majorErr)
+		}
+		return
+	}
+
+	minor, minorErr := utils.ParseVersionPart(parts[1])
 	if minorErr != nil {
 		if verbose {
-			utils.Warning("Could not parse Go major version: %v", minorErr)
+			utils.Warning("Could not parse Go minor version: %v", minorErr)
 		}
 		return
 	}
 
-	minor, patchErr := utils.ParseVersionPart(parts[1])
-	if patchErr != nil {
-		if verbose {
-			utils.Warning("Could not parse Go minor version: %v", patchErr)
-		}
-		return
-	}
-
-	if major > 1 || (major == 1 && minor >= 25) {
-		utils.Success("Go version %s (>= 1.25)", versionStr)
+	if major > 1 || (major == 1 && minor >= 26) {
+		utils.Success("Go version %s (>= 1.26)", versionStr)
 	} else {
-		utils.Warning("Go version %s (< 1.25) — some features may not work as expected", versionStr)
-		report.Warnings = append(report.Warnings, fmt.Sprintf("Go version %s is below recommended 1.25", versionStr))
+		utils.Warning("Go version %s (< 1.26) — some features may not work as expected", versionStr)
+		report.Warnings = append(report.Warnings, fmt.Sprintf("Go version %s is below recommended 1.26", versionStr))
 	}
 }
 
@@ -339,7 +341,7 @@ func checkNetworkConnectivity(parentCtx context.Context, report *doctorReport) {
 }
 
 func checkDiskSpace(ctx context.Context, targetDir string, cfg *config.BookConfig, report *doctorReport) {
-	outputDir := filepath.Join(targetDir, "output")
+	outputDir := filepath.Join(targetDir, "_book")
 
 	// Use loaded config to get the output directory if available.
 	if cfg != nil && cfg.Output.Filename != "" {
@@ -366,7 +368,7 @@ func checkDiskSpace(ctx context.Context, targetDir string, cfg *config.BookConfi
 
 	// Get disk space using the df command (works on macOS, Linux, and most Unix systems).
 	// On Windows this will fail gracefully and we skip the check.
-	dfCtx, dfCancel := context.WithTimeout(ctx, 5*time.Second)
+	dfCtx, dfCancel := context.WithTimeout(ctx, dfCommandTimeout)
 	defer dfCancel()
 	// Sanitize: if outputDir starts with "-", prefix with "./" to avoid flag injection.
 	// Note: "--" is not portable to macOS/BSD df.
@@ -475,7 +477,7 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 }
 
 func isExecutable(mode os.FileMode) bool {
-	return (mode & 0111) != 0
+	return (mode & 0o111) != 0
 }
 
 func isPluginExecutable(path string, mode os.FileMode) bool {
@@ -645,9 +647,9 @@ func writeDoctorReport(path string, report doctorReport) error {
 		if err != nil {
 			return fmt.Errorf("marshal report: %w", err)
 		}
-		return os.WriteFile(absPath, data, 0644)
+		return os.WriteFile(absPath, data, 0o644)
 	case ".md":
-		return os.WriteFile(absPath, []byte(renderDoctorMarkdown(report)), 0644)
+		return os.WriteFile(absPath, []byte(renderDoctorMarkdown(report)), 0o644)
 	default:
 		return fmt.Errorf("unsupported report extension: %s (use .json or .md)", filepath.Ext(absPath))
 	}

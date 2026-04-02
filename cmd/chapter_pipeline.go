@@ -146,7 +146,11 @@ func (p *chapterPipeline) parseChaptersParallel(
 					slog.Error("chapter parsing worker panicked", slog.Any("panic", r))
 					mu.Lock()
 					if firstErr == nil {
-						firstErr = fmt.Errorf("worker panic: %v", r)
+						if err, ok := r.(error); ok {
+							firstErr = fmt.Errorf("worker panic: %w", err)
+						} else {
+							firstErr = fmt.Errorf("worker panic: %v", r)
+						}
 					}
 					mu.Unlock()
 				}
@@ -252,7 +256,7 @@ func (p *chapterPipeline) parseChapterWorker(
 	// Read file
 	content, err := utils.ReadFile(chapterPath)
 	if err != nil {
-		p.Logger.Warn("failed to read chapter", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		p.Logger.Warn("failed to read chapter", slog.String("file", chDef.File), slog.Any("error", err))
 		job.err = fmt.Errorf("failed to read chapter %q: %w", chDef.File, err)
 		return
 	}
@@ -271,14 +275,14 @@ func (p *chapterPipeline) parseChapterWorker(
 
 	switch {
 	case cacheErr != nil:
-		p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.String("error", cacheErr.Error()))
+		p.Logger.Debug("Parsed chapter cache read failed", slog.String("file", chDef.File), slog.Any("error", cacheErr))
 		fallthrough
 	case !cacheHit:
 		// Parse markdown
 		var parseErr error
 		htmlContent, headings, diagnostics, parseErr = workerParser.ParseWithDiagnostics(content)
 		if parseErr != nil {
-			p.Logger.Warn("failed to parse Markdown", slog.String("file", chDef.File), slog.String("error", parseErr.Error()))
+			p.Logger.Warn("failed to parse Markdown", slog.String("file", chDef.File), slog.Any("error", parseErr))
 			job.err = fmt.Errorf("failed to parse chapter %q: %w", chDef.File, parseErr)
 			return
 		}
@@ -287,7 +291,7 @@ func (p *chapterPipeline) parseChapterWorker(
 			Headings:    headings,
 			Diagnostics: diagnostics,
 		}); storeErr != nil {
-			p.Logger.Debug("Parsed chapter cache write failed", slog.String("file", chDef.File), slog.String("error", storeErr.Error()))
+			p.Logger.Debug("Parsed chapter cache write failed", slog.String("file", chDef.File), slog.Any("error", storeErr))
 		}
 	default:
 		// Cache hit
@@ -301,7 +305,7 @@ func (p *chapterPipeline) parseChapterWorker(
 	imageOptions.Logger = p.Logger
 	processedHTML, err := utils.ProcessImagesWithOptions(htmlContent, chapterDir, imageOptions)
 	if err != nil {
-		p.Logger.Warn("failed to process images", slog.String("file", chDef.File), slog.String("error", err.Error()))
+		p.Logger.Warn("failed to process images", slog.String("file", chDef.File), slog.Any("error", err))
 		p.Logger.Warn("using original HTML without image processing", slog.String("file", chDef.File))
 	} else {
 		htmlContent = processedHTML
@@ -420,7 +424,7 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 			Metadata:     make(map[string]any),
 		}
 		if err := p.PluginManager.RunHook(hookCtx); err != nil {
-			p.Logger.Warn("afterParse plugin hook failed", slog.String("file", chDef.File), slog.String("error", err.Error()))
+			p.Logger.Warn("afterParse plugin hook failed", slog.String("file", chDef.File), slog.Any("error", err))
 		} else if hookCtx.Content != "" {
 			htmlContent = hookCtx.Content
 		}

@@ -47,7 +47,7 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 	if err != nil {
 		logger.Warn("failed to stat custom CSS file, falling back to default theme styles",
 			slog.String("path", cssPath),
-			slog.String("error", err.Error()))
+			slog.Any("error", err))
 		return ""
 	}
 	if info.Size() > int64(maxCustomCSSSize) {
@@ -61,7 +61,7 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 	if err != nil {
 		logger.Warn("failed to load custom CSS, falling back to default theme styles",
 			slog.String("path", cssPath),
-			slog.String("error", err.Error()))
+			slog.Any("error", err))
 		return ""
 	}
 	logger.Debug("Loaded custom CSS", slog.String("path", cssPath))
@@ -134,7 +134,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	cacheDir := filepath.Join(utils.CacheRootDir(), "build")
 	manifest, manifestErr := loadManifest(cacheDir)
 	if manifestErr != nil {
-		slog.Warn("failed to load build manifest, starting fresh", slog.String("error", manifestErr.Error()))
+		slog.Warn("failed to load build manifest, starting fresh", slog.Any("error", manifestErr))
 	}
 	if manifest == nil {
 		manifest = newBuildManifest(Version)
@@ -340,14 +340,14 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Release plugin resources.
 	if err := orchestrator.PluginManager.CleanupAll(); err != nil {
-		logger.Warn("plugin cleanup failed", slog.String("error", err.Error()))
+		logger.Warn("plugin cleanup failed", slog.Any("error", err))
 	}
 
 	// Save the build manifest for incremental builds
 	manifest.ConfigSH = configHash
 	manifest.CSSHash = cssHash
 	if err := saveManifest(cacheDir, manifest); err != nil {
-		logger.Warn("failed to save build manifest", slog.String("error", err.Error()))
+		logger.Warn("failed to save build manifest", slog.Any("error", err))
 	}
 
 	progress.Done()
@@ -441,7 +441,7 @@ func runPluginHook(mgr *plugin.Manager, hookCtx *plugin.HookContext, logger *slo
 	if err := mgr.RunHook(hookCtx); err != nil {
 		logger.Warn("plugin hook failed",
 			slog.String("phase", string(hookCtx.Phase)),
-			slog.String("error", err.Error()))
+			slog.Any("error", err))
 	}
 }
 
@@ -764,6 +764,7 @@ func deriveOutputFilename(cfg *config.BookConfig) string {
 var filenameReplacer = strings.NewReplacer(
 	"/", "_", "\\", "_", ":", "_", "*", "_",
 	"?", "_", "\"", "_", "<", "_", ">", "_", "|", "_",
+	"\x00", "",
 )
 
 // sanitizeBookFilename strips characters that are invalid in file system names.
@@ -772,9 +773,6 @@ func sanitizeBookFilename(s string) string {
 	if !strings.ContainsFunc(result, func(r rune) bool {
 		return unicode.IsLetter(r) || unicode.IsNumber(r)
 	}) {
-		return "output"
-	}
-	if result == "" {
 		return "output"
 	}
 	return result
@@ -930,6 +928,7 @@ func writeMultilingualLandingPage(rootDir string, outputOverride string, summari
 		return fmt.Errorf("close temp landing page: %w", err)
 	}
 	if err := os.Rename(tmpPath, landingPath); err != nil {
+		os.Remove(tmpPath) //nolint:errcheck
 		return fmt.Errorf("install landing page: %w", err)
 	}
 	return nil
@@ -1030,7 +1029,7 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 	if updated == string(content) {
 		return nil
 	}
-	return os.WriteFile(targetPath, []byte(updated), 0644)
+	return os.WriteFile(targetPath, []byte(updated), 0o644)
 }
 
 func injectBannerIntoSite(siteDir string, bannerHTML string) error {

@@ -36,13 +36,13 @@ chapters:
     file: "ch1.md"
 `
 	bookPath := filepath.Join(tmpDir, "book.yaml")
-	if err := os.WriteFile(bookPath, []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(bookPath, []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create the chapter file so config can load successfully
 	chPath := filepath.Join(tmpDir, "ch1.md")
-	if err := os.WriteFile(chPath, []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(chPath, []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -62,15 +62,15 @@ func TestDoctorWithSummaryMD(t *testing.T) {
 - [Chapter 1](ch01.md)
 `
 	summaryPath := filepath.Join(tmpDir, "SUMMARY.md")
-	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
 	// Create the referenced files
-	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Intro"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Intro"), 0o644); err != nil {
 		t.Fatalf("failed to write README.md: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -104,15 +104,15 @@ chapters:
     file: "ch1.md"
 `
 	bookPath := filepath.Join(tmpDir, "book.yaml")
-	if err := os.WriteFile(bookPath, []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(bookPath, []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "preface.md"), []byte("# Preface"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "preface.md"), []byte("# Preface"), 0o644); err != nil {
 		t.Fatalf("failed to write preface.md: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write ch1.md: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestDoctorWithLangsFile(t *testing.T) {
 - [中文](zh/)
 `
 	langsPath := filepath.Join(tmpDir, "LANGS.md")
-	if err := os.WriteFile(langsPath, []byte(langsContent), 0644); err != nil {
+	if err := os.WriteFile(langsPath, []byte(langsContent), 0o644); err != nil {
 		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
@@ -166,11 +166,11 @@ chapters:
     file: "ch1.md"
 `
 	bookPath := filepath.Join(tmpDir, "book.yaml")
-	if err := os.WriteFile(bookPath, []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(bookPath, []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -258,7 +258,7 @@ func TestSearchPlantUMLInDir_NoPlantUML(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create markdown files without plantuml blocks
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("# Test\n\nNo diagrams here"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("# Test\n\nNo diagrams here"), 0o644); err != nil {
 		t.Fatalf("failed to write test.md: %v", err)
 	}
 
@@ -283,7 +283,7 @@ Server -> Actor: Response
 
 Done.`
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "diagram.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "diagram.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write diagram.md: %v", err)
 	}
 
@@ -299,13 +299,13 @@ func TestSearchPlantUMLInDir_Nested(t *testing.T) {
 
 	// Create nested directory structure
 	nestedDir := filepath.Join(tmpDir, "docs", "diagrams")
-	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
 		t.Fatalf("failed to create nested directory: %v", err)
 	}
 
 	// Create a file with plantuml block deep in the tree
 	content := "# Architecture\n\n" + "```" + "plantuml\n@startuml\nComponent A\n@enduml\n" + "```"
-	if err := os.WriteFile(filepath.Join(nestedDir, "arch.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(nestedDir, "arch.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write arch.md: %v", err)
 	}
 
@@ -321,12 +321,12 @@ func TestSearchPlantUMLInDir_SkipsHidden(t *testing.T) {
 
 	// Create hidden directory with plantuml block
 	hiddenDir := filepath.Join(tmpDir, ".hidden")
-	if err := os.MkdirAll(hiddenDir, 0755); err != nil {
+	if err := os.MkdirAll(hiddenDir, 0o755); err != nil {
 		t.Fatalf("failed to create hidden directory: %v", err)
 	}
 
 	content := "```" + "plantuml\ndiagram\n" + "```"
-	if err := os.WriteFile(filepath.Join(hiddenDir, "secret.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(hiddenDir, "secret.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write secret.md: %v", err)
 	}
 
@@ -342,12 +342,12 @@ func TestSearchPlantUMLInDir_SkipsNodeModules(t *testing.T) {
 
 	// Create node_modules directory with plantuml block
 	nodeModulesDir := filepath.Join(tmpDir, "node_modules")
-	if err := os.MkdirAll(nodeModulesDir, 0755); err != nil {
+	if err := os.MkdirAll(nodeModulesDir, 0o755); err != nil {
 		t.Fatalf("failed to create node_modules directory: %v", err)
 	}
 
 	content := "```" + "plantuml\ndiagram\n" + "```"
-	if err := os.WriteFile(filepath.Join(nodeModulesDir, "package.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(nodeModulesDir, "package.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write package.md: %v", err)
 	}
 
@@ -368,7 +368,7 @@ func TestHasPlantUMLBlocks(t *testing.T) {
 
 	// Add plantuml block
 	content := "```" + "plantuml\n@startuml\n@enduml\n" + "```"
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test.md: %v", err)
 	}
 
@@ -414,7 +414,7 @@ func TestRenderDoctorMarkdown(t *testing.T) {
 			name: "with_warnings",
 			report: doctorReport{
 				Platform:  "darwin/arm64",
-				GoVersion: "go1.25.0",
+				GoVersion: "go1.26.1",
 				Warnings: []string{
 					"Chromium not available",
 					"No CJK fonts detected",
@@ -632,7 +632,7 @@ func TestDoctorPathResolution(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a simple project
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("# Test"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("# Test"), 0o644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
@@ -651,7 +651,7 @@ func TestDoctorWithFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "file.txt")
 
-	if err := os.WriteFile(filePath, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte("test"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -740,12 +740,12 @@ plugins:
   - name: test-plugin
     path: ./plugins/test
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to create book.yaml: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create chapter file: %v", err)
 	}
 
@@ -772,7 +772,7 @@ func TestCheckPluginsWithValidPlugin(t *testing.T) {
 
 	// Create plugin directory
 	pluginDir := filepath.Join(tmpDir, "plugins")
-	if err := os.MkdirAll(pluginDir, 0755); err != nil {
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatalf("failed to create plugins directory: %v", err)
 	}
 
@@ -785,7 +785,7 @@ func TestCheckPluginsWithValidPlugin(t *testing.T) {
 
 	// Create an executable file
 	pluginPath := filepath.Join(pluginDir, pluginName)
-	if err := os.WriteFile(pluginPath, pluginContent, 0755); err != nil {
+	if err := os.WriteFile(pluginPath, pluginContent, 0o755); err != nil {
 		t.Fatalf("failed to create plugin: %v", err)
 	}
 
@@ -799,12 +799,12 @@ plugins:
   - name: test-plugin
     path: ./plugins/` + pluginName + `
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to create book.yaml: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create chapter file: %v", err)
 	}
 
@@ -833,27 +833,27 @@ func TestIsExecutable(t *testing.T) {
 	}{
 		{
 			name:     "executable_file",
-			mode:     0755,
+			mode:     0o755,
 			expected: true,
 		},
 		{
 			name:     "non_executable_file",
-			mode:     0644,
+			mode:     0o644,
 			expected: false,
 		},
 		{
 			name:     "owner_executable",
-			mode:     0700,
+			mode:     0o700,
 			expected: true,
 		},
 		{
 			name:     "group_executable",
-			mode:     0070,
+			mode:     0o070,
 			expected: true,
 		},
 		{
 			name:     "other_executable",
-			mode:     0007,
+			mode:     0o007,
 			expected: true,
 		},
 	}
@@ -872,7 +872,7 @@ func TestScanFileForPlantUML(t *testing.T) {
 	t.Run("file with plantuml block", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.md")
-		if err := os.WriteFile(path, []byte("# Title\n\n```plantuml\nAlice -> Bob\n```\n"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("# Title\n\n```plantuml\nAlice -> Bob\n```\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		if !scanFileForPlantUML(path) {
@@ -883,7 +883,7 @@ func TestScanFileForPlantUML(t *testing.T) {
 	t.Run("file without plantuml", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "test.md")
-		if err := os.WriteFile(path, []byte("# Title\n\nJust text.\n"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("# Title\n\nJust text.\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		if scanFileForPlantUML(path) {
