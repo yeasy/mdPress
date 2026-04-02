@@ -295,7 +295,7 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer r.Close()
+			defer r.Close() //nolint:errcheck
 			os.Stdout = w
 
 			tracker := NewProgressTracker(tt.total)

@@ -611,7 +611,7 @@ func (g *EpubGenerator) collectChapterAssets() ([]EpubChapter, []*epubAsset, err
 	if err != nil {
 		return nil, nil, fmt.Errorf("create temporary EPUB asset directory: %w", err)
 	}
-	defer os.RemoveAll(remoteTempDir)
+	defer func() { _ = os.RemoveAll(remoteTempDir) }()
 	collector := &epubAssetCollector{
 		cache: make(map[string]*epubAsset),
 	}

@@ -109,7 +109,7 @@ func TestGenerateBasicEpub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB as ZIP: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	// Map file names for easy lookup
 	fileMap := make(map[string]*zip.File)
@@ -171,7 +171,7 @@ func TestGenerateEmptyChapters(t *testing.T) {
 		if err != nil {
 			t.Errorf("Generated EPUB with 0 chapters is not a valid ZIP")
 		} else {
-			defer reader.Close()
+			defer reader.Close() //nolint:errcheck
 		}
 	}
 }
@@ -421,7 +421,7 @@ func TestGenerateWithCoverImage(t *testing.T) {
 		0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, // IEND chunk
 		0x42, 0x60, 0x82,
 	}
-	if err := os.WriteFile(coverPath, pngData, 0644); err != nil {
+	if err := os.WriteFile(coverPath, pngData, 0o644); err != nil {
 		t.Fatalf("failed to create test cover image: %v", err)
 	}
 
@@ -450,7 +450,7 @@ func TestGenerateWithCoverImage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	fileMap := make(map[string]*zip.File)
 	for _, f := range r.File {
@@ -504,13 +504,13 @@ func TestGenerateWithMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	opfFile, err := r.Open("OEBPS/content.opf")
 	if err != nil {
 		t.Fatalf("content.opf not found: %v", err)
 	}
-	defer opfFile.Close()
+	defer opfFile.Close() //nolint:errcheck
 
 	opfData, err := io.ReadAll(opfFile)
 	if err != nil {
@@ -568,13 +568,13 @@ func TestGenerateNavDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	navFile, err := r.Open("OEBPS/nav.xhtml")
 	if err != nil {
 		t.Fatalf("nav.xhtml not found: %v", err)
 	}
-	defer navFile.Close()
+	defer navFile.Close() //nolint:errcheck
 
 	navData, err := io.ReadAll(navFile)
 	if err != nil {
@@ -628,13 +628,13 @@ func TestGenerateNCXDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	ncxFile, err := r.Open("OEBPS/toc.ncx")
 	if err != nil {
 		t.Fatalf("toc.ncx not found: %v", err)
 	}
-	defer ncxFile.Close()
+	defer ncxFile.Close() //nolint:errcheck
 
 	ncxData, err := io.ReadAll(ncxFile)
 	if err != nil {
@@ -679,10 +679,10 @@ func TestGeneratePartialFileCleanup(t *testing.T) {
 
 	// Change to a directory we can't write to
 	readOnlyDir := filepath.Join(tmpDir, "readonly")
-	if err := os.Mkdir(readOnlyDir, 0444); err != nil {
+	if err := os.Mkdir(readOnlyDir, 0o444); err != nil {
 		t.Fatalf("failed to create readonly directory: %v", err)
 	}
-	defer os.Chmod(readOnlyDir, 0755) //nolint:errcheck // Restore permissions for cleanup
+	defer os.Chmod(readOnlyDir, 0o755) //nolint:errcheck // Restore permissions for cleanup
 
 	readOnlyPath := filepath.Join(readOnlyDir, "test.epub")
 
@@ -765,7 +765,7 @@ func TestGenerateMultipleChapters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	fileMap := make(map[string]*zip.File)
 	for _, f := range r.File {
@@ -822,7 +822,7 @@ func TestGenerateWithoutCSS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	fileMap := make(map[string]*zip.File)
 	for _, f := range r.File {
@@ -855,13 +855,13 @@ func TestContainerXMLContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	containerFile, err := r.Open("META-INF/container.xml")
 	if err != nil {
 		t.Fatalf("container.xml not found: %v", err)
 	}
-	defer containerFile.Close()
+	defer containerFile.Close() //nolint:errcheck
 
 	containerData, err := io.ReadAll(containerFile)
 	if err != nil {
@@ -901,13 +901,13 @@ func TestGenerateChapterContentInclusion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open EPUB: %v", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	chapterFile, err := r.Open("OEBPS/chapter.xhtml")
 	if err != nil {
 		t.Fatalf("chapter.xhtml not found: %v", err)
 	}
-	defer chapterFile.Close()
+	defer chapterFile.Close() //nolint:errcheck
 
 	chapterData, err := io.ReadAll(chapterFile)
 	if err != nil {
