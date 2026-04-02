@@ -133,7 +133,7 @@ func resolvePluginExecutablePath(execPath string) (string, error) {
 		if info.IsDir() {
 			return "", fmt.Errorf("plugin path %q is a directory, expected an executable", absPath)
 		}
-		if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 			return "", fmt.Errorf("plugin %q is not executable (missing execute permission)", absPath)
 		}
 		return absPath, nil
@@ -198,7 +198,7 @@ func queryPluginMeta(execPath string) (version, description string) {
 
 	out, err := exec.CommandContext(ctx, execPath, "--mdpress-info").Output()
 	if err != nil {
-		slog.Debug("Failed to query plugin metadata", slog.String("path", execPath), slog.String("error", err.Error()))
+		slog.Debug("Failed to query plugin metadata", slog.String("path", execPath), slog.Any("error", err))
 		return "0.1.0", ""
 	}
 

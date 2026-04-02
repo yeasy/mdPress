@@ -120,7 +120,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 	defer func() {
 		if srcCleanup != nil {
 			if err := srcCleanup(); err != nil {
-				logger.Debug("Failed to clean up source", slog.String("error", err.Error()))
+				logger.Debug("Failed to clean up source", slog.Any("error", err))
 			}
 		}
 	}()
@@ -217,24 +217,24 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		// This minimizes the window where no content is available.
 		backupDir := outputDir + ".old"
 		if err := os.RemoveAll(backupDir); err != nil {
-			logger.Debug("Failed to remove previous backup directory", slog.String("dir", backupDir), slog.String("error", err.Error()))
+			logger.Debug("Failed to remove previous backup directory", slog.String("dir", backupDir), slog.Any("error", err))
 		}
 		if err := os.Rename(outputDir, backupDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			logger.Debug("Failed to move previous output aside", slog.String("error", err.Error()))
+			logger.Debug("Failed to move previous output aside", slog.Any("error", err))
 		}
 		if renameErr := os.Rename(tempOutput, outputDir); renameErr != nil {
 			// Restore the previous build if the swap failed.
 			if err := os.Rename(backupDir, outputDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				logger.Debug("Failed to restore previous output", slog.String("error", err.Error()))
+				logger.Debug("Failed to restore previous output", slog.Any("error", err))
 			}
 			if err := os.RemoveAll(tempOutput); err != nil {
-				logger.Debug("Failed to remove temp output directory", slog.String("dir", tempOutput), slog.String("error", err.Error()))
+				logger.Debug("Failed to remove temp output directory", slog.String("dir", tempOutput), slog.Any("error", err))
 			}
 			// Fallback: if rename fails (cross-device), try the direct build.
 			return buildSiteForServe(ctx, newCfg, outputDir, logger)
 		}
 		if err := os.RemoveAll(backupDir); err != nil {
-			logger.Debug("Failed to remove backup directory after swap", slog.String("dir", backupDir), slog.String("error", err.Error()))
+			logger.Debug("Failed to remove backup directory after swap", slog.String("dir", backupDir), slog.Any("error", err))
 		}
 		return nil
 	}
@@ -291,11 +291,11 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 		CustomCSS:    customCSS,
 	})
 	if err != nil {
-		logger.Warn("Failed to generate standalone HTML", slog.String("error", err.Error()))
+		logger.Warn("Failed to generate standalone HTML", slog.Any("error", err))
 	} else {
 		standalonePath := filepath.Join(outputDir, "standalone.html")
-		if writeErr := os.WriteFile(standalonePath, []byte(standaloneHTML), 0644); writeErr != nil {
-			logger.Warn("Failed to write standalone HTML", slog.String("error", writeErr.Error()))
+		if writeErr := os.WriteFile(standalonePath, []byte(standaloneHTML), 0o644); writeErr != nil {
+			logger.Warn("Failed to write standalone HTML", slog.Any("error", writeErr))
 		}
 	}
 

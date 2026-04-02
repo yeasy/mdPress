@@ -102,7 +102,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 		defer func() {
 			if err := src.Cleanup(); err != nil {
-				logger.Debug("Failed to clean up source", slog.String("error", err.Error()))
+				logger.Debug("Failed to clean up source", slog.Any("error", err))
 			}
 		}()
 
@@ -221,7 +221,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	if cfg.LangsFile != "" {
 		langs, langsErr := i18n.ParseLangsFile(cfg.LangsFile)
 		if langsErr != nil {
-			logger.Warn("failed to parse LANGS.md, continuing as a single-language project", slog.String("error", langsErr.Error()))
+			logger.Warn("failed to parse LANGS.md, continuing as a single-language project", slog.Any("error", langsErr))
 		} else if len(langs) > 0 {
 			return executeMultilingualBuild(ctx, workDir, langs, formats, outputOverride, logger)
 		}
