@@ -60,6 +60,10 @@ const (
 	imageDownloadRetryDelay = 1 * time.Second
 	// mimeSniffMaxBytes is the maximum number of bytes used for MIME type detection.
 	mimeSniffMaxBytes = 512
+	// ssrfDNSTimeout is the timeout for DNS resolution in SSRF-safe operations.
+	ssrfDNSTimeout = 5 * time.Second
+	// ssrfDialTimeout is the timeout for TCP dialing in SSRF-safe operations.
+	ssrfDialTimeout = 10 * time.Second
 )
 
 // ssrfSafeTransport validates resolved IP addresses at connection time to prevent
@@ -74,7 +78,7 @@ var ssrfSafeTransport = func() *http.Transport {
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse address %q: %w", addr, err)
 			}
-			resolveCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			resolveCtx, cancel := context.WithTimeout(ctx, ssrfDNSTimeout)
 			defer cancel()
 			ips, err := net.DefaultResolver.LookupHost(resolveCtx, host)
 			if err != nil {
@@ -92,6 +96,11 @@ var ssrfSafeTransport = func() *http.Transport {
 					ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 					return nil, fmt.Errorf("connection to private address %s is not allowed", ipStr)
 				}
+				// Block "this network" (0.0.0.0/8) — on Linux, addresses like 0.0.0.1
+				// can reach localhost services, bypassing the loopback check above.
+				if v4 := ip.To4(); v4 != nil && v4[0] == 0 {
+					return nil, fmt.Errorf("connection to 'this network' address %s is not allowed", ipStr)
+				}
 			}
 			// Connect directly to the first validated IP to avoid a second DNS lookup.
 			if len(ips) == 0 {
@@ -99,7 +108,7 @@ var ssrfSafeTransport = func() *http.Transport {
 			}
 			addr = net.JoinHostPort(ips[0], port)
 		}
-		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, addr)
+		return (&net.Dialer{Timeout: ssrfDialTimeout}).DialContext(ctx, network, addr)
 	}
 	return t
 }()
@@ -595,7 +604,7 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 				dataURI, err := ImageToBase64(localPath)
 				if err != nil {
 					if options.Logger != nil {
-						options.Logger.Warn("Failed to convert remote image to base64", slog.String("src", src), slog.String("error", err.Error()))
+						options.Logger.Warn("Failed to convert remote image to base64", slog.String("src", src), slog.Any("error", err))
 					}
 					return match
 				}
@@ -648,7 +657,7 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 	}
 	if err := EnsureDir(options.CacheDir); err != nil {
 		if options.Logger != nil {
-			options.Logger.Debug("Failed to ensure cache directory exists", slog.String("dir", options.CacheDir), slog.String("error", err.Error()))
+			options.Logger.Debug("Failed to ensure cache directory exists", slog.String("dir", options.CacheDir), slog.Any("error", err))
 		}
 		return nil
 	}
@@ -677,7 +686,7 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 			localPath, err := DownloadImage(src, options.CacheDir)
 			if err != nil {
 				if logger != nil {
-					logger.Warn("Failed to download remote image, keeping original URL", slog.String("src", src), slog.String("error", err.Error()))
+					logger.Warn("Failed to download remote image, keeping original URL", slog.String("src", src), slog.Any("error", err))
 				}
 				return
 			}
@@ -787,7 +796,7 @@ func CheckURLNotPrivate(u *url.URL) error {
 	}
 
 	// Resolve and check IP addresses (with timeout to prevent DNS hang).
-	dnsCtx, dnsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dnsCtx, dnsCancel := context.WithTimeout(context.Background(), ssrfDNSTimeout)
 	defer dnsCancel()
 	ips, err := net.DefaultResolver.LookupHost(dnsCtx, host)
 	if err != nil {
@@ -805,6 +814,11 @@ func CheckURLNotPrivate(u *url.URL) error {
 		}
 		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return fmt.Errorf("requests to private/internal address %s are not allowed", ipStr)
+		}
+		// Block "this network" (0.0.0.0/8) — on Linux, addresses like 0.0.0.1
+		// can reach localhost services, bypassing the loopback check above.
+		if v4 := ip.To4(); v4 != nil && v4[0] == 0 {
+			return fmt.Errorf("requests to 'this network' address %s are not allowed", ipStr)
 		}
 	}
 	return nil
