@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.25.x']
+        go-version: ['1.26']
 
     steps:
     - name: Check out code
@@ -60,7 +60,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: '1.25.0'
+        go-version: '1.26'
 
     - name: Build binary
       run: go build -v -o mdpress .
@@ -98,9 +98,9 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: '1.25.0'
+        go-version: '1.26'
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v9
       with:
-        version: v2.11.3
+        version: v2.11.4

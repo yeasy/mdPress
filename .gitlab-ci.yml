@@ -28,7 +28,7 @@ variables:
 
 lint:
   stage: lint
-  image: golangci/golangci-lint:v2.11.3
+  image: golangci/golangci-lint:v2.11.4
   <<: *go-cache
   script:
     - golangci-lint run ./...
@@ -44,25 +44,23 @@ lint:
     - go vet ./...
     - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
   artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage.txt
+    paths:
+      - coverage.txt
     when: always
 
-test:go-1.25:
+test:go-1.26:
   <<: *test-template
-  image: golang:1.25
+  image: golang:1.26
   coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
 
 # --- Build ---
 
 build:
   stage: build
-  image: golang:1.25
+  image: golang:1.26
   <<: *go-cache
   needs:
-    - test:go-1.25
+    - test:go-1.26
   script:
     - go build -v -o mdpress .
     - ./mdpress --help
