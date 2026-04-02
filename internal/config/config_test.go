@@ -68,15 +68,15 @@ output:
   toc: false
   cover: false
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test config file: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch02.md"), []byte("# Chapter 2"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch02.md"), []byte("# Chapter 2"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -130,7 +130,7 @@ func TestLoadInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "book.yaml")
 	content := `invalid yaml: [broken: {`
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
@@ -193,7 +193,7 @@ func TestValidateInvalidPageSize(t *testing.T) {
 func TestValidateValidPageSizes(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create a chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -313,12 +313,12 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -348,13 +348,13 @@ chapters:
       - title: "Section 1.2"
         file: "s2.md"
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"part1.md", "s1.md", "s2.md"} {
-		if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("# Section"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("# Section"), 0o644); err != nil {
 			t.Fatalf("failed to create file: %v", err)
 		}
 	}
@@ -384,12 +384,12 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -414,7 +414,7 @@ chapters:
 func TestValidateTableDriven(t *testing.T) {
 	// Create temp directory and file for successful validation cases
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -550,12 +550,12 @@ output:
   toc: false
   cover: false
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -608,12 +608,12 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -623,7 +623,7 @@ chapters:
 - [English](en/)
 - [中文](zh/)
 `
-	if err := os.WriteFile(langsPath, []byte(langsContent), 0644); err != nil {
+	if err := os.WriteFile(langsPath, []byte(langsContent), 0o644); err != nil {
 		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
@@ -818,11 +818,11 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -834,7 +834,7 @@ Definition 1
 ## Term 2
 Definition 2
 `
-	if err := os.WriteFile(glossaryPath, []byte(glossaryContent), 0644); err != nil {
+	if err := os.WriteFile(glossaryPath, []byte(glossaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write GLOSSARY.md: %v", err)
 	}
 
@@ -874,7 +874,7 @@ func TestValidateMissingChapterFile(t *testing.T) {
 func TestValidateNestedChaptersMissingFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Create main chapter file but not sub-chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "main.md"), []byte("# Main"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.md"), []byte("# Main"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -900,7 +900,7 @@ func TestValidateNestedChaptersMissingFile(t *testing.T) {
 // TestValidateInvalidTheme tests invalid theme validation
 func TestValidateInvalidTheme(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -922,7 +922,7 @@ func TestValidateInvalidTheme(t *testing.T) {
 // TestValidateInvalidOutputFormat tests invalid output format validation
 func TestValidateInvalidOutputFormat(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -948,7 +948,7 @@ func TestLoadFromSummaryMD(t *testing.T) {
 book:
   title: "Test Book"
 `
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
@@ -959,15 +959,15 @@ book:
 - [Chapter 1](ch1.md)
 - [Chapter 2](ch2.md)
 `
-	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(summaryPath, []byte(summaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch2.md"), []byte("# Chapter 2"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch2.md"), []byte("# Chapter 2"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -987,7 +987,7 @@ func TestLoadEmptyInput(t *testing.T) {
 	cfgPath := filepath.Join(tmpDir, "book.yaml")
 
 	// Create empty config file
-	if err := os.WriteFile(cfgPath, []byte(""), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(""), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
@@ -1013,11 +1013,11 @@ plugins:
     config:
       warn_threshold: 500
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -1095,12 +1095,12 @@ output:
   watermark: "CONFIDENTIAL"
   watermark_opacity: 0.2
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test config file: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -1136,12 +1136,12 @@ output:
   margin_left: "30mm"
   margin_right: "35mm"
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test config file: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 
@@ -1180,12 +1180,12 @@ chapters:
 output:
   generate_bookmarks: false
 `
-	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write test config file: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch01.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter file: %v", err)
 	}
 

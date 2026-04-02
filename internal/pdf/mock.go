@@ -27,7 +27,7 @@ func (m *mockGenerator) Generate(htmlContent string, outputPath string) error {
 		return m.GenerateError
 	}
 	// Write a minimal PDF file (just the header)
-	return os.WriteFile(outputPath, []byte("%PDF-1.4\n%%EOF\n"), 0644)
+	return os.WriteFile(outputPath, []byte("%PDF-1.4\n%%EOF\n"), 0o644)
 }
 
 // GenerateFromFile reads the HTML file and calls Generate with its content.

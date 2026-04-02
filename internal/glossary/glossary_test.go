@@ -21,7 +21,7 @@ A lightweight markup language.
 ## GFM
 GitHub Flavored Markdown, an extension of Markdown.
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
@@ -48,7 +48,7 @@ A platform for building,
 shipping, and running
 applications in containers.
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
@@ -67,7 +67,7 @@ applications in containers.
 func TestParseFileEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "GLOSSARY.md")
-	if err := os.WriteFile(path, []byte("# Glossary\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("# Glossary\n"), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 

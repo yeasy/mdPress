@@ -65,11 +65,11 @@ func TestLocalSource_PermissionDenied(t *testing.T) {
 	// Create directory without read permission
 	tempDir := t.TempDir()
 	noReadDir := filepath.Join(tempDir, "noperm")
-	if err := os.MkdirAll(noReadDir, 0000); err != nil {
+	if err := os.MkdirAll(noReadDir, 0o000); err != nil {
 		t.Fatalf("failed to create no-permission directory: %v", err)
 	}
 	defer func() {
-		if err := os.Chmod(noReadDir, 0755); err != nil {
+		if err := os.Chmod(noReadDir, 0o755); err != nil {
 			t.Logf("failed to restore directory permissions: %v", err)
 		}
 	}()
@@ -90,7 +90,7 @@ func TestLocalSource_SymlinkPath(t *testing.T) {
 
 	// Create actual directory
 	realDir := filepath.Join(tempDir, "real")
-	if err := os.MkdirAll(realDir, 0755); err != nil {
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
 		t.Fatalf("failed to create real directory: %v", err)
 	}
 
@@ -122,11 +122,11 @@ func TestLocalSource_SubDirPermission(t *testing.T) {
 
 	tempDir := t.TempDir()
 	subDir := filepath.Join(tempDir, "restricted")
-	if err := os.MkdirAll(subDir, 0000); err != nil {
+	if err := os.MkdirAll(subDir, 0o000); err != nil {
 		t.Fatalf("failed to create restricted subdirectory: %v", err)
 	}
 	defer func() {
-		if err := os.Chmod(subDir, 0755); err != nil {
+		if err := os.Chmod(subDir, 0o755); err != nil {
 			t.Logf("failed to restore subdirectory permissions: %v", err)
 		}
 	}()
@@ -146,7 +146,7 @@ func TestLocalSource_DeepNestedPath(t *testing.T) {
 
 	// Create deeply nested directory
 	deepPath := filepath.Join(tempDir, "a", "b", "c", "d", "e", "f")
-	if err := os.MkdirAll(deepPath, 0755); err != nil {
+	if err := os.MkdirAll(deepPath, 0o755); err != nil {
 		t.Fatalf("failed to create deeply nested directory: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestLocalSource_SpecialCharsInPath(t *testing.T) {
 
 	// Create directory with spaces and CJK characters
 	specialDir := filepath.Join(tempDir, "my docs")
-	err := os.MkdirAll(specialDir, 0755)
+	err := os.MkdirAll(specialDir, 0o755)
 	if err != nil {
 		t.Skip("cannot create directory with special characters")
 	}
@@ -185,7 +185,7 @@ func TestLocalSource_SpecialCharsInPath(t *testing.T) {
 func TestLocalSource_EmptyDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	emptyDir := filepath.Join(tempDir, "empty")
-	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+	if err := os.MkdirAll(emptyDir, 0o755); err != nil {
 		t.Fatalf("failed to create empty directory: %v", err)
 	}
 
@@ -300,7 +300,7 @@ func TestDetect_OptionsPassthrough(t *testing.T) {
 // TestLocalSource_PathTraversal tests path traversal attack scenarios.
 func TestLocalSource_PathTraversal(t *testing.T) {
 	tempDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(tempDir, "docs"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(tempDir, "docs"), 0o755); err != nil {
 		t.Fatalf("failed to create docs directory: %v", err)
 	}
 

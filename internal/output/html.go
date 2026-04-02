@@ -27,7 +27,7 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 
 	// Write the main entry page.
 	indexPath := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(indexPath, []byte(fullHTML), 0644); err != nil {
+	if err := os.WriteFile(indexPath, []byte(fullHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
 	}
 
@@ -56,7 +56,7 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 			return fmt.Errorf("invalid chapter name %q: %w", name, err)
 		}
 		pagePath := filepath.Join(outputDir, pageName)
-		if err := os.WriteFile(pagePath, []byte(html), 0644); err != nil {
+		if err := os.WriteFile(pagePath, []byte(html), 0o644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", pageName, err)
 		}
 	}

@@ -13,7 +13,7 @@ func TestFileExists(t *testing.T) {
 
 	// Existing file
 	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte("hello"), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte("hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !FileExists(tmpFile) {
@@ -57,7 +57,7 @@ func TestReadFile(t *testing.T) {
 	// Write test file
 	content := "测试内容 hello world"
 	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,7 +184,7 @@ func TestCopyFile(t *testing.T) {
 	// Create source file
 	srcPath := filepath.Join(tmpDir, "source.txt")
 	content := "source content 源文件"
-	if err := os.WriteFile(srcPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(srcPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -217,7 +217,7 @@ func TestCopyFileNonExistent(t *testing.T) {
 func TestCopyFileIsDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	srcDir := filepath.Join(tmpDir, "srcdir")
-	if err := os.Mkdir(srcDir, 0755); err != nil {
+	if err := os.Mkdir(srcDir, 0o755); err != nil {
 		t.Fatalf("mkdir failed: %v", err)
 	}
 
@@ -232,7 +232,7 @@ func TestCopyFileAutoCreateDstDir(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	srcPath := filepath.Join(tmpDir, "src.txt")
-	if err := os.WriteFile(srcPath, []byte("data"), 0644); err != nil {
+	if err := os.WriteFile(srcPath, []byte("data"), 0o644); err != nil {
 		t.Fatalf("write src file failed: %v", err)
 	}
 
@@ -423,7 +423,7 @@ func TestExtractTitleFromFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			filePath := filepath.Join(tmpDir, "test.md")
-			if err := os.WriteFile(filePath, []byte(tt.content), 0644); err != nil {
+			if err := os.WriteFile(filePath, []byte(tt.content), 0o644); err != nil {
 				t.Fatalf("failed to write test file: %v", err)
 			}
 
@@ -467,7 +467,7 @@ func TestExtractTitleFrom50LineLimit(t *testing.T) {
 	content.WriteString("# Title After Line 50\n")
 	content.WriteString("More content\n")
 
-	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(content.String()), 0o644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 

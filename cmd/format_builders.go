@@ -170,7 +170,7 @@ func (b *htmlBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	if err := os.WriteFile(outputPath, []byte(standaloneHTML), 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(standaloneHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write HTML file: %w", err)
 	}
 	ctx.Logger.Info("Output ready", slog.String("format", "HTML"), slog.String("path", outputPath))

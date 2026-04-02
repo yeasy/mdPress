@@ -205,7 +205,7 @@ func TestEpubGeneratorBasic(t *testing.T) {
 	outPath := filepath.Join(dir, "test.epub")
 	coverPath := filepath.Join(dir, "cover.svg")
 	coverSVG := `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"><rect width="600" height="800" fill="#0f172a"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#f8fafc" font-size="42">Cover</text></svg>`
-	if err := os.WriteFile(coverPath, []byte(coverSVG), 0644); err != nil {
+	if err := os.WriteFile(coverPath, []byte(coverSVG), 0o644); err != nil {
 		t.Fatalf("write cover fixture failed: %v", err)
 	}
 
@@ -419,7 +419,7 @@ func TestEpubGeneratorPackagesRelativeChapterImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode png fixture failed: %v", err)
 	}
-	if err := os.WriteFile(imagePath, onePixelPNG, 0644); err != nil {
+	if err := os.WriteFile(imagePath, onePixelPNG, 0o644); err != nil {
 		t.Fatalf("write relative image fixture failed: %v", err)
 	}
 
@@ -522,7 +522,7 @@ func TestEpubGeneratorDeduplicatesSharedImageAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode png fixture failed: %v", err)
 	}
-	if err := os.WriteFile(imagePath, onePixelPNG, 0644); err != nil {
+	if err := os.WriteFile(imagePath, onePixelPNG, 0o644); err != nil {
 		t.Fatalf("write shared image fixture failed: %v", err)
 	}
 

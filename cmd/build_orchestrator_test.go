@@ -119,7 +119,7 @@ func TestNewBuildOrchestrator_WithGlossary(t *testing.T) {
 
 	glossaryPath := filepath.Join(tmpDir, "GLOSSARY.md")
 	glossaryContent := "# Glossary\n\n## API\nApplication Programming Interface\n"
-	if err := os.WriteFile(glossaryPath, []byte(glossaryContent), 0644); err != nil {
+	if err := os.WriteFile(glossaryPath, []byte(glossaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write glossary: %v", err)
 	}
 
@@ -231,7 +231,7 @@ func TestProcessChapters_WithRealChapter(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	chapterPath := filepath.Join(tmpDir, "ch1.md")
-	if err := os.WriteFile(chapterPath, []byte("# Chapter 1\n\nHello world.\n"), 0644); err != nil {
+	if err := os.WriteFile(chapterPath, []byte("# Chapter 1\n\nHello world.\n"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter: %v", err)
 	}
 
@@ -327,7 +327,7 @@ func TestProcessChaptersWithOptions_WithConcurrencyOption(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	chapterPath := filepath.Join(tmpDir, "ch1.md")
-	if err := os.WriteFile(chapterPath, []byte("# Hello\n"), 0644); err != nil {
+	if err := os.WriteFile(chapterPath, []byte("# Hello\n"), 0o644); err != nil {
 		t.Fatalf("failed to write chapter: %v", err)
 	}
 
@@ -429,7 +429,7 @@ func TestLoadCustomCSS_WithValidFile(t *testing.T) {
 
 	cssPath := filepath.Join(tmpDir, "custom.css")
 	cssContent := "body { color: #333; font-family: Arial, sans-serif; }"
-	if err := os.WriteFile(cssPath, []byte(cssContent), 0644); err != nil {
+	if err := os.WriteFile(cssPath, []byte(cssContent), 0o644); err != nil {
 		t.Fatalf("failed to write CSS file: %v", err)
 	}
 
@@ -495,7 +495,7 @@ func TestLoadCustomCSS_MultipleInvocations(t *testing.T) {
 
 	cssPath := filepath.Join(tmpDir, "custom.css")
 	cssContent := "body { margin: 0; padding: 0; }"
-	if err := os.WriteFile(cssPath, []byte(cssContent), 0644); err != nil {
+	if err := os.WriteFile(cssPath, []byte(cssContent), 0o644); err != nil {
 		t.Fatalf("failed to write CSS file: %v", err)
 	}
 

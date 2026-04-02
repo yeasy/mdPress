@@ -34,14 +34,14 @@ func createTestPlugin(t *testing.T, dir, name string) string {
 		name += ".bat"
 		scriptPath := filepath.Join(dir, name)
 		script := "@echo off\r\necho {}\r\n"
-		if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 			t.Fatalf("failed to create test plugin: %v", err)
 		}
 		return name
 	}
 	scriptPath := filepath.Join(dir, name)
 	script := "#!/bin/sh\necho '{}'\n"
-	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
 		t.Fatalf("failed to create test plugin: %v", err)
 	}
 	return name
@@ -267,7 +267,7 @@ func TestLoadPlugins_ResolvePath(t *testing.T) {
 	// Create a temporary directory to serve as the base config directory
 	baseDir := t.TempDir()
 	pluginDir := filepath.Join(baseDir, "plugins")
-	if err := os.Mkdir(pluginDir, 0755); err != nil {
+	if err := os.Mkdir(pluginDir, 0o755); err != nil {
 		t.Fatalf("failed to create plugin directory: %v", err)
 	}
 

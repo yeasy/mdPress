@@ -194,7 +194,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		if err := utils.EnsureDir(filepath.Dir(outPath)); err != nil {
 			return fmt.Errorf("failed to create page directory for %s: %w", page.Filename, err)
 		}
-		if err := os.WriteFile(outPath, []byte(buf.String()), 0644); err != nil {
+		if err := os.WriteFile(outPath, []byte(buf.String()), 0o644); err != nil {
 			return fmt.Errorf("failed to write %s: %w", page.Filename, err)
 		}
 
@@ -248,7 +248,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			template.HTMLEscapeString(g.Meta.Title) +
 			`</title></head><body><p>No chapters available.</p></body></html>`
 	}
-	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
 	}
 	// Generate sitemap.xml for search engine indexing.
@@ -261,7 +261,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			fmt.Fprintf(&sm, "  <url><loc>%s</loc></url>\n", template.HTMLEscapeString(page.Filename))
 		}
 		sm.WriteString("</urlset>\n")
-		if err := os.WriteFile(filepath.Join(outputDir, "sitemap.xml"), []byte(sm.String()), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(outputDir, "sitemap.xml"), []byte(sm.String()), 0o644); err != nil {
 			return fmt.Errorf("failed to write sitemap.xml: %w", err)
 		}
 	}
@@ -295,7 +295,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal search index: %w", err)
 		}
-		if err := os.WriteFile(filepath.Join(outputDir, "search-index.json"), indexJSON, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(outputDir, "search-index.json"), indexJSON, 0o644); err != nil {
 			return fmt.Errorf("failed to write search-index.json: %w", err)
 		}
 	}

@@ -723,9 +723,9 @@ func writeValidationReport(path string, report validationReport) error {
 		if err != nil {
 			return fmt.Errorf("marshal report: %w", err)
 		}
-		return os.WriteFile(absPath, data, 0644)
+		return os.WriteFile(absPath, data, 0o644)
 	case ".md":
-		return os.WriteFile(absPath, []byte(renderValidationMarkdown(report)), 0644)
+		return os.WriteFile(absPath, []byte(renderValidationMarkdown(report)), 0o644)
 	default:
 		return fmt.Errorf("unsupported report extension: %s (use .json or .md)", filepath.Ext(absPath))
 	}

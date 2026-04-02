@@ -107,7 +107,7 @@ func TestLocalSourcePrepare(t *testing.T) {
 			setup: func() string {
 				// Create temp subdirectory
 				subDir := filepath.Join(tempDir, "subdir")
-				if err := os.MkdirAll(subDir, 0755); err != nil {
+				if err := os.MkdirAll(subDir, 0o755); err != nil {
 					t.Fatalf("mkdir subdir failed: %v", err)
 				}
 				return subDir
@@ -134,7 +134,7 @@ func TestLocalSourcePrepare(t *testing.T) {
 			name: "file instead of directory",
 			setup: func() string {
 				filePath := filepath.Join(tempDir, "testfile.txt")
-				if err := os.WriteFile(filePath, []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filePath, []byte("test"), 0o644); err != nil {
 					t.Fatalf("write test file failed: %v", err)
 				}
 				return filePath
@@ -187,7 +187,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "docs"
-				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0o755); err != nil {
 					t.Fatalf("mkdir docs failed: %v", err)
 				}
 				return baseDir, subDir
@@ -219,7 +219,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "file.txt"
-				if err := os.WriteFile(filepath.Join(baseDir, subDir), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(baseDir, subDir), []byte("test"), 0o644); err != nil {
 					t.Fatalf("write file.txt failed: %v", err)
 				}
 				return baseDir, subDir
@@ -233,7 +233,7 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
 				subDir = "a/b/c"
-				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(baseDir, subDir), 0o755); err != nil {
 					t.Fatalf("mkdir nested subdir failed: %v", err)
 				}
 				return baseDir, subDir

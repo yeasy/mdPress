@@ -30,7 +30,7 @@ This is the first chapter with some content.
 Some subsection text.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter1.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestChapterPipelineFallbackID(t *testing.T) {
 Just some regular paragraph text.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter1.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -220,7 +220,7 @@ func TestChapterPipelineMissingFile(t *testing.T) {
 This is the second chapter.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter2.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -273,7 +273,7 @@ func TestChapterPipelineGlossaryIntegration(t *testing.T) {
 This chapter mentions a term that should be glossarized.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter1.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -352,7 +352,7 @@ func TestChapterPipelineMultipleChapters(t *testing.T) {
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
 		filePath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(ch.content), 0o644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -425,7 +425,7 @@ More content.
 Final section.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -491,7 +491,7 @@ See [Section below](#section-reference) for details.
 Details here.
 `
 	chapterFile := filepath.Join(tmpDir, "chapter.md")
-	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(chapterFile, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -539,7 +539,7 @@ func TestChapterPipelineNestedChapters(t *testing.T) {
 Introductory content.
 `
 	part1File := filepath.Join(tmpDir, "part1.md")
-	if err := os.WriteFile(part1File, []byte(chapterContent), 0644); err != nil {
+	if err := os.WriteFile(part1File, []byte(chapterContent), 0o644); err != nil {
 		t.Fatalf("Failed to write part1 file: %v", err)
 	}
 
@@ -548,7 +548,7 @@ Introductory content.
 Section content.
 `
 	section1File := filepath.Join(tmpDir, "section1.md")
-	if err := os.WriteFile(section1File, []byte(sectionContent), 0644); err != nil {
+	if err := os.WriteFile(section1File, []byte(sectionContent), 0o644); err != nil {
 		t.Fatalf("Failed to write section1 file: %v", err)
 	}
 
@@ -606,7 +606,7 @@ Section content.
 func TestChapterPipelineCanceledContext(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte("# Title\n\ncontent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "chapter.md"), []byte("# Title\n\ncontent"), 0o644); err != nil {
 		t.Fatalf("Failed to write chapter file: %v", err)
 	}
 
@@ -680,7 +680,7 @@ func TestParallelChapterParsingProducesSameResults(t *testing.T) {
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
 		filePath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(ch.content), 0o644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -772,7 +772,7 @@ func TestParallelChapterParsingErrorHandling(t *testing.T) {
 	var chapterDefs []config.ChapterDef
 	for _, ch := range chapters {
 		filePath := filepath.Join(tmpDir, ch.filename)
-		if err := os.WriteFile(filePath, []byte(ch.content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(ch.content), 0o644); err != nil {
 			t.Fatalf("Failed to write chapter file: %v", err)
 		}
 		chapterDefs = append(chapterDefs, config.ChapterDef{
@@ -823,7 +823,7 @@ func TestParallelChapterParsingWithDifferentConcurrency(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		filename := filepath.Join(tmpDir, fmt.Sprintf("ch%d.md", i))
 		content := fmt.Sprintf("# Chapter %d\n\nContent for chapter %d", i, i)
-		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
 			t.Fatalf("Failed to write chapter: %v", err)
 		}
 	}
