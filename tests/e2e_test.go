@@ -175,7 +175,7 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 
 - 自动发现 Markdown 文件
 - 无需配置文件
-`), 0644); err != nil {
+`), 0o644); err != nil {
 		t.Fatalf("write intro.md failed: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 ## 使用
 
 运行 mdpress build 即可。
-`), 0644); err != nil {
+`), 0o644); err != nil {
 		t.Fatalf("write chapter1.md failed: %v", err)
 	}
 
@@ -359,7 +359,7 @@ func TestE2E_HTMLOutput(t *testing.T) {
 	// Write to temp file for verification
 	outputDir := t.TempDir()
 	outputPath := filepath.Join(outputDir, "test-output.html")
-	err = os.WriteFile(outputPath, []byte(standaloneHTML), 0644)
+	err = os.WriteFile(outputPath, []byte(standaloneHTML), 0o644)
 	if err != nil {
 		t.Fatalf("failed to write HTML file: %v", err)
 	}

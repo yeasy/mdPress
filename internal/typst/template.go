@@ -189,7 +189,7 @@ func renderTypstDocument(data TypstTemplateData) (string, error) {
 
 // writeTypstFile writes Typst content to a file.
 func writeTypstFile(filePath string, content string) error {
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("failed to write Typst file: %w", err)
 	}
 	return nil
@@ -271,7 +271,7 @@ func makeTypstFontSize(cssFontSize string) string {
 // createTypstDir ensures the Typst working directory exists.
 func createTypstDir(baseDir string) (string, error) {
 	typstDir := filepath.Join(baseDir, ".typst")
-	if err := os.MkdirAll(typstDir, 0755); err != nil {
+	if err := os.MkdirAll(typstDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create Typst directory: %w", err)
 	}
 	return typstDir, nil

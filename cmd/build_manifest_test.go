@@ -10,7 +10,7 @@ import (
 func TestComputeChapterHash(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), "test-chapter.md")
 	content := "# Test Chapter\n\nSome content here."
-	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write temp file: %v", err)
 	}
 
@@ -253,10 +253,10 @@ func TestComputeHashDifferentFiles(t *testing.T) {
 	tmpFile1 := filepath.Join(tmpDir, "ch1.md")
 	tmpFile2 := filepath.Join(tmpDir, "ch2.md")
 
-	if err := os.WriteFile(tmpFile1, []byte("# Chapter 1\nContent 1"), 0644); err != nil {
+	if err := os.WriteFile(tmpFile1, []byte("# Chapter 1\nContent 1"), 0o644); err != nil {
 		t.Fatalf("failed to write first temp file: %v", err)
 	}
-	if err := os.WriteFile(tmpFile2, []byte("# Chapter 2\nContent 2"), 0644); err != nil {
+	if err := os.WriteFile(tmpFile2, []byte("# Chapter 2\nContent 2"), 0o644); err != nil {
 		t.Fatalf("failed to write second temp file: %v", err)
 	}
 

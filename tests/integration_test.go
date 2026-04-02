@@ -500,10 +500,10 @@ func TestMultiLanguageBuild(t *testing.T) {
 
 	// Create SUMMARY.md (Discover needs it to trigger LANGS.md detection)
 	summaryContent := "# Summary\n\n* [Introduction](README.md)\n"
-	if err := os.WriteFile(filepath.Join(tempDir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "SUMMARY.md"), []byte(summaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tempDir, "README.md"), []byte("# Test Book\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "README.md"), []byte("# Test Book\n"), 0o644); err != nil {
 		t.Fatalf("failed to write README.md: %v", err)
 	}
 
@@ -513,13 +513,13 @@ func TestMultiLanguageBuild(t *testing.T) {
 - [中文](./zh/)
 - [English](./en/)
 `
-	if err := os.WriteFile(filepath.Join(tempDir, "LANGS.md"), []byte(langsContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "LANGS.md"), []byte(langsContent), 0o644); err != nil {
 		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
 	// Create Chinese directory and config
 	zhDir := filepath.Join(tempDir, "zh")
-	if err := os.MkdirAll(zhDir, 0755); err != nil {
+	if err := os.MkdirAll(zhDir, 0o755); err != nil {
 		t.Fatalf("failed to create Chinese directory: %v", err)
 	}
 
@@ -536,17 +536,17 @@ output:
   toc: true
   cover: true
 `
-	if err := os.WriteFile(filepath.Join(zhDir, "book.yaml"), []byte(zhConfigContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(zhDir, "book.yaml"), []byte(zhConfigContent), 0o644); err != nil {
 		t.Fatalf("failed to write Chinese book.yaml: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(zhDir, "ch01.md"), []byte("# 第一章\n\n中文内容"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(zhDir, "ch01.md"), []byte("# 第一章\n\n中文内容"), 0o644); err != nil {
 		t.Fatalf("failed to write Chinese chapter: %v", err)
 	}
 
 	// Create English directory and config
 	enDir := filepath.Join(tempDir, "en")
-	if err := os.MkdirAll(enDir, 0755); err != nil {
+	if err := os.MkdirAll(enDir, 0o755); err != nil {
 		t.Fatalf("failed to create English directory: %v", err)
 	}
 
@@ -563,11 +563,11 @@ output:
   toc: true
   cover: true
 `
-	if err := os.WriteFile(filepath.Join(enDir, "book.yaml"), []byte(enConfigContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(enDir, "book.yaml"), []byte(enConfigContent), 0o644); err != nil {
 		t.Fatalf("failed to write English book.yaml: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(enDir, "ch01.md"), []byte("# Chapter 1\n\nEnglish content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(enDir, "ch01.md"), []byte("# Chapter 1\n\nEnglish content"), 0o644); err != nil {
 		t.Fatalf("failed to write English chapter: %v", err)
 	}
 
@@ -627,7 +627,7 @@ output:
   toc: true
   cover: true
 `
-	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
@@ -639,7 +639,7 @@ output:
 - 项目背景
 - 主要目标
 `
-	if err := os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(introContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "intro.md"), []byte(introContent), 0o644); err != nil {
 		t.Fatalf("failed to write intro.md: %v", err)
 	}
 
@@ -650,7 +650,7 @@ output:
 
 ## 代码示例
 ` + "```go\nfunc main() {\n    fmt.Println(\"Hello\")\n}\n```"
-	if err := os.WriteFile(filepath.Join(tempDir, "content.md"), []byte(contentMD), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "content.md"), []byte(contentMD), 0o644); err != nil {
 		t.Fatalf("failed to write content.md: %v", err)
 	}
 
@@ -773,15 +773,15 @@ chapters:
 style:
   theme: "technical"
 `
-	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tempDir, "page1.md"), []byte("# 页面1\n\n内容1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "page1.md"), []byte("# 页面1\n\n内容1"), 0o644); err != nil {
 		t.Fatalf("failed to write page1.md: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(tempDir, "page2.md"), []byte("# 页面2\n\n内容2"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "page2.md"), []byte("# 页面2\n\n内容2"), 0o644); err != nil {
 		t.Fatalf("failed to write page2.md: %v", err)
 	}
 
@@ -845,12 +845,12 @@ func TestConfigValidation(t *testing.T) {
 			tempDir := t.TempDir()
 
 			// Write config
-			if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(tc.configYAML), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(tempDir, "book.yaml"), []byte(tc.configYAML), 0o644); err != nil {
 				t.Fatalf("failed to write config: %v", err)
 			}
 
 			// Create dummy chapter files
-			if err := os.WriteFile(filepath.Join(tempDir, "ch01.md"), []byte("# 测试"), 0644); err != nil {
+			if err := os.WriteFile(filepath.Join(tempDir, "ch01.md"), []byte("# 测试"), 0o644); err != nil {
 				t.Fatalf("failed to write chapter: %v", err)
 			}
 

@@ -11,11 +11,11 @@ import (
 func writeSummary(t *testing.T, dir string) {
 	t.Helper()
 	summary := "# Summary\n\n* [Chapter One](ch1.md)\n* [Chapter Two](ch2.md)\n"
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md: %v", err)
 	}
 	for _, f := range []string{"ch1.md", "ch2.md"} {
-		if err := os.WriteFile(filepath.Join(dir, f), []byte("# "+f), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("# "+f), 0o644); err != nil {
 			t.Fatalf("write %s: %v", f, err)
 		}
 	}
@@ -34,7 +34,7 @@ func TestLoadBookJSON_BasicFields(t *testing.T) {
 		"language": "en"
 	}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -65,7 +65,7 @@ func TestLoadBookJSON_AuthorArray(t *testing.T) {
 
 	content := `{"title":"T","author":["Alice","Bob"]}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestLoadBookJSON_VersionField(t *testing.T) {
 
 	content := `{"title":"T","version":"v2.5.0"}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestLoadBookJSON_Plugins(t *testing.T) {
 		}
 	}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -172,7 +172,7 @@ func TestLoadBookJSON_LoadsChaptersFromSummary(t *testing.T) {
 
 	content := `{"title": "Book With Summary"}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -193,10 +193,10 @@ func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 
 	// Write a custom-named summary file.
 	summary := "# Summary\n\n* [Intro](intro.md)\n"
-	if err := os.WriteFile(filepath.Join(dir, "CONTENTS.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "CONTENTS.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write CONTENTS.md: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "intro.md"), []byte("# Intro"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "intro.md"), []byte("# Intro"), 0o644); err != nil {
 		t.Fatalf("write intro.md: %v", err)
 	}
 
@@ -205,7 +205,7 @@ func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 		"structure": {"summary": "CONTENTS.md"}
 	}`
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -223,12 +223,12 @@ func TestLoadBookJSON_CustomSummaryPath(t *testing.T) {
 func TestLoadBookJSON_GlossaryDetected(t *testing.T) {
 	dir := t.TempDir()
 	writeSummary(t, dir)
-	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("# Terms\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("# Terms\n"), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md: %v", err)
 	}
 
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(`{"title":"T"}`), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(`{"title":"T"}`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -254,7 +254,7 @@ func TestLoadBookJSON_MissingFile(t *testing.T) {
 func TestLoadBookJSON_InvalidJSON(t *testing.T) {
 	dir := t.TempDir()
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(`{invalid json`), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(`{invalid json`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 	_, err := LoadBookJSON(context.Background(), jsonPath)
@@ -269,7 +269,7 @@ func TestLoadBookJSON_DefaultsPreserved(t *testing.T) {
 	writeSummary(t, dir)
 
 	jsonPath := filepath.Join(dir, "book.json")
-	if err := os.WriteFile(jsonPath, []byte(`{"title":"Minimal"}`), 0644); err != nil {
+	if err := os.WriteFile(jsonPath, []byte(`{"title":"Minimal"}`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -301,12 +301,12 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
 
 	// book.json with a different title that must NOT win.
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"From JSON"}`), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"From JSON"}`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -324,7 +324,7 @@ func TestDiscoverUsesBookJSON(t *testing.T) {
 	dir := t.TempDir()
 	writeSummary(t, dir)
 
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"GitBook Title"}`), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"GitBook Title"}`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 
@@ -342,7 +342,7 @@ func TestDiscoverBookJSONBeforeSummary(t *testing.T) {
 	dir := t.TempDir()
 	writeSummary(t, dir)
 
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"JSON Wins"}`), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(`{"title":"JSON Wins"}`), 0o644); err != nil {
 		t.Fatalf("write book.json: %v", err)
 	}
 

@@ -108,7 +108,7 @@ func TestExecuteMigrate_NoGitBookProject(t *testing.T) {
 func TestExecuteMigrate_OnlySummary(t *testing.T) {
 	dir := t.TempDir()
 	summaryContent := "# Summary\n\n* [Introduction](README.md)\n"
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Should succeed (SUMMARY.md is enough for detection) in dry-run mode.
@@ -126,7 +126,7 @@ func TestExecuteMigrate_BookJSON(t *testing.T) {
 		"description": "A test book",
 		"plugins": ["mathjax"]
 	}`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +139,7 @@ func TestExecuteMigrate_BookJSON(t *testing.T) {
 func TestExecuteMigrate_CreatesBookYAML(t *testing.T) {
 	dir := t.TempDir()
 	bookJSON := `{"title":"Test Book","author":"Bob","language":"zh"}`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -164,14 +164,14 @@ func TestExecuteMigrate_CreatesBookYAML(t *testing.T) {
 func TestExecuteMigrate_SkipsExistingBookYAML(t *testing.T) {
 	dir := t.TempDir()
 	bookJSON := `{"title":"New Book","author":"Alice","language":"en"}`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Pre-create book.yaml with recognizable content.
 	existingContent := "# Existing book.yaml - should not be overwritten\nbook:\n  title: Old Book\n"
 	outPath := filepath.Join(dir, "book.yaml")
-	if err := os.WriteFile(outPath, []byte(existingContent), 0644); err != nil {
+	if err := os.WriteFile(outPath, []byte(existingContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -192,14 +192,14 @@ func TestExecuteMigrate_SkipsExistingBookYAML(t *testing.T) {
 func TestExecuteMigrate_ForceOverwritesBookYAML(t *testing.T) {
 	dir := t.TempDir()
 	bookJSON := `{"title":"New Book","author":"Alice","language":"en"}`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Pre-create book.yaml with recognizable content.
 	existingContent := "# Existing book.yaml - should be overwritten with --force\nbook:\n  title: Old Book\n"
 	outPath := filepath.Join(dir, "book.yaml")
-	if err := os.WriteFile(outPath, []byte(existingContent), 0644); err != nil {
+	if err := os.WriteFile(outPath, []byte(existingContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -224,12 +224,12 @@ func TestExecuteMigrate_ForceOverwritesBookYAML(t *testing.T) {
 func TestExecuteMigrate_RewritesMarkdown(t *testing.T) {
 	dir := t.TempDir()
 	// Minimal SUMMARY.md so detection works.
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// A Markdown file with GitBook syntax.
 	mdContent := "{% hint style=\"warning\" %}Be careful.{% endhint %}\n"
-	if err := os.WriteFile(filepath.Join(dir, "chapter.md"), []byte(mdContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "chapter.md"), []byte(mdContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -438,7 +438,7 @@ func TestMigrateBookJSON_MalformedJSON(t *testing.T) {
 		"title": "Broken Book",
 		"author": "Invalid JSON" // Missing closing brace and quotes
 	`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -456,7 +456,7 @@ func TestMigrateBookJSON_MalformedJSON(t *testing.T) {
 func TestMigrateBookJSON_EmptyJSON(t *testing.T) {
 	dir := t.TempDir()
 	bookJSON := `{}`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -483,12 +483,12 @@ func TestMigrateBookJSON_EmptyJSON(t *testing.T) {
 func TestMigrateMarkdownFiles_SkipsNonMarkdownFiles(t *testing.T) {
 	dir := t.TempDir()
 	// Create SUMMARY.md for detection
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Create a non-markdown file with GitBook syntax
 	nonMdContent := "{% hint style=\"info\" %}This should not be touched{% endhint %}"
-	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte(nonMdContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte(nonMdContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -510,17 +510,17 @@ func TestMigrateMarkdownFiles_SkipsNonMarkdownFiles(t *testing.T) {
 func TestMigrateMarkdownFiles_SkipsHiddenDirectories(t *testing.T) {
 	dir := t.TempDir()
 	// Create SUMMARY.md for detection
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Create hidden directory with a markdown file
 	hiddenDir := filepath.Join(dir, ".hidden")
-	if err := os.Mkdir(hiddenDir, 0755); err != nil {
+	if err := os.Mkdir(hiddenDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	hiddenMd := filepath.Join(hiddenDir, "secret.md")
 	mdContent := "{% hint style=\"info\" %}Secret content{% endhint %}"
-	if err := os.WriteFile(hiddenMd, []byte(mdContent), 0644); err != nil {
+	if err := os.WriteFile(hiddenMd, []byte(mdContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -542,17 +542,17 @@ func TestMigrateMarkdownFiles_SkipsHiddenDirectories(t *testing.T) {
 func TestMigrateMarkdownFiles_SkipsNodeModules(t *testing.T) {
 	dir := t.TempDir()
 	// Create SUMMARY.md for detection
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Create node_modules with markdown file
 	nmDir := filepath.Join(dir, "node_modules")
-	if err := os.Mkdir(nmDir, 0755); err != nil {
+	if err := os.Mkdir(nmDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	nmMd := filepath.Join(nmDir, "package.md")
 	mdContent := "{% hint style=\"info\" %}Package docs{% endhint %}"
-	if err := os.WriteFile(nmMd, []byte(mdContent), 0644); err != nil {
+	if err := os.WriteFile(nmMd, []byte(mdContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -574,17 +574,17 @@ func TestMigrateMarkdownFiles_SkipsNodeModules(t *testing.T) {
 func TestMigrateMarkdownFiles_SkipsBookDirectory(t *testing.T) {
 	dir := t.TempDir()
 	// Create SUMMARY.md for detection
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Create _book directory with markdown file
 	bookDir := filepath.Join(dir, "_book")
-	if err := os.Mkdir(bookDir, 0755); err != nil {
+	if err := os.Mkdir(bookDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	bookMd := filepath.Join(bookDir, "output.md")
 	mdContent := "{% hint style=\"info\" %}Generated content{% endhint %}"
-	if err := os.WriteFile(bookMd, []byte(mdContent), 0644); err != nil {
+	if err := os.WriteFile(bookMd, []byte(mdContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -732,7 +732,7 @@ func TestFileExists(t *testing.T) {
 
 	// Create a file and test
 	testFile := filepath.Join(dir, "exists.txt")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !utils.FileExists(testFile) {

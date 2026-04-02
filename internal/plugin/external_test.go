@@ -33,13 +33,13 @@ func writeScript(t *testing.T, dir, name, body string) string {
 	if runtime.GOOS == "windows" {
 		p := filepath.Join(dir, name+".bat")
 		winBody := toWindowsBatch(body)
-		if err := os.WriteFile(p, []byte("@echo off\r\n"+winBody+"\r\n"), 0755); err != nil {
+		if err := os.WriteFile(p, []byte("@echo off\r\n"+winBody+"\r\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		return p
 	}
 	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body), 0755); err != nil {
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return p
@@ -595,7 +595,7 @@ func TestResolveWindowsExecutableSuffix_NoExtension(t *testing.T) {
 
 	// Create a .exe file
 	exePath := basePath + ".exe"
-	if err := os.WriteFile(exePath, []byte("test"), 0755); err != nil {
+	if err := os.WriteFile(exePath, []byte("test"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -614,13 +614,13 @@ func TestResolveWindowsExecutableSuffix_SkipsDirectories(t *testing.T) {
 
 	// Create a directory with .bat extension (should be skipped)
 	batDir := basePath + ".bat"
-	if err := os.Mkdir(batDir, 0755); err != nil {
+	if err := os.Mkdir(batDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a .exe file
 	exePath := basePath + ".exe"
-	if err := os.WriteFile(exePath, []byte("test"), 0755); err != nil {
+	if err := os.WriteFile(exePath, []byte("test"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -652,13 +652,13 @@ func TestResolveWindowsExecutableSuffix_MultipleExtensions(t *testing.T) {
 	exePath := basePath + ".exe"
 	cmdPath := basePath + ".cmd"
 
-	if err := os.WriteFile(cmdPath, []byte("test"), 0755); err != nil {
+	if err := os.WriteFile(cmdPath, []byte("test"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(exePath, []byte("test"), 0755); err != nil {
+	if err := os.WriteFile(exePath, []byte("test"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(batPath, []byte("test"), 0755); err != nil {
+	if err := os.WriteFile(batPath, []byte("test"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -692,7 +692,7 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 				t.Helper()
 				base := filepath.Join(dir, "plugin")
 				path := base + ".exe"
-				if err := os.WriteFile(path, []byte("test"), 0755); err != nil {
+				if err := os.WriteFile(path, []byte("test"), 0o755); err != nil {
 					t.Fatal(err)
 				}
 				return base, ".exe"
@@ -705,7 +705,7 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 				t.Helper()
 				base := filepath.Join(dir, "plugin")
 				path := base + ".bat"
-				if err := os.WriteFile(path, []byte("test"), 0755); err != nil {
+				if err := os.WriteFile(path, []byte("test"), 0o755); err != nil {
 					t.Fatal(err)
 				}
 				return base, ".bat"
@@ -725,10 +725,10 @@ func TestResolveWindowsExecutableSuffix_TableDriven(t *testing.T) {
 			setup: func(t *testing.T, dir string) (string, string) {
 				t.Helper()
 				base := filepath.Join(dir, "plugin")
-				if err := os.Mkdir(base+".bat", 0755); err != nil {
+				if err := os.Mkdir(base+".bat", 0o755); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(base+".exe", []byte("test"), 0755); err != nil {
+				if err := os.WriteFile(base+".exe", []byte("test"), 0o755); err != nil {
 					t.Fatal(err)
 				}
 				return base, ".exe"

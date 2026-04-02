@@ -16,7 +16,7 @@ func TestAutoDiscoverWithYamlAndSummary(t *testing.T) {
   title: "Auto Discover Test"
 chapters: []
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
@@ -26,13 +26,13 @@ chapters: []
 * [Intro](intro.md)
 * [Chapter 1](ch1.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 			t.Fatalf("failed to create file: %v", err)
 		}
 	}
@@ -65,13 +65,13 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create SUMMARY.md
 	summaryContent := `* [Intro](intro.md)`
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write SUMMARY.md: %v", err)
 	}
 
@@ -81,7 +81,7 @@ chapters:
 ## API
 Application Programming Interface
 `
-	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte(glossaryContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte(glossaryContent), 0o644); err != nil {
 		t.Fatalf("failed to write GLOSSARY.md: %v", err)
 	}
 
@@ -91,12 +91,12 @@ Application Programming Interface
 * [English](en/)
 * [中文](zh/)
 `
-	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte(langsContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte(langsContent), 0o644); err != nil {
 		t.Fatalf("failed to write LANGS.md: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
 		t.Fatalf("failed to create file: %v", err)
 	}
 
@@ -136,13 +136,13 @@ chapters:
   - title: "Chapter 2"
     file: "ch2.md"
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"ch1.md", "ch2.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 			t.Fatalf("failed to create file: %v", err)
 		}
 	}
@@ -169,7 +169,7 @@ func TestAutoDiscoverOnlyYamlNoChapters(t *testing.T) {
   title: "No Chapters"
 chapters: []
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yamlContent), 0o644); err != nil {
 		t.Fatalf("failed to write book.yaml: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestAutoDiscoverEmptyYaml(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create empty book.yaml
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(""), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(""), 0o644); err != nil {
 		t.Fatalf("failed to write empty book.yaml: %v", err)
 	}
 
@@ -213,16 +213,16 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 					return err
 				}
 				summary := `* [Intro](intro.md)`
-				if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 					return err
 				}
 				// Create chapter files
 				for _, file := range []string{"ch1.md"} {
-					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 						return err
 					}
 				}
@@ -248,17 +248,17 @@ chapters:
   - title: "Ch"
     file: "ch.md"
 `
-				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## Term\nDef"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## Term\nDef"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("* [En](en/)"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("* [En](en/)"), 0o644); err != nil {
 					return err
 				}
 				// Create chapter file
-				return os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0644)
+				return os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Content"), 0o644)
 			},
 			wantErr: false,
 			checkFields: func(t *testing.T, cfg *BookConfig) {
@@ -281,12 +281,12 @@ chapters:
   - title: "Ch2"
     file: "ch2.md"
 `
-				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 					return err
 				}
 				// Create chapter files
 				for _, file := range []string{"ch1.md", "ch2.md"} {
-					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 						return err
 					}
 				}
@@ -306,18 +306,18 @@ chapters:
   title: "From Summary"
 chapters: []
 `
-				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 					return err
 				}
 				summary := `* [Ch1](ch1.md)
 * [Ch2](ch2.md)
 `
-				if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 					return err
 				}
 				// Create chapter files
 				for _, file := range []string{"ch1.md", "ch2.md"} {
-					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 						return err
 					}
 				}

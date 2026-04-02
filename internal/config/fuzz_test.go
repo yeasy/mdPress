@@ -27,7 +27,7 @@ func FuzzParseSummary(f *testing.F) {
 		// Write to a temp file then parse.
 		tmpDir := t.TempDir()
 		summaryPath := filepath.Join(tmpDir, "SUMMARY.md")
-		if err := os.WriteFile(summaryPath, []byte(data), 0644); err != nil {
+		if err := os.WriteFile(summaryPath, []byte(data), 0o644); err != nil {
 			t.Fatalf("write SUMMARY.md failed: %v", err)
 		}
 

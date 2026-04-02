@@ -251,7 +251,7 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report
 		return &gb, nil
 	}
 
-	if err := os.WriteFile(outPath, []byte(header+string(yamlBytes)), 0644); err != nil {
+	if err := os.WriteFile(outPath, []byte(header+string(yamlBytes)), 0o644); err != nil {
 		return nil, fmt.Errorf("failed to write book.yaml: %w", err)
 	}
 	report.addCreated("book.yaml")

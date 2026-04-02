@@ -15,7 +15,7 @@ func TestParseLangsFile(t *testing.T) {
 * [中文](zh/)
 * [日本語](ja/)
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 
@@ -38,7 +38,7 @@ func TestParseLangsFileNoTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "LANGS.md")
 	content := "* [English](en)\n* [中文](zh)\n"
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestParseLangsFileNoTrailingSlash(t *testing.T) {
 func TestParseLangsFileEmpty(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "LANGS.md")
-	if err := os.WriteFile(path, []byte("# Languages\n"), 0644); err != nil {
+	if err := os.WriteFile(path, []byte("# Languages\n"), 0o644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 
@@ -78,7 +78,7 @@ func TestHasLangsFile(t *testing.T) {
 		t.Error("should return false when no LANGS.md")
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("test"), 0o644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 	if !hasLangsFile(dir) {

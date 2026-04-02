@@ -38,12 +38,12 @@ chapters:
   - title: "Ch1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yaml), 0o644); err != nil {
 		t.Fatalf("write book.yaml failed: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Content"), 0o644); err != nil {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestDiscoverWithBookJSON(t *testing.T) {
 	json := `{
   "title": "Book JSON Title"
 }`
-	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(json), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(json), 0o644); err != nil {
 		t.Fatalf("write book.json failed: %v", err)
 	}
 
@@ -79,12 +79,12 @@ func TestDiscoverWithBookJSON(t *testing.T) {
 
 * [Summary Ch](chapter.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter files
-	if err := os.WriteFile(filepath.Join(dir, "chapter.md"), []byte("# Content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "chapter.md"), []byte("# Content"), 0o644); err != nil {
 		t.Fatalf("write chapter.md failed: %v", err)
 	}
 
@@ -111,13 +111,13 @@ func TestDiscoverWithSummaryOnly(t *testing.T) {
 * [Intro](intro.md)
 * [Chapter 1](ch1.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", file, err)
 		}
 	}
@@ -150,7 +150,7 @@ func TestDiscoverAutoDiscoverMarkdown(t *testing.T) {
 	}
 
 	for _, f := range files {
-		if err := os.WriteFile(filepath.Join(dir, f.name), []byte(f.content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, f.name), []byte(f.content), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", f.name, err)
 		}
 	}
@@ -213,12 +213,12 @@ func TestDiscoverWithReadmeAsFirstChapter(t *testing.T) {
 	readme := `# Project Overview
 This is the main overview of the project.
 `
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
 	// Create additional chapters
-	if err := os.WriteFile(filepath.Join(dir, "chapter1.md"), []byte("# Chapter 1\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "chapter1.md"), []byte("# Chapter 1\nContent"), 0o644); err != nil {
 		t.Fatalf("write chapter1.md failed: %v", err)
 	}
 
@@ -251,12 +251,12 @@ func TestDiscoverReadmeWithoutH1(t *testing.T) {
 
 	// Create README.md without H1
 	readme := "Just some intro text without heading\n"
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
 	// Create a chapter with H1
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# First Chapter\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# First Chapter\nContent"), 0o644); err != nil {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
@@ -287,7 +287,7 @@ func TestDiscoverSkipsSpecialFiles(t *testing.T) {
 	}
 
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", name, err)
 		}
 	}
@@ -311,12 +311,12 @@ func TestDiscoverDetectsGlossary(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create chapter
-	if err := os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Chapter\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch.md"), []byte("# Chapter\nContent"), 0o644); err != nil {
 		t.Fatalf("write ch.md failed: %v", err)
 	}
 
 	// Create GLOSSARY.md
-	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nApplication Programming Interface\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nApplication Programming Interface\n"), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
@@ -335,10 +335,10 @@ func TestAutoDiscoverWithNestedDirectories(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create nested structure
-	if err := os.Mkdir(filepath.Join(dir, "part1"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "part1"), 0o755); err != nil {
 		t.Fatalf("mkdir failed: %v", err)
 	}
-	if err := os.Mkdir(filepath.Join(dir, "part2"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "part2"), 0o755); err != nil {
 		t.Fatalf("mkdir failed: %v", err)
 	}
 
@@ -351,7 +351,7 @@ func TestAutoDiscoverWithNestedDirectories(t *testing.T) {
 
 	for path, content := range files {
 		fullPath := filepath.Join(dir, path)
-		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", path, err)
 		}
 	}
@@ -371,17 +371,17 @@ func TestAutoDiscoverSkipsHiddenDirectories(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create normal chapter
-	if err := os.WriteFile(filepath.Join(dir, "normal.md"), []byte("# Normal\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "normal.md"), []byte("# Normal\nContent"), 0o644); err != nil {
 		t.Fatalf("write normal.md failed: %v", err)
 	}
 
 	// Create hidden directory
 	hiddenDir := filepath.Join(dir, ".hidden")
-	if err := os.Mkdir(hiddenDir, 0755); err != nil {
+	if err := os.Mkdir(hiddenDir, 0o755); err != nil {
 		t.Fatalf("mkdir .hidden failed: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(hiddenDir, "secret.md"), []byte("# Secret\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(hiddenDir, "secret.md"), []byte("# Secret\nContent"), 0o644); err != nil {
 		t.Fatalf("write secret.md failed: %v", err)
 	}
 
@@ -403,17 +403,17 @@ func TestAutoDiscoverSkipsNodeModules(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create normal chapter
-	if err := os.WriteFile(filepath.Join(dir, "normal.md"), []byte("# Normal\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "normal.md"), []byte("# Normal\nContent"), 0o644); err != nil {
 		t.Fatalf("write normal.md failed: %v", err)
 	}
 
 	// Create node_modules directory
 	nodeDir := filepath.Join(dir, "node_modules")
-	if err := os.Mkdir(nodeDir, 0755); err != nil {
+	if err := os.Mkdir(nodeDir, 0o755); err != nil {
 		t.Fatalf("mkdir node_modules failed: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(nodeDir, "module.md"), []byte("# Module\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(nodeDir, "module.md"), []byte("# Module\nContent"), 0o644); err != nil {
 		t.Fatalf("write module.md failed: %v", err)
 	}
 
@@ -441,16 +441,16 @@ func TestFindMarkdownFiles(t *testing.T) {
 	}
 
 	for name := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("content"), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", name, err)
 		}
 	}
 
 	// Create nested markdown
-	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "subdir"), 0o755); err != nil {
 		t.Fatalf("mkdir failed: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "subdir/nested.md"), []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "subdir/nested.md"), []byte("content"), 0o644); err != nil {
 		t.Fatalf("write nested.md failed: %v", err)
 	}
 
@@ -519,7 +519,7 @@ func TestExtractTitleFromFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "test.md")
-			if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+			if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
 				t.Fatalf("write failed: %v", err)
 			}
 
@@ -675,7 +675,7 @@ Author: John Doe
 This is a test project.
 `
 
-	if err := os.WriteFile(path, []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
@@ -703,7 +703,7 @@ func TestExtractReadmeMetadataChineseAuthor(t *testing.T) {
 内容在这里。
 `
 
-	if err := os.WriteFile(path, []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
@@ -725,7 +725,7 @@ GitHub: https://github.com/johndoe/myproject
 Content here.
 `
 
-	if err := os.WriteFile(path, []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
@@ -760,7 +760,7 @@ func TestExtractReadmeMetadataLanguageDetection(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "README.md")
 
-			if err := os.WriteFile(path, []byte(tt.readme), 0644); err != nil {
+			if err := os.WriteFile(path, []byte(tt.readme), 0o644); err != nil {
 				t.Fatalf("write README.md failed: %v", err)
 			}
 
@@ -795,7 +795,7 @@ func TestDiscoverLexicalOrdering(t *testing.T) {
 	}
 
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", name, err)
 		}
 	}
@@ -822,7 +822,7 @@ func TestDiscoverLexicalOrdering(t *testing.T) {
 func TestDiscoverAbsolutePathHandling(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Ch1\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Ch1\nContent"), 0o644); err != nil {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
@@ -880,11 +880,11 @@ func TestAutoDiscoverBookTitleFromFirstChapter(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create files without README.md
-	if err := os.WriteFile(filepath.Join(dir, "chapter1.md"), []byte("# First Chapter Title\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "chapter1.md"), []byte("# First Chapter Title\nContent"), 0o644); err != nil {
 		t.Fatalf("write chapter1.md failed: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "chapter2.md"), []byte("# Second Chapter\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "chapter2.md"), []byte("# Second Chapter\nContent"), 0o644); err != nil {
 		t.Fatalf("write chapter2.md failed: %v", err)
 	}
 
@@ -909,7 +909,7 @@ func TestLoadFromSummaryDetectsMetadata(t *testing.T) {
 * [Intro](intro.md)
 * [Chapter 1](ch1.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
@@ -920,13 +920,13 @@ Author: Test Author
 
 Description here.
 `
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0o644); err != nil {
 		t.Fatalf("write README.md failed: %v", err)
 	}
 
 	// Create chapter files
 	for _, file := range []string{"intro.md", "ch1.md"} {
-		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("# Content"), 0o644); err != nil {
 			t.Fatalf("write %s failed: %v", file, err)
 		}
 	}
@@ -953,17 +953,17 @@ func TestLoadFromSummaryDetectsGlossary(t *testing.T) {
 
 * [Ch1](ch1.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1\nContent"), 0o644); err != nil {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
 	// Create GLOSSARY.md
-	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nDef"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "GLOSSARY.md"), []byte("## API\nDef"), 0o644); err != nil {
 		t.Fatalf("write GLOSSARY.md failed: %v", err)
 	}
 
@@ -986,17 +986,17 @@ func TestLoadFromSummaryDetectsLangs(t *testing.T) {
 
 * [Ch1](ch1.md)
 `
-	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
 		t.Fatalf("write SUMMARY.md failed: %v", err)
 	}
 
 	// Create chapter file
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1\nContent"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte("# Chapter 1\nContent"), 0o644); err != nil {
 		t.Fatalf("write ch1.md failed: %v", err)
 	}
 
 	// Create LANGS.md
-	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("* [English](en/)\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "LANGS.md"), []byte("* [English](en/)\n"), 0o644); err != nil {
 		t.Fatalf("write LANGS.md failed: %v", err)
 	}
 
@@ -1044,7 +1044,7 @@ func TestExtractReadmeMetadataMultilineVersion(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, "README.md")
 
-			if err := os.WriteFile(path, []byte(tt.readme), 0644); err != nil {
+			if err := os.WriteFile(path, []byte(tt.readme), 0o644); err != nil {
 				t.Fatalf("write README.md failed: %v", err)
 			}
 

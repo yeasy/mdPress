@@ -55,12 +55,12 @@ func TestQuickstartDoesNotOverwrite(t *testing.T) {
 	projectDir := filepath.Join(tmpDir, "existing-project")
 
 	// Create the project directory and add a file
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("failed to create project directory: %v", err)
 	}
 
 	existingFile := filepath.Join(projectDir, "existing.txt")
-	if err := os.WriteFile(existingFile, []byte("existing content"), 0644); err != nil {
+	if err := os.WriteFile(existingFile, []byte("existing content"), 0o644); err != nil {
 		t.Fatalf("failed to write existing file: %v", err)
 	}
 
@@ -255,7 +255,7 @@ func TestQuickstartReadDirErrorHandling(t *testing.T) {
 	projectDir := filepath.Join(tmpDir, "readable-project")
 
 	// Create project directory normally
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("failed to create project directory: %v", err)
 	}
 
@@ -280,12 +280,12 @@ func TestQuickstartHiddenFilesDetection(t *testing.T) {
 	projectDir := filepath.Join(tmpDir, "hidden-files-project")
 
 	// Create directory with hidden file (.git is commonly overlooked by glob patterns)
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("failed to create directory: %v", err)
 	}
 
 	hiddenFile := filepath.Join(projectDir, ".git")
-	if err := os.Mkdir(hiddenFile, 0755); err != nil {
+	if err := os.Mkdir(hiddenFile, 0o755); err != nil {
 		t.Fatalf("failed to create hidden directory: %v", err)
 	}
 
@@ -368,17 +368,17 @@ func TestDirectoryValidation(t *testing.T) {
 		{
 			name: "empty existing directory",
 			setup: func(dir string) error {
-				return os.MkdirAll(dir, 0755)
+				return os.MkdirAll(dir, 0o755)
 			},
 			expectError: false,
 		},
 		{
 			name: "directory with regular file",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(dir, 0755); err != nil {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0644)
+				return os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0o644)
 			},
 			expectError:  true,
 			errorPattern: "already exists and is not empty",
@@ -386,10 +386,10 @@ func TestDirectoryValidation(t *testing.T) {
 		{
 			name: "directory with subdirectory",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(dir, 0755); err != nil {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
 					return err
 				}
-				return os.MkdirAll(filepath.Join(dir, "subdir"), 0755)
+				return os.MkdirAll(filepath.Join(dir, "subdir"), 0o755)
 			},
 			expectError:  true,
 			errorPattern: "already exists and is not empty",
@@ -397,10 +397,10 @@ func TestDirectoryValidation(t *testing.T) {
 		{
 			name: "directory with hidden file",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(dir, 0755); err != nil {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(dir, ".hidden"), []byte("hidden"), 0644)
+				return os.WriteFile(filepath.Join(dir, ".hidden"), []byte("hidden"), 0o644)
 			},
 			expectError:  true,
 			errorPattern: "already exists and is not empty",

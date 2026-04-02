@@ -823,7 +823,7 @@ func TestDeriveOutputFilename(t *testing.T) {
 				tmpDir := t.TempDir()
 				// Create a subdirectory with the expected name
 				projectDir := filepath.Join(tmpDir, "my-project")
-				if err := os.MkdirAll(projectDir, 0755); err != nil {
+				if err := os.MkdirAll(projectDir, 0o755); err != nil {
 					t.Fatalf("failed to create project dir: %v", err)
 				}
 				c.SetBaseDir(projectDir)
@@ -839,7 +839,7 @@ func TestDeriveOutputFilename(t *testing.T) {
 				tmpDir := t.TempDir()
 				// Create a subdirectory with the expected name
 				projectDir := filepath.Join(tmpDir, "awesome-book")
-				if err := os.MkdirAll(projectDir, 0755); err != nil {
+				if err := os.MkdirAll(projectDir, 0o755); err != nil {
 					t.Fatalf("failed to create project dir: %v", err)
 				}
 				c.SetBaseDir(projectDir)

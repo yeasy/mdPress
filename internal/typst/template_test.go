@@ -383,7 +383,7 @@ func TestCreateTypstDir_AlreadyExists(t *testing.T) {
 	typstDir := filepath.Join(tmpDir, ".typst")
 
 	// Create it first
-	if err := os.MkdirAll(typstDir, 0755); err != nil {
+	if err := os.MkdirAll(typstDir, 0o755); err != nil {
 		t.Fatalf("Setup failed: %v", err)
 	}
 

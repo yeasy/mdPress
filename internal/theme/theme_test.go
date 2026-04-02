@@ -258,7 +258,7 @@ margins:
   left: 20
   right: 20
 `
-	if err := os.WriteFile(themePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(themePath, []byte(content), 0o644); err != nil {
 		t.Fatalf("failed to write theme file: %v", err)
 	}
 
@@ -301,7 +301,7 @@ func TestLoadFromFileNonExistent(t *testing.T) {
 func TestLoadFromFileInvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	themePath := filepath.Join(tmpDir, "bad.yaml")
-	if err := os.WriteFile(themePath, []byte("{{invalid: yaml"), 0644); err != nil {
+	if err := os.WriteFile(themePath, []byte("{{invalid: yaml"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -327,7 +327,7 @@ colors:
   text: "#333"
   background: "#fff"
 `
-	if err := os.WriteFile(themePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(themePath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

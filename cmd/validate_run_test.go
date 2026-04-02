@@ -26,10 +26,10 @@ This is a test chapter.
 
 func createTestProject(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(testBookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(testBookYAML), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte(testChapterContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "ch1.md"), []byte(testChapterContent), 0o644); err != nil {
 		t.Fatalf("write ch1.md: %v", err)
 	}
 }
@@ -64,7 +64,7 @@ chapters:
   - title: "Missing Chapter"
     file: "nonexistent.md"
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
 
@@ -86,10 +86,10 @@ chapters:
   - title: "Chapter 1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte(testChapterContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte(testChapterContent), 0o644); err != nil {
 		t.Fatalf("write ch1.md: %v", err)
 	}
 
@@ -108,7 +108,7 @@ func TestExecuteValidate_NoChapters(t *testing.T) {
   author: "Test Author"
 chapters: []
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
 
@@ -131,10 +131,10 @@ chapters:
   - title: "Chapter 1"
     file: "ch1.md"
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
 		t.Fatalf("write book.yaml: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte(testChapterContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte(testChapterContent), 0o644); err != nil {
 		t.Fatalf("write ch1.md: %v", err)
 	}
 
