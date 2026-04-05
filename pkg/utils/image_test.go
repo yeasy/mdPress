@@ -1126,3 +1126,24 @@ func TestCheckURLNotPrivateLinkLocalMulticast(t *testing.T) {
 		})
 	}
 }
+
+// TestSSRFSafeTransport verifies that SSRFSafeTransport returns a non-nil
+// transport clone with the SSRF-safe DialContext installed.
+func TestSSRFSafeTransport(t *testing.T) {
+	t1 := SSRFSafeTransport()
+	if t1 == nil {
+		t.Fatal("SSRFSafeTransport returned nil")
+	}
+	t2 := SSRFSafeTransport()
+	if t2 == nil {
+		t.Fatal("second SSRFSafeTransport call returned nil")
+	}
+	// Each call must return a distinct clone so callers cannot mutate shared state.
+	if t1 == t2 {
+		t.Error("SSRFSafeTransport should return distinct clones")
+	}
+	// The transport must have a custom DialContext (not nil).
+	if t1.DialContext == nil {
+		t.Error("SSRFSafeTransport clone should have a non-nil DialContext")
+	}
+}

@@ -34,6 +34,9 @@ const (
 	maxStderrSize = 1024 * 1024
 	// plantumlHTTPTimeout is the timeout for HTTP requests to the PlantUML server.
 	plantumlHTTPTimeout = 30 * time.Second
+	// localPlantumlTimeout caps local PlantUML execution to prevent hangs
+	// when the caller's context has no deadline (e.g. context.Background).
+	localPlantumlTimeout = 120 * time.Second
 )
 
 // Renderer handles the detection and conversion of PlantUML diagrams.
@@ -68,6 +71,9 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 		// latency and rendering time for typical diagrams while preventing indefinite hangs.
 		httpClient: &http.Client{
 			Timeout: plantumlHTTPTimeout,
+			// Use SSRF-safe transport that validates resolved IPs at dial time
+			// to prevent DNS rebinding attacks against custom PlantUML servers.
+			Transport: utils.SSRFSafeTransport(),
 			// Validate redirect targets to prevent SSRF via 302 to internal IPs.
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= utils.MaxHTTPRedirects {
@@ -190,7 +196,7 @@ func (r *Renderer) renderServer(ctx context.Context, code string) (string, error
 	url := fmt.Sprintf("%s/svg/%s", r.serverURL, encoded)
 
 	// Fetch the SVG
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for plantuml diagram: %w", err)
 	}
@@ -312,6 +318,13 @@ func isDangerousPlantUMLDirective(lower string) bool {
 //
 // If neither is available the error message includes install instructions.
 func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error) {
+	// Ensure a deadline exists even if the caller passes context.Background(),
+	// preventing a malicious diagram from hanging indefinitely.
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, localPlantumlTimeout)
+		defer cancel()
+	}
 	cmd, err := localPlantumlCmd(ctx)
 	if err != nil {
 		return "", err
@@ -447,7 +460,7 @@ var (
 	svgEventHandlerPattern  = regexp.MustCompile(`(?i)\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
 	svgJavascriptURLPattern = regexp.MustCompile(`(?i)(href|xlink:href)\s*=\s*(?:"(?:javascript|data|vbscript):[^"]*"|'(?:javascript|data|vbscript):[^']*')`)
 	svgForeignObjectPattern = regexp.MustCompile(`(?i)<foreignObject[\s>][\s\S]*?</foreignObject>`)
-	svgUsePattern           = regexp.MustCompile(`(?i)<use[^>]+xlink:href\s*=\s*"[^"#][^"]*"[^>]*>`)
+	svgUsePattern           = regexp.MustCompile(`(?i)<use[^>]+(?:xlink:)?href\s*=\s*(?:"[^"#][^"]*"|'[^'#][^']*')[^>]*>`)
 	// Strip <style> blocks that could exfiltrate data via @import/url().
 	svgStylePattern = regexp.MustCompile(`(?i)<style[\s>][\s\S]*?</style>`)
 	// Strip SVG animation elements that could alter attributes post-sanitization.

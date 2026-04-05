@@ -42,7 +42,8 @@ var (
 // Using http.DefaultClient has no timeout and could hang indefinitely.
 // CheckRedirect validates redirect targets to prevent SSRF via DNS poisoning.
 var upgradeHTTPClient = &http.Client{
-	Timeout: upgradeClientTimeout,
+	Timeout:   upgradeClientTimeout,
+	Transport: utils.SSRFSafeTransport(),
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= utils.MaxHTTPRedirects {
 			return errors.New("too many redirects")

@@ -152,6 +152,52 @@ func TestNeedsMermaid(t *testing.T) {
 	}
 }
 
+func TestSanitizeMermaidCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains string // must be absent after sanitization
+	}{
+		{"strips script tags", `<script>alert(1)</script>`, "<script"},
+		{"strips iframe", `<iframe src="javascript:alert(1)">`, "<iframe"},
+		{"strips object", `<object data="javascript:alert(1)">`, "<object"},
+		{"strips embed", `<embed src="evil.swf">`, "<embed"},
+		{"strips form", `<form action="javascript:void(0)">`, "<form"},
+		{"strips base", `<base href="https://evil.com">`, "<base"},
+		{"strips link", `<link rel="stylesheet" href="evil.css">`, "<link"},
+		{"strips meta", `<meta http-equiv="refresh" content="0;url=evil">`, "<meta"},
+		{"strips style", `<style>body{background:url(//evil.com/exfil)}</style>`, "<style"},
+		{"strips closing style", `</style><div>`, "</style"},
+		{"strips closing tags", `</iframe></object></embed>`, "</iframe"},
+		{"strips onclick", `<div onclick="alert(1)">`, "onclick"},
+		{"strips onload", `<img onload="alert(1)" src=x>`, "onload"},
+		{"strips javascript URI in href", `<a href="javascript:alert(1)">click</a>`, "javascript:"},
+		{"strips javascript URI case insensitive", `<a HREF="JavaScript:void(0)">`, "javascript:"},
+		{"strips data URI in src", `<img src="data:text/html,<script>alert(1)</script>">`, "data:"},
+		{"strips vbscript URI in href", `<a href="vbscript:MsgBox(1)">click</a>`, "vbscript:"},
+		{"combined attack payload", `<iframe src="javascript:alert(1)" onclick="alert(2)"><script>x</script>`, "<iframe"},
+		{"case insensitive", `<IFRAME SRC="x"><SCRIPT>x</SCRIPT>`, "<IFRAME"},
+		{"handles > in attribute value", `<script data-x="a>b">alert(1)</script>`, "<script"},
+		{"strips unquoted javascript URI", `<a href=javascript:alert(1)>click</a>`, "javascript:"},
+		{"strips single-quoted javascript URI", `<a href='javascript:alert(1)'>click</a>`, "javascript:"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeMermaidCode(tt.input)
+			if strings.Contains(strings.ToLower(result), strings.ToLower(tt.contains)) {
+				t.Errorf("sanitizeMermaidCode(%q) still contains %q: got %q",
+					tt.input, tt.contains, result)
+			}
+		})
+	}
+
+	// Verify that legitimate Mermaid content is preserved.
+	diagram := "graph TD\n    A-->B\n    B-->C"
+	if result := sanitizeMermaidCode(diagram); result != diagram {
+		t.Errorf("sanitizeMermaidCode should preserve diagram content, got %q", result)
+	}
+}
+
 func TestMermaidScript(t *testing.T) {
 	s := mermaidScript()
 	if !strings.Contains(s, "mermaid") {

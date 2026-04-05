@@ -8,6 +8,35 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.4] - 2026-04-04
+
+### Security
+
+- **Harden Mermaid sanitizer**: Fix `dangerousTagPattern` to handle `>` inside quoted attribute values; expand `jsURIPattern` to replace entire `href`/`src` attributes; add comprehensive test suite (22 cases)
+- **Block vbscript URIs in CSS**: Add `vbscript:` to `cssJSURLPattern` alongside `javascript:`
+- **Block protocol-relative URLs in CSS**: Extend `cssExternalURLPattern` to match `//evil.com/...` URLs
+- **Fix TOCTOU in build manifest**: Replace `os.Stat` + `os.ReadFile` with `io.LimitReader` in `loadManifest` and `computeChapterHash`
+- **Add LimitReader to CopyFile**: Defend against file growth between stat and copy
+- **SSRF-safe transport for doctor/upgrade**: Apply `SSRFSafeTransport` to all outbound HTTP clients
+- **SVG2 href sanitization**: Extend PlantUML `svgUsePattern` to strip bare `href` and single-quoted external URLs
+
+### Changed
+
+- **Upgrade KaTeX to 0.16.44**: Update CDN URLs from 0.16.11
+- **Upgrade chroma to v2.23.1**: Update syntax highlighter with latest language support
+- **Upgrade codecov-action to v6**: Update CI coverage upload action
+- **Scope KaTeX rendering in standalone HTML**: Target `#main-content` instead of `document.body` to avoid processing sidebar text as math
+- **Export SSRFSafeTransport**: Make SSRF-safe transport reusable across packages via `utils.SSRFSafeTransport()`
+- **Use http.MethodGet/MethodHead constants**: Replace string literals with standard library constants
+
+### Fixed
+
+- **Add figure/figcaption styles to standalone HTML**: Center figures and captions with dark mode support via CSS variables
+- **Add figure/figcaption base styles to EPUB**: Inline fallback styles for images, figures, and captions
+- **Add local execution timeout for PlantUML**: Prevent indefinite hangs when caller provides unbounded context
+
+---
+
 ## [0.7.3] - 2026-04-01
 
 ### Security
@@ -696,7 +725,9 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/yeasy/mdpress/compare/v0.7.3...v0.7.4
+[0.7.3]: https://github.com/yeasy/mdpress/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/yeasy/mdpress/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/yeasy/mdpress/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/yeasy/mdpress/compare/v0.6.9...v0.7.0

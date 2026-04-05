@@ -791,6 +791,19 @@ const standaloneCSS = `    /* ==================================================
       opacity: 0.8;
     }
 
+    figure {
+      margin: 1rem 0;
+      text-align: center;
+    }
+
+    figcaption {
+      text-align: center;
+      font-size: 0.9em;
+      color: var(--color-text-muted);
+      margin-top: 0.5rem;
+      font-style: italic;
+    }
+
     /* ============================================================
        Image Lightbox
        ============================================================ */

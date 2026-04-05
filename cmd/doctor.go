@@ -313,7 +313,7 @@ func checkNetworkConnectivity(parentCtx context.Context, report *doctorReport) {
 	ctx, cancel := context.WithTimeout(parentCtx, networkCheckTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "HEAD", "https://github.com", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, "https://github.com", nil)
 	if err != nil {
 		utils.Warning("Network connectivity check failed")
 		if verbose {
@@ -323,7 +323,10 @@ func checkNetworkConnectivity(parentCtx context.Context, report *doctorReport) {
 		return
 	}
 
-	client := &http.Client{Timeout: networkCheckTimeout}
+	client := &http.Client{
+		Timeout:   networkCheckTimeout,
+		Transport: utils.SSRFSafeTransport(),
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

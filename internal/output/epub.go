@@ -111,6 +111,12 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	}()
 
 	w := zip.NewWriter(f)
+	writerClosed := false
+	defer func() {
+		if !writerClosed {
+			w.Close() //nolint:errcheck // best-effort on error paths
+		}
+	}()
 
 	// 1. mimetype must be the first file and must not be compressed.
 	mimeWriter, err := w.CreateHeader(&zip.FileHeader{
@@ -195,6 +201,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	// Close the zip.Writer explicitly so we can check the error — the close
 	// operation writes the central directory, and if it fails the .epub is
 	// corrupt. On error paths the safety-net defer above removes the file.
+	writerClosed = true // prevent double-close in deferred cleanup
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to finalize epub archive: %w", err)
 	}
@@ -352,6 +359,13 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
   <meta charset="UTF-8" />
 `)
 	fmt.Fprintf(&b, "  <title>%s</title>\n", utils.EscapeXML(title))
+	// Base styles for images and captions. These act as fallback when no
+	// external stylesheet is provided; the user's style.css can override them.
+	b.WriteString("  <style>\n")
+	b.WriteString("    img { max-width: 100%; height: auto; }\n")
+	b.WriteString("    figure { margin: 1rem 0; text-align: center; }\n")
+	b.WriteString("    figcaption { text-align: center; font-size: 0.9em; color: #666; margin-top: 0.5rem; font-style: italic; }\n")
+	b.WriteString("  </style>\n")
 	if g.css != "" {
 		b.WriteString("  <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/>\n")
 	}

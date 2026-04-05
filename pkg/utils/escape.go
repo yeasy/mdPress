@@ -54,9 +54,17 @@ var cssImportPattern = regexp.MustCompile(`(?i)@import\b`)
 // could execute arbitrary JavaScript.
 var cssExpressionPattern = regexp.MustCompile(`(?i)expression\s*\(`)
 
-// cssExternalURLPattern matches url() references to external HTTP(S) origins,
-// which could exfiltrate data or load untrusted resources.
-var cssExternalURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*https?://[^)]*\)`)
+// cssExternalURLPattern matches url() references to external origins,
+// including protocol-relative URLs (//host/...), which could exfiltrate
+// data or load untrusted resources.
+var cssExternalURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(?:https?:)?//[^)]*\)`)
+
+// cssJSURLPattern matches javascript: and vbscript: URIs inside url() values,
+// which could execute code in some rendering engines (including headless Chrome
+// for PDF). Note: data: URIs are intentionally excluded because they are
+// legitimately used for inline images (e.g. data:image/png;base64,...) and
+// cannot execute scripts when used as CSS url() values.
+var cssJSURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(?:javascript|vbscript)\s*:`)
 
 // SanitizeCSS removes sequences from CSS content that could break out of a
 // <style> block or perform injection attacks. This prevents:
@@ -64,6 +72,7 @@ var cssExternalURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*https?://
 // - @import-based data exfiltration
 // - expression()-based script execution (legacy IE)
 // - url() references to external HTTP(S) origins
+// - javascript:/vbscript: URIs inside url() values
 //
 // Note: @font-face rules are allowed because external url() references are
 // already blocked by cssExternalURLPattern. This permits legitimate local
@@ -74,5 +83,6 @@ func SanitizeCSS(css string) string {
 	css = cssImportPattern.ReplaceAllString(css, "/* blocked import */")
 	css = cssExpressionPattern.ReplaceAllString(css, "/* blocked expression */(")
 	css = cssExternalURLPattern.ReplaceAllString(css, "/* blocked external url */")
+	css = cssJSURLPattern.ReplaceAllString(css, "/* blocked uri scheme */(")
 	return css
 }

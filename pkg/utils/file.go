@@ -126,6 +126,12 @@ func CopyFile(src, dst string) error {
 		return fmt.Errorf("source path is a directory: %q", src)
 	}
 
+	// Reject files that exceed the general-purpose size limit to prevent
+	// disk exhaustion from symlinks to special files (e.g. /dev/zero).
+	if srcInfo.Size() > maxReadFileSize {
+		return fmt.Errorf("source file %q is too large (%d bytes, max %d)", src, srcInfo.Size(), maxReadFileSize)
+	}
+
 	// Ensure the destination directory exists.
 	dstDir := filepath.Dir(dst)
 	if err := EnsureDir(dstDir); err != nil {
@@ -144,10 +150,17 @@ func CopyFile(src, dst string) error {
 		os.Remove(dst)  //nolint:errcheck
 	}
 
-	// Copy file content.
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
+	// Copy file content with LimitReader as belt-and-suspenders defense
+	// against the file growing between the Stat check and the copy (TOCTOU).
+	// Use maxReadFileSize+1 so we can detect if the file grew past the limit.
+	n, err := io.Copy(dstFile, io.LimitReader(srcFile, maxReadFileSize+1))
+	if err != nil {
 		cleanup()
 		return fmt.Errorf("failed to copy file content: %w", err)
+	}
+	if n > maxReadFileSize {
+		cleanup()
+		return fmt.Errorf("source file %q grew beyond size limit during copy (%d bytes, max %d)", src, n, maxReadFileSize)
 	}
 
 	// Close explicitly to catch flush errors (e.g. NFS write-back failures).

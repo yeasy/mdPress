@@ -152,17 +152,31 @@ func processMermaid(html string) string {
 	})
 }
 
-// scriptTagPattern matches <script> tags (opening and closing) for sanitization.
-var scriptTagPattern = regexp.MustCompile(`(?i)</?script[^>]*>`)
+// dangerousTagPattern matches HTML tags that can execute code, load external
+// resources, or inject styles: <script>, <iframe>, <object>, <embed>, <form>,
+// <base>, <link>, <meta>, <style>. Mermaid diagrams never need these tags;
+// stripping them prevents XSS/CSS-injection when Mermaid JS fails to load and
+// the browser renders the raw HTML.
+// The pattern handles '>' inside quoted attribute values to avoid premature
+// match termination (e.g. <script data-x="a>b">).
+var dangerousTagPattern = regexp.MustCompile(
+	`(?i)</?(?:script|iframe|object|embed|form|base|link|meta|style)\b(?:[^>"']|"[^"]*"|'[^']*')*>`)
 
 // eventHandlerPattern matches HTML event handler attributes like onclick, onload, etc.
 var eventHandlerPattern = regexp.MustCompile(`(?i)\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)`)
 
-// sanitizeMermaidCode strips <script> tags and event handler attributes from
-// Mermaid diagram code as defense-in-depth against XSS if Mermaid JS fails to load.
+// jsURIPattern matches href or src attributes with javascript:, vbscript:,
+// or data: URIs. The full match covers the attribute name + value (including
+// quotes), so ReplaceAllString replaces the entire attribute cleanly.
+var jsURIPattern = regexp.MustCompile(`(?i)(?:href|src)\s*=\s*(?:"[^"]*(?:javascript|vbscript|data)\s*:[^"]*"|'[^']*(?:javascript|vbscript|data)\s*:[^']*'|[^\s>]*(?:javascript|vbscript|data)\s*:[^\s>]*)`)
+
+// sanitizeMermaidCode strips dangerous HTML tags, event handler attributes,
+// and javascript:/data: URIs from Mermaid diagram code as defense-in-depth
+// against XSS if Mermaid JS fails to load.
 func sanitizeMermaidCode(code string) string {
-	code = scriptTagPattern.ReplaceAllString(code, "")
+	code = dangerousTagPattern.ReplaceAllString(code, "")
 	code = eventHandlerPattern.ReplaceAllString(code, "")
+	code = jsURIPattern.ReplaceAllString(code, "data-blocked-uri=\"removed\"")
 	return code
 }
 

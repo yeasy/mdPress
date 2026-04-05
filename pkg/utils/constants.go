@@ -12,11 +12,11 @@ const MermaidCDNURL = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.
 // KaTeX CDN URLs. Centralized here to keep the version consistent across the codebase.
 const (
 	// KaTeXCSSURL is the CDN URL for the KaTeX stylesheet.
-	KaTeXCSSURL = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+	KaTeXCSSURL = "https://cdn.jsdelivr.net/npm/katex@0.16.44/dist/katex.min.css"
 	// KaTeXJSURL is the CDN URL for the KaTeX core JavaScript library.
-	KaTeXJSURL = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+	KaTeXJSURL = "https://cdn.jsdelivr.net/npm/katex@0.16.44/dist/katex.min.js"
 	// KaTeXAutoRenderURL is the CDN URL for the KaTeX auto-render extension, which scans for $...$ and $$...$$ in the document and renders them.
-	KaTeXAutoRenderURL = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+	KaTeXAutoRenderURL = "https://cdn.jsdelivr.net/npm/katex@0.16.44/dist/contrib/auto-render.min.js"
 )
 
 // MaxHTTPRedirects is the maximum number of HTTP redirects to follow.

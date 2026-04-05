@@ -168,7 +168,7 @@ func TestInjectLiveReload_HTMLFile(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Request root path (should inject script)
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -221,7 +221,7 @@ func TestInjectLiveReload_NonHTML(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/style.css", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -250,7 +250,7 @@ func TestInjectLiveReload_DirectoryPath(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Request path ending with /
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/chapter1/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/chapter1/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -672,7 +672,7 @@ func TestInjectLiveReload_MissingFile(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/nonexistent.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1145,7 +1145,7 @@ func TestInjectLiveReload_PathTraversal(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Try to access a file outside the output directory
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/../../../etc/passwd.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/../../../etc/passwd.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1483,7 +1483,7 @@ func TestInjectLiveReload_HTMLWithoutBodyTag(t *testing.T) {
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test.html", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test.html", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1516,7 +1516,7 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Test with root path
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1525,7 +1525,7 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	}
 
 	// Test with trailing slash on subdir
-	req = httptest.NewRequestWithContext(context.Background(), "GET", "/subdir/", nil)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/subdir/", nil)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	// This might not find index.html, which is OK - just verify no panic
@@ -1547,7 +1547,7 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 	handler := srv.injectLiveReload(fileServer)
 
 	// Request a path that does not exist.
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/02_reasoning-2.4_reflexion/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/02_reasoning-2.4_reflexion/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1560,7 +1560,7 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 	}
 
 	// A non-existent .html path should also redirect.
-	req = httptest.NewRequestWithContext(context.Background(), "GET", "/missing-page.html", nil)
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/missing-page.html", nil)
 	rec = httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1579,7 +1579,7 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 		"/favicon.ico",
 		"/font.woff2",
 	} {
-		req = httptest.NewRequestWithContext(context.Background(), "GET", assetPath, nil)
+		req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, assetPath, nil)
 		rec = httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 

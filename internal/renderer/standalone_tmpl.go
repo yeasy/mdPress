@@ -135,7 +135,7 @@ const standaloneHTMLTail = `  </script>
       var ar = document.createElement('script');
       ar.src = '{{KATEX_AUTO_RENDER_URL}}';
       ar.onload = function() {
-        renderMathInElement(document.body, {
+        renderMathInElement(document.getElementById('main-content') || document.body, {
           delimiters: [
             {left: '$$', right: '$$', display: true},
             {left: '$',  right: '$',  display: false}

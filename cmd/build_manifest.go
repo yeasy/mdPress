@@ -17,6 +17,8 @@ import (
 
 const buildManifestVersion = "v1"
 const buildManifestFilename = "build-manifest.json"
+const maxManifestSize = 10 * 1024 * 1024  // 10 MB
+const maxHashFileSize = 100 * 1024 * 1024 // 100 MB
 
 // manifestEntry represents cached metadata for a single chapter.
 type manifestEntry struct {
@@ -43,12 +45,22 @@ func loadManifest(cacheDir string) (*buildManifest, error) {
 	}
 
 	manifestPath := filepath.Join(cacheDir, buildManifestFilename)
-	data, err := os.ReadFile(manifestPath)
+	f, err := os.Open(manifestPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return newBuildManifest(""), nil
 		}
+		return nil, fmt.Errorf("open build manifest: %w", err)
+	}
+	defer f.Close() //nolint:errcheck
+	data, err := io.ReadAll(io.LimitReader(f, maxManifestSize+1))
+	if err != nil {
 		return nil, fmt.Errorf("read build manifest: %w", err)
+	}
+	if int64(len(data)) > maxManifestSize {
+		slog.Debug("build manifest too large, starting fresh",
+			"path", manifestPath, "size", len(data))
+		return newBuildManifest(""), nil
 	}
 
 	var manifest buildManifest
@@ -110,8 +122,12 @@ func computeChapterHash(filePath string) (string, error) {
 	defer file.Close() //nolint:errcheck
 
 	h := sha256.New()
-	if _, err := io.Copy(h, file); err != nil {
+	n, err := io.Copy(h, io.LimitReader(file, maxHashFileSize+1))
+	if err != nil {
 		return "", fmt.Errorf("hash file: %w", err)
+	}
+	if n > maxHashFileSize {
+		return "", fmt.Errorf("file too large for hashing: read %d bytes (max %d)", n, maxHashFileSize)
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil)), nil

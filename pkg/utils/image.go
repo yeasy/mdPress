@@ -222,7 +222,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 	}
 
 	// Download with a timeout so unresponsive servers do not hang forever.
-	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, urlStr, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for image download: %w", err)
 	}
@@ -238,7 +238,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		// which may have consumed its timeout or been canceled during the first attempt.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
 		defer retryCancel() // cancel after response body is fully consumed
-		req, err := http.NewRequestWithContext(retryCtx, "GET", urlStr, nil)
+		req, err := http.NewRequestWithContext(retryCtx, http.MethodGet, urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
 		}
@@ -778,6 +778,13 @@ func DisableSSRFCheck() { ssrfCheckEnabled.Store(false) }
 
 // EnableSSRFCheck re-enables the SSRF prevention check.
 func EnableSSRFCheck() { ssrfCheckEnabled.Store(true) }
+
+// SSRFSafeTransport returns a clone of the SSRF-safe HTTP transport that
+// validates resolved IP addresses at dial time to prevent DNS rebinding attacks.
+// Callers should use this when building HTTP clients for user-controlled URLs.
+func SSRFSafeTransport() *http.Transport {
+	return ssrfSafeTransport.Clone()
+}
 
 // CheckURLNotPrivate checks that a URL's hostname does not resolve to a
 // private, loopback, or link-local IP address (SSRF prevention).

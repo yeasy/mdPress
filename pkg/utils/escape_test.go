@@ -274,6 +274,31 @@ func TestSanitizeCSS(t *testing.T) {
 			input:    `@font-face { font-family: x; src: url("https://evil.com/font.woff"); }`,
 			expected: `@font-face { font-family: x; src: /* blocked external url */; }`,
 		},
+		{
+			name:     "blocks protocol-relative url",
+			input:    `body { background: url("//evil.com/track.png"); }`,
+			expected: `body { background: /* blocked external url */; }`,
+		},
+		{
+			name:     "blocks protocol-relative url in font-face",
+			input:    `@font-face { src: url('//evil.com/font.woff'); }`,
+			expected: `@font-face { src: /* blocked external url */; }`,
+		},
+		{
+			name:     "blocks javascript url",
+			input:    `body { background: url("javascript:alert(1)"); }`,
+			expected: `body { background: /* blocked uri scheme */(alert(1)"); }`,
+		},
+		{
+			name:     "blocks javascript url case insensitive",
+			input:    `body { background: URL( 'JavaScript:void(0)' ); }`,
+			expected: `body { background: /* blocked uri scheme */(void(0)' ); }`,
+		},
+		{
+			name:     "blocks vbscript url in css",
+			input:    `body { background: url("vbscript:MsgBox(1)"); }`,
+			expected: `body { background: /* blocked uri scheme */(MsgBox(1)"); }`,
+		},
 	}
 
 	for _, tt := range tests {
