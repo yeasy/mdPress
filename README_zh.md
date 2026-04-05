@@ -79,7 +79,7 @@ $ mdpress build --format site,pdf,html,epub
 
 ```bash
 brew tap yeasy/tap
-brew install mdpress
+brew install --cask mdpress
 ```
 
 ### Go Install

@@ -8,7 +8,7 @@
 
 **答：** 不需要。预编译的二进制文件适用于 Linux、macOS 和 Windows。从以下位置下载：
 - GitHub Releases：https://github.com/yeasy/mdpress/releases
-- Homebrew (macOS)：`brew install mdpress`
+- Homebrew (macOS)：`brew tap yeasy/tap && brew install --cask mdpress`
 - 手动：提取二进制文件并添加到 PATH
 
 如果要从源代码构建，你需要 Go 1.26+。

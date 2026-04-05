@@ -8,7 +8,7 @@
 
 **A:** No. Pre-built binaries are available for Linux, macOS, and Windows. Download from:
 - GitHub Releases: https://github.com/yeasy/mdpress/releases
-- Homebrew (macOS): `brew install mdpress`
+- Homebrew (macOS): `brew tap yeasy/tap && brew install --cask mdpress`
 - Manually: Extract binary and add to PATH
 
 If you want to build from source, you'll need Go 1.26+.

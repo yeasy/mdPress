@@ -79,7 +79,7 @@ Generated sites include:
 
 ```bash
 brew tap yeasy/tap
-brew install mdpress
+brew install --cask mdpress
 ```
 
 ### Go Install
