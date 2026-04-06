@@ -804,7 +804,7 @@ func TestGitRemoteOwnerPreferredOverReadmeURL(t *testing.T) {
 		{"git", "-C", dir, "remote", "add", "origin", "https://github.com/realowner/myrepo.git"},
 	}
 	for _, args := range cmds {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.CommandContext(context.Background(), args[0], args[1:]...) //nolint:gosec // test helper with trusted args
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("command %v failed: %v\n%s", args, err, out)
 		}

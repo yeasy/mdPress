@@ -651,7 +651,7 @@ func writeBinaryFile(path string, data []byte) error {
 	// Explicitly set permissions: os.WriteFile only applies the mode when
 	// creating a new file. If the file was pre-created (e.g. by os.CreateTemp
 	// with 0o600), the execute bits would be missing.
-	if err := os.Chmod(path, 0o755); err != nil {
+	if err := os.Chmod(path, 0o755); err != nil { //nolint:gosec // G302: binary must be executable
 		return fmt.Errorf("failed to set executable permissions: %w", err)
 	}
 
