@@ -36,11 +36,6 @@ func Expand(source []byte, cfg *config.BookConfig) []byte {
 	return result
 }
 
-// expandString is the string wrapper for Expand.
-func expandString(source string, cfg *config.BookConfig) string {
-	return string(Expand([]byte(source), cfg))
-}
-
 // buildVarMap builds the variable lookup table from config.
 func buildVarMap(cfg *config.BookConfig) map[string]string {
 	return map[string]string{

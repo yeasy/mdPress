@@ -7,6 +7,11 @@ import (
 	"github.com/yeasy/mdpress/internal/config"
 )
 
+// expandString is the string wrapper for Expand, used only in tests.
+func expandString(source string, cfg *config.BookConfig) string {
+	return string(Expand([]byte(source), cfg))
+}
+
 func newTestConfig() *config.BookConfig {
 	cfg := config.DefaultConfig()
 	cfg.Book.Title = "测试书名"
