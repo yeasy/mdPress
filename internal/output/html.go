@@ -47,8 +47,12 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 		if slug == "" {
 			slug = "chapter"
 		}
-		if count, ok := seenSlugs[slug]; ok {
-			slug = fmt.Sprintf("%s-%d", slug, count+1)
+		if _, ok := seenSlugs[slug]; ok {
+			baseSlug := slug
+			for seenSlugs[slug] > 0 {
+				slug = fmt.Sprintf("%s-%d", baseSlug, seenSlugs[baseSlug]+1)
+				seenSlugs[baseSlug]++
+			}
 		}
 		seenSlugs[slug]++
 		pageName := slug + ".html"

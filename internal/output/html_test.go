@@ -656,6 +656,41 @@ func TestHTMLGeneratorSlugCollision(t *testing.T) {
 	}
 }
 
+func TestHTMLGeneratorSlugCollisionThreeWay(t *testing.T) {
+	dir := t.TempDir()
+	outDir := filepath.Join(dir, "site")
+
+	// Three chapters: two slugify to "intro" and one naturally slugifies to
+	// "intro-2", which is the dedup name the second "intro" would claim.
+	chapters := map[string]string{
+		"Intro!":  "<h1>First</h1>",
+		"Intro?":  "<h1>Second</h1>",
+		"Intro-2": "<h1>Third</h1>",
+	}
+
+	gen := NewHTMLGenerator()
+	err := gen.Generate("<html></html>", outDir, chapters)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+
+	htmlFiles := 0
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".html") && e.Name() != "index.html" {
+			htmlFiles++
+		}
+	}
+
+	if htmlFiles != 3 {
+		t.Errorf("expected 3 chapter HTML files (no overwrites), got %d", htmlFiles)
+	}
+}
+
 func TestHTMLGeneratorEmptySlugFallback(t *testing.T) {
 	dir := t.TempDir()
 	outDir := filepath.Join(dir, "site")
