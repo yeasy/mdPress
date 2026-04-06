@@ -211,6 +211,76 @@ func TestEscapeURL(t *testing.T) {
 	}
 }
 
+// TestCoverLabelsLocalization verifies cover label localization.
+func TestCoverLabelsLocalization(t *testing.T) {
+	tests := []struct {
+		lang                          string
+		wantAuthor, wantVer, wantDate string
+	}{
+		{"en-US", "Author", "Version", "Date"},
+		{"en", "Author", "Version", "Date"},
+		{"", "Author", "Version", "Date"},
+		{"zh-CN", "作者", "版本", "日期"},
+		{"zh", "作者", "版本", "日期"},
+		{"ja-JP", "著者", "バージョン", "日付"},
+		{"ko-KR", "저자", "버전", "날짜"},
+	}
+	for _, tt := range tests {
+		a, v, d := coverLabels(tt.lang)
+		if a != tt.wantAuthor || v != tt.wantVer || d != tt.wantDate {
+			t.Errorf("coverLabels(%q) = (%q,%q,%q), want (%q,%q,%q)",
+				tt.lang, a, v, d, tt.wantAuthor, tt.wantVer, tt.wantDate)
+		}
+	}
+}
+
+// TestRenderHTMLChineseLabels verifies Chinese cover labels.
+func TestRenderHTMLChineseLabels(t *testing.T) {
+	meta := config.BookMeta{
+		Title:    "测试书名",
+		Author:   "张三",
+		Version:  "1.0",
+		Language: "zh-CN",
+	}
+	gen := NewCoverGenerator(meta)
+	html := gen.RenderHTML()
+
+	if !strings.Contains(html, "作者") {
+		t.Error("Chinese cover should use '作者' label")
+	}
+	if !strings.Contains(html, "版本") {
+		t.Error("Chinese cover should use '版本' label")
+	}
+	if !strings.Contains(html, "日期") {
+		t.Error("Chinese cover should use '日期' label")
+	}
+	if strings.Contains(html, ">Author<") {
+		t.Error("Chinese cover should not use English 'Author' label")
+	}
+}
+
+// TestRenderHTMLEnglishLabels verifies English cover labels (default).
+func TestRenderHTMLEnglishLabels(t *testing.T) {
+	meta := config.BookMeta{
+		Title:    "Test Book",
+		Author:   "John",
+		Version:  "1.0",
+		Language: "en-US",
+	}
+	gen := NewCoverGenerator(meta)
+	html := gen.RenderHTML()
+
+	if !strings.Contains(html, "Author") {
+		t.Error("English cover should use 'Author' label")
+	}
+	if !strings.Contains(html, "Version") {
+		t.Error("English cover should use 'Version' label")
+	}
+	if !strings.Contains(html, "Date") {
+		t.Error("English cover should use 'Date' label")
+	}
+}
+
 // TestRenderHTMLNoAuthor verifies rendering without an author.
 func TestRenderHTMLNoAuthor(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}

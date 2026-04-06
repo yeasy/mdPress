@@ -189,9 +189,25 @@ func (cg *CoverGenerator) renderStyles() string {
 	return buf.String()
 }
 
+// coverLabels returns localized labels for the cover page metadata.
+func coverLabels(lang string) (author, version, date string) {
+	if strings.HasPrefix(lang, "zh") {
+		return "作者", "版本", "日期"
+	}
+	if strings.HasPrefix(lang, "ja") {
+		return "著者", "バージョン", "日付"
+	}
+	if strings.HasPrefix(lang, "ko") {
+		return "저자", "버전", "날짜"
+	}
+	return "Author", "Version", "Date"
+}
+
 // renderCoverContent builds the cover page HTML structure.
 func (cg *CoverGenerator) renderCoverContent() string {
 	var buf strings.Builder
+
+	labelAuthor, labelVersion, labelDate := coverLabels(cg.meta.Language)
 
 	buf.WriteString(`  <div class="cover-page">` + "\n")
 	buf.WriteString(`    <div class="cover-content">` + "\n")
@@ -219,7 +235,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	// Author
 	if cg.meta.Author != "" {
 		buf.WriteString(`        <div class="cover-meta-item">` + "\n")
-		buf.WriteString(`          <span class="cover-meta-label">Author</span>` + "\n")
+		fmt.Fprintf(&buf, `          <span class="cover-meta-label">%s</span>`+"\n", labelAuthor)
 		fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Author))
 		buf.WriteString(`        </div>` + "\n")
 	}
@@ -227,7 +243,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	// Version
 	if cg.meta.Version != "" {
 		buf.WriteString(`        <div class="cover-meta-item">` + "\n")
-		buf.WriteString(`          <span class="cover-meta-label">Version</span>` + "\n")
+		fmt.Fprintf(&buf, `          <span class="cover-meta-label">%s</span>`+"\n", labelVersion)
 		fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", utils.EscapeHTML(cg.meta.Version))
 		buf.WriteString(`        </div>` + "\n")
 	}
@@ -235,7 +251,7 @@ func (cg *CoverGenerator) renderCoverContent() string {
 	// Date
 	currentDate := time.Now().Format("2006-01-02")
 	buf.WriteString(`        <div class="cover-meta-item">` + "\n")
-	buf.WriteString(`          <span class="cover-meta-label">Date</span>` + "\n")
+	fmt.Fprintf(&buf, `          <span class="cover-meta-label">%s</span>`+"\n", labelDate)
 	fmt.Fprintf(&buf, `          <span>%s</span>`+"\n", currentDate)
 	buf.WriteString(`        </div>` + "\n")
 
