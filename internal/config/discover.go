@@ -281,6 +281,32 @@ func gitConfigAuthor(ctx context.Context, dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// gitRemoteOwner returns the owner name from the git remote origin URL
+// (GitHub HTTPS/SSH, or generic SSH git@host:owner/repo format),
+// or an empty string when git is unavailable or the remote is not recognized.
+func gitRemoteOwner(ctx context.Context, dir string) string {
+	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return ""
+	}
+	remote := strings.TrimSpace(string(out))
+	// Match GitHub/GitLab HTTPS or SSH URLs: github.com/owner/repo or git@github.com:owner/repo.
+	if matches := githubUserPattern.FindStringSubmatch(remote); len(matches) >= 2 {
+		return matches[1]
+	}
+	// SSH format: git@github.com:owner/repo.git
+	if idx := strings.Index(remote, ":"); idx > 0 && !strings.Contains(remote[:idx], "/") {
+		path := remote[idx+1:]
+		path = strings.TrimSuffix(path, ".git")
+		if parts := strings.SplitN(path, "/", 2); len(parts) >= 1 && parts[0] != "" {
+			return parts[0]
+		}
+	}
+	return ""
+}
+
 // DiscoverError describes auto-discovery failures.
 type DiscoverError struct {
 	Dir string
@@ -396,14 +422,16 @@ func ExtractReadmeMetadata(ctx context.Context, path string) ReadmeMetadata {
 	// Detect language from content.
 	meta.Language = detectContentLanguage(content)
 
-	// Fallback author to GitHub username.
-	if meta.Author == "" && githubUser != "" {
-		meta.Author = githubUser
-	}
-
-	// Last-resort fallback: try git config user.name in the book directory.
+	// Fallback author: prefer the git remote origin owner (the actual repo
+	// owner), then the first GitHub URL found in the README, then git user.name.
 	if meta.Author == "" {
-		meta.Author = gitConfigAuthor(ctx, filepath.Dir(path))
+		if owner := gitRemoteOwner(ctx, filepath.Dir(path)); owner != "" {
+			meta.Author = owner
+		} else if githubUser != "" {
+			meta.Author = githubUser
+		} else {
+			meta.Author = gitConfigAuthor(ctx, filepath.Dir(path))
+		}
 	}
 
 	return meta

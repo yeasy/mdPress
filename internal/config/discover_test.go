@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -780,6 +781,45 @@ func TestExtractReadmeMetadataNotFound(t *testing.T) {
 	// Should return empty metadata, not error
 	if meta.Title != "" || meta.Author != "" || meta.Version != "" {
 		t.Error("expected empty metadata for non-existent file")
+	}
+}
+
+// TestGitRemoteOwner tests git remote owner extraction.
+func TestGitRemoteOwner(t *testing.T) {
+	// Test against a directory with no git — should return empty.
+	noGitDir := t.TempDir()
+	if owner := gitRemoteOwner(context.Background(), noGitDir); owner != "" {
+		t.Errorf("expected empty owner for non-git dir, got %q", owner)
+	}
+}
+
+// TestGitRemoteOwnerPreferredOverReadmeURL verifies that when a README
+// references third-party GitHub repos, the actual git remote owner is used.
+func TestGitRemoteOwnerPreferredOverReadmeURL(t *testing.T) {
+	dir := t.TempDir()
+
+	// Initialize a git repo with a remote that points to "realowner".
+	cmds := [][]string{
+		{"git", "-C", dir, "init"},
+		{"git", "-C", dir, "remote", "add", "origin", "https://github.com/realowner/myrepo.git"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("command %v failed: %v\n%s", args, err, out)
+		}
+	}
+
+	// Write a README that references a *different* GitHub user first.
+	readme := "# Test Book\nSee https://github.com/someoneelse/otherproject for details.\n"
+	readmePath := filepath.Join(dir, "README.md")
+	if err := os.WriteFile(readmePath, []byte(readme), 0o644); err != nil {
+		t.Fatalf("write README failed: %v", err)
+	}
+
+	meta := ExtractReadmeMetadata(context.Background(), readmePath)
+	if meta.Author != "realowner" {
+		t.Errorf("expected author 'realowner' from git remote, got %q", meta.Author)
 	}
 }
 
