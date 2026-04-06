@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-04
+> Updated: 2026-04-06
 > Maintainer: mdPress product team
 
 ---
@@ -38,6 +38,7 @@ v0.7.1 ████████████████████████�
 v0.7.2 ██████████████████████████████████████████ released (2026-03-30)
 v0.7.3 ██████████████████████████████████████████ released (2026-04-01)
 v0.7.4 ██████████████████████████████████████████ released (2026-04-04)
+v0.7.5 ██████████████████████████████████████████ released (2026-04-06)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -801,6 +802,47 @@ v0.7.4 hardens HTML/CSS sanitizers against advanced XSS vectors, eliminates TOCT
 | Add figure/figcaption styles to standalone HTML | Center figures and captions with dark mode support via CSS variables |
 | Add figure/figcaption base styles to EPUB | Inline fallback styles for images, figures, and captions |
 | Add local execution timeout for PlantUML | Prevent indefinite hangs with unbounded context |
+
+---
+
+## v0.7.5 - i18n, Caption Styling, And Bug Fixes
+
+**Release date**: 2026-04-06
+**Theme**: internationalization, rendering, and correctness
+
+v0.7.5 adds i18n support for cover page labels (Chinese, Japanese, Korean), auto-detects figure/table captions for CSS styling, allows Unicode characters in font family names, improves author discovery from git remotes, and fixes a slug collision bug in chapter HTML generation.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| i18n cover page labels | P1 | Cover page shows localized Author/Version/Date labels for zh, ja, ko languages |
+| Figure/table caption styling | P1 | Paragraphs starting with "Figure N" or "图 N" etc. get `class="caption"` for centered styling |
+| Unicode font family validation | P1 | Font family names with CJK characters (e.g. 思源黑体) are now accepted |
+| Git remote owner for author | P2 | Auto-discovery prefers git remote owner over GitHub URLs found in README |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Slug collision in chapter HTML | P1 | Three-way slug collisions (e.g. two chapters slugifying to "intro" plus a natural "intro-2") no longer overwrite files |
+| Context leak in image download retry | P1 | Retry path no longer cancels context before response body is read |
+| Executable permission after upgrade | P1 | Explicit `os.Chmod` ensures binary is executable after upgrade write |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Move test-only helper to test file | Remove `expandString` from production code |
+| Caption unit tests | Add table-driven tests for caption pattern matching |
+| Slug collision three-way test | Test coverage for N-way slug deduplication |
+
+### Documentation
+
+| Change | Description |
+| --- | --- |
+| Sync Chinese ROADMAP | Add missing v0.6.5-v0.6.9, v0.7.1-v0.7.2 sections to ROADMAP_zh.md |
+| Document migrate flags | Add `--dry-run` and `--force` flags to CLI reference |
 
 ---
 
