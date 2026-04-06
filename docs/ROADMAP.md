@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-01
+> Updated: 2026-04-04
 > Maintainer: mdPress product team
 
 ---
@@ -732,6 +732,40 @@ v0.7.2 modernizes Go idioms across the codebase, migrating from deprecated APIs 
 
 ---
 
+## v0.7.3 - Security Hardening And Go 1.26
+
+**Release date**: 2026-04-01
+**Theme**: security hardening and dependency updates
+
+v0.7.3 addresses SSRF bypass vectors, upgrades the Go toolchain to 1.26.1, and modernizes octal literals and structured logging across the codebase.
+
+### Security
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Block SSRF via 0.0.0.0/8 range | P0 | Prevent server-side requests to "this network" addresses that reach localhost on Linux |
+| Guard SUMMARY.md parsing against TOCTOU | P1 | Detect silent truncation when file grows between stat and read |
+
+### Changed
+
+| Change | Description |
+| --- | --- |
+| Upgrade Go to 1.26.1 | Update minimum Go version and all dependencies |
+| Use explicit octal literals | Migrate `0644`/`0755` to `0o644`/`0o755` across codebase |
+| Use slog.Any for error logging | Preserve error type information in structured logs |
+| Update CI to Go 1.26 | Bump GitHub Actions, GitLab CI, and Docker to Go 1.26 |
+| Update Dockerfile to Alpine 3.23 | Use latest Alpine base image |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Handle deferred cleanup errors | P2 | Properly acknowledge discarded error returns in deferred cleanup calls |
+| Fix CI cache path consistency | P2 | Add `MDPRESS_CACHE_DIR` env var to CI documentation examples |
+| Fix stale plugin registry reference | P2 | Remove non-existent "plugin registry" link from migrate docs |
+
+---
+
 ## v0.7.4 - Security Hardening And Dependency Updates
 
 **Release date**: 2026-04-04
@@ -767,40 +801,6 @@ v0.7.4 hardens HTML/CSS sanitizers against advanced XSS vectors, eliminates TOCT
 | Add figure/figcaption styles to standalone HTML | Center figures and captions with dark mode support via CSS variables |
 | Add figure/figcaption base styles to EPUB | Inline fallback styles for images, figures, and captions |
 | Add local execution timeout for PlantUML | Prevent indefinite hangs with unbounded context |
-
----
-
-## v0.7.3 - Security Hardening And Go 1.26
-
-**Release date**: 2026-04-01
-**Theme**: security hardening and dependency updates
-
-v0.7.3 addresses SSRF bypass vectors, upgrades the Go toolchain to 1.26.1, and modernizes octal literals and structured logging across the codebase.
-
-### Security
-
-| Fix | Priority | Description |
-| --- | --- | --- |
-| Block SSRF via 0.0.0.0/8 range | P0 | Prevent server-side requests to "this network" addresses that reach localhost on Linux |
-| Guard SUMMARY.md parsing against TOCTOU | P1 | Detect silent truncation when file grows between stat and read |
-
-### Changed
-
-| Change | Description |
-| --- | --- |
-| Upgrade Go to 1.26.1 | Update minimum Go version and all dependencies |
-| Use explicit octal literals | Migrate `0644`/`0755` to `0o644`/`0o755` across codebase |
-| Use slog.Any for error logging | Preserve error type information in structured logs |
-| Update CI to Go 1.26 | Bump GitHub Actions, GitLab CI, and Docker to Go 1.26 |
-| Update Dockerfile to Alpine 3.23 | Use latest Alpine base image |
-
-### Fixed Issues
-
-| Fix | Priority | Description |
-| --- | --- | --- |
-| Handle deferred cleanup errors | P2 | Properly acknowledge discarded error returns in deferred cleanup calls |
-| Fix CI cache path consistency | P2 | Add `MDPRESS_CACHE_DIR` env var to CI documentation examples |
-| Fix stale plugin registry reference | P2 | Remove non-existent "plugin registry" link from migrate docs |
 
 ---
 

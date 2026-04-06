@@ -413,6 +413,13 @@ mdpress migrate [directory]
 |----------|-------------|
 | `[directory]` | GitBook/HonKit 项目目录 |
 
+### 标志
+
+| 标志 | 默认值 | 描述 |
+|------|---------|-------------|
+| `--dry-run` | off | 预览变更而不写入任何文件 |
+| `--force` | off | 覆盖已有的 book.yaml 而非跳过 |
+
 ### 示例
 
 ```bash
@@ -573,7 +580,7 @@ mdpress version
 mdpress --version
 
 # 输出：
-# mdpress version 0.7.2
+# mdpress version 0.7.4
 # Go version: go1.26.1
 # Platform: linux/amd64
 ```
