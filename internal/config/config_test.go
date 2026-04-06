@@ -508,6 +508,36 @@ func TestValidateTableDriven(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "valid CJK font family",
+			setup: func(cfg *BookConfig) {
+				cfg.baseDir = tmpDir
+				cfg.Book.Title = "Test"
+				cfg.Chapters = []ChapterDef{{Title: "ch1", File: "ch1.md"}}
+				cfg.Style.FontFamily = "思源黑体, Noto Sans SC, sans-serif"
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid Japanese font family",
+			setup: func(cfg *BookConfig) {
+				cfg.baseDir = tmpDir
+				cfg.Book.Title = "Test"
+				cfg.Chapters = []ChapterDef{{Title: "ch1", File: "ch1.md"}}
+				cfg.Style.FontFamily = "ヒラギノ角ゴシック, sans-serif"
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid font family with semicolon",
+			setup: func(cfg *BookConfig) {
+				cfg.baseDir = tmpDir
+				cfg.Book.Title = "Test"
+				cfg.Chapters = []ChapterDef{{Title: "ch1", File: "ch1.md"}}
+				cfg.Style.FontFamily = "Arial; background: red"
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

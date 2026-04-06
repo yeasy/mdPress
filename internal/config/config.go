@@ -18,7 +18,7 @@ import (
 
 // Pre-compiled patterns for style validation.
 var (
-	fontFamilyPattern = regexp.MustCompile(`^[a-zA-Z0-9 ,\-'.]+$`)
+	fontFamilyPattern = regexp.MustCompile(`^[\p{L}\p{N} ,\-'.]+$`)
 	fontSizePattern   = regexp.MustCompile(`^\d+(\.\d+)?(px|pt|em|rem|%)$`)
 	codeThemePattern  = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 )
@@ -338,10 +338,10 @@ func (c *BookConfig) Validate() error {
 		return fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout)
 	}
 
-	// Validate font_family: only allow alphanumeric, spaces, commas, hyphens, single quotes, and periods.
+	// Validate font_family: allow Unicode letters (including CJK), digits, spaces, commas, hyphens, single quotes, and periods.
 	if c.Style.FontFamily != "" {
 		if !fontFamilyPattern.MatchString(c.Style.FontFamily) {
-			return errors.New("font_family contains invalid characters (only alphanumeric, spaces, commas, hyphens, periods, and single quotes are allowed)")
+			return errors.New("font_family contains invalid characters (only letters, digits, spaces, commas, hyphens, periods, and single quotes are allowed)")
 		}
 	}
 
