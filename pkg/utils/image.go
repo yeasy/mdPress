@@ -237,7 +237,7 @@ func DownloadImage(urlStr string, destDir string) (string, error) {
 		// Create a fresh context for the retry instead of reusing the original one,
 		// which may have consumed its timeout or been canceled during the first attempt.
 		retryCtx, retryCancel := context.WithTimeout(context.Background(), imageDownloadTimeout)
-		defer retryCancel() // cancel after response body is fully consumed
+		defer retryCancel() // cancel runs at function exit, after body is consumed
 		req, err := http.NewRequestWithContext(retryCtx, http.MethodGet, urlStr, nil)
 		if err != nil {
 			return "", fmt.Errorf("failed to create request for image download (retry): %w", err)
