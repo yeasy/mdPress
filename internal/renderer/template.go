@@ -333,6 +333,12 @@ const htmlTemplate = `<!DOCTYPE html>
       font-style: italic;
     }
 
+    p.caption {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+    }
+
     /* ============================================
        Link styles
        ============================================ */

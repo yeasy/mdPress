@@ -205,6 +205,60 @@ func TestMermaidScript(t *testing.T) {
 	}
 }
 
+// ===== Captions =====
+
+func TestProcessCaptions(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "Chinese figure caption",
+			input: `<p>图 1 架构概览</p>`,
+			want:  `<p class="caption">图 1 架构概览</p>`,
+		},
+		{
+			name:  "Chinese table caption",
+			input: `<p>表 3 性能对比</p>`,
+			want:  `<p class="caption">表 3 性能对比</p>`,
+		},
+		{
+			name:  "English Figure caption",
+			input: `<p>Figure 10 Overview</p>`,
+			want:  `<p class="caption">Figure 10 Overview</p>`,
+		},
+		{
+			name:  "English Table caption",
+			input: `<p>Table 2 Results</p>`,
+			want:  `<p class="caption">Table 2 Results</p>`,
+		},
+		{
+			name:  "no match - plain paragraph",
+			input: `<p>This is a normal paragraph.</p>`,
+			want:  `<p>This is a normal paragraph.</p>`,
+		},
+		{
+			name:  "no match - Figured out",
+			input: `<p>Figured out the solution</p>`,
+			want:  `<p>Figured out the solution</p>`,
+		},
+		{
+			name:  "no match - existing class",
+			input: `<p class="note">Figure 1 test</p>`,
+			want:  `<p class="note">Figure 1 test</p>`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := processCaptions(tt.input)
+			if got != tt.want {
+				t.Errorf("processCaptions(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 // ===== Integration: Parse + postProcess =====
 
 func TestParseGFMAlert(t *testing.T) {

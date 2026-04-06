@@ -804,6 +804,12 @@ const standaloneCSS = `    /* ==================================================
       font-style: italic;
     }
 
+    p.caption {
+      text-align: center;
+      font-size: 0.9em;
+      color: var(--color-text-muted);
+    }
+
     /* ============================================================
        Image Lightbox
        ============================================================ */

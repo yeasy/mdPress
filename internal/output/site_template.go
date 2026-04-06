@@ -334,6 +334,11 @@ html.dark .content p:has(> img) + p, html.dark .content p:has(> a > img) + p { c
   font-size: 0.84rem;
   text-align: center;
 }
+.content p.caption {
+  text-align: center;
+  font-size: 0.88rem;
+  color: #666;
+}
 .content .mermaid {
   display: flex;
   justify-content: center;
@@ -792,6 +797,7 @@ html.dark .content table td { border-color: #363849; }
 html.dark .content table tr:nth-child(even) { background: #22223a; }
 html.dark .content img { border-color: #363849; }
 html.dark .content figcaption { color: #a6adc8; }
+html.dark .content p.caption { color: #a6adc8; }
 html.dark .content hr { background: #363849; }
 html.dark .page-nav a { background: #262637; border-color: #363849; color: #cdd6f4; }
 html.dark .page-nav a:hover { border-color: #89b4fa; background: #2a2a3e; }

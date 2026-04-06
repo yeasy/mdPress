@@ -34,7 +34,19 @@ func postProcess(html string) string {
 	html = processMermaid(html)
 	html = stripChromaPreStyle(html)
 	html = addLazyLoading(html)
+	html = processCaptions(html)
 	return html
+}
+
+// captionPattern matches <p> tags whose text starts with common figure/table
+// caption patterns: "图 X", "表 X", "Figure X", "Table X".
+var captionPattern = regexp.MustCompile(
+	`<p>((?:图|表|Figure|Table)\s*[\d]+)`)
+
+// processCaptions adds class="caption" to paragraphs that look like figure or
+// table captions (e.g. "图 2-5：..."), so CSS can center them.
+func processCaptions(html string) string {
+	return captionPattern.ReplaceAllString(html, `<p class="caption">$1`)
 }
 
 // imgTagPattern matches any <img ...> tag so we can inspect it in a callback.
