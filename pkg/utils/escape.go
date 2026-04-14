@@ -66,6 +66,16 @@ var cssExternalURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(?:https?
 // cannot execute scripts when used as CSS url() values.
 var cssJSURLPattern = regexp.MustCompile(`(?i)url\s*\(\s*['"]?\s*(?:javascript|vbscript)\s*:`)
 
+// cssBehaviorPattern matches the legacy IE "behavior" CSS property which can
+// load and execute HTC (HTML Component) files.  The pattern requires that
+// "behavior" is NOT preceded by a hyphen or letter so that legitimate
+// compound properties like "scroll-behavior" are not blocked.
+var cssBehaviorPattern = regexp.MustCompile(`(?i)(^|[^a-zA-Z-])behavior\s*:`)
+
+// cssMozBindingPattern matches the legacy Firefox "-moz-binding" CSS property
+// which can load XBL bindings to execute JavaScript.
+var cssMozBindingPattern = regexp.MustCompile(`(?i)-moz-binding\s*:`)
+
 // SanitizeCSS removes sequences from CSS content that could break out of a
 // <style> block or perform injection attacks. This prevents:
 // - </style> tag breakout
@@ -84,5 +94,7 @@ func SanitizeCSS(css string) string {
 	css = cssExpressionPattern.ReplaceAllString(css, "/* blocked expression */(")
 	css = cssExternalURLPattern.ReplaceAllString(css, "/* blocked external url */")
 	css = cssJSURLPattern.ReplaceAllString(css, "/* blocked uri scheme */(")
+	css = cssBehaviorPattern.ReplaceAllString(css, "${1}/* blocked behavior */")
+	css = cssMozBindingPattern.ReplaceAllString(css, "/* blocked moz-binding */")
 	return css
 }

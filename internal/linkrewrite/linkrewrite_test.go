@@ -12,6 +12,10 @@ func TestNormalizePath(t *testing.T) {
 		{"chapter01/README.md", "chapter01/README.md"},
 		{"./chapter01/README.md", "chapter01/README.md"},
 		{"chapter01/../chapter02/README.md", "chapter02/README.md"},
+		{"chapter01/README.MD", "chapter01/README.md"},
+		{"docs/guide.Md", "docs/guide.md"},
+		{"Makefile", "Makefile"},
+		{"docs/README", "docs/README"},
 		{".", ""},
 		{"", ""},
 	}

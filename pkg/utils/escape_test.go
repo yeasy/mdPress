@@ -299,6 +299,31 @@ func TestSanitizeCSS(t *testing.T) {
 			input:    `body { background: url("vbscript:MsgBox(1)"); }`,
 			expected: `body { background: /* blocked uri scheme */(MsgBox(1)"); }`,
 		},
+		{
+			name:     "blocks behavior property",
+			input:    `div { behavior: url(malicious.htc); }`,
+			expected: `div { /* blocked behavior */ url(malicious.htc); }`,
+		},
+		{
+			name:     "blocks behavior case insensitive",
+			input:    `div { Behavior: url(evil.htc); }`,
+			expected: `div { /* blocked behavior */ url(evil.htc); }`,
+		},
+		{
+			name:     "allows scroll-behavior property",
+			input:    `html { scroll-behavior: smooth; }`,
+			expected: `html { scroll-behavior: smooth; }`,
+		},
+		{
+			name:     "blocks -moz-binding",
+			input:    `div { -moz-binding: url("xbl.xml#exploit"); }`,
+			expected: `div { /* blocked moz-binding */ url("xbl.xml#exploit"); }`,
+		},
+		{
+			name:     "blocks -moz-binding case insensitive",
+			input:    `div { -MOZ-BINDING: url("evil.xml"); }`,
+			expected: `div { /* blocked moz-binding */ url("evil.xml"); }`,
+		},
 	}
 
 	for _, tt := range tests {

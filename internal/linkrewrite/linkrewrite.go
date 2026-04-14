@@ -61,12 +61,18 @@ func RewriteLinks(htmlContent string, currentFile string, targets map[string]Tar
 }
 
 // NormalizePath normalizes a chapter file path for consistent map lookups.
+// It cleans the path, converts to forward slashes, and lowercases the file
+// extension so that "chapter.MD" and "chapter.md" resolve to the same key.
 func NormalizePath(path string) string {
 	cleaned := filepath.Clean(path)
 	if cleaned == "." {
 		return ""
 	}
-	return filepath.ToSlash(cleaned)
+	result := filepath.ToSlash(cleaned)
+	if ext := filepath.Ext(result); ext != "" {
+		result = strings.TrimSuffix(result, ext) + strings.ToLower(ext)
+	}
+	return result
 }
 
 // rewriteHref processes a single href value.
@@ -98,9 +104,6 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 	}
 
 	targetPath := NormalizePath(filepath.Join(currentDir, pathPart))
-	if ext := filepath.Ext(targetPath); ext != "" {
-		targetPath = strings.TrimSuffix(targetPath, ext) + strings.ToLower(ext)
-	}
 	target, ok := targets[targetPath]
 	if !ok {
 		return "", false, true
