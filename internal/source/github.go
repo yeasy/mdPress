@@ -63,30 +63,21 @@ func (s *GitHubSource) Prepare() (string, error) {
 
 	// Validate owner and repo names to avoid command injection.
 	if !safeNameRegex.MatchString(s.owner) {
-		if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
-			slog.Warn("Failed to clean up temporary directory",
-				slog.String("dir", s.tempDir),
-				slog.Any("error", rmErr))
-		}
-		s.tempDir = ""
+		s.cleanupOnError()
 		return "", fmt.Errorf("invalid repository owner: %q", s.owner)
 	}
 	if !safeNameRegex.MatchString(s.repo) {
-		if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
-			slog.Warn("Failed to clean up temporary directory",
-				slog.String("dir", s.tempDir),
-				slog.Any("error", rmErr))
-		}
-		s.tempDir = ""
+		s.cleanupOnError()
 		return "", fmt.Errorf("invalid repository name: %q", s.repo)
 	}
 
 	// Build the clone URL.
 	// When GITHUB_TOKEN is set, embed it in the URL for authenticated access
 	// to private repositories. The token is never logged.
+	token := os.Getenv("GITHUB_TOKEN")
 	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", s.owner, s.repo)
 	logURL := cloneURL // safe URL for logging (no token)
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+	if token != "" {
 		cloneURL = fmt.Sprintf("https://x-access-token:%s@github.com/%s/%s.git", token, s.owner, s.repo)
 		slog.Info("Cloning GitHub repository (authenticated)", slog.String("url", logURL))
 	} else {
@@ -98,12 +89,7 @@ func (s *GitHubSource) Prepare() (string, error) {
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
 		if !branchRegex.MatchString(s.opts.Branch) {
-			if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory",
-					slog.String("dir", s.tempDir),
-					slog.Any("error", rmErr))
-			}
-			s.tempDir = ""
+			s.cleanupOnError()
 			return "", fmt.Errorf("invalid branch name: %q", s.opts.Branch)
 		}
 		args = append(args, "--branch", s.opts.Branch)
@@ -123,7 +109,6 @@ func (s *GitHubSource) Prepare() (string, error) {
 	runErr := cmd.Run()
 
 	// Redact the token from any captured output before logging.
-	token := os.Getenv("GITHUB_TOKEN")
 	redactedStderr := redactToken(stderrBuf.String(), token)
 	redactedStdout := redactToken(stdoutBuf.String(), token)
 
@@ -136,10 +121,7 @@ func (s *GitHubSource) Prepare() (string, error) {
 			slog.Error("git clone stdout", slog.String("output", redactedStdout))
 		}
 		// Clean up the clone directory on failure.
-		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-			slog.Warn("Failed to clean up temporary directory after clone failure", slog.String("dir", tempDir), slog.Any("error", rmErr))
-		}
-		s.tempDir = ""
+		s.cleanupOnError()
 		hint := ""
 		if token == "" {
 			hint = "; for private repositories, set the GITHUB_TOKEN environment variable"
@@ -168,37 +150,44 @@ func (s *GitHubSource) Prepare() (string, error) {
 		}
 	}
 
-	// Apply an optional subdirectory.
-	targetDir := tempDir
-	if s.opts.SubDir != "" {
-		// Prevent path traversal through the subdirectory.
-		cleanSubDir := filepath.Clean(s.opts.SubDir)
-		if filepath.IsAbs(cleanSubDir) || strings.HasPrefix(cleanSubDir, "..") {
-			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
-			}
-			s.tempDir = ""
-			return "", fmt.Errorf("unsafe subdirectory path: %q", s.opts.SubDir)
-		}
-		targetDir = filepath.Join(tempDir, cleanSubDir)
-		info, err := os.Stat(targetDir)
-		if err != nil {
-			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
-			}
-			s.tempDir = ""
-			return "", fmt.Errorf("requested subdirectory does not exist in the repository: %s", s.opts.SubDir)
-		}
-		if !info.IsDir() {
-			if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-				slog.Warn("Failed to clean up temporary directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
-			}
-			s.tempDir = ""
-			return "", fmt.Errorf("requested subdirectory is not a directory: %s", s.opts.SubDir)
-		}
+	return s.validateSubDir()
+}
+
+// validateSubDir validates and resolves the optional subdirectory within
+// the cloned repository. It prevents path traversal, verifies the target
+// exists and is a directory. On failure it cleans up tempDir.
+func (s *GitHubSource) validateSubDir() (string, error) {
+	if s.opts.SubDir == "" {
+		return s.tempDir, nil
 	}
 
+	// Prevent path traversal through the subdirectory.
+	cleanSubDir := filepath.Clean(s.opts.SubDir)
+	if filepath.IsAbs(cleanSubDir) || strings.HasPrefix(cleanSubDir, "..") {
+		s.cleanupOnError()
+		return "", fmt.Errorf("unsafe subdirectory path: %q", s.opts.SubDir)
+	}
+	targetDir := filepath.Join(s.tempDir, cleanSubDir)
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		s.cleanupOnError()
+		return "", fmt.Errorf("requested subdirectory does not exist in the repository: %s", s.opts.SubDir)
+	}
+	if !info.IsDir() {
+		s.cleanupOnError()
+		return "", fmt.Errorf("requested subdirectory is not a directory: %s", s.opts.SubDir)
+	}
 	return targetDir, nil
+}
+
+// cleanupOnError removes the temporary directory and resets tempDir.
+func (s *GitHubSource) cleanupOnError() {
+	if s.tempDir != "" {
+		if rmErr := os.RemoveAll(s.tempDir); rmErr != nil {
+			slog.Warn("Failed to clean up temporary directory", slog.String("dir", s.tempDir), slog.Any("error", rmErr))
+		}
+		s.tempDir = ""
+	}
 }
 
 // Cleanup removes the temporary clone directory.

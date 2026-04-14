@@ -3,6 +3,7 @@ package source
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -271,19 +272,24 @@ func TestGitHubSourceEdgeCases(t *testing.T) {
 }
 
 // TestGitHubSourceTokenHintOnCloneFailure verifies that the error message
-// suggests GITHUB_TOKEN when the token is not set.
+// suggests GITHUB_TOKEN when the token is not set and clone fails.
 func TestGitHubSourceTokenHintOnCloneFailure(t *testing.T) {
 	// Ensure GITHUB_TOKEN is not set for this test.
 	t.Setenv("GITHUB_TOKEN", "")
 
-	// Use an invalid owner/repo combination that will fail validation,
-	// so we don't actually try to clone anything.
-	src := NewGitHubSource("valid-owner", "valid-repo", Options{})
+	// Use a non-existent repo — the clone will fail because the repo
+	// does not exist. The error should suggest setting GITHUB_TOKEN.
+	src := NewGitHubSource("nonexistent-test-owner", "nonexistent-test-repo", Options{})
 
-	// We can't easily test a full clone failure without network access,
-	// but we can verify the source was created correctly and Type() is "github".
-	if src.Type() != "github" {
-		t.Errorf("Type() = %q, want %q", src.Type(), "github")
+	_, err := src.Prepare()
+	if err == nil {
+		// If git somehow succeeds (unlikely), clean up and skip.
+		src.Cleanup() //nolint:errcheck
+		t.Skip("clone unexpectedly succeeded")
+	}
+	// The error should contain the GITHUB_TOKEN hint since it's not set.
+	if !strings.Contains(err.Error(), "GITHUB_TOKEN") {
+		t.Errorf("error should mention GITHUB_TOKEN hint, got: %v", err)
 	}
 }
 
@@ -405,6 +411,102 @@ func TestGitHubSourcePrepareValidation(t *testing.T) {
 			if src.tempDir != "" {
 				t.Errorf("tempDir should be empty after validation failure, got %q", src.tempDir)
 				os.RemoveAll(src.tempDir)
+			}
+		})
+	}
+}
+
+// TestGitHubSourceSubDirValidation tests the subdirectory path traversal
+// prevention in Prepare(). It simulates a cloned repo by pre-creating a temp
+// directory and setting tempDir, then verifying that unsafe SubDir values
+// are rejected.
+func TestGitHubSourceSubDirValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		subDir  string
+		setup   func(t *testing.T, baseDir string) // optional: create subdirectory
+		wantErr string
+	}{
+		{
+			name:    "path traversal with ..",
+			subDir:  "../../../etc/passwd",
+			wantErr: "unsafe subdirectory path",
+		},
+		{
+			name:    "absolute path",
+			subDir:  "/etc/passwd",
+			wantErr: "unsafe subdirectory path",
+		},
+		{
+			name:    "relative path traversal",
+			subDir:  "docs/../../..",
+			wantErr: "unsafe subdirectory path",
+		},
+		{
+			name:    "non-existent subdirectory",
+			subDir:  "nonexistent",
+			wantErr: "requested subdirectory does not exist",
+		},
+		{
+			name:   "file instead of directory",
+			subDir: "afile.txt",
+			setup: func(t *testing.T, baseDir string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(baseDir, "afile.txt"), []byte("x"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantErr: "requested subdirectory is not a directory",
+		},
+		{
+			name:   "valid subdirectory",
+			subDir: "docs",
+			setup: func(t *testing.T, baseDir string) {
+				t.Helper()
+				if err := os.MkdirAll(filepath.Join(baseDir, "docs"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantErr: "", // should succeed
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a fake "cloned repo" directory.
+			baseDir := t.TempDir()
+
+			if tt.setup != nil {
+				tt.setup(t, baseDir)
+			}
+
+			// Build a GitHubSource and inject the temp dir to skip cloning.
+			// We use an invalid owner so that if our tempDir injection fails
+			// the test will error at clone instead of silently passing.
+			src := &GitHubSource{
+				owner:   "test",
+				repo:    "test",
+				opts:    Options{SubDir: tt.subDir},
+				tempDir: baseDir,
+			}
+
+			// Call the SubDir validation path directly by simulating post-clone.
+			dir, err := src.validateSubDir()
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("expected success, got error: %v", err)
+				}
+				if dir != filepath.Join(baseDir, tt.subDir) {
+					t.Errorf("dir = %q, want %q", dir, filepath.Join(baseDir, tt.subDir))
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("error = %q, should contain %q", err.Error(), tt.wantErr)
+				}
 			}
 		})
 	}
