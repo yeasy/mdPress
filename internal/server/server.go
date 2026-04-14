@@ -330,7 +330,15 @@ const maxWSClients = 100
 
 // handleWebSocket upgrades an HTTP request to a WebSocket connection.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Upgrade first, then atomically check-and-register under a single lock.
+	// Pre-check connection limit before upgrading to avoid unnecessary resource allocation.
+	s.clientsMu.Lock()
+	atLimit := len(s.clients) >= maxWSClients
+	s.clientsMu.Unlock()
+	if atLimit {
+		http.Error(w, "too many WebSocket connections", http.StatusServiceUnavailable)
+		return
+	}
+
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("WebSocket upgrade failed", slog.Any("error", err))
@@ -340,7 +348,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Wrap the connection so writes remain thread-safe.
 	client := &wsClient{conn: conn}
 
-	// Atomically check the limit and register, preventing TOCTOU races.
+	// Atomically check the limit and register, preventing TOCTOU races
+	// between the pre-check above and the upgrade.
 	s.clientsMu.Lock()
 	if len(s.clients) >= maxWSClients {
 		s.clientsMu.Unlock()
