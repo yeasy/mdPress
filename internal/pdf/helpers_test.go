@@ -1,6 +1,11 @@
 package pdf
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -124,4 +129,136 @@ func TestFontServer(t *testing.T) {
 	if !strings.HasPrefix(srv.baseURL, "http://127.0.0.1:") {
 		t.Errorf("baseURL should start with http://127.0.0.1:, got %q", srv.baseURL)
 	}
+}
+
+func TestFontServerServesHTML(t *testing.T) {
+	htmlContent := "<html><body>Hello World</body></html>"
+	srv, err := newFontServer(htmlContent, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	client := &http.Client{}
+
+	// GET / should return the HTML content.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.baseURL+"/", nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("GET / failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET / status = %d, want 200", resp.StatusCode)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if ct != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/html; charset=utf-8", ct)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+	if string(body) != htmlContent {
+		t.Errorf("body = %q, want %q", string(body), htmlContent)
+	}
+
+	// GET /other should return 404.
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.baseURL+"/other", nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatalf("GET /other failed: %v", err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNotFound {
+		t.Errorf("GET /other status = %d, want 404", resp2.StatusCode)
+	}
+}
+
+func TestFontServerServesFontMIME(t *testing.T) {
+	tests := []struct {
+		ext      string
+		wantMIME string
+	}{
+		{".ttf", "font/ttf"},
+		{".otf", "font/otf"},
+		{".woff", "font/woff"},
+		{".woff2", "font/woff2"},
+		{".ttc", "font/collection"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			fontPath := filepath.Join(tmpDir, "test"+tt.ext)
+			if err := os.WriteFile(fontPath, []byte("fake-font-data"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			srv, err := newFontServer("<html></html>", fontPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer srv.Close()
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.baseURL+"/cjk-font", nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+			resp, err := (&http.Client{}).Do(req)
+			if err != nil {
+				t.Fatalf("GET /cjk-font failed: %v", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("GET /cjk-font status = %d, want 200", resp.StatusCode)
+			}
+			ct := resp.Header.Get("Content-Type")
+			if !strings.HasPrefix(ct, tt.wantMIME) {
+				t.Errorf("Content-Type = %q, want prefix %q", ct, tt.wantMIME)
+			}
+		})
+	}
+}
+
+func TestFontServerCloseIdempotent(t *testing.T) {
+	srv, err := newFontServer("<html></html>", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv.Close()
+	srv.Close() // second close should not panic
+}
+
+// ---------------------------------------------------------------------------
+// Generator option setters
+// ---------------------------------------------------------------------------
+
+func TestWithFooterTemplate(t *testing.T) {
+	tmpl := `<span class="pageNumber"></span>`
+	g := NewGenerator(WithFooterTemplate(tmpl))
+	if g.footerTemplate != tmpl {
+		t.Errorf("footerTemplate = %q, want %q", g.footerTemplate, tmpl)
+	}
+	if !g.displayHeaderFooter {
+		t.Error("displayHeaderFooter should be true when footer template is set")
+	}
+}
+
+func TestWarnIfCJKFontsMissing_NoCJK(t *testing.T) {
+	// ASCII-only content should not trigger any warning or panic.
+	WarnIfCJKFontsMissing("Hello world, this is plain ASCII text.", nil)
+}
+
+func TestWarnIfCJKFontsMissing_WithCJK(t *testing.T) {
+	// CJK content should not panic (may log a warning if fonts are missing).
+	WarnIfCJKFontsMissing("这是一段中文内容，用于测试 CJK 字体检测。", nil)
 }

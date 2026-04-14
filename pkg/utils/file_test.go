@@ -246,6 +246,38 @@ func TestCopyFileAutoCreateDstDir(t *testing.T) {
 	}
 }
 
+func TestCopyFileTooLarge(t *testing.T) {
+	tmpDir := t.TempDir()
+	largePath := filepath.Join(tmpDir, "large.bin")
+
+	// Create a file just over the size limit by writing a sparse file.
+	// We create the file and use Truncate to set its apparent size without
+	// writing actual data (much faster and uses no disk space).
+	f, err := os.Create(largePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// maxReadFileSize is 100 MB; set file size to 100 MB + 1.
+	if err := f.Truncate(100*1024*1024 + 1); err != nil {
+		f.Close()
+		t.Fatalf("truncate failed: %v", err)
+	}
+	f.Close()
+
+	dstPath := filepath.Join(tmpDir, "dst.bin")
+	err = CopyFile(largePath, dstPath)
+	if err == nil {
+		t.Fatal("expected error for oversized file, got nil")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Errorf("error should mention 'too large', got: %v", err)
+	}
+	// Verify destination was NOT created.
+	if FileExists(dstPath) {
+		t.Error("destination file should not exist after size limit rejection")
+	}
+}
+
 // TestRelPath tests relative path computation
 func TestRelPath(t *testing.T) {
 	tests := []struct {
