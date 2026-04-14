@@ -151,6 +151,14 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	if err != nil {
 		return fmt.Errorf("initialize theme: %w", err)
 	}
+	// Ensure plugin resources are released even on build failure.
+	defer func() {
+		if orchestrator.PluginManager != nil {
+			if cleanupErr := orchestrator.PluginManager.CleanupAll(); cleanupErr != nil {
+				logger.Warn("plugin cleanup failed", slog.Any("error", cleanupErr))
+			}
+		}
+	}()
 	progress.DoneWithDetail(orchestrator.Theme.Name)
 
 	// Compute CSS hash for cache invalidation
@@ -337,11 +345,6 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Phase:    plugin.PhaseAfterBuild,
 		Metadata: pluginMeta,
 	}, logger)
-
-	// Release plugin resources.
-	if err := orchestrator.PluginManager.CleanupAll(); err != nil {
-		logger.Warn("plugin cleanup failed", slog.Any("error", err))
-	}
 
 	// Save the build manifest for incremental builds
 	manifest.ConfigSH = configHash
@@ -1180,7 +1183,7 @@ func rewriteChapterLinksForSite(chapters []renderer.ChapterHTML, chapterFiles []
 	return rewritten
 }
 
-func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, outputDir string, chapters []renderer.ChapterHTML, pageFilenames []string, chapterMarkdown []string) error {
+func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, outputDir string, chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string, chapterMarkdown []string) error {
 	siteGen := output.NewSiteGenerator(output.SiteMeta{
 		Title:            cfg.Book.Title,
 		Subtitle:         cfg.Book.Subtitle,
@@ -1192,23 +1195,24 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 	})
 	siteGen.SetCSS(thm.ToCSS() + "\n" + customCSS)
 
-	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, pageFilenames, chapterMarkdown) {
+	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, chapterFiles, pageFilenames, chapterMarkdown) {
 		siteGen.AddChapter(ch)
 	}
 
 	return siteGen.Generate(outputDir)
 }
 
-func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, pageFilenames []string, chapterMarkdown []string) []output.SiteChapter {
-	flatDefs := flattenChaptersWithDepth(defs)
+func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string, chapterMarkdown []string) []output.SiteChapter {
 	type siteChapterData struct {
 		html     renderer.ChapterHTML
 		filename string
 		markdown string
 	}
-	byFile := make(map[string]siteChapterData, len(flatDefs))
-	for i, flat := range flatDefs {
-		if i >= len(chapters) {
+	// Map chapter data by file path using the aligned chapterFiles slice,
+	// which correctly accounts for any chapters skipped during processing.
+	byFile := make(map[string]siteChapterData, len(chapters))
+	for i, ch := range chapters {
+		if i >= len(chapterFiles) {
 			break
 		}
 		filename := ""
@@ -1219,8 +1223,8 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 		if i < len(chapterMarkdown) {
 			markdown = chapterMarkdown[i]
 		}
-		byFile[linkrewrite.NormalizePath(flat.Def.File)] = siteChapterData{
-			html:     chapters[i],
+		byFile[linkrewrite.NormalizePath(chapterFiles[i])] = siteChapterData{
+			html:     ch,
 			filename: filename,
 			markdown: markdown,
 		}

@@ -177,6 +177,52 @@ func TestPreferredLanguageFile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// buildLanguageSwitcherHTML
+// ---------------------------------------------------------------------------
+
+func TestBuildLanguageSwitcherHTML(t *testing.T) {
+	summaries := []languageBuildSummary{
+		{Name: "English", Dir: "en", Outputs: map[string]string{"html": "/out/en/book.html"}},
+		{Name: "中文", Dir: "zh", Outputs: map[string]string{"html": "/out/zh/book.html"}},
+	}
+
+	html, err := buildLanguageSwitcherHTML("/out/en", "/out/index.html", summaries, "en")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Current language should be a <span class="current">, not a link.
+	if !strings.Contains(html, `<span class="current">English</span>`) {
+		t.Errorf("expected current language span, got: %s", html)
+	}
+	// Other language should be a link.
+	if !strings.Contains(html, `<a href=`) {
+		t.Error("expected link for non-current language")
+	}
+	if !strings.Contains(html, "中文") {
+		t.Error("expected Chinese language name in output")
+	}
+	// Should contain landing page link.
+	if !strings.Contains(html, "All languages") {
+		t.Error("expected 'All languages' link")
+	}
+}
+
+func TestBuildLanguageSwitcherHTML_NoOutputs(t *testing.T) {
+	summaries := []languageBuildSummary{
+		{Name: "Empty", Dir: "empty", Outputs: map[string]string{}},
+	}
+	html, err := buildLanguageSwitcherHTML("/out", "/out/index.html", summaries, "other")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Language with no preferred output should be skipped.
+	if strings.Contains(html, "Empty") {
+		t.Error("expected language with no outputs to be skipped")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // rendererHeadingsToSiteHeadings
 // ---------------------------------------------------------------------------
 
@@ -511,7 +557,7 @@ func TestNewBuildOrchestrator_InvalidThemeFallback(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestBuildSiteChapterTree_Empty(t *testing.T) {
-	result := buildSiteChapterTree(nil, nil, nil, nil)
+	result := buildSiteChapterTree(nil, nil, nil, nil, nil)
 	if len(result) != 0 {
 		t.Errorf("expected empty, got %d", len(result))
 	}
@@ -520,7 +566,7 @@ func TestBuildSiteChapterTree_Empty(t *testing.T) {
 func TestBuildSiteChapterTree_Mismatch(t *testing.T) {
 	defs := []config.ChapterDef{{Title: "Ch1", File: "ch1.md"}}
 	// No chapters/filenames provided.
-	result := buildSiteChapterTree(defs, nil, nil, nil)
+	result := buildSiteChapterTree(defs, nil, nil, nil, nil)
 	// Chapter has a file but no matching chapter data, so result should be empty.
 	if len(result) != 0 {
 		t.Errorf("expected 0 items when no chapter HTML, got %d", len(result))
@@ -536,10 +582,11 @@ func TestBuildSiteChapterTree_WithData(t *testing.T) {
 		{Title: "Chapter One", ID: "ch1", Content: "<p>one</p>"},
 		{Title: "Chapter Two", ID: "ch2", Content: "<p>two</p>"},
 	}
+	chapterFiles := []string{"ch1.md", "ch2.md"}
 	pages := []string{"ch_000.html", "ch_001.html"}
 	markdown := []string{"# One", "# Two"}
 
-	result := buildSiteChapterTree(defs, chapters, pages, markdown)
+	result := buildSiteChapterTree(defs, chapters, chapterFiles, pages, markdown)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 chapters, got %d", len(result))
 	}
@@ -548,6 +595,45 @@ func TestBuildSiteChapterTree_WithData(t *testing.T) {
 	}
 	if result[0].Markdown != "# One" {
 		t.Errorf("first chapter markdown = %q, want # One", result[0].Markdown)
+	}
+}
+
+func TestBuildSiteChapterTree_SkippedChapter(t *testing.T) {
+	// Simulate a case where chapter B was skipped during processing.
+	defs := []config.ChapterDef{
+		{Title: "A", File: "a.md"},
+		{Title: "B", File: "b.md"},
+		{Title: "C", File: "c.md"},
+	}
+	// Only chapters A and C were processed (B was skipped).
+	chapters := []renderer.ChapterHTML{
+		{Title: "Chapter A", ID: "a", Content: "<p>A</p>"},
+		{Title: "Chapter C", ID: "c", Content: "<p>C</p>"},
+	}
+	chapterFiles := []string{"a.md", "c.md"}
+	pages := []string{"ch_000.html", "ch_001.html"}
+	markdown := []string{"# A", "# C"}
+
+	result := buildSiteChapterTree(defs, chapters, chapterFiles, pages, markdown)
+	// Only A and C should appear (B was skipped).
+	if len(result) != 2 {
+		t.Fatalf("expected 2 chapters, got %d", len(result))
+	}
+	if result[0].ID != "a" {
+		t.Errorf("first chapter ID = %q, want a", result[0].ID)
+	}
+	if result[1].ID != "c" {
+		t.Errorf("second chapter ID = %q, want c", result[1].ID)
+	}
+	if result[1].Content != "<p>C</p>" {
+		t.Errorf("second chapter content = %q, want <p>C</p>", result[1].Content)
+	}
+	// Verify filenames are correctly assigned (core fix for slug collisions).
+	if result[0].Filename != "ch_000.html" {
+		t.Errorf("first chapter filename = %q, want ch_000.html", result[0].Filename)
+	}
+	if result[1].Filename != "ch_001.html" {
+		t.Errorf("second chapter filename = %q, want ch_001.html", result[1].Filename)
 	}
 }
 

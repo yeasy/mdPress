@@ -171,6 +171,13 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		outputDir = filepath.Join(cfg.BaseDir(), "_book")
 	}
 
+	// Warn when binding to a non-loopback address as this exposes the
+	// preview server (including WebSocket and all generated content) to
+	// other machines on the network.
+	if opts.Host != "" && opts.Host != "127.0.0.1" && opts.Host != "::1" && opts.Host != "localhost" {
+		logger.Warn("Server is exposed to the network; use only on trusted networks", slog.String("host", opts.Host))
+	}
+
 	srv := server.NewServer(opts.Host, opts.Port, workDir, outputDir, logger)
 	srv.AutoOpen = opts.AutoOpen
 
@@ -277,7 +284,7 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 
 	sitePages := sitePageFilenames(chapterFiles)
 	siteChapters := rewriteChapterLinksForSite(chaptersHTML, chapterFiles, sitePages)
-	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, sitePages, chapterMarkdown); err != nil {
+	if err := generateSiteOutput(cfg, orchestrator.Theme, customCSS, outputDir, siteChapters, chapterFiles, sitePages, chapterMarkdown); err != nil {
 		return fmt.Errorf("failed to generate site output: %w", err)
 	}
 
