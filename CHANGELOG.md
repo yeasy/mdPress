@@ -8,6 +8,30 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.5] - 2026-04-06
+
+### Added
+
+- **i18n cover page labels**: Cover page shows localized Author/Version/Date labels for Chinese, Japanese, and Korean languages
+- **Figure/table caption styling**: Paragraphs starting with "Figure N" or "Table N" (and CJK equivalents) get `class="caption"` for centered styling
+- **Unicode font family validation**: Font family names with CJK characters (e.g. 思源黑体) are now accepted in `book.yaml`
+- **Git remote owner for author**: Auto-discovery prefers git remote owner over GitHub URLs found in README
+
+### Fixed
+
+- **Fix slug collision for chapter filenames**: Three-way slug collisions no longer overwrite generated HTML files
+- **Fix context leak in image download retry**: Retry path no longer keeps timeout context alive during file I/O
+- **Ensure executable permission after upgrade**: Explicit `os.Chmod` ensures binary is executable after upgrade write
+- **Fix Homebrew install command**: Use `--cask` flag for Homebrew installation
+
+### Changed
+
+- **Move test-only helper to test file**: Remove `expandString` from production code
+- **Sync docs and add missing roadmap entries**: Add missing v0.6.5-v0.6.9, v0.7.1-v0.7.2 sections to ROADMAP_zh.md
+- **Fix lint warnings in CI**: Resolve golangci-lint v2 warnings
+
+---
+
 ## [0.7.4] - 2026-04-04
 
 ### Security
@@ -725,7 +749,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/yeasy/mdpress/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/yeasy/mdpress/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/yeasy/mdpress/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/yeasy/mdpress/compare/v0.7.1...v0.7.2
