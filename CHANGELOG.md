@@ -8,6 +8,35 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.6] - 2026-04-13
+
+### Security
+
+- **Harden config file loading**: Use Open+Fstat+LimitReader to prevent TOCTOU races; add post-read size check
+- **Add WebSocket pre-check before upgrade**: Return HTTP 503 before upgrading when at connection limit
+- **Prevent git flag injection**: Prefix directory arguments with `./` to prevent `-` prefixed dirs from being parsed as flags
+- **Fix temp file leak in PDF fallback**: Clean up temporary file when rename fails
+
+### Added
+
+- **CSS behavior property sanitization**: Block legacy IE `behavior:` and `-moz-binding:` CSS injection vectors
+- **Serve network binding warning**: Warn when binding to non-loopback address
+
+### Fixed
+
+- **Fix site chapter tree slug collision**: Use aligned chapterFiles slice instead of flattened defs for correct mapping when chapters are skipped
+- **Defer plugin cleanup on build failure**: Ensure plugin resources are released even when build fails partway through
+- **Fix GITHUB_TOKEN double-read**: Read token once to prevent theoretical mismatch between URL embedding and log redaction
+- **Scope KaTeX to chapter content**: Target `.chapter-content` instead of `document.body`
+- **Sync architecture docs**: Fix HeadingInfo fields, LocalSource field name, build manifest capitalization, RenderHTML signature, cache dir casing, ConfigDiscovery phantom types, wsClient struct
+
+### Changed
+
+- **Refactor GitHub source cleanup**: Extract `cleanupOnError()` and `validateSubDir()` methods to reduce duplication
+- **Improve link rewrite normalization**: Move extension lowercasing into `NormalizePath` for consistent map lookups
+
+---
+
 ## [0.7.5] - 2026-04-06
 
 ### Added
