@@ -2,8 +2,8 @@
 
 [English](ARCHITECTURE.md)
 
-> 版本: v0.7.4
-> 更新日期: 2026-04-04
+> 版本: v0.7.5
+> 更新日期: 2026-04-06
 
 ## 1. 系统架构总览
 
@@ -162,12 +162,24 @@ graph TB
 | `build.go` | 构建命令：源解析、配置加载、格式分发 |
 | `build_run.go` | 核心构建执行：渲染流水线、输出生成 |
 | `build_orchestrator.go` | `buildOrchestrator` 并发章节处理 |
+| `build_manifest.go` | 构建清单，用于增量/缓存构建 |
+| `chapter_pipeline.go` | 并行章节解析与后处理流水线 |
+| `chapter_cache.go` | 章节级构建缓存 |
 | `format_builders.go` | `formatBuilderRegistry` 输出格式分发 |
 | `serve.go` | 构建 HTML 站点并启动 HTTP 服务器 |
 | `init_cmd.go` | 扫描目录，生成 book.yaml 骨架 |
 | `quickstart.go` | 创建示例项目并立即构建预览 |
 | `validate.go` | 验证 book.yaml 配置正确性 |
+| `validate_mermaid.go` | 通过 Chromium 进行 Mermaid 图表服务端验证 |
 | `themes.go` | 列出/展示内置主题 |
+| `themes_preview.go` | 生成主题可视化预览图 |
+| `doctor.go` | 验证环境配置（Chromium、字体等） |
+| `migrate.go` | 从 GitBook/HonKit 配置迁移 |
+| `upgrade.go` | 从 GitHub 自动升级到最新版本 |
+| `navigation.go` | 站点输出的导航辅助（上一页/下一页） |
+| `issues.go` | 项目问题收集与报告 |
+| `completion.go` | Shell 补全脚本生成 |
+| `version.go` | 打印版本和构建信息 |
 
 **关键函数：**
 - `executeBuild()` — 分发到 `executeBuildForConfig()` 处理每种语言
@@ -211,16 +223,18 @@ type ChapterDef struct {     // 章节定义
 type Parser struct { ... }           // Markdown 解析器
 type ParserOption func(*Parser)      // 函数式选项
 type HeadingInfo struct {            // 标题信息
-    Level int
-    Text  string
-    ID    string
+    Level  int
+    Text   string
+    ID     string
+    Line   int
+    Column int
 }
 ```
 
 **关键方法：**
 - `NewParser(opts...) → *Parser` — 创建解析器
 - `Parse(content) → (html, []HeadingInfo, error)` — 解析 Markdown
-- `PostProcess(html) → string` — GFM Alert / Mermaid 后处理
+- `postProcess(html) → string`（包级未导出函数）— GFM Alert / Mermaid 后处理
 
 ### 3.4 internal/renderer — HTML 组装器
 
@@ -354,7 +368,7 @@ type Generator struct {
 - 缓存已渲染的 SVG 以避免重复网络请求
 - 将每个 SVG 包装在 div 中以便样式设置
 
-关键方法：`RenderHTML(html) -> (string, error)` 将所有 PlantUML 代码块替换为 SVG 输出。本地渲染会检测 PATH 中的 `plantuml` 或使用 `PLANTUML_JAR` 环境变量。
+关键方法：`RenderHTML(ctx, html) -> (string, error)` 将所有 PlantUML 代码块替换为 SVG 输出。本地渲染会检测 PATH 中的 `plantuml` 或使用 `PLANTUML_JAR` 环境变量。
 
 ### 3.18 internal/server — 开发服务器
 
@@ -375,8 +389,8 @@ type Server struct {
 }
 
 type wsClient struct {
-    conn *websocket.Conn
-    send chan []byte
+    conn    *websocket.Conn
+    writeMu sync.Mutex
 }
 ```
 
@@ -470,13 +484,13 @@ chapter.md (原始 Markdown)
 
 构建清单（`cmd/build_manifest.go`）通过 SHA-256 哈希使快速增量重构成为可能：
 
-- `LoadManifest()` 从 `build-manifest.json` 读取缓存的章节状态。
-- `ComputeChapterHash()` 计算章节文件内容的 SHA-256 哈希值。
-- `BuildManifest.IsStale()` 检查应用版本、配置或 CSS 是否改变（如果改变则整个缓存失效）。
-- `GetEntry()` 查找未修改章节的缓存 HTML 和标题。
+- `loadManifest()` 从 `build-manifest.json` 读取缓存的章节状态。
+- `computeChapterHash()` 计算章节文件内容的 SHA-256 哈希值。
+- `buildManifest.IsStale()` 检查应用版本、配置或 CSS 是否改变（如果改变则整个缓存失效）。
+- `buildManifest.GetEntry()` 查找未修改章节的缓存 HTML 和标题。
 - 哈希值匹配的章节跳过解析并复用缓存输出。
 
-缓存存储在项目缓存目录中，除非禁用 `mdpress_cache_dir`，否则在构建之间保留。
+缓存存储在项目缓存目录中，除非禁用 `MDPRESS_CACHE_DIR`，否则在构建之间保留。
 
 ## 5. 已实现与计划中的架构扩展
 
@@ -510,7 +524,7 @@ classDiagram
     }
 
     class LocalSource {
-        -rootDir string
+        -path string
         -opts Options
         +Prepare() (string, error)
         +Cleanup() error
@@ -567,28 +581,16 @@ classDiagram
 
 **设计方案：**
 
-```go
-// ConfigDiscovery 配置发现链
-type ConfigDiscovery struct {
-    discoverers []Discoverer
-}
+`internal/config/discover.go` 中的 `Discover()` 函数实现了基于优先级的发现链：
 
-// Discoverer 单个发现策略
-type Discoverer interface {
-    // Name 返回策略名称
-    Name() string
-    // Discover 尝试发现章节配置
-    // 返回 nil 表示未发现，交给下一个策略处理
-    Discover(baseDir string) ([]ChapterDef, error)
-}
+```go
+func Discover(ctx context.Context, dir string) (*BookConfig, error)
 ```
 
-**实现策略：**
-- `YAMLDiscoverer` — 从 book.yaml 的 chapters 字段读取
-- `SummaryDiscoverer` — 解析 SUMMARY.md（已有 `ParseSummary()`）
-- `AutoDiscoverer` — 扫描目录下所有 .md 文件，按路径排序
-
-**与现有代码的关系：** 现有 `config.Load()` 已实现了前两级发现（book.yaml → SUMMARY.md），只需补充第三级自动发现，并将逻辑重构为链式结构。
+**发现优先级：**
+1. `book.yaml` / `book.json` — 加载显式配置
+2. `SUMMARY.md` — 解析 GitBook 兼容的目录文件
+3. 自动发现 — 扫描目录下所有 .md 文件，按路径排序
 
 ### 5.3 输出格式抽象（已实现）
 
@@ -670,10 +672,10 @@ type Server struct {
     debounceMu    sync.Mutex
 }
 
-// wsClient 表示单个 WebSocket 连接
+// wsClient 封装单个 WebSocket 连接及其写入锁
 type wsClient struct {
-    conn *websocket.Conn
-    send chan []byte
+    conn    *websocket.Conn
+    writeMu sync.Mutex
 }
 ```
 
@@ -780,8 +782,8 @@ func (o *buildOrchestrator) LoadCustomCSS() string
 
 #### 6.2.5 可测试性（已完成）
 
-- `ServeOptions` 结构体替代全局变量用于 serve 配置
-- `internal/pdf/mock.go` 提供 `MockGenerator` 用于无需 Chromium 的测试
+- `serveOptions` 结构体替代全局变量用于 serve 配置
+- `internal/pdf/mock.go` 提供 `mockGenerator` 用于无需 Chromium 的测试
 - `server.go` 使用独立的 `http.ServeMux`
 
 ### 6.3 剩余的重构机会

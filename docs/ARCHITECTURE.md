@@ -2,8 +2,8 @@
 
 [中文说明](ARCHITECTURE_zh.md)
 
-> Version: v0.7.4
-> Updated: 2026-04-04
+> Version: v0.7.5
+> Updated: 2026-04-06
 
 ## 1. System Overview
 
@@ -163,12 +163,24 @@ graph TB
 | `build.go` | Build command: source resolution, config loading, format dispatch |
 | `build_run.go` | Core build execution: rendering pipeline, output generation |
 | `build_orchestrator.go` | `buildOrchestrator` for concurrent chapter processing |
+| `build_manifest.go` | Build manifest for incremental/cached builds |
+| `chapter_pipeline.go` | Parallel chapter parsing and post-processing pipeline |
+| `chapter_cache.go` | Chapter-level build caching |
 | `format_builders.go` | `formatBuilderRegistry` for output format dispatch |
 | `serve.go` | Build the preview site and start the HTTP server |
 | `init_cmd.go` | Scan a directory and generate a `book.yaml` skeleton |
 | `quickstart.go` | Create a sample project and make it previewable immediately |
 | `validate.go` | Validate `book.yaml` and related project structure |
+| `validate_mermaid.go` | Server-side Mermaid diagram validation via Chromium |
 | `themes.go` | List and show built-in themes |
+| `themes_preview.go` | Generate visual theme preview images |
+| `doctor.go` | Verify environment setup (Chromium, fonts, etc.) |
+| `migrate.go` | Migrate from GitBook/HonKit configuration |
+| `upgrade.go` | Self-upgrade to the latest release from GitHub |
+| `navigation.go` | Navigation helpers for site output (prev/next) |
+| `issues.go` | Project issue collection and reporting |
+| `completion.go` | Shell completion script generation |
+| `version.go` | Print version and build information |
 
 Key functions:
 
@@ -216,9 +228,11 @@ Core types:
 type Parser struct { ... }
 type ParserOption func(*Parser)
 type HeadingInfo struct {
-    Level int
-    Text  string
-    ID    string
+    Level  int
+    Text   string
+    ID     string
+    Line   int
+    Column int
 }
 ```
 
@@ -226,7 +240,7 @@ Key methods:
 
 - `NewParser(opts...) -> *Parser`
 - `Parse(content) -> (html, []HeadingInfo, error)`
-- `PostProcess(html) -> string` for alert and Mermaid transformations
+- `postProcess(html) -> string` (package-level, unexported) for alert and Mermaid transformations
 
 ### 3.4 `internal/renderer` - HTML Assembler
 
@@ -373,7 +387,7 @@ The `Renderer` type:
 - Caches rendered SVGs to avoid repeated network calls
 - Wraps each SVG in a div for styling
 
-Key method: `RenderHTML(html) -> (string, error)` replaces all PlantUML blocks with SVG output. Local rendering detects `plantuml` on PATH or uses `PLANTUML_JAR` env var.
+Key method: `RenderHTML(ctx, html) -> (string, error)` replaces all PlantUML blocks with SVG output. Local rendering detects `plantuml` on PATH or uses `PLANTUML_JAR` env var.
 
 ### 3.18 `internal/server` - Development Server
 
@@ -470,13 +484,13 @@ Chapter parsing (`chapterPipeline`) uses worker pools to process chapters concur
 
 Build manifest (`cmd/build_manifest.go`) enables fast incremental rebuilds via SHA-256 hashing:
 
-- `LoadManifest()` reads cached chapter state from `build-manifest.json`.
-- `ComputeChapterHash()` calculates SHA-256 of chapter file content.
-- `BuildManifest.IsStale()` checks if app version, config, or CSS changed (invalidates entire cache if true).
-- `GetEntry()` looks up cached HTML and headings for unchanged chapters.
+- `loadManifest()` reads cached chapter state from `build-manifest.json`.
+- `computeChapterHash()` calculates SHA-256 of chapter file content.
+- `buildManifest.IsStale()` checks if app version, config, or CSS changed (invalidates entire cache if true).
+- `buildManifest.GetEntry()` looks up cached HTML and headings for unchanged chapters.
 - Chapters with matching hash skip parsing and reuse cached output.
 
-Cache is stored in the project cache directory and survives across builds unless `mdpress_cache_dir` is disabled.
+Cache is stored in the project cache directory and survives across builds unless `MDPRESS_CACHE_DIR` is disabled.
 
 ## 5. Implemented And Planned Architecture Extensions
 
@@ -510,7 +524,7 @@ classDiagram
     }
 
     class LocalSource {
-        -rootDir string
+        -path string
         -opts Options
         +Prepare() (string, error)
         +Cleanup() error
@@ -566,27 +580,18 @@ Priority:
 
 Design:
 
-```go
-// ConfigDiscovery represents the config discovery chain
-type ConfigDiscovery struct {
-    discoverers []Discoverer
-}
+The `Discover()` function in `internal/config/discover.go` implements a priority-based
+discovery chain with inline logic:
 
-// Discoverer represents a single discovery strategy
-type Discoverer interface {
-    // Name returns the strategy name
-    Name() string
-    // Discover attempts to discover chapter configuration
-    // Returns nil to indicate not found, passing control to next strategy
-    Discover(baseDir string) ([]ChapterDef, error)
-}
+```go
+func Discover(ctx context.Context, dir string) (*BookConfig, error)
 ```
 
-Implemented strategies:
+Discovery priority:
 
-- `YAMLDiscoverer` — loads `book.yaml`
-- `SummaryDiscoverer` — parses `SUMMARY.md`
-- `AutoDiscoverer` — scans Markdown files by directory structure
+1. `book.yaml` / `book.json` — loads explicit configuration
+2. `SUMMARY.md` — parses GitBook-compatible summary
+3. Auto-discover — scans Markdown files by directory structure
 
 ### 5.3 Output Format Abstraction (Implemented)
 
@@ -665,10 +670,10 @@ type Server struct {
     debounceMu    sync.Mutex
 }
 
-// wsClient represents a single WebSocket connection.
+// wsClient wraps a single WebSocket connection with a dedicated write lock.
 type wsClient struct {
-    conn *websocket.Conn
-    send chan []byte
+    conn    *websocket.Conn
+    writeMu sync.Mutex
 }
 ```
 
@@ -774,8 +779,8 @@ func (o *buildOrchestrator) LoadCustomCSS() string
 
 #### 6.2.5 Testability (Completed)
 
-- `ServeOptions` struct replaces global variables for serve configuration
-- `internal/pdf/mock.go` provides `MockGenerator` for testing without Chromium
+- `serveOptions` struct replaces global variables for serve configuration
+- `internal/pdf/mock.go` provides `mockGenerator` for testing without Chromium
 - `server.go` uses an independent `http.ServeMux`
 
 ### 6.3 Remaining Refactoring Opportunities
