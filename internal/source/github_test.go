@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -433,8 +434,13 @@ func TestGitHubSourceSubDirValidation(t *testing.T) {
 			wantErr: "unsafe subdirectory path",
 		},
 		{
-			name:    "absolute path",
-			subDir:  "/etc/passwd",
+			name: "absolute path",
+			subDir: func() string {
+				if runtime.GOOS == "windows" {
+					return `C:\Windows\System32`
+				}
+				return "/etc/passwd"
+			}(),
 			wantErr: "unsafe subdirectory path",
 		},
 		{
