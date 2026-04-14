@@ -1069,6 +1069,7 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 		return errors.New("chrome CLI fallback did not produce a PDF")
 	}
 	if err := os.Rename(tmpOutput, outputPath); err != nil {
+		_ = os.Remove(tmpOutput) // clean up temp file on rename failure
 		return fmt.Errorf("failed to finalize fallback PDF output: %w", err)
 	}
 	return nil

@@ -814,7 +814,7 @@ table th {
       var ar = document.createElement('script');
       ar.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.44/dist/contrib/auto-render.min.js';
       ar.onload = function() {
-        renderMathInElement(document.body, {
+        renderMathInElement(document.querySelector('.chapter-content') || document.body, {
           delimiters: [
             {left: '$$', right: '$$', display: true},
             {left: '$',  right: '$',  display: false}

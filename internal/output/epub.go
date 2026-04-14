@@ -388,7 +388,7 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 		fmt.Fprintf(&b, "<script src=\"%s\"></script>\n", utils.KaTeXAutoRenderURL)
 		b.WriteString("<script>\n")
 		b.WriteString("if(typeof renderMathInElement==='function'){\n")
-		b.WriteString("  renderMathInElement(document.body,{\n")
+		b.WriteString("  renderMathInElement(document.querySelector('body>section')||document.body,{\n")
 		b.WriteString("    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],\n")
 		b.WriteString("    throwOnError:false\n")
 		b.WriteString("  });\n")
