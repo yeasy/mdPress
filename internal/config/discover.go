@@ -26,6 +26,15 @@ import (
 // gitCmdTimeout is the maximum time to wait for git commands.
 const gitCmdTimeout = 5 * time.Second
 
+// safeDirArg prefixes a directory path with "./" when it starts with "-"
+// to prevent it from being misinterpreted as a flag by external commands.
+func safeDirArg(dir string) string {
+	if strings.HasPrefix(dir, "-") {
+		return "./" + dir
+	}
+	return dir
+}
+
 // Discover auto-discovers project configuration in a directory.
 // Priority: book.yaml > book.json (GitBook compat) > SUMMARY.md > Markdown file scanning.
 // The context is used for potentially long-running operations like git commands.
@@ -259,6 +268,9 @@ func gitLatestTag(ctx context.Context, dir string) string {
 	// Enforce a short timeout to prevent blocking on SSH passphrase prompts etc.
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
+	// Prefix with "./" to prevent a directory named "-foo" from being
+	// interpreted as a git flag.
+	dir = safeDirArg(dir)
 	// Use describe to find the most recent tag reachable from HEAD.
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "describe", "--tags", "--abbrev=0").Output()
 	if err != nil {
@@ -274,6 +286,7 @@ func gitLatestTag(ctx context.Context, dir string) string {
 func gitConfigAuthor(ctx context.Context, dir string) string {
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
+	dir = safeDirArg(dir)
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "config", "user.name").Output()
 	if err != nil {
 		return ""
@@ -287,6 +300,7 @@ func gitConfigAuthor(ctx context.Context, dir string) string {
 func gitRemoteOwner(ctx context.Context, dir string) string {
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
+	dir = safeDirArg(dir)
 	out, err := exec.CommandContext(ctx, "git", "-C", dir, "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""

@@ -1096,3 +1096,23 @@ func TestExtractReadmeMetadataMultilineVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestSafeDirArg(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{".", "."},
+		{"/tmp/project", "/tmp/project"},
+		{"relative/path", "relative/path"},
+		{"-dash-dir", "./-dash-dir"},
+		{"--double-dash", "./--double-dash"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		got := safeDirArg(tt.input)
+		if got != tt.want {
+			t.Errorf("safeDirArg(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,16 +64,24 @@ func (v *jsonStringOrSlice) UnmarshalJSON(data []byte) error {
 // The context is used for potentially long-running operations like git commands.
 func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	const maxSize = 10 * 1024 * 1024 // 10 MB
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open book.json: %w", err)
+	}
+	defer f.Close()
+	info, err := f.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat book.json: %w", err)
 	}
 	if info.Size() > maxSize {
 		return nil, fmt.Errorf("book.json is too large (%d bytes; max %d bytes)", info.Size(), maxSize)
 	}
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(f, int64(maxSize)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read book.json: %w", err)
+	}
+	if int64(len(data)) > maxSize {
+		return nil, fmt.Errorf("book.json exceeds size limit during read (%d bytes; max %d)", len(data), maxSize)
 	}
 
 	var raw bookJSON

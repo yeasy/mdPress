@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -205,18 +206,26 @@ func DefaultConfig() *BookConfig {
 // It also auto-detects GLOSSARY.md and LANGS.md.
 func Load(path string) (*BookConfig, error) {
 	// Limit config size to guard against malformed or malicious YAML inputs.
-	// Check size via os.Stat before reading to avoid loading large files into memory.
+	// Use os.Open + Fstat + LimitReader to avoid TOCTOU between stat and read.
 	const maxConfigSize = 10 * 1024 * 1024 // 10MB
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to stat config file: %w (ensure %s exists and is readable)", err, path)
+		return nil, fmt.Errorf("failed to open config file: %w (ensure %s exists and is readable)", err, path)
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat config file: %w", err)
 	}
 	if info.Size() > int64(maxConfigSize) {
 		return nil, fmt.Errorf("config file is too large (%d bytes; max allowed is %d bytes)", info.Size(), maxConfigSize)
 	}
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(f, int64(maxConfigSize)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w (ensure %s exists and is readable)", err, path)
+	}
+	if int64(len(data)) > int64(maxConfigSize) {
+		return nil, fmt.Errorf("config file exceeds size limit during read (%d bytes; max %d)", len(data), maxConfigSize)
 	}
 
 	cfg := DefaultConfig()
