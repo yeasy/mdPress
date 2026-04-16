@@ -201,6 +201,16 @@ func TestEscapeURL(t *testing.T) {
 		{"it's.png", "it%27s.png"},
 		{"file with).png", "file with%29.png"},
 		{`path"quote.png`, `path%22quote.png`},
+		// Dangerous URI schemes must be rejected.
+		{"javascript:alert(1)", ""},
+		{"JavaScript:alert(1)", ""},
+		{"vbscript:MsgBox", ""},
+		{"data:text/html,<h1>hi</h1>", ""},
+		// Whitespace-padded dangerous schemes must also be rejected.
+		{"  javascript:alert(1)", ""},
+		{"\tdata:text/html,x", ""},
+		// Legitimate schemes pass through.
+		{"https://example.com/img.png", "https://example.com/img.png"},
 	}
 
 	for _, tt := range tests {

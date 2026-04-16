@@ -279,7 +279,14 @@ var urlReplacer = strings.NewReplacer(
 )
 
 // escapeURL escapes URL-sensitive characters for CSS url() context.
+// It also rejects dangerous URI schemes (javascript:, vbscript:, data:).
 func escapeURL(u string) string {
+	lower := strings.ToLower(strings.TrimSpace(u))
+	if strings.HasPrefix(lower, "javascript:") ||
+		strings.HasPrefix(lower, "vbscript:") ||
+		strings.HasPrefix(lower, "data:") {
+		return ""
+	}
 	return urlReplacer.Replace(u)
 }
 

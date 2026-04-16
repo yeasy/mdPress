@@ -402,7 +402,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
   var reconnectInterval = 2000;
   var maxReconnectInterval = 30000;
   var currentInterval = reconnectInterval;
-  var serveInfo = ` + string(serveInfoJSON) + `;
+  var serveInfo = ` + strings.ReplaceAll(string(serveInfoJSON), "</", `<\/`) + `;
   var serveStatusKey = 'mdpress-serve-flash';
   var serveUI = null;
   var serveState = { ws: 'connecting', last: 'Waiting for changes', error: '' };

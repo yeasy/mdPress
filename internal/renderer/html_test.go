@@ -300,6 +300,42 @@ func TestRender_WithWatermark(t *testing.T) {
 	// Watermark will be in the rendered output if template supports it
 }
 
+// TestRender_WatermarkOpacityClamped tests that out-of-range opacity is clamped.
+func TestRender_WatermarkOpacityClamped(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		opacity float64
+		want    string // substring expected in CSS
+	}{
+		{"negative clamped to 0", -0.5, "rgba(0, 0, 0, 0)"},
+		{"above 1 clamped to 1", 2.5, "rgba(0, 0, 0, 1)"},
+		{"exact 0 stays 0", 0.0, "rgba(0, 0, 0, 0)"},
+		{"exact 1 stays 1", 1.0, "rgba(0, 0, 0, 1)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newTestConfig()
+			cfg.Output.Watermark = "DRAFT"
+			cfg.Output.WatermarkOpacity = tc.opacity
+
+			thm := newTestTheme(t)
+			r, err := NewHTMLRenderer(cfg, thm)
+			if err != nil {
+				t.Fatalf("NewHTMLRenderer failed: %v", err)
+			}
+
+			html, err := r.Render(&RenderParts{
+				ChaptersHTML: []ChapterHTML{{Title: "Ch", ID: "ch", Content: "<p>x</p>"}},
+			})
+			if err != nil {
+				t.Fatalf("Render failed: %v", err)
+			}
+			if !strings.Contains(html, tc.want) {
+				t.Errorf("expected HTML to contain %q for opacity %v", tc.want, tc.opacity)
+			}
+		})
+	}
+}
+
 // TestRender_WithHeaderFooter tests rendering with header and footer
 func TestRender_WithHeaderFooter(t *testing.T) {
 	cfg := newTestConfig()

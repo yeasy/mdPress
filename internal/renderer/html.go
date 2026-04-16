@@ -65,7 +65,7 @@ type templateChapter struct {
 	Content template.HTML
 }
 
-// NewHTMLRenderer creates a new HTML renderer used for PDF generation.
+// NewHTMLRenderer creates a new HTML renderer for assembling book content.
 func NewHTMLRenderer(cfg *config.BookConfig, thm *theme.Theme) (*HTMLRenderer, error) {
 	if cfg == nil {
 		return nil, errors.New("config must not be nil")
@@ -108,6 +108,14 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	headerText := r.config.Style.Header.Left
 	footerText := r.config.Style.Footer.Center
 
+	// Clamp watermark opacity to [0.0, 1.0] for defense-in-depth.
+	opacity := r.config.Output.WatermarkOpacity
+	if opacity < 0 {
+		opacity = 0
+	} else if opacity > 1 {
+		opacity = 1
+	}
+
 	data := templateData{
 		Title:            r.config.Book.Title,
 		Author:           r.config.Book.Author,
@@ -119,7 +127,7 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 		HeaderText:       headerText,
 		FooterText:       footerText,
 		Watermark:        r.config.Output.Watermark,
-		WatermarkOpacity: r.config.Output.WatermarkOpacity,
+		WatermarkOpacity: opacity,
 	}
 
 	var result strings.Builder
