@@ -8,6 +8,25 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.7] - 2026-04-15
+
+### Security
+
+- **Block dangerous URI schemes in cover image**: Reject javascript:, vbscript:, and data: URIs in CSS url() context
+- **Escape `</` in live-reload JSON**: Prevent `</script>` injection inside inline JSON in the WebSocket client script
+
+### Fixed
+
+- **Fix `generate_bookmarks: false` being ignored**: Always pass the document outline option so disabling bookmarks actually works
+- **Clamp watermark opacity to valid range**: Values outside [0.0, 1.0] are now clamped for defense-in-depth
+- **Defer plugin cleanup in serve mode**: Ensure plugin resources are released when serve build finishes
+
+### Improved
+
+- **Strengthen test assertions**: Use `t.Fatal`/`t.Skip` in CJK tests, add `warnRecorder` mock, add boundary and whitespace edge cases
+
+---
+
 ## [0.7.6] - 2026-04-13
 
 ### Security
@@ -16,8 +35,6 @@ All notable changes to this project will be documented in this file. The format 
 - **Add WebSocket pre-check before upgrade**: Return HTTP 503 before upgrading when at connection limit
 - **Prevent git flag injection**: Prefix directory arguments with `./` to prevent `-` prefixed dirs from being parsed as flags
 - **Fix temp file leak in PDF fallback**: Clean up temporary file when rename fails
-- **Block dangerous URI schemes in cover image**: Reject javascript:, vbscript:, and data: URIs in CSS url() context
-- **Escape `</` in live-reload JSON**: Prevent `</script>` injection inside inline JSON in the WebSocket client script
 
 ### Added
 
@@ -30,8 +47,6 @@ All notable changes to this project will be documented in this file. The format 
 - **Defer plugin cleanup on build failure**: Ensure plugin resources are released even when build fails partway through
 - **Fix GITHUB_TOKEN double-read**: Read token once to prevent theoretical mismatch between URL embedding and log redaction
 - **Scope KaTeX to chapter content**: Target `.chapter-content` instead of `document.body`
-- **Fix `generate_bookmarks: false` being ignored**: Always pass the document outline option so disabling bookmarks actually works
-- **Clamp watermark opacity to valid range**: Values outside [0.0, 1.0] are now clamped for defense-in-depth
 - **Sync architecture docs**: Fix HeadingInfo fields, LocalSource field name, build manifest capitalization, RenderHTML signature, cache dir casing, ConfigDiscovery phantom types, wsClient struct
 
 ### Changed

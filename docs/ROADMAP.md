@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-13
+> Updated: 2026-04-15
 > Maintainer: mdPress product team
 
 ---
@@ -40,6 +40,7 @@ v0.7.3 ████████████████████████�
 v0.7.4 ██████████████████████████████████████████ released (2026-04-04)
 v0.7.5 ██████████████████████████████████████████ released (2026-04-06)
 v0.7.6 ██████████████████████████████████████████ released (2026-04-13)
+v0.7.7 ██████████████████████████████████████████ released (2026-04-15)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -847,6 +848,37 @@ v0.7.5 adds i18n support for cover page labels (Chinese, Japanese, Korean), auto
 
 ---
 
+## v0.7.7 - Security And Correctness Fixes
+
+**Release date**: 2026-04-15
+**Theme**: additional security hardening, correctness fixes, and test improvements
+
+v0.7.7 blocks dangerous URI schemes in cover images, prevents script injection in live-reload, fixes bookmarks option and watermark opacity validation, and strengthens test assertions.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Cover image URI scheme rejection | P1 | Block javascript:, vbscript:, and data: URIs in CSS url() context |
+| Live-reload script injection fix | P1 | Escape `</` in inline JSON to prevent `</script>` injection |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| `generate_bookmarks: false` ignored | P1 | Always pass document outline option so disabling bookmarks works |
+| Watermark opacity out of range | P2 | Clamp values outside [0.0, 1.0] for defense-in-depth |
+| Plugin cleanup in serve mode | P2 | Ensure plugin resources are released when serve build finishes |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Strengthen test assertions | Use t.Fatal/t.Skip in CJK tests, add warnRecorder mock, add boundary and whitespace edge cases |
+| Sync architecture docs | Fix source module scope and watched file extensions |
+
+---
+
 ## v0.7.6 - Security Hardening And Bug Fixes
 
 **Release date**: 2026-04-13
@@ -862,8 +894,6 @@ v0.7.6 hardens config file loading against TOCTOU races, adds WebSocket pre-chec
 | WebSocket pre-check before upgrade | P1 | Return HTTP 503 before upgrading when at connection limit |
 | Git flag injection prevention | P1 | Prefix directory arguments with `./` to prevent `-` prefixed dirs from being parsed as flags |
 | CSS behavior property sanitization | P2 | Block legacy IE `behavior:` and `-moz-binding:` CSS injection vectors |
-| Cover image URI scheme rejection | P2 | Block javascript:, vbscript:, and data: URIs in CSS url() context |
-| Live-reload script injection fix | P2 | Escape `</` in inline JSON to prevent `</script>` injection |
 | Serve network binding warning | P2 | Warn when binding to non-loopback address |
 
 ### Fixed Issues
@@ -875,8 +905,6 @@ v0.7.6 hardens config file loading against TOCTOU races, adds WebSocket pre-chec
 | GITHUB_TOKEN double-read | P1 | Read token once to prevent mismatch between URL embedding and log redaction |
 | Scope KaTeX to chapter content | P2 | Target `.chapter-content` instead of `document.body` |
 | Plugin cleanup on build failure | P1 | Ensure plugin resources are released even when build fails partway through |
-| `generate_bookmarks: false` ignored | P2 | Always pass document outline option so disabling bookmarks works |
-| Watermark opacity out of range | P2 | Clamp opacity values outside [0.0, 1.0] for defense-in-depth |
 
 ### Improvements
 
