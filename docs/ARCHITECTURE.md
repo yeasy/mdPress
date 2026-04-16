@@ -82,7 +82,7 @@ graph TD
     cmd --> |build/serve| linkrewrite[internal/linkrewrite]
     cmd --> |build| typst[internal/typst]
     cmd --> |build/serve| plugin_mod[internal/plugin]
-    cmd --> |build| source[internal/source]
+    cmd --> |build/serve| source[internal/source]
 
     renderer_mod --> config
     renderer_mod --> theme
@@ -680,7 +680,7 @@ type wsClient struct {
 The server performs:
 
 1. Reuses the existing site build for the initial render
-2. Watches `.md`, `.yaml`, and `.css` files with `fsnotify`
+2. Watches `.md`, `.yaml`, `.yml`, and `.css` files with `fsnotify`
 3. Injects WebSocket client code into generated HTML via middleware
 4. Debounces file change events and triggers rebuilds
 5. Broadcasts reload messages to connected WebSocket clients

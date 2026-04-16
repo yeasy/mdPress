@@ -81,7 +81,7 @@ graph TD
     cmd --> |build/serve| linkrewrite[internal/linkrewrite]
     cmd --> |build| typst[internal/typst]
     cmd --> |build/serve| plugin_mod[internal/plugin]
-    cmd --> |build| source[internal/source]
+    cmd --> |build/serve| source[internal/source]
 
     renderer_mod --> config
     renderer_mod --> theme
@@ -681,7 +681,7 @@ type wsClient struct {
 
 **实现功能：**
 1. 初始构建（复用现有 site 构建流程）
-2. 使用 fsnotify 监听 .md / .yaml / .css 文件变更
+2. 使用 fsnotify 监听 .md / .yaml / .yml / .css 文件变更
 3. 通过中间件注入 WebSocket 客户端脚本到生成的 HTML 页面
 4. 防抖处理文件变更事件并触发重建
 5. 向所有已连接的 WebSocket 客户端广播刷新消息

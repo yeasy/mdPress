@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-06
+> Updated: 2026-04-13
 > Maintainer: mdPress product team
 
 ---
@@ -39,6 +39,7 @@ v0.7.2 ████████████████████████�
 v0.7.3 ██████████████████████████████████████████ released (2026-04-01)
 v0.7.4 ██████████████████████████████████████████ released (2026-04-04)
 v0.7.5 ██████████████████████████████████████████ released (2026-04-06)
+v0.7.6 ██████████████████████████████████████████ released (2026-04-13)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -843,6 +844,47 @@ v0.7.5 adds i18n support for cover page labels (Chinese, Japanese, Korean), auto
 | --- | --- |
 | Sync Chinese ROADMAP | Add missing v0.6.5-v0.6.9, v0.7.1-v0.7.2 sections to ROADMAP_zh.md |
 | Document migrate flags | Add `--dry-run` and `--force` flags to CLI reference |
+
+---
+
+## v0.7.6 - Security Hardening And Bug Fixes
+
+**Release date**: 2026-04-13
+**Theme**: security hardening, correctness, and documentation sync
+
+v0.7.6 hardens config file loading against TOCTOU races, adds WebSocket pre-checks, prevents git flag injection, fixes site chapter tree slug collisions, and synchronizes architecture documentation with the codebase.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Config file TOCTOU hardening | P1 | Use Open+Fstat+LimitReader to prevent race conditions during config loading |
+| WebSocket pre-check before upgrade | P1 | Return HTTP 503 before upgrading when at connection limit |
+| Git flag injection prevention | P1 | Prefix directory arguments with `./` to prevent `-` prefixed dirs from being parsed as flags |
+| CSS behavior property sanitization | P2 | Block legacy IE `behavior:` and `-moz-binding:` CSS injection vectors |
+| Cover image URI scheme rejection | P2 | Block javascript:, vbscript:, and data: URIs in CSS url() context |
+| Live-reload script injection fix | P2 | Escape `</` in inline JSON to prevent `</script>` injection |
+| Serve network binding warning | P2 | Warn when binding to non-loopback address |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Site chapter tree slug collision | P1 | Use aligned chapterFiles slice for correct mapping when chapters are skipped |
+| Temp file leak in PDF fallback | P1 | Clean up temporary file when rename fails |
+| GITHUB_TOKEN double-read | P1 | Read token once to prevent mismatch between URL embedding and log redaction |
+| Scope KaTeX to chapter content | P2 | Target `.chapter-content` instead of `document.body` |
+| Plugin cleanup on build failure | P1 | Ensure plugin resources are released even when build fails partway through |
+| `generate_bookmarks: false` ignored | P2 | Always pass document outline option so disabling bookmarks works |
+| Watermark opacity out of range | P2 | Clamp opacity values outside [0.0, 1.0] for defense-in-depth |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Refactor GitHub source cleanup | Extract `cleanupOnError()` and `validateSubDir()` methods to reduce duplication |
+| Improve link rewrite normalization | Move extension lowercasing into `NormalizePath` for consistent map lookups |
+| Sync architecture docs | Fix HeadingInfo fields, LocalSource field name, build manifest capitalization, and other doc-code mismatches |
 
 ---
 
