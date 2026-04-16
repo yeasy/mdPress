@@ -44,16 +44,18 @@ func TestInjectCJKFontFaceHeadInjection(t *testing.T) {
 
 	// </head> should still be in the result
 	if !strings.Contains(result, "</head>") {
-		t.Error("</head> tag should be preserved")
+		t.Fatal("</head> tag should be preserved")
 	}
 
-	// If CSS was injected, it should be before </head>
-	if headIdx := strings.Index(result, "</head>"); headIdx != -1 {
-		if styleIdx := strings.Index(result, "<style data-cjk-fonts"); styleIdx != -1 && styleIdx < headIdx {
-			// Good - style is before head
-		} else if styleIdx != -1 {
-			t.Error("CSS should be injected before </head>")
-		}
+	headIdx := strings.Index(result, "</head>")
+	styleIdx := strings.Index(result, "<style data-cjk-fonts")
+
+	if styleIdx == -1 {
+		t.Skip("No CJK fonts found on this system, skipping injection position test")
+	}
+
+	if styleIdx >= headIdx {
+		t.Errorf("CJK style (pos %d) should be before </head> (pos %d)", styleIdx, headIdx)
 	}
 }
 
@@ -62,12 +64,11 @@ func TestInjectCJKFontFacePrependFallback(t *testing.T) {
 	html := "<body>content</body>"
 	result := injectCJKFontFaceCSS(html, nil)
 
-	// Either no CSS (no fonts), or CSS is prepended
 	switch {
 	case strings.HasPrefix(result, "<style data-cjk-fonts"):
-		// Fonts available: result should be non-empty and start with the style tag
-		if result == "" {
-			t.Error("result should be non-empty when CJK fonts are available")
+		// Fonts available: verify original HTML is preserved after the injected style.
+		if !strings.Contains(result, html) {
+			t.Errorf("original HTML should be preserved in result, got %q", result)
 		}
 	case result == html:
 		t.Skip("No CJK fonts found on this system, skipping prepend fallback test")
@@ -253,12 +254,26 @@ func TestWithFooterTemplate(t *testing.T) {
 	}
 }
 
+type warnRecorder struct{ msgs []string }
+
+func (w *warnRecorder) Warn(msg string, _ ...any) { w.msgs = append(w.msgs, msg) }
+
 func TestWarnIfCJKFontsMissing_NoCJK(t *testing.T) {
-	// ASCII-only content should not trigger any warning or panic.
-	WarnIfCJKFontsMissing("Hello world, this is plain ASCII text.", nil)
+	rec := &warnRecorder{}
+	WarnIfCJKFontsMissing("Hello world, this is plain ASCII text.", rec)
+	if len(rec.msgs) != 0 {
+		t.Errorf("expected no warnings for ASCII-only text, got %d: %v", len(rec.msgs), rec.msgs)
+	}
 }
 
 func TestWarnIfCJKFontsMissing_WithCJK(t *testing.T) {
-	// CJK content should not panic (may log a warning if fonts are missing).
-	WarnIfCJKFontsMissing("这是一段中文内容，用于测试 CJK 字体检测。", nil)
+	rec := &warnRecorder{}
+	WarnIfCJKFontsMissing("这是一段中文内容，用于测试 CJK 字体检测。", rec)
+	// On systems with CJK fonts: no warning. On systems without: exactly one warning.
+	if len(rec.msgs) > 1 {
+		t.Errorf("expected at most 1 warning, got %d: %v", len(rec.msgs), rec.msgs)
+	}
+	if len(rec.msgs) == 1 && !strings.Contains(rec.msgs[0], "CJK") {
+		t.Errorf("warning should mention CJK, got %q", rec.msgs[0])
+	}
 }

@@ -366,8 +366,7 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			<-start
-			// Note: This is not thread-safe without external synchronization
-			// Just testing that it doesn't panic
+			// Start() is protected by a mutex; verify concurrent calls don't panic.
 			tracker.Start(fmt.Sprintf("Step %d", index))
 		}(i)
 	}
