@@ -135,10 +135,9 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, 0, defaultFooterMarginMM))
 	}
 
-	// Add document outline option if enabled
-	if ctx.Config.Output.GenerateBookmarks {
-		marginOpts = append(marginOpts, pdf.WithDocumentOutline(true))
-	}
+	// Always pass the document outline option so that generate_bookmarks: false
+	// actually disables bookmarks (the generator defaults to true).
+	marginOpts = append(marginOpts, pdf.WithDocumentOutline(ctx.Config.Output.GenerateBookmarks))
 
 	pdfGen := pdf.NewGenerator(marginOpts...)
 	if err := pdfGen.Generate(fullHTML, outputPath); err != nil {

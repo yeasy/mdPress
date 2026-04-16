@@ -267,6 +267,14 @@ func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir st
 	if err != nil {
 		return fmt.Errorf("failed to create build orchestrator: %w", err)
 	}
+	// Ensure plugin cleanup runs when the build finishes, matching the build command.
+	if orchestrator.PluginManager != nil {
+		defer func() {
+			if cleanupErr := orchestrator.PluginManager.CleanupAll(); cleanupErr != nil {
+				logger.Warn("Plugin cleanup failed", slog.Any("error", cleanupErr))
+			}
+		}()
+	}
 
 	// Use the chapter pipeline for consistent processing.
 	// Note: Pipeline always uses ParseWithDiagnostics and performs full validation.
