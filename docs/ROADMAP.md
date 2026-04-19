@@ -848,37 +848,6 @@ v0.7.5 adds i18n support for cover page labels (Chinese, Japanese, Korean), auto
 
 ---
 
-## v0.7.7 - Security And Correctness Fixes
-
-**Release date**: 2026-04-15
-**Theme**: additional security hardening, correctness fixes, and test improvements
-
-v0.7.7 blocks dangerous URI schemes in cover images, prevents script injection in live-reload, fixes bookmarks option and watermark opacity validation, and strengthens test assertions.
-
-### Delivered Features
-
-| Feature | Priority | Description |
-| --- | --- | --- |
-| Cover image URI scheme rejection | P1 | Block javascript:, vbscript:, and data: URIs in CSS url() context |
-| Live-reload script injection fix | P1 | Escape `</` in inline JSON to prevent `</script>` injection |
-
-### Fixed Issues
-
-| Fix | Priority | Description |
-| --- | --- | --- |
-| `generate_bookmarks: false` ignored | P1 | Always pass document outline option so disabling bookmarks works |
-| Watermark opacity out of range | P2 | Clamp values outside [0.0, 1.0] for defense-in-depth |
-| Plugin cleanup in serve mode | P2 | Ensure plugin resources are released when serve build finishes |
-
-### Improvements
-
-| Improvement | Description |
-| --- | --- |
-| Strengthen test assertions | Use t.Fatal/t.Skip in CJK tests, add warnRecorder mock, add boundary and whitespace edge cases |
-| Sync architecture docs | Fix source module scope and watched file extensions |
-
----
-
 ## v0.7.6 - Security Hardening And Bug Fixes
 
 **Release date**: 2026-04-13
@@ -913,6 +882,37 @@ v0.7.6 hardens config file loading against TOCTOU races, adds WebSocket pre-chec
 | Refactor GitHub source cleanup | Extract `cleanupOnError()` and `validateSubDir()` methods to reduce duplication |
 | Improve link rewrite normalization | Move extension lowercasing into `NormalizePath` for consistent map lookups |
 | Sync architecture docs | Fix HeadingInfo fields, LocalSource field name, build manifest capitalization, and other doc-code mismatches |
+
+---
+
+## v0.7.7 - Security And Correctness Fixes
+
+**Release date**: 2026-04-15
+**Theme**: additional security hardening, correctness fixes, and test improvements
+
+v0.7.7 blocks dangerous URI schemes in cover images, prevents script injection in live-reload, fixes bookmarks option and watermark opacity validation, and strengthens test assertions.
+
+### Delivered Features
+
+| Feature | Priority | Description |
+| --- | --- | --- |
+| Cover image URI scheme rejection | P1 | Block javascript:, vbscript:, and data: URIs in CSS url() context |
+| Live-reload script injection fix | P1 | Escape `</` in inline JSON to prevent `</script>` injection |
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| `generate_bookmarks: false` ignored | P1 | Always pass document outline option so disabling bookmarks works |
+| Watermark opacity out of range | P2 | Clamp values outside [0.0, 1.0] for defense-in-depth |
+| Plugin cleanup in serve mode | P2 | Ensure plugin resources are released when serve build finishes |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Strengthen test assertions | Use t.Fatal/t.Skip in CJK tests, add warnRecorder mock, add boundary and whitespace edge cases |
+| Sync architecture docs | Fix source module scope and watched file extensions |
 
 ---
 
