@@ -1209,7 +1209,7 @@ func TestExtractDescriptionEdgeCases(t *testing.T) {
 		{
 			name:     "HTML with HTML entities",
 			html:     "Text with &amp; and &lt; entities",
-			expected: "Text with &amp; and &lt; entities",
+			expected: "Text with & and < entities",
 		},
 		{
 			name:     "Empty string",
@@ -1255,12 +1255,12 @@ func TestExtractDescriptionEdgeCases(t *testing.T) {
 		{
 			name:     "HTML with mixed entities and tags",
 			html:     "<div>Test &amp; more &lt;stuff&gt;</div>",
-			expected: "Test &amp; more &lt;stuff&gt;",
+			expected: "Test & more <stuff>",
 		},
 		{
 			name:     "Multiple tags and entities combined",
 			html:     "<p>Some <span>text</span> with &nbsp; and <b>bold</b> &amp; more</p>",
-			expected: "Some text with &nbsp; and bold &amp; more",
+			expected: "Some text with and bold & more",
 		},
 	}
 
@@ -1285,5 +1285,104 @@ func TestExtractDescriptionEdgeCases(t *testing.T) {
 				t.Errorf("extractDescription(%q) = %q, want %q", tt.html, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestValidateFilename(t *testing.T) {
+	outputDir := t.TempDir()
+
+	tests := []struct {
+		name      string
+		filename  string
+		wantError bool
+	}{
+		{"valid simple", "chapter1/index.html", false},
+		{"valid nested", "part1/chapter2/page.html", false},
+		{"absolute path unix", "/etc/passwd", true},
+		{"dot-dot traversal", "../escape.html", true},
+		{"dot-dot in middle", "a/../../escape.html", true},
+		{"dot-dot resolves safely", "a/b/..", false},
+		{"empty filename", "", false},
+		{"single file", "index.html", false},
+		{"dot segment only", ".", false},
+		{"double dot in filename", "my..file.html", false},
+		{"triple dot dir", ".../index.html", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateFilename(outputDir, tt.filename)
+			if (err != nil) != tt.wantError {
+				t.Errorf("validateFilename(%q, %q) error = %v, wantError %v",
+					outputDir, tt.filename, err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestValidateFilenameSymlink(t *testing.T) {
+	base := t.TempDir()
+	outputDir := filepath.Join(base, "output")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink inside outputDir that points outside
+	outsideDir := filepath.Join(base, "outside")
+	if err := os.MkdirAll(outsideDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	symlink := filepath.Join(outputDir, "escape")
+	if err := os.Symlink(outsideDir, symlink); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+
+	err := validateFilename(outputDir, "escape/evil.html")
+	if err == nil {
+		t.Fatal("expected error for symlink escaping output directory, got nil")
+	}
+	if !strings.Contains(err.Error(), "escapes") {
+		t.Errorf("expected 'escapes' in error, got: %v", err)
+	}
+}
+
+func TestAbsoluteSiteHref(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"empty", "", ""},
+		{"simple path", "chapter1/index.html", "/chapter1/index.html"},
+		{"path with dot segments", "a/../b/index.html", "/b/index.html"},
+		{"trailing slash", "docs/guide/", "/docs/guide"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := absoluteSiteHref(tt.input)
+			if got != tt.expected {
+				t.Errorf("absoluteSiteHref(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSearchEntriesForHeadingsHTMLEntities(t *testing.T) {
+	page := SiteChapter{
+		Title:    "Test",
+		Filename: "test.html",
+		Headings: []SiteNavHeading{
+			{Title: "C++ & Go", ID: "cpp-go"},
+		},
+	}
+	plainText := "Introduction C++ & Go are popular languages for systems programming"
+	entries := searchEntriesForHeadings(page, plainText)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if !strings.Contains(entries[0].Text, "C++ & Go") {
+		t.Errorf("snippet should contain heading text, got %q", entries[0].Text)
+	}
+	if entries[0].Text == "C++ & Go" {
+		t.Errorf("snippet should include context beyond the heading title")
 	}
 }

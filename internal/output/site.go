@@ -5,8 +5,10 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"html/template"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -73,24 +75,30 @@ func validateFilename(outputDir, filename string) error {
 		return fmt.Errorf("filename must be relative, not absolute: %q", filename)
 	}
 
-	// Reject paths containing ".."
-	if strings.Contains(filename, "..") {
-		return fmt.Errorf("filename must not contain '..': %q", filename)
+	cleaned := filepath.Clean(filename)
+
+	// After cleaning, ".." only remains as a path component if the path escapes.
+	for _, seg := range strings.Split(cleaned, string(filepath.Separator)) {
+		if seg == ".." {
+			return fmt.Errorf("filename must not contain '..': %q", filename)
+		}
 	}
 
-	// Clean the filename and verify it doesn't escape outputDir
-	cleaned := filepath.Clean(filename)
-	fullPath := filepath.Join(outputDir, cleaned)
-
-	// Convert to absolute paths for reliable comparison
+	// Resolve the output directory (including symlinks) so that the containment
+	// check works on macOS where /var -> /private/var.
 	absOutputDir, err := filepath.Abs(outputDir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve output directory: %w", err)
 	}
-	absFullPath, err := filepath.Abs(fullPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve file path: %w", err)
+	if evaled, evalErr := filepath.EvalSymlinks(absOutputDir); evalErr == nil {
+		absOutputDir = evaled
 	}
+
+	// Build the full path from the resolved base. The target file may not exist
+	// yet, so EvalSymlinks would fail on it. Resolve the nearest existing ancestor
+	// and re-append the non-existing tail to catch symlink-based escapes.
+	absFullPath := filepath.Join(absOutputDir, cleaned)
+	absFullPath = evalSymlinksAncestor(absFullPath)
 
 	// Ensure the resolved path is within outputDir
 	if !strings.HasPrefix(absFullPath, absOutputDir+string(filepath.Separator)) &&
@@ -99,6 +107,20 @@ func validateFilename(outputDir, filename string) error {
 	}
 
 	return nil
+}
+
+// evalSymlinksAncestor resolves symlinks on the nearest existing ancestor of p,
+// then re-appends the non-existing tail. This handles the case where the leaf
+// file does not exist yet but an intermediate directory is a symlink.
+func evalSymlinksAncestor(p string) string {
+	if evaled, err := filepath.EvalSymlinks(p); err == nil {
+		return evaled
+	}
+	parent := filepath.Dir(p)
+	if parent == p {
+		return p
+	}
+	return filepath.Join(evalSymlinksAncestor(parent), filepath.Base(p))
 }
 
 // AddChapter appends a chapter.
@@ -271,6 +293,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		entries := make([]searchEntry, 0, len(flatPages))
 		for _, page := range flatPages {
 			plainText := htmlTagPattern.ReplaceAllString(page.Content, " ")
+			plainText = html.UnescapeString(plainText)
 			plainText = strings.Join(strings.Fields(plainText), " ")
 			if utf8.RuneCountInString(plainText) > maxSearchTextLength {
 				plainText = string([]rune(plainText)[:maxSearchTextLength])
@@ -437,7 +460,8 @@ func absoluteSiteHref(target string) string {
 	// SPA client-side navigation changes the browser URL.  Relative paths
 	// break because the sidebar HTML is not re-rendered during SPA page swaps,
 	// and the browser resolves relative hrefs against the new (changed) URL.
-	return "/" + filepath.ToSlash(filepath.Clean(target))
+	// Use path.Clean (not filepath.Clean) since these are URL paths, not filesystem paths.
+	return "/" + path.Clean(target)
 }
 
 func resolveBreadcrumbs(crumbs []breadcrumb) []breadcrumb {

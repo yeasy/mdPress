@@ -1,6 +1,7 @@
 package output
 
 import (
+	stdhtml "html"
 	"regexp"
 	"strings"
 
@@ -170,6 +171,7 @@ const (
 // content, suitable for use as a meta description.
 func extractDescription(htmlContent string) string {
 	text := htmlTagPattern.ReplaceAllString(htmlContent, " ")
+	text = stdhtml.UnescapeString(text)
 	text = strings.Join(strings.Fields(text), " ")
 	text = strings.TrimSpace(text)
 	runes := []rune(text)
@@ -204,6 +206,7 @@ func contentStartsWithTitle(html, pageTitle string) bool {
 	// Strip any inner tags (e.g. <a>, <code>) from the matched heading text
 	// and compare with pageTitle after normalising whitespace.
 	headingText := htmlTagPattern.ReplaceAllString(m[1], "")
+	headingText = stdhtml.UnescapeString(headingText)
 	headingText = strings.TrimSpace(strings.Join(strings.Fields(headingText), " "))
 	return headingText == strings.TrimSpace(pageTitle)
 }
