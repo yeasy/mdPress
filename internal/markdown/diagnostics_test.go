@@ -135,6 +135,110 @@ func TestParseWithDiagnosticsNormalHeadingNoWarning(t *testing.T) {
 	}
 }
 
+func TestIsMatchingBracket(t *testing.T) {
+	tests := []struct {
+		open  rune
+		close rune
+		want  bool
+	}{
+		{'(', ')', true},
+		{'[', ']', true},
+		{'{', '}', true},
+		{'(', ']', false},
+		{'(', '}', false},
+		{'[', ')', false},
+		{'[', '}', false},
+		{'{', ')', false},
+		{'{', ']', false},
+		{'<', '>', false},
+		{')', '(', false},
+	}
+	for _, tt := range tests {
+		name := string(tt.open) + string(tt.close)
+		t.Run(name, func(t *testing.T) {
+			got := isMatchingBracket(tt.open, tt.close)
+			if got != tt.want {
+				t.Errorf("isMatchingBracket(%q, %q) = %v, want %v",
+					tt.open, tt.close, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFindMermaidBracketIssueComprehensive(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  []string
+		wantDiag bool
+		wantRule string
+	}{
+		{
+			name:     "balanced brackets",
+			content:  []string{"graph TD", "    A[Start] --> B(End)"},
+			wantDiag: false,
+		},
+		{
+			name:     "nested brackets",
+			content:  []string{"graph TD", "    A[Start {inner}] --> B"},
+			wantDiag: false,
+		},
+		{
+			name:     "unclosed bracket",
+			content:  []string{"graph TD", "    A[Start --> B"},
+			wantDiag: true,
+			wantRule: "mermaid-bracket-mismatch",
+		},
+		{
+			name:     "unexpected closing bracket",
+			content:  []string{"graph TD", "    A] --> B"},
+			wantDiag: true,
+			wantRule: "mermaid-bracket-mismatch",
+		},
+		{
+			name:     "mismatched pair",
+			content:  []string{"graph TD", "    A[Start) --> B"},
+			wantDiag: true,
+			wantRule: "mermaid-bracket-mismatch",
+		},
+		{
+			name:     "brackets in quotes ignored",
+			content:  []string{`graph TD`, `    A["text with [ and ]"] --> B`},
+			wantDiag: false,
+		},
+		{
+			name:     "comment lines skipped",
+			content:  []string{"graph TD", "    %% A[unclosed", "    B[OK]"},
+			wantDiag: false,
+		},
+		{
+			name:     "interleaved bracket types",
+			content:  []string{"graph TD", "    A[text](link){style} --> B"},
+			wantDiag: false,
+		},
+		{
+			name:     "empty content",
+			content:  []string{},
+			wantDiag: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			block := &mermaidFence{
+				startLine: 1,
+				content:   tt.content,
+			}
+			diag, found := findMermaidBracketIssue(block)
+			if found != tt.wantDiag {
+				t.Errorf("findMermaidBracketIssue() found = %v, want %v; diag = %+v",
+					found, tt.wantDiag, diag)
+			}
+			if found && tt.wantRule != "" && diag.Rule != tt.wantRule {
+				t.Errorf("rule = %q, want %q", diag.Rule, tt.wantRule)
+			}
+		})
+	}
+}
+
 // TestIsFenceCloseComprehensive tests isFenceClose with table-driven test cases.
 func TestIsFenceCloseComprehensive(t *testing.T) {
 	tests := []struct {
