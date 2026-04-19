@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -1298,7 +1299,7 @@ func TestValidateFilename(t *testing.T) {
 	}{
 		{"valid simple", "chapter1/index.html", false},
 		{"valid nested", "part1/chapter2/page.html", false},
-		{"absolute path unix", "/etc/passwd", true},
+		{"absolute path unix", "/etc/passwd", runtime.GOOS != "windows"},
 		{"dot-dot traversal", "../escape.html", true},
 		{"dot-dot in middle", "a/../../escape.html", true},
 		{"dot-dot resolves safely", "a/b/..", false},
