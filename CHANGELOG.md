@@ -385,7 +385,7 @@ All notable changes to this project will be documented in this file. The format 
 
 - **validate command**: Documented the `--report` flag (was listed as "no dedicated flags")
 - **completion command**: Corrected `--no-descriptions` support from `bash`/`zsh` to `bash`/`fish`
-- **build command**: Noted that `--format all` expands to `pdf,html,site,epub` and excludes `typst`
+- **build command**: Noted that `--format all` expands to `pdf,html,site,epub,typst`
 - **upgrade command**: Removed fabricated exit codes section
 
 ---
@@ -797,7 +797,9 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.7...HEAD
+[0.7.7]: https://github.com/yeasy/mdpress/compare/v0.7.6...v0.7.7
+[0.7.6]: https://github.com/yeasy/mdpress/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/yeasy/mdpress/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/yeasy/mdpress/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/yeasy/mdpress/compare/v0.7.2...v0.7.3
