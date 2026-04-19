@@ -1051,9 +1051,15 @@ func injectBannerIntoHTML(htmlContent string, bannerHTML string) string {
 	if strings.Contains(htmlContent, `class="mdpress-lang-switcher"`) {
 		return htmlContent
 	}
-	if idx := strings.Index(strings.ToLower(htmlContent), "<body>"); idx >= 0 {
-		insertAt := idx + len("<body>")
-		return htmlContent[:insertAt] + bannerHTML + htmlContent[insertAt:]
+	// Search for <body> case-insensitively without lowercasing the entire string,
+	// which would break slice indices if multi-byte characters change byte length
+	// when lowercased (e.g., Turkish capital I U+0130).
+	bodyTag := "<body>"
+	for i := 0; i <= len(htmlContent)-len(bodyTag); i++ {
+		if strings.EqualFold(htmlContent[i:i+len(bodyTag)], bodyTag) {
+			insertAt := i + len(bodyTag)
+			return htmlContent[:insertAt] + bannerHTML + htmlContent[insertAt:]
+		}
 	}
 	return bannerHTML + htmlContent
 }

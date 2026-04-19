@@ -576,6 +576,12 @@ func TestInjectBannerIntoHTML(t *testing.T) {
 			bannerHTML:    `<nav>Banner</nav>`,
 			shouldContain: `<nav>Banner</nav>`,
 		},
+		{
+			name:          "mixed case body tag preserves original",
+			htmlContent:   `<html><Body>Content</Body></html>`,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<Body><nav>Banner</nav>Content`,
+		},
 	}
 
 	for _, tt := range tests {
