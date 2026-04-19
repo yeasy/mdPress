@@ -77,6 +77,16 @@ No images here`,
 			content:  `<img alt="test" width="100" src="image.png" height="200">`,
 			expected: []string{"image.png"},
 		},
+		{
+			name:     "url-encoded markdown image path",
+			content:  `![alt](images/foo%20bar.png)`,
+			expected: []string{"images/foo bar.png"},
+		},
+		{
+			name:     "url-encoded html img src",
+			content:  `<img src="images/hello%20world%21.png">`,
+			expected: []string{"images/hello world!.png"},
+		},
 	}
 
 	for _, tt := range tests {

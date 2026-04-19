@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -370,6 +371,10 @@ func extractImagePaths(filePath string) ([]string, error) {
 				if idx := strings.Index(imgPath, " "); idx > 0 {
 					imgPath = imgPath[:idx]
 				}
+				// URL-decode percent-encoded paths (e.g., "foo%20bar.png" -> "foo bar.png")
+				if decoded, err := url.PathUnescape(imgPath); err == nil {
+					imgPath = decoded
+				}
 				images = append(images, imgPath)
 			}
 		}
@@ -378,7 +383,12 @@ func extractImagePaths(filePath string) ([]string, error) {
 		htmlMatches := htmlImgRegex.FindAllStringSubmatch(line, -1)
 		for _, m := range htmlMatches {
 			if len(m) >= 2 {
-				images = append(images, strings.TrimSpace(m[1]))
+				imgPath := strings.TrimSpace(m[1])
+				// URL-decode percent-encoded paths
+				if decoded, err := url.PathUnescape(imgPath); err == nil {
+					imgPath = decoded
+				}
+				images = append(images, imgPath)
 			}
 		}
 	}
