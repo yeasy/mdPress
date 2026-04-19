@@ -290,6 +290,19 @@ func (c *MarkdownToTypstConverter) convertItalic(text string) string {
 	i := 0
 	for i < len(text) {
 		if text[i] == '*' {
+			// Handle triple asterisks (bold+italic): ***text*** → **_text_**
+			// convertBold will later convert **_text_** → *_text_*
+			if i+2 < len(text) && text[i+1] == '*' && text[i+2] == '*' {
+				closeIdx := strings.Index(text[i+3:], "***")
+				if closeIdx > 0 {
+					content := text[i+3 : i+3+closeIdx]
+					result.WriteString("**_")
+					result.WriteString(content)
+					result.WriteString("_**")
+					i += 3 + closeIdx + 3
+					continue
+				}
+			}
 			// Skip double asterisks (bold markers handled by convertBold)
 			if i+1 < len(text) && text[i+1] == '*' {
 				result.WriteByte('*')

@@ -755,8 +755,7 @@ func TestConvertInlineOrder(t *testing.T) {
 			name:  "bold and italic together",
 			input: "***bold and italic***",
 			checkFn: func(result string) bool {
-				// Should have bold or italic markers
-				return strings.Contains(result, "*") || strings.Contains(result, "_")
+				return strings.Contains(result, "*_bold and italic_*")
 			},
 		},
 		{
@@ -1307,6 +1306,54 @@ func TestConvertCodeBlockMethod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := converter.convertCodeBlock(tt.content, tt.lang)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestConvertBoldItalicPipeline tests that ***text*** converts to *_text_*
+// through the italic+bold pipeline.
+func TestConvertBoldItalicPipeline(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "triple asterisk bold italic",
+			input:    "***bold and italic***",
+			expected: "*_bold and italic_*",
+		},
+		{
+			name:     "bold only unchanged",
+			input:    "**just bold**",
+			expected: "*just bold*",
+		},
+		{
+			name:     "triple at start of sentence",
+			input:    "***important*** point",
+			expected: "*_important_* point",
+		},
+		{
+			name:     "multiple triple sequences",
+			input:    "***one*** and ***two***",
+			expected: "*_one_* and *_two_*",
+		},
+		{
+			name:     "italic only",
+			input:    "*just italic*",
+			expected: "_just italic_",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := converter.convertItalic(tt.input)
+			result = converter.convertBold(result)
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
