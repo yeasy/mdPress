@@ -916,6 +916,33 @@ v0.7.7 blocks dangerous URI schemes in cover images, prevents script injection i
 
 ---
 
+## v0.7.8 - Correctness And Cross-Platform Fixes
+
+**Release date**: 2026-04-18
+**Theme**: correctness fixes, cross-platform robustness, and documentation sync
+
+v0.7.8 fixes Typst bold+italic conversion, case-insensitive body tag search, URL-encoded image path validation, symlink-aware path traversal checks, and HTML entity handling in search index and meta descriptions.
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Case-insensitive body tag search | P2 | Use EqualFold byte scan to avoid index mismatch with multi-byte lowercasing |
+| URL-decode image paths in validator | P2 | Decode percent-encoded paths before filesystem validation |
+| Typst bold+italic conversion | P2 | `***text***` now correctly produces `*_text_*` instead of broken output |
+| Symlink-aware path validation | P2 | Resolve symlinks on nearest existing ancestor for containment checks |
+| HTML entity handling in search | P2 | Unescape entities in plain text so heading lookups and descriptions render correctly |
+| Windows path validation test | P1 | Make absolute path test case platform-aware |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Add mermaid bracket diagnostic tests | Comprehensive coverage for bracket matching, nesting, quotes, and comments |
+| Sync documentation | Fix changelog links, architecture version, and roadmap ordering |
+
+---
+
 ## v1.0.0 - Stable Release
 
 **Target release**: 2027-Q1

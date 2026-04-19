@@ -8,6 +8,24 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.8] - 2026-04-18
+
+### Fixed
+
+- **Fix case-insensitive body tag search**: Use `EqualFold` byte-by-byte scan instead of `strings.ToLower` which could break slice indices with multi-byte characters (e.g., Turkish capital I)
+- **URL-decode image paths in validator**: Percent-encoded paths like `foo%20bar.png` are now decoded before filesystem validation
+- **Fix Typst bold+italic conversion**: `***text***` now correctly produces `*_text_*` (bold+italic) instead of broken `**text**`
+- **Fix path validation with symlinks**: Use `EvalSymlinks` on nearest ancestor for containment checks; use `path.Clean` instead of `filepath.Clean` for URL paths
+- **Fix HTML entity handling in search index**: Unescape HTML entities (`&amp;` → `&`) in plain text extraction so heading lookups and meta descriptions render correctly
+
+### Improved
+
+- **Add mermaid bracket diagnostic tests**: Comprehensive test coverage for bracket matching, nesting, quotes, and comments
+- **Fix changelog comparison links**: Add missing v0.7.6/v0.7.7 links and correct `--format all` expansion description
+- **Sync documentation**: Update architecture docs to v0.7.7, restore chronological order in roadmaps
+
+---
+
 ## [0.7.7] - 2026-04-15
 
 ### Security
@@ -797,7 +815,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.7...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.8...HEAD
+[0.7.8]: https://github.com/yeasy/mdpress/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/yeasy/mdpress/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/yeasy/mdpress/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/yeasy/mdpress/compare/v0.7.4...v0.7.5
