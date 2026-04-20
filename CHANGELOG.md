@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.9] - 2026-04-19
+
+### Fixed
+
+- **Fix Windows multilingual switcher injection**: Normalize the multilingual root directory to an absolute path before generating landing-page and language-switcher links, preventing `filepath.Rel` failures when running `mdpress build` from a multilingual project root on Windows
+
+### Improved
+
+- **Add Windows multilingual regression coverage**: Cover absolute-path normalization and slash-normalized language-switcher links for Windows-specific multilingual builds
+
+---
+
 ## [0.7.8] - 2026-04-18
 
 ### Fixed
@@ -815,7 +827,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.8...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.9...HEAD
+[0.7.9]: https://github.com/yeasy/mdpress/compare/v0.7.8...v0.7.9
 [0.7.8]: https://github.com/yeasy/mdpress/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/yeasy/mdpress/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/yeasy/mdpress/compare/v0.7.5...v0.7.6

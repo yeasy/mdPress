@@ -517,6 +517,32 @@ func TestMultilingualLandingPath(t *testing.T) {
 	}
 }
 
+func TestNormalizeMultilingualRootDir(t *testing.T) {
+	t.Run("relative path becomes absolute", func(t *testing.T) {
+		got, err := normalizeMultilingualRootDir(".")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !filepath.IsAbs(got) {
+			t.Fatalf("expected absolute path, got %q", got)
+		}
+	})
+
+	t.Run("absolute path stays absolute", func(t *testing.T) {
+		absRoot, err := filepath.Abs(".")
+		if err != nil {
+			t.Fatalf("resolve absolute root: %v", err)
+		}
+		got, err := normalizeMultilingualRootDir(absRoot)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != absRoot {
+			t.Fatalf("expected %q, got %q", absRoot, got)
+		}
+	})
+}
+
 // Helper function to guess if path looks like a directory (for test purposes)
 func isDirectoryPath(p string) bool {
 	return !strings.Contains(p, ".")

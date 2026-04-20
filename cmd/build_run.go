@@ -69,6 +69,11 @@ func loadCustomCSS(cfg *config.BookConfig, logger *slog.Logger) string {
 }
 
 func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.LangDef, formats []string, outputOverride string, logger *slog.Logger) error {
+	rootDir, err := normalizeMultilingualRootDir(rootDir)
+	if err != nil {
+		return fmt.Errorf("normalize multilingual root dir: %w", err)
+	}
+
 	logger.Info("detected multi-language project", slog.Int("languages", len(langs)))
 	for _, lang := range langs {
 		logger.Info("  Language", slog.String("name", lang.Name), slog.String("dir", lang.Dir))
@@ -117,6 +122,13 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 	}
 
 	return nil
+}
+
+func normalizeMultilingualRootDir(rootDir string) (string, error) {
+	if filepath.IsAbs(rootDir) {
+		return rootDir, nil
+	}
+	return filepath.Abs(rootDir)
 }
 
 func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {

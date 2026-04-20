@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"log/slog"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -205,6 +206,31 @@ func TestBuildLanguageSwitcherHTML(t *testing.T) {
 	// Should contain landing page link.
 	if !strings.Contains(html, "All languages") {
 		t.Error("expected 'All languages' link")
+	}
+}
+
+func TestBuildLanguageSwitcherHTML_WindowsAbsolutePaths(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific path regression")
+	}
+
+	summaries := []languageBuildSummary{
+		{Name: "English", Dir: "en", Outputs: map[string]string{"site": `C:\book\en_site\index.html`}},
+		{Name: "中文", Dir: "zh", Outputs: map[string]string{"site": `C:\book\zh_site\index.html`}},
+	}
+
+	html, err := buildLanguageSwitcherHTML(`C:\book\en_site`, `C:\book\_mdpress_langs.html`, summaries, "en")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `href="../zh_site/index.html"`) {
+		t.Fatalf("expected normalized site link, got: %s", html)
+	}
+	if !strings.Contains(html, `href="../_mdpress_langs.html"`) {
+		t.Fatalf("expected normalized landing link, got: %s", html)
+	}
+	if strings.Contains(html, `\`) {
+		t.Fatalf("expected slash-normalized links, got: %s", html)
 	}
 }
 
