@@ -507,12 +507,16 @@ const htmlTemplate = `<!DOCTYPE html>
       var ar = document.createElement('script');
       ar.src = '{{KATEX_AUTO_RENDER_URL}}';
       ar.onload = function() {
-        renderMathInElement(document.querySelector('.chapter-content') || document.body, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$',  right: '$',  display: false}
-          ],
-          throwOnError: false
+        var els = document.querySelectorAll('.chapter-content');
+        if (els.length === 0) els = [document.body];
+        els.forEach(function(el) {
+          renderMathInElement(el, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$',  right: '$',  display: false}
+            ],
+            throwOnError: false
+          });
         });
       };
       document.body.appendChild(ar);
