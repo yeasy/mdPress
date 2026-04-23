@@ -54,6 +54,9 @@ type wsClient struct {
 func (c *wsClient) writeMessage(msgType int, data []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if c.conn == nil {
+		return nil
+	}
 	return c.conn.WriteMessage(msgType, data)
 }
 
@@ -330,32 +333,32 @@ const maxWSClients = 100
 
 // handleWebSocket upgrades an HTTP request to a WebSocket connection.
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Pre-check connection limit before upgrading to avoid unnecessary resource allocation.
+	// Reserve a slot before upgrading to prevent TOCTOU: the limit check and
+	// reservation happen in one lock hold, so concurrent requests cannot all
+	// pass the check and then each allocate an expensive WebSocket upgrade.
+	sentinel := &wsClient{}
 	s.clientsMu.Lock()
-	atLimit := len(s.clients) >= maxWSClients
-	s.clientsMu.Unlock()
-	if atLimit {
+	if len(s.clients) >= maxWSClients {
+		s.clientsMu.Unlock()
 		http.Error(w, "too many WebSocket connections", http.StatusServiceUnavailable)
 		return
 	}
+	s.clients[sentinel] = struct{}{}
+	s.clientsMu.Unlock()
 
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		s.clientsMu.Lock()
+		delete(s.clients, sentinel)
+		s.clientsMu.Unlock()
 		s.logger.Error("WebSocket upgrade failed", slog.Any("error", err))
 		return
 	}
 
-	// Wrap the connection so writes remain thread-safe.
+	// Replace the sentinel with the real client.
 	client := &wsClient{conn: conn}
-
-	// Atomically check the limit and register, preventing TOCTOU races
-	// between the pre-check above and the upgrade.
 	s.clientsMu.Lock()
-	if len(s.clients) >= maxWSClients {
-		s.clientsMu.Unlock()
-		conn.Close() //nolint:errcheck
-		return
-	}
+	delete(s.clients, sentinel)
 	s.clients[client] = struct{}{}
 	total := len(s.clients)
 	s.clientsMu.Unlock()
