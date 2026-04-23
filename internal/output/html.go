@@ -49,9 +49,12 @@ func (g *HTMLGenerator) Generate(fullHTML string, outputDir string, chapterHTMLs
 		}
 		if _, ok := seenSlugs[slug]; ok {
 			baseSlug := slug
-			for seenSlugs[slug] > 0 {
-				slug = fmt.Sprintf("%s-%d", baseSlug, seenSlugs[baseSlug]+1)
-				seenSlugs[baseSlug]++
+			for i := 2; ; i++ {
+				candidate := fmt.Sprintf("%s-%d", baseSlug, i)
+				if _, exists := seenSlugs[candidate]; !exists {
+					slug = candidate
+					break
+				}
 			}
 		}
 		seenSlugs[slug]++
