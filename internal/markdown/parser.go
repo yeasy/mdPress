@@ -166,8 +166,8 @@ func (p *Parser) extractHeadingInfo(heading *ast.Heading, source []byte, index *
 	}
 
 	line, column := 0, 0
-	if heading.Lines() != nil && heading.Lines().Len() > 0 {
-		line, column = index.lineCol(heading.Lines().At(0).Start)
+	if lines := heading.Lines(); lines != nil && lines.Len() > 0 {
+		line, column = index.lineCol(lines.At(0).Start)
 	}
 
 	return HeadingInfo{
