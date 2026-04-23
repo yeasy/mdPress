@@ -131,7 +131,7 @@ func TestPowershellCompletionCmd_Creation(t *testing.T) {
 func TestExecuteCompletion_Bash(t *testing.T) {
 	err := executeCompletion("bash")
 	if err != nil {
-		t.Errorf("executeCompletion(\"bash\") should not error, got %v", err)
+		t.Fatalf("executeCompletion(\"bash\") should not error, got %v", err)
 	}
 }
 
@@ -139,7 +139,7 @@ func TestExecuteCompletion_Bash(t *testing.T) {
 func TestExecuteCompletion_Zsh(t *testing.T) {
 	err := executeCompletion("zsh")
 	if err != nil {
-		t.Errorf("executeCompletion(\"zsh\") should not error, got %v", err)
+		t.Fatalf("executeCompletion(\"zsh\") should not error, got %v", err)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestExecuteCompletion_Zsh(t *testing.T) {
 func TestExecuteCompletion_Fish(t *testing.T) {
 	err := executeCompletion("fish")
 	if err != nil {
-		t.Errorf("executeCompletion(\"fish\") should not error, got %v", err)
+		t.Fatalf("executeCompletion(\"fish\") should not error, got %v", err)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestExecuteCompletion_Fish(t *testing.T) {
 func TestExecuteCompletion_Powershell(t *testing.T) {
 	err := executeCompletion("powershell")
 	if err != nil {
-		t.Errorf("executeCompletion(\"powershell\") should not error, got %v", err)
+		t.Fatalf("executeCompletion(\"powershell\") should not error, got %v", err)
 	}
 }
 

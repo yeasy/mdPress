@@ -372,8 +372,8 @@ func TestRewriteMarkdownLinksInHTML_NoTargets(t *testing.T) {
 	targets := map[string]string{}
 
 	result := rewriteMarkdownLinksInHTML(html, "current.md", targets)
-	if result == "" {
-		t.Error("should return content even with no targets")
+	if result != html {
+		t.Errorf("with no targets, content should be unchanged, got %q", result)
 	}
 }
 
@@ -385,8 +385,11 @@ func TestRewriteMarkdownLinksInHTML_ValidTargets(t *testing.T) {
 	}
 
 	result := rewriteMarkdownLinksInHTML(html, "current.md", targets)
-	if result == "" {
-		t.Error("should return processed content")
+	if !strings.Contains(result, `href="#ch1"`) {
+		t.Errorf("chapter1.md should be rewritten to #ch1, got %q", result)
+	}
+	if strings.Contains(result, `href="chapter1.md"`) {
+		t.Error("original chapter1.md link should no longer appear")
 	}
 }
 

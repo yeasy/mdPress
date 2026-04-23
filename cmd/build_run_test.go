@@ -927,9 +927,16 @@ func TestRewriteChapterLinks(t *testing.T) {
 			if tt.shouldReturn && result == nil {
 				t.Fatal("expected non-nil result")
 			}
-			// Verify length is preserved
 			if len(result) != len(tt.chapters) {
-				t.Errorf("expected %d chapters, got %d", len(tt.chapters), len(result))
+				t.Fatalf("expected %d chapters, got %d", len(tt.chapters), len(result))
+			}
+			for i, ch := range result {
+				if ch.ID != tt.chapters[i].ID {
+					t.Errorf("chapter[%d].ID = %q, want %q", i, ch.ID, tt.chapters[i].ID)
+				}
+				if ch.Title != tt.chapters[i].Title {
+					t.Errorf("chapter[%d].Title = %q, want %q", i, ch.Title, tt.chapters[i].Title)
+				}
 			}
 		})
 	}

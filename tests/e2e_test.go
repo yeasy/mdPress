@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -231,7 +232,7 @@ func TestE2E_ZeroConfigMode(t *testing.T) {
 			continue
 		}
 
-		chapterID := "chapter-auto-" + string(rune('0'+i))
+		chapterID := fmt.Sprintf("chapter-auto-%d", i)
 		if len(headings) > 0 {
 			chapterID = headings[0].ID
 		}

@@ -141,7 +141,7 @@ func TestCacheDirOverrideWorks(t *testing.T) {
 	}
 }
 
-// TestConfigureRuntimeCacheEnvDoesNotPanicOnEmpty tests robustness
+// TestConfigureRuntimeCacheEnvRobustness tests that empty flags do not set env vars
 func TestConfigureRuntimeCacheEnvRobustness(t *testing.T) {
 	t.Setenv("MDPRESS_CACHE_DIR", "")
 	t.Setenv("MDPRESS_DISABLE_CACHE", "")
@@ -149,6 +149,12 @@ func TestConfigureRuntimeCacheEnvRobustness(t *testing.T) {
 	cacheDir = ""
 	noCache = false
 
-	// Should not panic
 	configureRuntimeCacheEnv()
+
+	if v := os.Getenv("MDPRESS_CACHE_DIR"); v != "" {
+		t.Errorf("MDPRESS_CACHE_DIR should remain empty, got %q", v)
+	}
+	if v := os.Getenv("MDPRESS_DISABLE_CACHE"); v != "" {
+		t.Errorf("MDPRESS_DISABLE_CACHE should remain empty, got %q", v)
+	}
 }
