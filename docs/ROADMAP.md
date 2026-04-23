@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-15
+> Updated: 2026-04-19
 > Maintainer: mdPress product team
 
 ---
@@ -41,6 +41,8 @@ v0.7.4 ████████████████████████�
 v0.7.5 ██████████████████████████████████████████ released (2026-04-06)
 v0.7.6 ██████████████████████████████████████████ released (2026-04-13)
 v0.7.7 ██████████████████████████████████████████ released (2026-04-15)
+v0.7.8 ██████████████████████████████████████████ released (2026-04-18)
+v0.7.9 ██████████████████████████████████████████ released (2026-04-19)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -940,6 +942,27 @@ v0.7.8 fixes Typst bold+italic conversion, case-insensitive body tag search, URL
 | --- | --- |
 | Add mermaid bracket diagnostic tests | Comprehensive coverage for bracket matching, nesting, quotes, and comments |
 | Sync documentation | Fix changelog links, architecture version, and roadmap ordering |
+
+---
+
+## v0.7.9 — Windows Multilingual Build Fix
+
+**Release date**: 2026-04-19
+**Theme**: cross-platform reliability
+
+v0.7.9 fixes a Windows-specific regression in multilingual build mode where `filepath.Rel` could fail due to non-absolute root paths.
+
+### Fixed Issues
+
+| Fix | Priority | Description |
+| --- | --- | --- |
+| Windows multilingual switcher injection | P1 | Normalize multilingual root directory to absolute path before generating landing-page and language-switcher links |
+
+### Improvements
+
+| Improvement | Description |
+| --- | --- |
+| Windows multilingual regression coverage | Cover absolute-path normalization and slash-normalized language-switcher links for Windows builds |
 
 ---
 
