@@ -252,16 +252,44 @@ func SafeJoin(baseDir, untrusted string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve joined path: %w", err)
 	}
-	// Resolve symlinks on the joined path if it exists on disk, to prevent
-	// containment bypass via symlinks pointing outside base.
+	// Resolve symlinks to prevent containment bypass. When the full path
+	// does not exist, walk up to the nearest existing ancestor, resolve
+	// its symlinks, then re-append the remaining tail.
 	if evaled, evalErr := filepath.EvalSymlinks(absJoined); evalErr == nil {
 		absJoined = evaled
+	} else {
+		absJoined = EvalSymlinksAncestor(absJoined)
 	}
 	// Ensure the result is inside baseDir.
 	if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
 		return "", fmt.Errorf("path %q escapes base directory %q", untrusted, absBase)
 	}
 	return absJoined, nil
+}
+
+// EvalSymlinksAncestor resolves symlinks on the nearest existing ancestor of
+// path and re-appends the non-existent tail. This handles the case where
+// filepath.EvalSymlinks fails because the leaf file does not exist yet, but
+// an intermediate directory is a symlink pointing outside the base.
+func EvalSymlinksAncestor(path string) string {
+	dir := path
+	var tail []string
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		tail = append(tail, filepath.Base(dir))
+		dir = parent
+		if evaled, err := filepath.EvalSymlinks(dir); err == nil {
+			// Rebuild the path with the resolved ancestor.
+			for i := len(tail) - 1; i >= 0; i-- {
+				evaled = filepath.Join(evaled, tail[i])
+			}
+			return evaled
+		}
+	}
+	return path
 }
 
 // ParseVersionPart parses a version number component (e.g., "25" from "1.25.0").

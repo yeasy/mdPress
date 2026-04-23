@@ -98,7 +98,7 @@ func validateFilename(outputDir, filename string) error {
 	// yet, so EvalSymlinks would fail on it. Resolve the nearest existing ancestor
 	// and re-append the non-existing tail to catch symlink-based escapes.
 	absFullPath := filepath.Join(absOutputDir, cleaned)
-	absFullPath = evalSymlinksAncestor(absFullPath)
+	absFullPath = utils.EvalSymlinksAncestor(absFullPath)
 
 	// Ensure the resolved path is within outputDir
 	if !strings.HasPrefix(absFullPath, absOutputDir+string(filepath.Separator)) &&
@@ -107,20 +107,6 @@ func validateFilename(outputDir, filename string) error {
 	}
 
 	return nil
-}
-
-// evalSymlinksAncestor resolves symlinks on the nearest existing ancestor of p,
-// then re-appends the non-existing tail. This handles the case where the leaf
-// file does not exist yet but an intermediate directory is a symlink.
-func evalSymlinksAncestor(p string) string {
-	if evaled, err := filepath.EvalSymlinks(p); err == nil {
-		return evaled
-	}
-	parent := filepath.Dir(p)
-	if parent == p {
-		return p
-	}
-	return filepath.Join(evalSymlinksAncestor(parent), filepath.Base(p))
 }
 
 // AddChapter appends a chapter.

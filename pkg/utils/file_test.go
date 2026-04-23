@@ -544,6 +544,21 @@ func TestSafeJoin(t *testing.T) {
 	}
 }
 
+func TestSafeJoinSymlinkEscape(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+
+	link := filepath.Join(base, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	_, err := SafeJoin(base, "escape/secret.txt")
+	if err == nil {
+		t.Error("SafeJoin should reject symlink that escapes base directory")
+	}
+}
+
 func TestParseVersionPart(t *testing.T) {
 	tests := []struct {
 		name    string
