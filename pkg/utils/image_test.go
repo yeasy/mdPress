@@ -1001,6 +1001,7 @@ func TestStripHTMLTags(t *testing.T) {
 		{"nested tags", "<div><p>text</p></div>", "text"},
 		{"self-closing", "line<br/>break", "linebreak"},
 		{"with attributes", `<a href="url">link</a>`, "link"},
+		{"gt in attribute", `<span data-formula="x &gt; 5">math</span>`, "math"},
 		{"empty", "", ""},
 		{"only tags", "<div></div>", ""},
 	}

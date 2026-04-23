@@ -40,7 +40,7 @@ var ImgSrcRegex = regexp.MustCompile(`<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>
 
 // HTMLTagPattern matches any HTML tag. Useful for stripping tags to obtain
 // plain text.  Shared across cmd and internal/output packages.
-var HTMLTagPattern = regexp.MustCompile(`<[^>]*>`)
+var HTMLTagPattern = regexp.MustCompile(`<(?:[^>"']|"[^"]*"|'[^']*')*>`)
 
 // StripHTMLTags removes all HTML tags from s, returning plain text.
 func StripHTMLTags(s string) string {

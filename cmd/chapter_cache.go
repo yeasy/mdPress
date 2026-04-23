@@ -31,7 +31,7 @@ func loadParsedChapterCache(chapterPath, expandedContent, codeTheme string) (*ca
 		return nil, false, nil
 	}
 	cachePath := parsedChapterCachePath(chapterPath, expandedContent, codeTheme)
-	data, err := os.ReadFile(cachePath)
+	data, err := utils.ReadFile(cachePath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, false, nil
