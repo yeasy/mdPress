@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,6 +41,112 @@ func TestBuildCommand_FlagRegistration(t *testing.T) {
 		if flag == nil {
 			t.Errorf("build command should have --%s flag", f)
 		}
+	}
+}
+
+func TestExecuteBuild_UsesConfigBaseDirForMultilingualProject(t *testing.T) {
+	defer suppressOutput(t)()
+
+	origCfgFile := cfgFile
+	origBuildFormat := buildFormat
+	origBuildOutput := buildOutput
+	origBuildSummary := buildSummary
+	origBuildSubDir := buildSubDir
+	origBuildBranch := buildBranch
+	origQuiet := quiet
+	origVerbose := verbose
+	defer func() {
+		cfgFile = origCfgFile
+		buildFormat = origBuildFormat
+		buildOutput = origBuildOutput
+		buildSummary = origBuildSummary
+		buildSubDir = origBuildSubDir
+		buildBranch = origBuildBranch
+		quiet = origQuiet
+		verbose = origVerbose
+	}()
+
+	tmpDir := t.TempDir()
+	workspaceDir := filepath.Join(tmpDir, "workspace")
+	projectDir := filepath.Join(tmpDir, "projects", "multilingual-book")
+	for _, dir := range []string{
+		workspaceDir,
+		filepath.Join(projectDir, "en"),
+		filepath.Join(projectDir, "zh"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("create directory %q: %v", dir, err)
+		}
+	}
+
+	writeFile := func(path string, content string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %q: %v", path, err)
+		}
+	}
+
+	writeFile(filepath.Join(projectDir, "book.yaml"), `book:
+  title: "Language Root"
+chapters:
+  - title: "Overview"
+    file: "README.md"
+output:
+  formats: ["html"]
+`)
+	writeFile(filepath.Join(projectDir, "LANGS.md"), `# Languages
+
+- [English](en/)
+- [中文](zh/)
+`)
+	writeFile(filepath.Join(projectDir, "README.md"), "# Overview\n\nRoot overview.\n")
+	writeFile(filepath.Join(projectDir, "en", "book.yaml"), `book:
+  title: "English Book"
+chapters:
+  - title: "Intro"
+    file: "README.md"
+output:
+  formats: ["html"]
+  filename: "book.html"
+`)
+	writeFile(filepath.Join(projectDir, "en", "README.md"), "# Intro\n\nEnglish content.\n")
+	writeFile(filepath.Join(projectDir, "zh", "book.yaml"), `book:
+  title: "中文书"
+chapters:
+  - title: "简介"
+    file: "README.md"
+output:
+  formats: ["html"]
+  filename: "book.html"
+`)
+	writeFile(filepath.Join(projectDir, "zh", "README.md"), "# 简介\n\n中文内容。\n")
+
+	t.Chdir(workspaceDir)
+	cfgFile = filepath.Join("..", "projects", "multilingual-book", "book.yaml")
+	buildFormat = "html"
+	buildOutput = ""
+	buildSummary = ""
+	buildSubDir = ""
+	buildBranch = ""
+	quiet = true
+	verbose = false
+
+	if err := executeBuild(context.Background(), ""); err != nil {
+		t.Fatalf("executeBuild() returned error: %v", err)
+	}
+
+	for _, expected := range []string{
+		filepath.Join(projectDir, "_mdpress_langs.html"),
+		filepath.Join(projectDir, "en", "book.html"),
+		filepath.Join(projectDir, "zh", "book.html"),
+	} {
+		if _, err := os.Stat(expected); err != nil {
+			t.Fatalf("expected generated file %q: %v", expected, err)
+		}
+	}
+
+	if _, err := os.Stat(filepath.Join(workspaceDir, "_mdpress_langs.html")); !os.IsNotExist(err) {
+		t.Fatalf("landing page should not be written to workspace dir, stat err=%v", err)
 	}
 }
 

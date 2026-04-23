@@ -219,7 +219,7 @@ Site appears at: `https://username.github.io/repo-name/`
 - `html` - Single HTML file
 - `site` - Multi-page website
 - `epub` - E-book format (Kindle, Apple Books, etc.)
-- `typst` - Typst source (for Typst typesetting system)
+- `typst` - A PDF file generated via the Typst CLI (Chromium-free)
 
 ```bash
 # All formats in one command

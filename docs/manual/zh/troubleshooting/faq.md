@@ -219,7 +219,7 @@ deploy:
 - `html` - 单个 HTML 文件
 - `site` - 多页网站
 - `epub` - 电子书格式（Kindle、Apple Books 等）
-- `typst` - Typst 源代码（用于 Typst 排版系统）
+- `typst` - 通过 Typst CLI 生成的 PDF 文件（无需 Chromium）
 
 ```bash
 # 一个命令中的所有格式

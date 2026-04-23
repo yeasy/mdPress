@@ -234,6 +234,63 @@ func TestBuildLanguageSwitcherHTML_WindowsAbsolutePaths(t *testing.T) {
 	}
 }
 
+func TestBuildLanguageSwitcherHTML_WindowsHTMLPreferredAndNestedPaths(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific path regression")
+	}
+
+	summaries := []languageBuildSummary{
+		{
+			Name: "English",
+			Dir:  "en",
+			Outputs: map[string]string{
+				"html": `C:\book\out\en\pages\book.html`,
+				"site": `C:\book\out\en_site\index.html`,
+			},
+		},
+		{
+			Name: "中文",
+			Dir:  "zh",
+			Outputs: map[string]string{
+				"html": `C:\book\out\zh\pages\book.html`,
+				"site": `C:\book\out\zh_site\index.html`,
+			},
+		},
+	}
+
+	html, err := buildLanguageSwitcherHTML(`C:\book\out\en\pages`, `C:\book\out\_mdpress_langs.html`, summaries, "en")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `<span class="current">English</span>`) {
+		t.Fatalf("expected current language span, got: %s", html)
+	}
+	if !strings.Contains(html, `href="../../zh/pages/book.html"`) {
+		t.Fatalf("expected html output to be preferred for non-current language, got: %s", html)
+	}
+	if !strings.Contains(html, `href="../../_mdpress_langs.html"`) {
+		t.Fatalf("expected nested landing link, got: %s", html)
+	}
+	if strings.Contains(html, `\`) {
+		t.Fatalf("expected slash-normalized links, got: %s", html)
+	}
+}
+
+func TestBuildLanguageSwitcherHTML_WindowsCrossDriveReturnsError(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific path regression")
+	}
+
+	summaries := []languageBuildSummary{
+		{Name: "English", Dir: "en", Outputs: map[string]string{"html": `C:\book\en\book.html`}},
+		{Name: "中文", Dir: "zh", Outputs: map[string]string{"html": `D:\book\zh\book.html`}},
+	}
+
+	if _, err := buildLanguageSwitcherHTML(`C:\book\en`, `D:\book\_mdpress_langs.html`, summaries, "en"); err == nil {
+		t.Fatal("expected cross-drive relative path calculation to fail")
+	}
+}
+
 func TestBuildLanguageSwitcherHTML_NoOutputs(t *testing.T) {
 	summaries := []languageBuildSummary{
 		{Name: "Empty", Dir: "empty", Outputs: map[string]string{}},

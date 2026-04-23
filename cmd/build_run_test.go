@@ -517,6 +517,15 @@ func TestMultilingualLandingPath(t *testing.T) {
 	}
 }
 
+func TestMultilingualLandingPath_DirectoryOverride(t *testing.T) {
+	outputDir := t.TempDir()
+	got := multilingualLandingPath(filepath.Join(t.TempDir(), "book"), outputDir)
+	want := filepath.Join(outputDir, "index.html")
+	if got != want {
+		t.Fatalf("multilingualLandingPath() = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeMultilingualRootDir(t *testing.T) {
 	t.Run("relative path becomes absolute", func(t *testing.T) {
 		got, err := normalizeMultilingualRootDir(".")
@@ -546,6 +555,154 @@ func TestNormalizeMultilingualRootDir(t *testing.T) {
 // Helper function to guess if path looks like a directory (for test purposes)
 func isDirectoryPath(p string) bool {
 	return !strings.Contains(p, ".")
+}
+
+func TestWriteMultilingualLandingPage_RootOutputUsesRelativeSlashNormalizedLinks(t *testing.T) {
+	rootDir := t.TempDir()
+	summaries := []languageBuildSummary{
+		{
+			Name:  "English",
+			Dir:   "en",
+			Title: "English Book",
+			Outputs: map[string]string{
+				"html": filepath.Join(rootDir, "en", "book.html"),
+				"site": filepath.Join(rootDir, "en_site", "index.html"),
+			},
+		},
+		{
+			Name:  "中文",
+			Dir:   "zh",
+			Title: "中文书",
+			Outputs: map[string]string{
+				"site": filepath.Join(rootDir, "zh", "site", "index.html"),
+				"pdf":  filepath.Join(rootDir, "zh", "book.pdf"),
+			},
+		},
+	}
+
+	if err := writeMultilingualLandingPage(rootDir, "", summaries); err != nil {
+		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
+	}
+
+	landingPath := filepath.Join(rootDir, "_mdpress_langs.html")
+	content, err := os.ReadFile(landingPath)
+	if err != nil {
+		t.Fatalf("read landing page: %v", err)
+	}
+	html := string(content)
+
+	for _, expected := range []string{
+		`href="en/book.html"`,
+		`href="en_site/index.html"`,
+		`href="zh/site/index.html"`,
+		`href="zh/book.pdf"`,
+		`window.location.href = "en/book.html"`,
+		`Open default now`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("landing page missing %q\n%s", expected, html)
+		}
+	}
+	if strings.Contains(html, `\`) {
+		t.Fatalf("landing page should use slash-normalized links\n%s", html)
+	}
+}
+
+func TestWriteMultilingualLandingPage_FileOverrideWritesBookIndex(t *testing.T) {
+	rootDir := t.TempDir()
+	outputFile := filepath.Join(rootDir, "dist", "book.html")
+	summaries := []languageBuildSummary{
+		{
+			Name: "English",
+			Dir:  "en",
+			Outputs: map[string]string{
+				"html": filepath.Join(rootDir, "dist", "en", "book.html"),
+			},
+		},
+		{
+			Name: "中文",
+			Dir:  "zh",
+			Outputs: map[string]string{
+				"html": filepath.Join(rootDir, "dist", "zh", "book.html"),
+			},
+		},
+	}
+
+	if err := writeMultilingualLandingPage(rootDir, outputFile, summaries); err != nil {
+		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
+	}
+
+	landingPath := filepath.Join(rootDir, "dist", "book-index.html")
+	content, err := os.ReadFile(landingPath)
+	if err != nil {
+		t.Fatalf("read landing page: %v", err)
+	}
+	html := string(content)
+	for _, expected := range []string{
+		`href="en/book.html"`,
+		`href="zh/book.html"`,
+		`window.location.href = "en/book.html"`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("landing page missing %q\n%s", expected, html)
+		}
+	}
+}
+
+func TestWriteMultilingualLandingPage_DirectoryOverrideWritesIndex(t *testing.T) {
+	rootDir := t.TempDir()
+	outputDir := filepath.Join(rootDir, "dist")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("create output dir: %v", err)
+	}
+
+	summaries := []languageBuildSummary{
+		{
+			Name: "English",
+			Dir:  "en",
+			Outputs: map[string]string{
+				"html": filepath.Join(outputDir, "en", "book.html"),
+			},
+		},
+		{
+			Name: "中文",
+			Dir:  "zh",
+			Outputs: map[string]string{
+				"html": filepath.Join(outputDir, "zh", "book.html"),
+			},
+		},
+	}
+
+	if err := writeMultilingualLandingPage(rootDir, outputDir, summaries); err != nil {
+		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
+	}
+
+	landingPath := filepath.Join(outputDir, "index.html")
+	content, err := os.ReadFile(landingPath)
+	if err != nil {
+		t.Fatalf("read landing page: %v", err)
+	}
+	html := string(content)
+	for _, expected := range []string{
+		`href="en/book.html"`,
+		`href="zh/book.html"`,
+		`window.location.href = "en/book.html"`,
+		`Open default now`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("landing page missing %q\n%s", expected, html)
+		}
+	}
+	if strings.Contains(html, `\`) {
+		t.Fatalf("landing page should use slash-normalized links\n%s", html)
+	}
+	tmpMatches, err := filepath.Glob(filepath.Join(outputDir, "landing-*.tmp"))
+	if err != nil {
+		t.Fatalf("glob temp files: %v", err)
+	}
+	if len(tmpMatches) != 0 {
+		t.Fatalf("expected no temp files left behind, found %v", tmpMatches)
+	}
 }
 
 // Tests for injectBannerIntoHTML
@@ -893,6 +1050,25 @@ func TestDeriveOutputFilename(t *testing.T) {
 	}
 }
 
+func TestResolveBuildBaseOutput_DirectoryOverride(t *testing.T) {
+	cfg := &config.BookConfig{}
+	cfg.SetBaseDir(t.TempDir())
+	cfg.Output.Filename = "custom.pdf"
+
+	outputDir := t.TempDir()
+	got, err := resolveBuildBaseOutput(cfg, outputDir)
+	if err != nil {
+		t.Fatalf("resolveBuildBaseOutput() error: %v", err)
+	}
+	want := filepath.Join(outputDir, "custom.pdf")
+	if got != want {
+		t.Fatalf("resolveBuildBaseOutput() = %q, want %q", got, want)
+	}
+	if got == outputDir {
+		t.Fatalf("resolveBuildBaseOutput() should append filename, got bare directory %q", got)
+	}
+}
+
 // Tests for deriveLanguageOutputOverride (TG-15: multi-dot filenames)
 func TestDeriveLanguageOutputOverride(t *testing.T) {
 	tests := []struct {
@@ -1039,5 +1215,14 @@ func TestDeriveLanguageOutputOverride(t *testing.T) {
 					tt.outputOverride, tt.langDir, result, tt.expected, tt.description)
 			}
 		})
+	}
+}
+
+func TestDeriveLanguageOutputOverride_DirectoryOverride(t *testing.T) {
+	outputDir := t.TempDir()
+	got := deriveLanguageOutputOverride(outputDir, "en")
+	want := filepath.Join(outputDir, "en", "output")
+	if got != want {
+		t.Fatalf("deriveLanguageOutputOverride() = %q, want %q", got, want)
 	}
 }

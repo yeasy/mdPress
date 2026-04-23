@@ -223,7 +223,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		if langsErr != nil {
 			logger.Warn("failed to parse LANGS.md, continuing as a single-language project", slog.Any("error", langsErr))
 		} else if len(langs) > 0 {
-			return executeMultilingualBuild(ctx, workDir, langs, formats, outputOverride, logger)
+			return executeMultilingualBuild(ctx, cfg.BaseDir(), langs, formats, outputOverride, logger)
 		}
 	}
 
