@@ -366,8 +366,17 @@ func TestNotifyClients(t *testing.T) {
 // TestNotifyClientsEmpty tests that notification with no clients does not error
 func TestNotifyClientsEmpty(t *testing.T) {
 	srv := NewServer("127.0.0.1", 8080, "/tmp", "/tmp", slog.Default())
-	// Should not panic or error
+
 	srv.notifyClients()
+
+	// After notifying with no clients, the client map should still be empty
+	srv.clientsMu.RLock()
+	clientCount := len(srv.clients)
+	srv.clientsMu.RUnlock()
+
+	if clientCount != 0 {
+		t.Errorf("expected 0 clients after notifyClients on empty server, got %d", clientCount)
+	}
 }
 
 // TestNotifyClientsConcurrent tests concurrent notification safety
@@ -386,6 +395,15 @@ func TestNotifyClientsConcurrent(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	// After all concurrent calls, client count should still be 0
+	srv.clientsMu.RLock()
+	clientCount := len(srv.clients)
+	srv.clientsMu.RUnlock()
+
+	if clientCount != 0 {
+		t.Errorf("expected 0 clients after concurrent notifyClients, got %d", clientCount)
+	}
 }
 
 // TestNotifyClientsConcurrentWithClients tests concurrent write safety with real client connections

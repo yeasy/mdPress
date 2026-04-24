@@ -427,8 +427,12 @@ func TestHeadingIDTransformer_Transform_EmptyDocument(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	// Should not panic or error
 	transformer.Transform(doc, reader, pc)
+
+	// An empty document should have no children after transform
+	if doc.ChildCount() != 0 {
+		t.Errorf("expected empty document to have 0 children after Transform, got %d", doc.ChildCount())
+	}
 }
 
 func TestHeadingIDTransformer_Transform_SingleHeading(t *testing.T) {
@@ -725,6 +729,16 @@ func TestHeadingIDTransformer_Transform_NonHeadingNodes(t *testing.T) {
 	reader := text.NewReader(source)
 	pc := parser.NewContext()
 
-	// Should not panic with non-heading nodes
 	transformer.Transform(doc, reader, pc)
+
+	// Walk the document and verify no heading IDs were assigned to non-heading nodes
+	for child := doc.FirstChild(); child != nil; child = child.NextSibling() {
+		if _, ok := child.(*ast.Heading); ok {
+			t.Error("document should not contain any heading nodes")
+		}
+		// Non-heading nodes should not have an "id" attribute
+		if _, hasID := child.AttributeString("id"); hasID {
+			t.Errorf("non-heading node of type %T should not have an id attribute", child)
+		}
+	}
 }

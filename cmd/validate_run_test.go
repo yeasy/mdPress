@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -237,8 +239,37 @@ func TestPrintResults_Normal(t *testing.T) {
 		{OK: true, Message: "passed"},
 		{OK: false, Message: "failed"},
 	}
-	// Just verify no panic
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stdout: %v", err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stderr: %v", err)
+	}
+	os.Stdout = wOut
+	os.Stderr = wErr
+
 	printResults(results)
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut, bufErr bytes.Buffer
+	io.Copy(&bufOut, rOut) //nolint:errcheck
+	io.Copy(&bufErr, rErr) //nolint:errcheck
+	rOut.Close()
+	rErr.Close()
+
+	combined := bufOut.String() + bufErr.String()
+	if combined == "" {
+		t.Error("printResults produced no output for non-quiet mode")
+	}
 }
 
 func TestPrintResults_QuietMode(t *testing.T) {
@@ -250,13 +281,70 @@ func TestPrintResults_QuietMode(t *testing.T) {
 		{OK: true, Message: "passed"},
 		{OK: false, Message: "failed"},
 	}
-	// Should return immediately without printing
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stdout: %v", err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stderr: %v", err)
+	}
+	os.Stdout = wOut
+	os.Stderr = wErr
+
 	printResults(results)
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut, bufErr bytes.Buffer
+	io.Copy(&bufOut, rOut) //nolint:errcheck
+	io.Copy(&bufErr, rErr) //nolint:errcheck
+	rOut.Close()
+	rErr.Close()
+
+	if bufOut.Len() != 0 || bufErr.Len() != 0 {
+		t.Errorf("printResults should produce no output in quiet mode, got stdout=%q stderr=%q", bufOut.String(), bufErr.String())
+	}
 }
 
 func TestPrintResults_Empty(t *testing.T) {
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stdout: %v", err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stderr: %v", err)
+	}
+	os.Stdout = wOut
+	os.Stderr = wErr
+
 	printResults(nil)
 	printResults([]validateResult{})
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	var bufOut, bufErr bytes.Buffer
+	io.Copy(&bufOut, rOut) //nolint:errcheck
+	io.Copy(&bufErr, rErr) //nolint:errcheck
+	rOut.Close()
+	rErr.Close()
+
+	combined := strings.TrimSpace(bufOut.String() + bufErr.String())
+	if strings.Contains(combined, "passed") || strings.Contains(combined, "failed") {
+		t.Errorf("empty results should not produce pass/fail messages, got: %q", combined)
+	}
 }
 
 func TestValidateChapterContentAndSequence_ValidProject(t *testing.T) {

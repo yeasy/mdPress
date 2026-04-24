@@ -322,8 +322,15 @@ func TestReportBuildIssues_NilLogger(t *testing.T) {
 	}
 
 	verbose = false
-	// This should not panic
 	reportBuildIssues(logger, issues)
+
+	output := buf.String()
+	if !strings.Contains(output, "document issue") {
+		t.Errorf("expected logger output to contain 'document issue', got: %s", output)
+	}
+	if !strings.Contains(output, "f.md") {
+		t.Errorf("expected logger output to reference 'f.md', got: %s", output)
+	}
 }
 
 func TestFormatIssueSummary_DuplicateRules(t *testing.T) {
