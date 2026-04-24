@@ -72,10 +72,14 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 	manifest.CSSHash = "css-hash-456"
 
 	modTime := time.Now().UTC()
-	manifest.UpdateEntry("ch01.md", "hash1", "/path/ch01.html",
-		[]string{"Heading 1", "Heading 2"}, modTime)
-	manifest.UpdateEntry("ch02.md", "hash2", "/path/ch02.html",
-		[]string{"Heading 3"}, modTime)
+	manifest.Chapters["ch01.md"] = manifestEntry{
+		SHA256: "hash1", HTMLPath: "/path/ch01.html",
+		Headings: []string{"Heading 1", "Heading 2"}, ModTime: modTime,
+	}
+	manifest.Chapters["ch02.md"] = manifestEntry{
+		SHA256: "hash2", HTMLPath: "/path/ch02.html",
+		Headings: []string{"Heading 3"}, ModTime: modTime,
+	}
 
 	// Save it
 	if err := saveManifest(tmpDir, manifest); err != nil {
@@ -107,7 +111,7 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 	}
 
 	// Verify chapter 1
-	entry1, ok := loaded.GetEntry("ch01.md")
+	entry1, ok := loaded.Chapters["ch01.md"]
 	if !ok {
 		t.Error("ch01.md not found in manifest")
 	} else {
@@ -120,7 +124,7 @@ func TestManifestLoadSaveRoundTrip(t *testing.T) {
 	}
 
 	// Verify chapter 2
-	entry2, ok := loaded.GetEntry("ch02.md")
+	entry2, ok := loaded.Chapters["ch02.md"]
 	if !ok {
 		t.Error("ch02.md not found in manifest")
 	} else if entry2.SHA256 != "hash2" {
@@ -199,35 +203,15 @@ func TestManifestIsStale(t *testing.T) {
 	}
 }
 
-func TestManifestUpdateEntry(t *testing.T) {
-	manifest := newBuildManifest("1.0.0")
-	modTime := time.Now().UTC()
-
-	manifest.UpdateEntry("chapter.md", "somehash", "/output/chapter.html",
-		[]string{"Heading 1", "Heading 2"}, modTime)
-
-	entry, ok := manifest.GetEntry("chapter.md")
-	if !ok {
-		t.Fatal("entry not found after update")
-	}
-
-	if entry.SHA256 != "somehash" {
-		t.Errorf("hash mismatch: expected somehash, got %q", entry.SHA256)
-	}
-	if entry.HTMLPath != "/output/chapter.html" {
-		t.Errorf("html path mismatch: expected /output/chapter.html, got %q", entry.HTMLPath)
-	}
-	if len(entry.Headings) != 2 {
-		t.Errorf("expected 2 headings, got %d", len(entry.Headings))
-	}
-}
-
 func TestManifestFileCreation(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	manifest := newBuildManifest("1.0.0")
 	manifest.ConfigSH = "test-config"
-	manifest.UpdateEntry("test.md", "testhash", "/out/test.html", []string{}, time.Now())
+	manifest.Chapters["test.md"] = manifestEntry{
+		SHA256: "testhash", HTMLPath: "/out/test.html",
+		Headings: []string{}, ModTime: time.Now(),
+	}
 
 	if err := saveManifest(tmpDir, manifest); err != nil {
 		t.Fatalf("saveManifest failed: %v", err)
@@ -283,7 +267,7 @@ func TestManifestEmptyChaptersMap(t *testing.T) {
 	}
 
 	// Try to get non-existent entry
-	_, ok := manifest.GetEntry("nonexistent.md")
+	_, ok := manifest.Chapters["nonexistent.md"]
 	if ok {
 		t.Error("expected false for non-existent entry")
 	}
@@ -294,7 +278,10 @@ func TestManifestVersionMismatch(t *testing.T) {
 
 	manifest := newBuildManifest("1.0.0")
 	manifest.Version = "wrong-version"
-	manifest.UpdateEntry("ch01.md", "hash1", "/path/ch01.html", []string{}, time.Now())
+	manifest.Chapters["ch01.md"] = manifestEntry{
+		SHA256: "hash1", HTMLPath: "/path/ch01.html",
+		Headings: []string{}, ModTime: time.Now(),
+	}
 
 	if err := saveManifest(tmpDir, manifest); err != nil {
 		t.Fatalf("saveManifest failed: %v", err)

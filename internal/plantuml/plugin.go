@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/plugin"
@@ -118,15 +117,4 @@ func (p *Plugin) Execute(hookCtx *plugin.HookContext) (*plugin.HookResult, error
 func (p *Plugin) Cleanup() error {
 	// Nothing to clean up
 	return nil
-}
-
-// enableIfNeeded checks if any chapter contains PlantUML diagrams and returns
-// true if the plugin should be auto-enabled.
-func enableIfNeeded(chapters []string) bool {
-	for _, content := range chapters {
-		if strings.Contains(content, "```plantuml") {
-			return true
-		}
-	}
-	return false
 }

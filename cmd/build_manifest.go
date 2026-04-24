@@ -174,19 +174,3 @@ func (m *buildManifest) IsStale(currentAppVer, currentConfigHash, currentCSSHash
 	}
 	return false
 }
-
-// UpdateEntry updates a manifest entry for a chapter.
-func (m *buildManifest) UpdateEntry(chapterPath, hash, htmlPath string, headingTexts []string, modTime time.Time) {
-	m.Chapters[chapterPath] = manifestEntry{
-		SHA256:   hash,
-		HTMLPath: htmlPath,
-		Headings: headingTexts,
-		ModTime:  modTime,
-	}
-}
-
-// GetEntry retrieves a manifest entry for a chapter.
-func (m *buildManifest) GetEntry(chapterPath string) (manifestEntry, bool) {
-	entry, ok := m.Chapters[chapterPath]
-	return entry, ok
-}
