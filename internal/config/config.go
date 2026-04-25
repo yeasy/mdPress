@@ -469,6 +469,12 @@ func FlattenChapters(chapters []ChapterDef) []ChapterDef {
 }
 
 // ResolvePath resolves a path relative to the config directory.
+//
+// Security: This function does NOT verify that the result is contained within
+// the project directory. It is the caller's responsibility to ensure the input
+// path has been validated (e.g. via [utils.SafeJoin] or [BookConfig.Validate])
+// before passing it here. Absolute paths are returned unchanged, so an
+// attacker-controlled absolute path could escape the project root.
 func (c *BookConfig) ResolvePath(p string) string {
 	if filepath.IsAbs(p) {
 		return p
