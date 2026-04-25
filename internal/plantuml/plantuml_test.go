@@ -224,29 +224,6 @@ func TestUnescapeHTML(t *testing.T) {
 	}
 }
 
-// Test_needsPlantuml tests the detection of PlantUML content.
-func Test_needsPlantuml(t *testing.T) {
-	tests := []struct {
-		html  string
-		found bool
-	}{
-		{`<div class="plantuml-diagram"><svg></svg></div>`, true},
-		{`<code class="language-plantuml">text</code>`, true},
-		{`<p>Just text</p>`, false},
-		{`<code class="language-mermaid">text</code>`, false},
-		{`<pre><code class="language-python">code</code></pre>`, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.html, func(t *testing.T) {
-			result := needsPlantuml(tt.html)
-			if result != tt.found {
-				t.Fatalf("got %v, want %v", result, tt.found)
-			}
-		})
-	}
-}
-
 // TestCaching tests that rendered SVGs are cached.
 func TestCaching(t *testing.T) {
 	callCount := 0

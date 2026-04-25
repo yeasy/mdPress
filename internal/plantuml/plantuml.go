@@ -482,9 +482,3 @@ func sanitizeSVG(svg string) string {
 	svg = svgUsePattern.ReplaceAllString(svg, "")
 	return svg
 }
-
-// needsPlantuml reports whether the HTML contains any PlantUML diagram elements.
-func needsPlantuml(html string) bool {
-	return strings.Contains(html, `class="plantuml-diagram"`) ||
-		strings.Contains(html, `language-plantuml`)
-}

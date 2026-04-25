@@ -281,20 +281,6 @@ func cjkFontSrc(src cjkFontSource) string {
 	}
 }
 
-// cjkFontSrcFallback returns a file:// URL for use in non-HTTP contexts
-// (e.g. when the HTML is loaded directly from disk without the font server).
-func cjkFontSrcFallback(src cjkFontSource) string {
-	fontURL := fileURLForCSS(src.path)
-	return fmt.Sprintf("url(%q)", fontURL)
-}
-
-func fileURLForCSS(path string) string {
-	return (&url.URL{
-		Scheme: "file",
-		Path:   filepath.ToSlash(path),
-	}).String()
-}
-
 // injectCJKFontFaceCSS inserts a <style> block with CJK @font-face rules
 // immediately before </head> in htmlContent and returns the modified string.
 // When there is no </head> tag the block is prepended to the content.

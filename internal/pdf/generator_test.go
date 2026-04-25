@@ -3,8 +3,6 @@ package pdf
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -671,40 +669,6 @@ func TestCJKFontSrc(t *testing.T) {
 				t.Fatalf("cjkFontSrc(%q) = %q, want %q", tt.path, got, tt.expected)
 			}
 		})
-	}
-}
-
-func TestCJKFontSrcFallbackFormats(t *testing.T) {
-	tmpDir := t.TempDir()
-	tests := []struct {
-		name     string
-		path     string
-		expected string
-	}{
-		{name: "ttc", path: filepath.Join(tmpDir, "msyh.ttc"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "msyh.ttc")))},
-		{name: "otf", path: filepath.Join(tmpDir, "noto.otf"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "noto.otf")))},
-		{name: "ttf", path: filepath.Join(tmpDir, "noto.ttf"), expected: fmt.Sprintf(`url("file://%s")`, filepath.ToSlash(filepath.Join(tmpDir, "noto.ttf")))},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := cjkFontSrcFallback(cjkFontSource{path: tt.path})
-			if got != tt.expected {
-				t.Fatalf("cjkFontSrcFallback(%q) = %q, want %q", tt.path, got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestFileURLForCSS(t *testing.T) {
-	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "My Fonts", "msyh.ttc")
-	got := fileURLForCSS(path)
-	want := (&url.URL{
-		Scheme: "file",
-		Path:   filepath.ToSlash(path),
-	}).String()
-	if got != want {
-		t.Fatalf("fileURLForCSS() = %q, want %q", got, want)
 	}
 }
 

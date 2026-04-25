@@ -82,20 +82,6 @@ func TestInjectCJKFontFacePrependFallback(t *testing.T) {
 	}
 }
 
-// TestFileURLForCSSFormat tests file URL format generation
-func TestFileURLForCSSFormat(t *testing.T) {
-	result := fileURLForCSS("/path/to/font.ttf")
-
-	if !strings.HasPrefix(result, "file://") {
-		t.Errorf("File URL should start with file://, got %q", result)
-	}
-
-	// Should have proper slashes
-	if strings.Count(result, "//") < 1 {
-		t.Error("File URL format incorrect")
-	}
-}
-
 // TestCJKFontSrcRelativeURL tests that cjkFontSrc returns a relative URL with
 // format() hint for the local HTTP server approach.
 func TestCJKFontSrcRelativeURL(t *testing.T) {
@@ -105,19 +91,6 @@ func TestCJKFontSrcRelativeURL(t *testing.T) {
 	expected := `url("/cjk-font") format("collection")`
 	if result != expected {
 		t.Errorf("cjkFontSrc() = %q, want %q", result, expected)
-	}
-}
-
-// TestCJKFontSrcFallback tests that the fallback function produces file:// URL
-func TestCJKFontSrcFallback(t *testing.T) {
-	src := cjkFontSource{path: "/nonexistent/font.ttc"}
-	result := cjkFontSrcFallback(src)
-
-	if !strings.Contains(result, "file://") {
-		t.Errorf("Expected file:// URL, got %q", result)
-	}
-	if !strings.Contains(result, "url(") {
-		t.Error("Should contain url() wrapper")
 	}
 }
 
