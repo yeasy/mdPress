@@ -68,7 +68,7 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open book.json: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 	info, err := f.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat book.json: %w", err)

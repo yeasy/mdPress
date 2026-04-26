@@ -212,7 +212,7 @@ func Load(path string) (*BookConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open config file: %w (ensure %s exists and is readable)", err, path)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 	info, err := f.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat config file: %w", err)
