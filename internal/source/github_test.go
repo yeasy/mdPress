@@ -475,6 +475,17 @@ func TestGitHubSourceSubDirValidation(t *testing.T) {
 			},
 			wantErr: "", // should succeed
 		},
+		{
+			name:   "symlink escape",
+			subDir: "escape",
+			setup: func(t *testing.T, baseDir string) {
+				t.Helper()
+				if err := os.Symlink(os.TempDir(), filepath.Join(baseDir, "escape")); err != nil {
+					t.Skip("cannot create symlinks on this OS")
+				}
+			},
+			wantErr: "subdirectory escapes repository root",
+		},
 	}
 
 	for _, tt := range tests {
@@ -503,8 +514,12 @@ func TestGitHubSourceSubDirValidation(t *testing.T) {
 				if err != nil {
 					t.Fatalf("expected success, got error: %v", err)
 				}
-				if dir != filepath.Join(baseDir, tt.subDir) {
-					t.Errorf("dir = %q, want %q", dir, filepath.Join(baseDir, tt.subDir))
+				wantDir := filepath.Join(baseDir, tt.subDir)
+				if evaled, evalErr := filepath.EvalSymlinks(wantDir); evalErr == nil {
+					wantDir = evaled
+				}
+				if dir != wantDir {
+					t.Errorf("dir = %q, want %q", dir, wantDir)
 				}
 			} else {
 				if err == nil {

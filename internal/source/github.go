@@ -177,7 +177,16 @@ func (s *GitHubSource) validateSubDir() (string, error) {
 		s.cleanupOnError()
 		return "", fmt.Errorf("requested subdirectory is not a directory: %s", s.opts.SubDir)
 	}
-	return targetDir, nil
+
+	// Resolve symlinks to ensure the target hasn't escaped tempDir.
+	evaledTarget, errT := filepath.EvalSymlinks(targetDir)
+	evaledBase, errB := filepath.EvalSymlinks(s.tempDir)
+	if errT != nil || errB != nil || !strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) {
+		s.cleanupOnError()
+		return "", fmt.Errorf("subdirectory escapes repository root: %s", s.opts.SubDir)
+	}
+
+	return evaledTarget, nil
 }
 
 // cleanupOnError removes the temporary directory and resets tempDir.
