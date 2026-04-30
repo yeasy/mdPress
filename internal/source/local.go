@@ -55,6 +55,13 @@ func (s *LocalSource) Prepare() (string, error) {
 		if !info.IsDir() {
 			return "", fmt.Errorf("subdirectory path is not a directory: %s", targetDir)
 		}
+
+		evaledTarget, errT := filepath.EvalSymlinks(targetDir)
+		evaledBase, errB := filepath.EvalSymlinks(absPath)
+		if errT != nil || errB != nil || !strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) {
+			return "", fmt.Errorf("subdirectory escapes source root: %s", s.opts.SubDir)
+		}
+		targetDir = evaledTarget
 	}
 
 	return targetDir, nil

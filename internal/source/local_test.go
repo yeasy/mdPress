@@ -247,6 +247,20 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 			},
 		},
 		{
+			name: "symlink escape",
+			setup: func() (baseDir, subDir string) {
+				baseDir = t.TempDir()
+				subDir = "escape"
+				if err := os.Symlink(os.TempDir(), filepath.Join(baseDir, subDir)); err != nil {
+					t.Skip("cannot create symlinks on this OS")
+				}
+				return baseDir, subDir
+			},
+			opts:      Options{SubDir: "escape"},
+			wantErr:   true,
+			checkPath: nil,
+		},
+		{
 			name: "empty subdirectory name (should be ignored)",
 			setup: func() (baseDir, subDir string) {
 				baseDir = tempDir
