@@ -166,6 +166,11 @@ func renderTypstDocument(data TypstTemplateData) (string, error) {
 	// FontFamily needs Typst text escaping, not dimension validation.
 	data.FontFamily = sanitizeTypstText(data.FontFamily)
 
+	// Defense-in-depth: clamp LineHeight at point of use.
+	if data.LineHeight < 0.5 || data.LineHeight > 5.0 {
+		data.LineHeight = 1.6
+	}
+
 	// Save content before template execution — it is injected via string
 	// replacement afterwards to avoid text/template interpreting any
 	// "{{ }}" sequences in the Markdown-converted Typst body.
