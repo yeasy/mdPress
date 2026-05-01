@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -673,10 +674,10 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			return
 		}
 
-		// Check file size before reading to prevent memory exhaustion.
-		info, statErr := os.Stat(absFilePath)
-		if statErr != nil || info.IsDir() {
-			if errors.Is(statErr, fs.ErrNotExist) && r.URL.Path != "/" {
+		// Use os.Open + Fstat + LimitReader to avoid TOCTOU between stat and read.
+		f, openErr := os.Open(absFilePath)
+		if openErr != nil {
+			if errors.Is(openErr, fs.ErrNotExist) && r.URL.Path != "/" {
 				ext := filepath.Ext(r.URL.Path)
 				if ext == "" || ext == ".html" {
 					s.logger.Warn("Page not found, redirecting to /", slog.String("path", r.URL.Path))
@@ -687,13 +688,21 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		info, statErr := f.Stat()
+		if statErr != nil || info.IsDir() {
+			f.Close() //nolint:errcheck
+			next.ServeHTTP(w, r)
+			return
+		}
 		const maxHTMLSize = 20 * 1024 * 1024 // 20 MB
 		if info.Size() > maxHTMLSize {
+			f.Close() //nolint:errcheck
 			s.logger.Warn("HTML file too large for live reload injection", slog.String("path", r.URL.Path), slog.Int64("size", info.Size()))
 			next.ServeHTTP(w, r)
 			return
 		}
-		content, err := os.ReadFile(absFilePath)
+		content, err := io.ReadAll(io.LimitReader(f, maxHTMLSize+1))
+		f.Close() //nolint:errcheck
 		if err != nil {
 			next.ServeHTTP(w, r)
 			return

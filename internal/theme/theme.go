@@ -3,6 +3,7 @@ package theme
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -86,19 +87,28 @@ func (tm *ThemeManager) Get(name string) (*Theme, error) {
 
 // LoadFromFile loads a theme from a YAML file.
 func (tm *ThemeManager) LoadFromFile(path string) (*Theme, error) {
+	// Use os.Open + Fstat + LimitReader to avoid TOCTOU between stat and read.
 	const maxThemeSize = 1 * 1024 * 1024 // 1 MB
-	info, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("theme file not found: %w", err)
+	}
+	defer f.Close() //nolint:errcheck
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat theme file: %w", err)
 	}
 	if info.Size() > int64(maxThemeSize) {
 		return nil, fmt.Errorf("theme file is too large (%d bytes; max %d bytes)", info.Size(), maxThemeSize)
 	}
 
 	// Read file contents.
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(f, int64(maxThemeSize)+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read theme file: %w", err)
+	}
+	if int64(len(data)) > int64(maxThemeSize) {
+		return nil, fmt.Errorf("theme file exceeds size limit during read (%d bytes; max %d)", len(data), maxThemeSize)
 	}
 
 	// Parse YAML.
