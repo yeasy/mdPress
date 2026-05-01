@@ -408,18 +408,16 @@ func TestParseChromiumFlagsTableDriven(t *testing.T) {
 			},
 		},
 		{
-			name:  "flag with path value preserved",
-			input: "--user-data-dir=/tmp/chrome",
-			wantValues: map[string]any{
-				"user-data-dir": "/tmp/chrome",
-			},
+			name:       "user-data-dir is rejected (set programmatically)",
+			input:      "--user-data-dir=/tmp/chrome",
+			wantValues: map[string]any{},
+			wantAbsent: []string{"user-data-dir"},
 		},
 		{
-			name:  "value containing equals sign is split at first equals only",
-			input: "--user-data-dir=/tmp/a=b",
-			wantValues: map[string]any{
-				"user-data-dir": "/tmp/a=b",
-			},
+			name:       "user-data-dir with equals value is rejected",
+			input:      "--user-data-dir=/tmp/a=b",
+			wantValues: map[string]any{},
+			wantAbsent: []string{"user-data-dir"},
 		},
 		{
 			name:       "disallowed flag is filtered out",
@@ -490,11 +488,10 @@ func TestParseChromiumFlagsTableDriven(t *testing.T) {
 			},
 		},
 		{
-			name:  "print-to-pdf with path value",
-			input: "--print-to-pdf=/out/doc.pdf",
-			wantValues: map[string]any{
-				"print-to-pdf": "/out/doc.pdf",
-			},
+			name:       "print-to-pdf is rejected (set programmatically)",
+			input:      "--print-to-pdf=/out/doc.pdf",
+			wantValues: map[string]any{},
+			wantAbsent: []string{"print-to-pdf"},
 		},
 	}
 
@@ -887,9 +884,9 @@ func TestFilterChromiumCLIFlags(t *testing.T) {
 			want:  nil,
 		},
 		{
-			name:  "allowed flag with equals value passes through",
+			name:  "programmatic flag user-data-dir is rejected",
 			input: "--user-data-dir=/tmp/chrome",
-			want:  []string{"--user-data-dir=/tmp/chrome"},
+			want:  nil,
 		},
 		{
 			name:  "allowed flag font-render-hinting with value",

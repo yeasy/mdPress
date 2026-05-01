@@ -45,10 +45,9 @@ var allowedChromiumFlags = map[string]bool{
 	"disable-notifications":            true,
 	"disable-crash-reporter":           true,
 	"noerrdialogs":                     true,
-	"allow-file-access-from-files":     true,
-	"no-pdf-header-footer":             true,
-	"print-to-pdf":                     true,
-	"user-data-dir":                    true,
+	// Flags set programmatically (print-to-pdf, allow-file-access-from-files,
+	// no-pdf-header-footer, user-data-dir) are intentionally excluded from
+	// the allowlist to prevent user overrides via CHROME_FLAGS.
 }
 
 // newlineStripper removes CR and LF characters from log messages to prevent
