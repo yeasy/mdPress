@@ -88,10 +88,7 @@ func NewRenderer(serverURL string, useLocal bool) (*Renderer, error) {
 // ClearCache removes all cached PlantUML renderings, freeing memory.
 // This should be called between rebuild cycles in long-running processes.
 func (r *Renderer) ClearCache() {
-	r.cache.Range(func(key, _ any) bool {
-		r.cache.Delete(key)
-		return true
-	})
+	r.cache.Clear()
 }
 
 // newRendererNoValidation creates a Renderer without SSRF validation.
