@@ -189,6 +189,11 @@ func windowsExecutableExtensions() []string {
 	return result
 }
 
+// maxPluginMetaOutput limits stdout captured from plugin metadata queries
+// (--mdpress-info, --mdpress-hooks) to prevent memory exhaustion from
+// malicious or buggy plugins that write excessive output.
+const maxPluginMetaOutput = 1 * 1024 * 1024 // 1 MB
+
 // queryPluginMeta calls the plugin with --mdpress-info and parses the result.
 // Expected stdout: {"version":"1.0.0","description":"..."}
 // Returns safe defaults on any error.
@@ -196,8 +201,10 @@ func queryPluginMeta(execPath string) (version, description string) {
 	ctx, cancel := context.WithTimeout(context.Background(), pluginMetaQueryTimeout)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, execPath, "--mdpress-info").Output()
-	if err != nil {
+	cmd := exec.CommandContext(ctx, execPath, "--mdpress-info")
+	var stdout bytes.Buffer
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
+	if err := cmd.Run(); err != nil {
 		slog.Debug("Failed to query plugin metadata", slog.String("path", execPath), slog.Any("error", err))
 		return "0.1.0", ""
 	}
@@ -206,7 +213,7 @@ func queryPluginMeta(execPath string) (version, description string) {
 		Version     string `json:"version"`
 		Description string `json:"description"`
 	}
-	if err := json.Unmarshal(bytes.TrimSpace(out), &meta); err != nil {
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &meta); err != nil {
 		return "0.1.0", ""
 	}
 	if meta.Version == "" {
@@ -222,14 +229,16 @@ func queryPluginHooks(execPath string) []Phase {
 	ctx, cancel := context.WithTimeout(context.Background(), pluginHooksQueryTimeout)
 	defer cancel()
 
-	out, err := exec.CommandContext(ctx, execPath, "--mdpress-hooks").Output()
-	if err != nil {
+	cmd := exec.CommandContext(ctx, execPath, "--mdpress-hooks")
+	var stdout bytes.Buffer
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
+	if err := cmd.Run(); err != nil {
 		// Plugin does not support the flag; subscribe to all phases.
 		return allPhases()
 	}
 
 	var hookNames []string
-	if err := json.Unmarshal(bytes.TrimSpace(out), &hookNames); err != nil {
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &hookNames); err != nil {
 		return allPhases()
 	}
 
