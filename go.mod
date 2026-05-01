@@ -1,6 +1,6 @@
 module github.com/yeasy/mdpress
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc
