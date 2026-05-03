@@ -3,7 +3,7 @@ module github.com/yeasy/mdpress
 go 1.26.2
 
 require (
-	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc
+	github.com/chromedp/cdproto v0.0.0-20260427013145-5737772c319b
 	github.com/chromedp/chromedp v0.15.1
 	github.com/fsnotify/fsnotify v1.10.0
 	github.com/gorilla/websocket v1.5.3
