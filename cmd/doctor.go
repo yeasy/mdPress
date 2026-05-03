@@ -399,7 +399,8 @@ func checkDiskSpace(ctx context.Context, targetDir string, cfg *config.BookConfi
 	if _, err := fmt.Sscanf(fields[3], "%d", &availKB); err != nil {
 		return
 	}
-	availableGB := float64(availKB) / (1024 * 1024)
+	const kbPerGB = 1024 * 1024
+	availableGB := float64(availKB) / kbPerGB
 	report.DiskSpaceGB = availableGB
 
 	// Threshold: 100 MB = 0.1 GB
