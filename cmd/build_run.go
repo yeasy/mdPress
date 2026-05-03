@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -1033,11 +1034,27 @@ func buildLanguageSwitcherHTML(currentDir, landingPath string, summaries []langu
 }
 
 func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
-	content, err := os.ReadFile(targetPath)
+	const maxOutputHTMLSize = 256 * 1024 * 1024 // 256 MB
+
+	f, err := os.Open(targetPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil // File does not exist yet; skip silently.
 		}
+		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat %s: %w", targetPath, err)
+	}
+	if fi.Size() > maxOutputHTMLSize {
+		return fmt.Errorf("output file %s too large (%d bytes)", targetPath, fi.Size())
+	}
+
+	content, err := io.ReadAll(io.LimitReader(f, maxOutputHTMLSize+1))
+	if err != nil {
 		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
 	}
 	updated := injectBannerIntoHTML(string(content), bannerHTML)
