@@ -336,11 +336,11 @@ func (r *Renderer) renderLocal(ctx context.Context, code string) (string, error)
 	cmd.Stderr = &utils.LimitedWriter{W: &stderr, N: maxStderrSize}
 
 	if err := cmd.Run(); err != nil {
-		msg := stderr.String()
-		if msg == "" {
-			msg = err.Error()
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			return "", fmt.Errorf("plantuml execution failed (%s): %w", msg, err)
 		}
-		return "", fmt.Errorf("plantuml execution failed: %s", msg)
+		return "", fmt.Errorf("plantuml execution failed: %w", err)
 	}
 
 	svg := stdout.String()
