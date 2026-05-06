@@ -105,6 +105,7 @@ func TestThemesPreviewCmd_OutputFlag(t *testing.T) {
 	flag := themesPreviewCmd.Flags().Lookup("output")
 	if flag == nil {
 		t.Fatal("preview command should have --output flag")
+		return
 	}
 
 	if flag.DefValue != "themes-preview.html" {

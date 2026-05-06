@@ -88,6 +88,7 @@ func TestServeCommand_FlagDefaults(t *testing.T) {
 			flag := serveCmd.Flags().Lookup(tt.flagName)
 			if flag == nil {
 				t.Fatalf("flag --%s should exist", tt.flagName)
+				return
 			}
 
 			if flag.DefValue != tt.expectedDefVal {
@@ -176,6 +177,7 @@ func TestServeCommand_FlagTypes(t *testing.T) {
 			flag := serveCmd.Flags().Lookup(tt.flagName)
 			if flag == nil {
 				t.Fatalf("flag --%s should exist", tt.flagName)
+				return
 			}
 
 			flagType := flag.Value.Type()

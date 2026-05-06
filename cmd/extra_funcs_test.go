@@ -605,6 +605,7 @@ func TestNewBuildOrchestrator_MinimalConfig(t *testing.T) {
 	}
 	if orch == nil {
 		t.Fatal("expected non-nil orchestrator")
+		return
 	}
 	if orch.Config == nil {
 		t.Error("orchestrator config is nil")
