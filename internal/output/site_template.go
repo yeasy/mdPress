@@ -1620,6 +1620,9 @@ body {
         if (onReady) onReady();
       } else if (onReady) {
         existing.addEventListener('load', onReady, { once: true });
+        existing.addEventListener('error', function() {
+          console.warn('mdpress: CDN script failed to load: ' + src);
+        }, { once: true });
       }
       return;
     }
@@ -1632,6 +1635,9 @@ body {
     s.addEventListener('load', function() {
       s.dataset.mdpressLoaded = 'true';
       if (onReady) onReady();
+    }, { once: true });
+    s.addEventListener('error', function() {
+      console.warn('mdpress: CDN script failed to load: ' + src);
     }, { once: true });
     document.body.appendChild(s);
   }
@@ -2494,11 +2500,27 @@ body {
       var pre = btn.parentNode.querySelector('pre');
       if (!pre) return;
       var text = pre.textContent || pre.innerText;
-      navigator.clipboard.writeText(text).then(function() {
-        btn.textContent = __ui.copied;
-        btn.classList.add('copied');
-        setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
-      }).catch(function() {});
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          btn.textContent = __ui.copied;
+          btn.classList.add('copied');
+          setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
+        }).catch(function() {});
+      } else {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          btn.textContent = __ui.copied;
+          btn.classList.add('copied');
+          setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
+        } catch(err) {}
+      }
     });
     addCopyButtons();
     window.__addCopyButtons = addCopyButtons;
