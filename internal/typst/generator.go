@@ -184,6 +184,8 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 
 	// Compile the Typst file to PDF using 'typst compile'
 	if err := g.compileToPDF(tmpTypFile, outputPath); err != nil {
+		// Remove any partial PDF that typst may have created before failing.
+		_ = os.Remove(outputPath)
 		return fmt.Errorf("compile typst to PDF: %w", err)
 	}
 

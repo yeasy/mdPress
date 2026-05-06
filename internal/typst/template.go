@@ -100,7 +100,8 @@ __MDPRESS_CONTENT_PLACEHOLDER__
 
 // typstTextReplacer escapes Typst control characters in user-supplied metadata
 // to prevent code injection via fields like Title or Author.
-// It also strips Go template delimiters to prevent text/template injection.
+// It also strips Go template delimiters to prevent text/template injection,
+// and replaces newlines with spaces to prevent breaking heading syntax.
 var typstTextReplacer = strings.NewReplacer(
 	"\\", "\\\\",
 	"#", "\\#",
@@ -111,6 +112,8 @@ var typstTextReplacer = strings.NewReplacer(
 	">", "\\>",
 	"_", "\\_",
 	"*", "\\*",
+	"\n", " ",
+	"\r", " ",
 	"{{", "",
 	"}}", "",
 )

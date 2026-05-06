@@ -454,6 +454,9 @@ func TestSanitizeTypstText(t *testing.T) {
 		{"empty string", "", ""},
 		{"injection attempt stripped", "{{#import bad}}", `\#import bad`},
 		{"multiple specials", "#$@", `\#\$\@`},
+		{"newline replaced with space", "Line1\nLine2", "Line1 Line2"},
+		{"carriage return replaced with space", "Line1\rLine2", "Line1 Line2"},
+		{"crlf replaced with spaces", "Line1\r\nLine2", "Line1  Line2"},
 	}
 
 	for _, tt := range tests {
