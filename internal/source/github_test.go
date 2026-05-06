@@ -55,6 +55,7 @@ func TestNewGitHubSource(t *testing.T) {
 
 			if src == nil {
 				t.Fatal("NewGitHubSource returned nil")
+				return
 			}
 
 			if src.owner != tt.owner {
