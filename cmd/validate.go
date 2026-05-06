@@ -579,7 +579,7 @@ func validateChapterSequence(chapters []config.ChapterDef) []string {
 
 // Pre-compiled regexps for content validation.
 var (
-	relaxedChineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)(?:\s*([章节篇部卷]))?(?:\s+|$)`)
+	relaxedChineseTitleSequencePattern = regexp.MustCompile(`^\s*第\s*([一二三四五六七八九十百零〇两\d]+)\s*([章节篇部卷])(?:\s+|$)`)
 	mdImagePattern                     = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	htmlImgSrcPattern                  = regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
 	mdLinkPattern                      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)

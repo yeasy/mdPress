@@ -530,8 +530,8 @@ func TestParseSequenceParts(t *testing.T) {
 			wantOk:    true,
 		},
 		{
-			name:      "chinese ordinal two",
-			title:     "第二 Chapter",
+			name:      "chinese ordinal two with unit",
+			title:     "第二节 Chapter",
 			wantParts: []int{2},
 			wantOk:    true,
 		},
@@ -544,8 +544,8 @@ func TestParseSequenceParts(t *testing.T) {
 		{
 			name:      "chinese without section type",
 			title:     "第三",
-			wantParts: []int{3},
-			wantOk:    true,
+			wantParts: nil,
+			wantOk:    false,
 		},
 	}
 
