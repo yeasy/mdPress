@@ -282,6 +282,7 @@ func TestUpgradeCheckOnlyFlag(t *testing.T) {
 	checkFlag := upgradeCmd.Flags().Lookup("check")
 	if checkFlag == nil {
 		t.Fatal("--check flag not found")
+		return
 	}
 
 	if checkFlag.DefValue != "false" {

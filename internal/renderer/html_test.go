@@ -18,6 +18,7 @@ func TestNewHTMLRenderer_Success(t *testing.T) {
 	}
 	if r == nil {
 		t.Fatal("NewHTMLRenderer returned nil")
+		return
 	}
 	if r.config != cfg {
 		t.Error("config not properly assigned")
