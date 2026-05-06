@@ -632,7 +632,7 @@ func validateBookTitleConsistency(records []chapterHeadingRecord) []chapterHeadi
 					Line:   max(record.Heading.Line, 1),
 					Column: max(record.Heading.Column, 1),
 					Message: fmt.Sprintf("possible duplicate chapter title: current title %q normalizes to the same value as %q in %s",
-						record.Heading.Text, prev.File, prev.Heading.Text),
+						record.Heading.Text, prev.Heading.Text, prev.File),
 				},
 			})
 			continue
@@ -1057,6 +1057,8 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
 	}
+	f.Close() // close read handle before writing to avoid locking on Windows
+
 	updated := injectBannerIntoHTML(string(content), bannerHTML)
 	if updated == string(content) {
 		return nil
@@ -1080,15 +1082,31 @@ func injectBannerIntoHTML(htmlContent string, bannerHTML string) string {
 	if strings.Contains(htmlContent, `class="mdpress-lang-switcher"`) {
 		return htmlContent
 	}
-	// Search for <body> case-insensitively without lowercasing the entire string,
-	// which would break slice indices if multi-byte characters change byte length
-	// when lowercased (e.g., Turkish capital I U+0130).
-	bodyTag := "<body>"
-	for i := 0; i <= len(htmlContent)-len(bodyTag); i++ {
-		if strings.EqualFold(htmlContent[i:i+len(bodyTag)], bodyTag) {
-			insertAt := i + len(bodyTag)
-			return htmlContent[:insertAt] + bannerHTML + htmlContent[insertAt:]
+	// Search for <body> or <body ...> case-insensitively without lowercasing
+	// the entire string, which would break slice indices if multi-byte
+	// characters change byte length when lowercased (e.g., Turkish capital I).
+	bodyOpen := "<body"
+	for i := 0; i <= len(htmlContent)-len(bodyOpen); i++ {
+		if !strings.EqualFold(htmlContent[i:i+len(bodyOpen)], bodyOpen) {
+			continue
 		}
+		// Found "<body" — scan forward for the closing '>'.
+		j := i + len(bodyOpen)
+		if j >= len(htmlContent) {
+			continue
+		}
+		ch := htmlContent[j]
+		if ch != '>' && ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r' {
+			continue // not a body tag (e.g., "<bodyclass")
+		}
+		for j < len(htmlContent) && htmlContent[j] != '>' {
+			j++
+		}
+		if j >= len(htmlContent) {
+			continue
+		}
+		insertAt := j + 1
+		return htmlContent[:insertAt] + bannerHTML + htmlContent[insertAt:]
 	}
 	return bannerHTML + htmlContent
 }

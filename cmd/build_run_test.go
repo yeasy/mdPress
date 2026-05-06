@@ -765,6 +765,18 @@ func TestInjectBannerIntoHTML(t *testing.T) {
 			bannerHTML:    `<nav>Banner</nav>`,
 			shouldContain: `<Body><nav>Banner</nav>Content`,
 		},
+		{
+			name:          "body tag with class attribute",
+			htmlContent:   `<html><body class="dark">Content</body></html>`,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<body class="dark"><nav>Banner</nav>Content`,
+		},
+		{
+			name:          "body tag with multiple attributes",
+			htmlContent:   `<html><body id="main" data-theme="light">Content</body></html>`,
+			bannerHTML:    `<nav>Banner</nav>`,
+			shouldContain: `<body id="main" data-theme="light"><nav>Banner</nav>Content`,
+		},
 	}
 
 	for _, tt := range tests {
