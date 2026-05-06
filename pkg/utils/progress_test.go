@@ -29,6 +29,7 @@ func TestNewProgressTracker(t *testing.T) {
 func TestProgressTracker_Start(t *testing.T) {
 	// Capture stdout
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -58,6 +59,7 @@ func TestProgressTracker_Start(t *testing.T) {
 
 func TestProgressTracker_MultipleStarts(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +94,7 @@ func TestProgressTracker_MultipleStarts(t *testing.T) {
 
 func TestProgressTracker_Done(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +120,7 @@ func TestProgressTracker_Done(t *testing.T) {
 
 func TestProgressTracker_Fail(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -142,6 +146,7 @@ func TestProgressTracker_Fail(t *testing.T) {
 
 func TestProgressTracker_Skip(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -167,6 +172,7 @@ func TestProgressTracker_Skip(t *testing.T) {
 
 func TestProgressTracker_DoneWithDetail(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -194,6 +200,7 @@ func TestProgressTracker_DoneWithDetail(t *testing.T) {
 
 func TestProgressTracker_Finish(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -225,6 +232,7 @@ func TestProgressTracker_Finish(t *testing.T) {
 
 func TestProgressTracker_FinishWithError(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -291,6 +299,7 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Suppress output
 			oldStdout := os.Stdout
+			defer func() { os.Stdout = oldStdout }()
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
@@ -315,6 +324,7 @@ func TestProgressTracker_EdgeCases(t *testing.T) {
 
 func TestProgressTracker_Timing(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -350,6 +360,7 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 	// This is a stress test - in practice you shouldn't use the same tracker
 	// from multiple goroutines without synchronization
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -387,6 +398,7 @@ func TestProgressTracker_ConcurrentCalls(t *testing.T) {
 
 func TestProgressTracker_ColorOutput(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -420,6 +432,7 @@ func TestProgressTracker_ColorOutput(t *testing.T) {
 
 func TestProgressTracker_NoColorOutput(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -453,6 +466,7 @@ func TestProgressTracker_NoColorOutput(t *testing.T) {
 
 func TestProgressTracker_WorkflowSequence(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)

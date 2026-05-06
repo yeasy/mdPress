@@ -241,6 +241,7 @@ func TestPrintResults_Normal(t *testing.T) {
 	}
 
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	oldStderr := os.Stderr
 	rOut, wOut, err := os.Pipe()
 	if err != nil {
@@ -283,6 +284,7 @@ func TestPrintResults_QuietMode(t *testing.T) {
 	}
 
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	oldStderr := os.Stderr
 	rOut, wOut, err := os.Pipe()
 	if err != nil {
@@ -315,6 +317,7 @@ func TestPrintResults_QuietMode(t *testing.T) {
 
 func TestPrintResults_Empty(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	oldStderr := os.Stderr
 	rOut, wOut, err := os.Pipe()
 	if err != nil {

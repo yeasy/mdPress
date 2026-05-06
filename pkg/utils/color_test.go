@@ -471,6 +471,7 @@ func TestSuccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Need to recapture stdout for each test
 			oldStdout := os.Stdout
+			defer func() { os.Stdout = oldStdout }()
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
@@ -538,6 +539,7 @@ func TestWarning(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
+			defer func() { os.Stdout = oldStdout }()
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
@@ -668,6 +670,7 @@ func TestInfo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
+			defer func() { os.Stdout = oldStdout }()
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
@@ -727,6 +730,7 @@ func TestHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldStdout := os.Stdout
+			defer func() { os.Stdout = oldStdout }()
 			r, w, err := os.Pipe()
 			if err != nil {
 				t.Fatal(err)
@@ -924,6 +928,7 @@ func TestDetectColorSupportDumbTerminal(t *testing.T) {
 // TestSuccessWithMultipleArgs tests Success with multiple format args.
 func TestSuccessWithMultipleArgs(t *testing.T) {
 	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
