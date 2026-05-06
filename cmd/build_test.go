@@ -150,63 +150,19 @@ output:
 	}
 }
 
-// TestBuildCommand_FormatFlagDefaults tests that the format flag has correct defaults
-func TestBuildCommand_FormatFlagDefaults(t *testing.T) {
-	flag := buildCmd.Flags().Lookup("format")
-	if flag == nil {
-		t.Fatal("format flag should exist")
-	}
-
-	if flag.DefValue != "" {
-		t.Errorf("format default value should be empty, got %q", flag.DefValue)
-	}
-}
-
-// TestBuildCommand_BranchFlagDefaults tests that the branch flag has correct defaults
-func TestBuildCommand_BranchFlagDefaults(t *testing.T) {
-	flag := buildCmd.Flags().Lookup("branch")
-	if flag == nil {
-		t.Fatal("branch flag should exist")
-	}
-
-	if flag.DefValue != "" {
-		t.Errorf("branch default value should be empty, got %q", flag.DefValue)
-	}
-}
-
-// TestBuildCommand_SubdirFlagDefaults tests that the subdir flag has correct defaults
-func TestBuildCommand_SubdirFlagDefaults(t *testing.T) {
-	flag := buildCmd.Flags().Lookup("subdir")
-	if flag == nil {
-		t.Fatal("subdir flag should exist")
-	}
-
-	if flag.DefValue != "" {
-		t.Errorf("subdir default value should be empty, got %q", flag.DefValue)
-	}
-}
-
-// TestBuildCommand_OutputFlagDefaults tests that the output flag has correct defaults
-func TestBuildCommand_OutputFlagDefaults(t *testing.T) {
-	flag := buildCmd.Flags().Lookup("output")
-	if flag == nil {
-		t.Fatal("output flag should exist")
-	}
-
-	if flag.DefValue != "" {
-		t.Errorf("output default value should be empty, got %q", flag.DefValue)
-	}
-}
-
-// TestBuildCommand_SummaryFlagDefaults tests that the summary flag has correct defaults
-func TestBuildCommand_SummaryFlagDefaults(t *testing.T) {
-	flag := buildCmd.Flags().Lookup("summary")
-	if flag == nil {
-		t.Fatal("summary flag should exist")
-	}
-
-	if flag.DefValue != "" {
-		t.Errorf("summary default value should be empty, got %q", flag.DefValue)
+// TestBuildCommand_FlagDefaults tests that build command flags have correct defaults
+func TestBuildCommand_FlagDefaults(t *testing.T) {
+	for _, name := range []string{"format", "branch", "subdir", "output", "summary"} {
+		t.Run(name, func(t *testing.T) {
+			f := buildCmd.Flags().Lookup(name)
+			if f == nil {
+				t.Fatalf("%s flag should exist", name)
+				return // unreachable, but satisfies staticcheck SA5011
+			}
+			if f.DefValue != "" {
+				t.Errorf("%s default value should be empty, got %q", name, f.DefValue)
+			}
+		})
 	}
 }
 
@@ -436,43 +392,16 @@ func TestNewBuildCmd(t *testing.T) {
 
 // TestBuildFlagTypes ensures all flags have correct types
 func TestBuildFlagTypes(t *testing.T) {
-	formatFlag := buildCmd.Flags().Lookup("format")
-	if formatFlag == nil {
-		t.Fatal("format flag should exist")
-	}
-	if formatFlag.Value.Type() != "string" {
-		t.Errorf("format flag should be string type, got %q", formatFlag.Value.Type())
-	}
-
-	branchFlag := buildCmd.Flags().Lookup("branch")
-	if branchFlag == nil {
-		t.Fatal("branch flag should exist")
-	}
-	if branchFlag.Value.Type() != "string" {
-		t.Errorf("branch flag should be string type, got %q", branchFlag.Value.Type())
-	}
-
-	subdirFlag := buildCmd.Flags().Lookup("subdir")
-	if subdirFlag == nil {
-		t.Fatal("subdir flag should exist")
-	}
-	if subdirFlag.Value.Type() != "string" {
-		t.Errorf("subdir flag should be string type, got %q", subdirFlag.Value.Type())
-	}
-
-	outputFlag := buildCmd.Flags().Lookup("output")
-	if outputFlag == nil {
-		t.Fatal("output flag should exist")
-	}
-	if outputFlag.Value.Type() != "string" {
-		t.Errorf("output flag should be string type, got %q", outputFlag.Value.Type())
-	}
-
-	summaryFlag := buildCmd.Flags().Lookup("summary")
-	if summaryFlag == nil {
-		t.Fatal("summary flag should exist")
-	}
-	if summaryFlag.Value.Type() != "string" {
-		t.Errorf("summary flag should be string type, got %q", summaryFlag.Value.Type())
+	for _, name := range []string{"format", "branch", "subdir", "output", "summary"} {
+		t.Run(name, func(t *testing.T) {
+			f := buildCmd.Flags().Lookup(name)
+			if f == nil {
+				t.Fatalf("%s flag should exist", name)
+				return
+			}
+			if f.Value.Type() != "string" {
+				t.Errorf("%s flag should be string type, got %q", name, f.Value.Type())
+			}
+		})
 	}
 }

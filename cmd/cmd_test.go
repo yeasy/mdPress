@@ -235,6 +235,7 @@ func TestPersistentFlags(t *testing.T) {
 	flag = rootCmd.PersistentFlags().Lookup("cache-dir")
 	if flag == nil {
 		t.Fatal("--cache-dir persistent flag should exist")
+		return
 	}
 	if flag.DefValue != "" {
 		t.Errorf("--cache-dir default should be empty, got %q", flag.DefValue)
@@ -243,6 +244,7 @@ func TestPersistentFlags(t *testing.T) {
 	flag = rootCmd.PersistentFlags().Lookup("no-cache")
 	if flag == nil {
 		t.Fatal("--no-cache persistent flag should exist")
+		return
 	}
 	if flag.DefValue != "false" {
 		t.Errorf("--no-cache default should be 'false', got %q", flag.DefValue)
@@ -262,17 +264,17 @@ func TestBuildCommand_Flags(t *testing.T) {
 
 	flag = buildCmd.Flags().Lookup("branch")
 	if flag == nil {
-		t.Error("build should have --branch flag")
+		t.Fatal("build should have --branch flag")
 	}
 
 	flag = buildCmd.Flags().Lookup("subdir")
 	if flag == nil {
-		t.Error("build should have --subdir flag")
+		t.Fatal("build should have --subdir flag")
 	}
 
 	flag = buildCmd.Flags().Lookup("output")
 	if flag == nil {
-		t.Error("build should have --output flag")
+		t.Fatal("build should have --output flag")
 	}
 }
 

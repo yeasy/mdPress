@@ -233,6 +233,7 @@ func TestBashCompletionCmd_HasNoDescriptionsFlag(t *testing.T) {
 	flag := bashCompletionCmd.Flags().Lookup("no-descriptions")
 	if flag == nil {
 		t.Fatal("bash completion command should have --no-descriptions flag")
+		return
 	}
 
 	if flag.DefValue != "false" {
@@ -245,6 +246,7 @@ func TestFishCompletionCmd_HasNoDescriptionsFlag(t *testing.T) {
 	flag := fishCompletionCmd.Flags().Lookup("no-descriptions")
 	if flag == nil {
 		t.Fatal("fish completion command should have --no-descriptions flag")
+		return
 	}
 
 	if flag.DefValue != "false" {
