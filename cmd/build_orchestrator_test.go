@@ -30,10 +30,6 @@ func TestNewBuildOrchestrator_BasicInitialization(t *testing.T) {
 		t.Fatalf("NewBuildOrchestrator failed: %v", err)
 	}
 
-	if orchestrator == nil {
-		t.Fatal("orchestrator should not be nil")
-	}
-
 	if orchestrator.Config != cfg {
 		t.Error("Config should match the provided config")
 	}
@@ -98,10 +94,6 @@ func TestNewBuildOrchestrator_WithThemeFallback(t *testing.T) {
 	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
 		t.Fatalf("NewBuildOrchestrator should not fail with fallback: %v", err)
-	}
-
-	if orchestrator == nil {
-		t.Fatal("orchestrator should not be nil after fallback")
 	}
 
 	if orchestrator.Theme == nil {
@@ -189,9 +181,6 @@ func TestNewBuildOrchestrator_WithInvalidGlossary(t *testing.T) {
 		t.Fatalf("NewBuildOrchestrator should not fail with invalid glossary: %v", err)
 	}
 
-	if orchestrator == nil {
-		t.Fatal("orchestrator should be created despite glossary failure")
-	}
 	// Should continue with nil glossary
 	if orchestrator.Gloss != nil {
 		t.Error("Glossary should be nil when file cannot be parsed")
