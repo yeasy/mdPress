@@ -830,7 +830,6 @@ const standaloneJS = `
     searchCountLabel.textContent = results.length + ' results' + (results.length >= 50 ? ' (showing first 50)' : '');
 
     if (!results.length) {
-      var q = query.replace(/</g, '&lt;');
       searchResultsList.innerHTML = '<div class="search-no-results"><div class="search-no-results-title">No results found</div><div class="search-no-results-text">Try different keywords or check the spelling</div></div>';
       return;
     }
