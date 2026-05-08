@@ -8,6 +8,50 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.10] - 2026-05-08
+
+### Security
+
+- **Fix XSS in search result excerpt**: Encode `&`, `>`, `"` in addition to `<` before search excerpts are inserted via `innerHTML`, preventing injection through user-supplied content in search results
+- **Harden HTML entity escaping for headings**: Add single-quote `&#39;` encoding to heading text sanitization for safer use in single-quoted attribute contexts
+- **Expand CSS escape fallback**: Cover all CSS special characters in the polyfill regex so `currentFile` selector escaping matches `CSS.escape()` behavior
+- **Prevent symlink escape in local source subdir**: Validate the resolved subdirectory path stays within the source root
+- **Prevent symlink escape in subdir validation**: Use `EvalSymlinksAncestor` to check ancestor paths consistently
+- **Fix TOCTOU in theme and server file reads**: Use safe atomic read paths instead of stat-then-read patterns
+- **Limit plugin metadata query output size**: Cap plugin metadata response to prevent runaway output
+- **Add size guard to banner HTML injection**: Reject oversized banner payloads before injection
+- **Fix banner injection for body with attributes**: Match `<body ...>` tags with attributes correctly
+- **Use safe ReadFile and fix image regex**: Replace unbounded reads and tighten image path matching
+- **Remove programmatic flags from Chrome allowlist**: Drop unnecessary Chrome flags that broaden the attack surface
+- **Upgrade Go to 1.26.2**: Pick up stdlib security fixes in Dockerfile and toolchain
+
+### Fixed
+
+- **Preserve book.json version over README version**: Explicit `version` in `book.json` is no longer overridden by a version extracted from `README.md`
+- **Fix nil conn panic in WebSocket sentinel**: Guard against nil connection before sentinel write
+- **Fix multilingual build root**: Properly resolve and expand multilingual build coverage
+- **Fix slug deduplication collision**: Avoid collision between distinct headings producing identical slugs
+- **Fix KaTeX rendering for multi-chapter docs**: Ensure KaTeX initializes correctly across chapter switches
+- **Fix Chinese title regex**: Align Chinese title detection with build pipeline expectations
+- **Clean up partial PDF and sanitize newlines in Typst**: Remove partial outputs on failure and sanitize embedded newlines
+- **Clamp Typst LineHeight at point of use**: Apply value clamping where consumed
+- **Preserve error chain in PlantUML renderer**: Wrap underlying errors with `%w` instead of replacing them
+- **Use sync.Map.Clear in PlantUML cache reset**: Replace manual ranged delete with the built-in clear
+- **Add clipboard fallback and CDN error handler**: Graceful fallback when clipboard API or CDN scripts fail
+
+### Improved
+
+- **Strengthen test coverage and assertions**: Add return-after-`t.Fatal` for SA5011 compliance, replace no-op tests with real assertions, strengthen assertions across packages
+- **Cache heading Lines call in parser**: Avoid redundant work when computing heading metadata
+- **Extract KB-to-GB constant in doctor**: Replace magic number with a named constant
+- **Export and consolidate `EvalSymlinksAncestor`**: Single shared implementation for ancestor symlink resolution
+- **Document `ResolvePath` security contract**: Clarify guarantees and caller responsibilities
+- **Remove dead code**: Drop unused CJK fallback, `needsPlantuml` helper, manifest helpers, and unused search-results variable
+- **Update fsnotify to v1.10.1**: Pull in latest upstream fixes
+- **Update chromedp/cdproto**: Refresh CDP bindings
+
+---
+
 ## [0.7.9] - 2026-04-19
 
 ### Fixed
