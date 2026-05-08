@@ -89,7 +89,7 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 					cfg.Book.Title = filepath.Base(absDir)
 				}
 			}
-			if meta.Version != "" {
+			if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
 				cfg.Book.Version = meta.Version
 			}
 			// Fallback: try git tag when version is still the default.

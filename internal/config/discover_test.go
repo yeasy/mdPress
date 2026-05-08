@@ -984,6 +984,40 @@ Description here.
 	}
 }
 
+// TestBookJSONVersionNotOverriddenByReadme verifies that an explicit version
+// in book.json is preserved even when README.md contains a different version.
+func TestBookJSONVersionNotOverriddenByReadme(t *testing.T) {
+	dir := t.TempDir()
+
+	bookJSON := `{"version": "3.5.0"}`
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
+		t.Fatalf("write book.json failed: %v", err)
+	}
+
+	summary := "# Summary\n\n* [Intro](intro.md)\n"
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte(summary), 0o644); err != nil {
+		t.Fatalf("write SUMMARY.md failed: %v", err)
+	}
+
+	readme := "# My Book\n**v9.9.9**\n"
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(readme), 0o644); err != nil {
+		t.Fatalf("write README.md failed: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "intro.md"), []byte("# Intro"), 0o644); err != nil {
+		t.Fatalf("write intro.md failed: %v", err)
+	}
+
+	cfg, err := Discover(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Discover failed: %v", err)
+	}
+
+	if cfg.Book.Version != "3.5.0" {
+		t.Errorf("expected book.json version '3.5.0' to be preserved, got %q", cfg.Book.Version)
+	}
+}
+
 // TestLoadFromSummaryDetectsGlossary tests GLOSSARY.md detection in loadFromSummary path
 func TestLoadFromSummaryDetectsGlossary(t *testing.T) {
 	dir := t.TempDir()
