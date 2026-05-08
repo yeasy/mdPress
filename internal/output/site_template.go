@@ -1233,7 +1233,7 @@ body {
   }
 
   function refreshPageContext() {
-    var esc = CSS.escape ? CSS.escape(currentFile) : currentFile.replace(/["\\]/g, '\\$&');
+    var esc = CSS.escape ? CSS.escape(currentFile) : currentFile.replace(/[!"#$%&'()*+,.\/:;<=>?@\[\\\]^{|}~]/g, '\\$&');
     navLinksByCurrentFile = Array.from(document.querySelectorAll('.nav-item[data-file="' + esc + '"]'));
     navChapterLinks = Array.from(document.querySelectorAll('.nav-chapter[data-file="' + esc + '"]'));
     navHeadingLinks = Array.from(document.querySelectorAll('.nav-heading[data-file="' + esc + '"]'));
@@ -1537,7 +1537,7 @@ body {
       anchor.remove();
     });
     var text = (clone.textContent || '').trim();
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function buildPageTOC() {
