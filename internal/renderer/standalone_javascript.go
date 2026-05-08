@@ -857,7 +857,7 @@ const standaloneJS = `
 
       var excerpt = document.createElement('div');
       excerpt.className = 'search-result-excerpt';
-      excerpt.innerHTML = r.excerpt.replace(/</g, '&lt;').replace(re2, '<mark>$1</mark>');
+      excerpt.innerHTML = r.excerpt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(re2, '<mark>$1</mark>');
 
       div.appendChild(titleContainer);
       div.appendChild(excerpt);
