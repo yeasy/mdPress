@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-04-19
+> Updated: 2026-05-09
 > Maintainer: mdPress product team
 
 ---
