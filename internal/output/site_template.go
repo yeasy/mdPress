@@ -1827,8 +1827,11 @@ body {
       scrollToTopImmediate();
     }
 
-    if (typeof saveRecentPage === 'function') {
-      saveRecentPage();
+    if (typeof window.__saveRecentPage === 'function') {
+      window.__saveRecentPage();
+    }
+    if (typeof window.__showSearchJumpNotice === 'function') {
+      window.__showSearchJumpNotice();
     }
     if (typeof window.__mdpressRefreshServePanel === 'function') {
       window.__mdpressRefreshServePanel();
@@ -2104,9 +2107,11 @@ body {
     });
   }
 
-  // Close sidebar on escape key
+  // Close sidebar on escape key (skip when search overlay is open)
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && sidebar) {
+      var searchOverlay = document.getElementById('search-overlay');
+      if (searchOverlay && searchOverlay.classList.contains('open')) return;
       if (isMobile() && sidebar.classList.contains('open')) {
         toggleSidebar(false);
       } else if (!isMobile() && !body.classList.contains('sidebar-collapsed')) {
@@ -2442,6 +2447,8 @@ body {
     }
 
     saveRecentPage();
+    window.__saveRecentPage = saveRecentPage;
+    window.__showSearchJumpNotice = showSearchJumpNotice;
     showSearchJumpNotice();
 
     // Click result → navigate via SPA
