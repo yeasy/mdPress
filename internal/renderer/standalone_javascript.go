@@ -702,7 +702,7 @@ const standaloneJS = `
   btnSearch.addEventListener('click', openSearch);
 
   // Add keyboard shortcut badge to search button
-  var isMac = navigator.platform.includes('Mac');
+  var isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
   var shortcutText = isMac ? '⌘K' : 'Ctrl+K';
   var shortcutBadge = document.createElement('span');
   shortcutBadge.className = 'search-shortcut-badge';
