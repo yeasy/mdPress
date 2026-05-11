@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Replace deprecated navigator.platform usage**: Switch to `navigator.userAgent` for Mac detection so keyboard shortcut badges display correctly in modern browsers
+- **Fix SPA search scope and Escape key conflict**: Expose `saveRecentPage` and `showSearchJumpNotice` via window globals so they work after SPA navigation; guard sidebar Escape handler when search overlay is open
+
 ---
 
 ## [0.7.10] - 2026-05-08
