@@ -770,17 +770,12 @@ func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 }
 
 func buildFileImageAsset(src string, index int) (*epubAsset, error) {
-	// Check file size before reading to prevent OOM on very large files.
-	fi, err := os.Stat(src)
-	if err != nil {
-		return nil, fmt.Errorf("stat image file %q: %w", src, err)
-	}
-	if fi.Size() > utils.MaxImageSize {
-		return nil, fmt.Errorf("image file %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
-	}
-	data, err := os.ReadFile(src)
+	data, err := utils.ReadFile(src)
 	if err != nil {
 		return nil, fmt.Errorf("read image file %q: %w", src, err)
+	}
+	if int64(len(data)) > utils.MaxImageSize {
+		return nil, fmt.Errorf("image file %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
 	}
 
 	mediaType := utils.DetectImageMIME(src, data)
@@ -796,16 +791,12 @@ func buildRemoteImageAsset(src string, remoteTempDir string, index int) (*epubAs
 	if err != nil {
 		return nil, fmt.Errorf("download remote image %q: %w", src, err)
 	}
-	fi, err := os.Stat(localPath)
-	if err != nil {
-		return nil, fmt.Errorf("stat downloaded remote image %q: %w", src, err)
-	}
-	if fi.Size() > utils.MaxImageSize {
-		return nil, fmt.Errorf("remote image %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
-	}
-	data, err := os.ReadFile(localPath)
+	data, err := utils.ReadFile(localPath)
 	if err != nil {
 		return nil, fmt.Errorf("read downloaded remote image %q: %w", src, err)
+	}
+	if int64(len(data)) > utils.MaxImageSize {
+		return nil, fmt.Errorf("remote image %q exceeds maximum size (%d bytes)", src, utils.MaxImageSize)
 	}
 	sourceName := src
 	if parsed, parseErr := url.Parse(src); parseErr == nil && parsed.Path != "" {
