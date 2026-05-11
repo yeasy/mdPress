@@ -611,6 +611,7 @@ const standaloneJS = `
     if (lightboxPrevFocus && typeof lightboxPrevFocus.focus === 'function') {
       lightboxPrevFocus.focus();
     }
+    lightboxPrevFocus = null;
     // Delay clearing src to avoid flicker
     setTimeout(function() { if (!lightbox.classList.contains('visible')) lightboxImg.src = ''; }, 300);
   }
