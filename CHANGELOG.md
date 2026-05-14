@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file. The format 
 
 - **Replace deprecated navigator.platform usage**: Switch to `navigator.userAgent` for Mac detection so keyboard shortcut badges display correctly in modern browsers
 - **Fix SPA search scope and Escape key conflict**: Expose `saveRecentPage` and `showSearchJumpNotice` via window globals so they work after SPA navigation; guard sidebar Escape handler when search overlay is open
+- **Clear lightbox focus ref after restore**: Null out `lightboxPrevFocus` after restoring focus so stale references cannot interfere with subsequent lightbox opens
+- **Use ReadFile for EPUB image loading**: Replace separate stat-then-read with `utils.ReadFile` for local and remote EPUB images, eliminating a TOCTOU gap
 
 ---
 
@@ -876,7 +878,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.9...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.10...HEAD
+[0.7.10]: https://github.com/yeasy/mdpress/compare/v0.7.9...v0.7.10
 [0.7.9]: https://github.com/yeasy/mdpress/compare/v0.7.8...v0.7.9
 [0.7.8]: https://github.com/yeasy/mdpress/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/yeasy/mdpress/compare/v0.7.6...v0.7.7
