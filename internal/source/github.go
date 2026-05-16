@@ -97,10 +97,16 @@ func (s *GitHubSource) Prepare() (string, error) {
 	args = append(args, cloneURL, tempDir)
 
 	// Create a context with a timeout for git clone.
-	ctx, cancel := context.WithTimeout(context.Background(), gitCloneTimeout)
+	timeout := gitCloneTimeout
+	if s.opts.CloneTimeout > 0 {
+		timeout = s.opts.CloneTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.WaitDelay = 5 * time.Second
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	var stdoutBuf, stderrBuf bytes.Buffer
 	const maxGitOutput = 10 * 1024 * 1024 // 10 MB
 	cmd.Stdout = &utils.LimitedWriter{W: &stdoutBuf, N: maxGitOutput}

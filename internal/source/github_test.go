@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestNewGitHubSource tests GitHub source creation
@@ -281,7 +282,9 @@ func TestGitHubSourceTokenHintOnCloneFailure(t *testing.T) {
 
 	// Use a non-existent repo — the clone will fail because the repo
 	// does not exist. The error should suggest setting GITHUB_TOKEN.
-	src := NewGitHubSource("nonexistent-test-owner", "nonexistent-test-repo", Options{})
+	src := NewGitHubSource("nonexistent-test-owner", "nonexistent-test-repo", Options{
+		CloneTimeout: 30 * time.Second,
+	})
 
 	_, err := src.Prepare()
 	if err == nil {

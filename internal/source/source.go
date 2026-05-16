@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Source is the shared interface implemented by all source providers.
@@ -23,8 +24,9 @@ type Source interface {
 
 // Options configures source resolution.
 type Options struct {
-	Branch string // Branch override for remote repository sources.
-	SubDir string // Subdirectory to use inside the source.
+	Branch       string        // Branch override for remote repository sources.
+	SubDir       string        // Subdirectory to use inside the source.
+	CloneTimeout time.Duration // Override the default git clone timeout; zero uses the default.
 }
 
 // githubURLPattern matches GitHub repository URLs.
