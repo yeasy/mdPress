@@ -277,6 +277,25 @@ func TestLocalSourcePrepareWithSubDir(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "dot subdirectory resolves to root",
+			setup: func() (baseDir, subDir string) {
+				baseDir = t.TempDir()
+				return baseDir, "."
+			},
+			opts:    Options{SubDir: "."},
+			wantErr: false,
+			checkPath: func(t *testing.T, path string, subDir string) {
+				info, err := os.Stat(path)
+				if err != nil {
+					t.Fatalf("stat returned path: %v", err)
+					return
+				}
+				if !info.IsDir() {
+					t.Errorf("expected directory, got file")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -58,7 +58,7 @@ func (s *LocalSource) Prepare() (string, error) {
 
 		evaledTarget, errT := filepath.EvalSymlinks(targetDir)
 		evaledBase, errB := filepath.EvalSymlinks(absPath)
-		if errT != nil || errB != nil || !strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) {
+		if errT != nil || errB != nil || (!strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) && evaledTarget != evaledBase) {
 			return "", fmt.Errorf("subdirectory escapes source root: %s", s.opts.SubDir)
 		}
 		targetDir = evaledTarget

@@ -187,7 +187,7 @@ func (s *GitHubSource) validateSubDir() (string, error) {
 	// Resolve symlinks to ensure the target hasn't escaped tempDir.
 	evaledTarget, errT := filepath.EvalSymlinks(targetDir)
 	evaledBase, errB := filepath.EvalSymlinks(s.tempDir)
-	if errT != nil || errB != nil || !strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) {
+	if errT != nil || errB != nil || (!strings.HasPrefix(evaledTarget, evaledBase+string(filepath.Separator)) && evaledTarget != evaledBase) {
 		s.cleanupOnError()
 		return "", fmt.Errorf("subdirectory escapes repository root: %s", s.opts.SubDir)
 	}
