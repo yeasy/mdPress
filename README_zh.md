@@ -82,6 +82,12 @@ brew tap yeasy/tap
 brew install --cask mdpress
 ```
 
+> **macOS Gatekeeper 提示：** 如果 macOS 因未签名而阻止运行，请移除隔离标记：
+>
+> ```bash
+> xattr -d com.apple.quarantine "$(which mdpress)"
+> ```
+
 ### Go Install
 
 ```bash

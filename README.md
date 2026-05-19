@@ -82,6 +82,12 @@ brew tap yeasy/tap
 brew install --cask mdpress
 ```
 
+> **macOS Gatekeeper note:** if macOS blocks the binary because it is not notarized, remove the quarantine flag:
+>
+> ```bash
+> xattr -d com.apple.quarantine "$(which mdpress)"
+> ```
+
 ### Go Install
 
 ```bash
