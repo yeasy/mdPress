@@ -12,6 +12,14 @@ All notable changes to this project will be documented in this file. The format 
 - **Fix SPA search scope and Escape key conflict**: Expose `saveRecentPage` and `showSearchJumpNotice` via window globals so they work after SPA navigation; guard sidebar Escape handler when search overlay is open
 - **Clear lightbox focus ref after restore**: Null out `lightboxPrevFocus` after restoring focus so stale references cannot interfere with subsequent lightbox opens
 - **Use ReadFile for EPUB image loading**: Replace separate stat-then-read with `utils.ReadFile` for local and remote EPUB images, eliminating a TOCTOU gap
+- **Fix path containment check for root SubDir**: Allow SubDir equal to the source root instead of rejecting it as an escape
+- **Fix git clone timeout and credential hang**: Set `GIT_TERMINAL_PROMPT=0` and `WaitDelay` to prevent git credential prompts from blocking indefinitely; allow configurable clone timeout
+
+### Improved
+
+- **Add macOS Gatekeeper quarantine workaround**: Document `xattr -d` command for removing quarantine attribute on downloaded binaries
+- **Upgrade indirect deps**: Update chroma/v2 to v2.24.1, regexp2 to v1.12.0, pflag to v1.0.10
+- **Upgrade golang.org/x/sys to v0.44.0**: Pick up latest OS-level fixes
 
 ---
 
