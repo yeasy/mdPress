@@ -580,8 +580,8 @@ mdpress version
 mdpress --version
 
 # 输出：
-# mdpress version 0.7.5
-# Go version: go1.26.1
+# mdpress version 0.7.10
+# Go version: go1.26.3
 # Platform: linux/amd64
 ```
 
