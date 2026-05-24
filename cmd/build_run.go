@@ -1043,7 +1043,7 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 		}
 		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	fi, err := f.Stat()
 	if err != nil {
@@ -1057,7 +1057,7 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read %s for language switcher injection: %w", targetPath, err)
 	}
-	f.Close() // close read handle before writing to avoid locking on Windows
+	f.Close() //nolint:errcheck // close read handle before writing to avoid locking on Windows
 
 	updated := injectBannerIntoHTML(string(content), bannerHTML)
 	if updated == string(content) {
