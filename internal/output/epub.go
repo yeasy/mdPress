@@ -508,17 +508,12 @@ func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
 	}
 
 	coverPath := g.meta.CoverImagePath
-	// Check file size before reading to prevent OOM on very large files.
-	fi, err := os.Stat(coverPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat EPUB cover image %q: %w", coverPath, err)
-	}
-	if fi.Size() > utils.MaxImageSize {
-		return nil, fmt.Errorf("EPUB cover image %q exceeds maximum size (%d bytes)", coverPath, utils.MaxImageSize)
-	}
-	data, err := os.ReadFile(coverPath)
+	data, err := utils.ReadFile(coverPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read EPUB cover image %q: %w", coverPath, err)
+	}
+	if int64(len(data)) > utils.MaxImageSize {
+		return nil, fmt.Errorf("EPUB cover image %q exceeds maximum size (%d bytes)", coverPath, utils.MaxImageSize)
 	}
 
 	mediaType := utils.DetectImageMIME(coverPath, data)

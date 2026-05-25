@@ -194,16 +194,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 
 // GenerateFromFile reads a Markdown file and generates a PDF.
 func (g *Generator) GenerateFromFile(markdownFilePath string, outputPath string) error {
-	const maxMarkdownSize = 50 << 20 // 50 MB
-	fi, err := os.Stat(markdownFilePath)
-	if err != nil {
-		return fmt.Errorf("markdown file does not exist: %w", err)
-	}
-	if fi.Size() > maxMarkdownSize {
-		return fmt.Errorf("markdown file too large (%d bytes, max %d)", fi.Size(), maxMarkdownSize)
-	}
-
-	content, err := os.ReadFile(markdownFilePath)
+	content, err := utils.ReadFile(markdownFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read markdown file: %w", err)
 	}

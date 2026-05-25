@@ -185,15 +185,7 @@ func executeMigrate(dir string, dryRun, force bool) error {
 // migrateBookJSON converts book.json → book.yaml.
 // Returns the parsed gitBookConfig for further processing or error if parsing fails.
 func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report *migrateReport) (*gitBookConfig, error) {
-	const maxBookJSONSize = 10 * 1024 * 1024 // 10 MB
-	info, err := os.Stat(bookJSONPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to stat book.json: %w", err)
-	}
-	if info.Size() > maxBookJSONSize {
-		return nil, fmt.Errorf("book.json is too large (%d bytes; max %d bytes)", info.Size(), maxBookJSONSize)
-	}
-	data, err := os.ReadFile(bookJSONPath)
+	data, err := utils.ReadFile(bookJSONPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read book.json: %w", err)
 	}
@@ -358,19 +350,7 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 			return nil
 		}
 
-		// Reject unreasonably large markdown files (50 MB).
-		const maxMigrateFileSize = 50 << 20
-		info, err := d.Info()
-		if err != nil {
-			report.addWarning(fmt.Sprintf("cannot stat %s: %v", path, err))
-			return nil
-		}
-		if info.Size() > maxMigrateFileSize {
-			report.addWarning(fmt.Sprintf("skipping %s: file too large (%d bytes)", path, info.Size()))
-			return nil
-		}
-
-		data, err := os.ReadFile(path)
+		data, err := utils.ReadFile(path)
 		if err != nil {
 			report.addWarning(fmt.Sprintf("cannot read %s: %v", path, err))
 			return nil
@@ -391,6 +371,11 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 			return nil
 		}
 
+		info, err := d.Info()
+		if err != nil {
+			report.addWarning(fmt.Sprintf("cannot stat %s: %v", path, err))
+			return nil
+		}
 		if err := os.WriteFile(path, []byte(rewritten), info.Mode()); err != nil {
 			report.addWarning(fmt.Sprintf("failed to write %s: %v", relPath, err))
 			return nil
