@@ -71,7 +71,11 @@ const (
 // It clones http.DefaultTransport to inherit sensible defaults (TLS timeouts,
 // idle connection limits, etc.) and overrides only DialContext.
 var ssrfSafeTransport = func() *http.Transport {
-	t := http.DefaultTransport.(*http.Transport).Clone()
+	dt, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		dt = &http.Transport{}
+	}
+	t := dt.Clone()
 	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if ssrfCheckEnabled.Load() {
 			host, port, err := net.SplitHostPort(addr)
