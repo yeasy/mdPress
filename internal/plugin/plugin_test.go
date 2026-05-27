@@ -203,6 +203,37 @@ func TestManager_InitAll_Error(t *testing.T) {
 	}
 }
 
+func TestPluginError_Error(t *testing.T) {
+	cause := errors.New("boom")
+	tests := []struct {
+		name string
+		err  *plugin.PluginError
+		want string
+	}{
+		{
+			name: "with phase",
+			err:  &plugin.PluginError{PluginName: "myplugin", Phase: "build", Err: cause},
+			want: "plugin myplugin failed at phase build: boom",
+		},
+		{
+			name: "without phase",
+			err:  &plugin.PluginError{PluginName: "myplugin", Err: cause},
+			want: "plugin myplugin failed during init: boom",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.err.Error()
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+			if !errors.Is(tc.err, cause) {
+				t.Error("Unwrap should return the underlying cause")
+			}
+		})
+	}
+}
+
 func TestManager_CleanupAll(t *testing.T) {
 	mgr := plugin.NewManager()
 

@@ -264,6 +264,19 @@ func TestCaching(t *testing.T) {
 	if svg1 != svg2 {
 		t.Fatal("cached SVG should be identical")
 	}
+
+	// ClearCache should invalidate the cache so the next call hits the server.
+	renderer.ClearCache()
+	svg3, err := renderer.getSVG(ctx, code)
+	if err != nil {
+		t.Fatalf("getSVG after ClearCache failed: %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("call after ClearCache should hit server, but callCount=%d", callCount)
+	}
+	if svg3 != svg1 {
+		t.Fatal("SVG after cache clear should be identical")
+	}
 }
 
 // TestVariousDiagramTypes tests different PlantUML diagram types.
