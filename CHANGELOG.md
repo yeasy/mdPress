@@ -14,13 +14,17 @@ All notable changes to this project will be documented in this file. The format 
 - **Use ReadFile for EPUB image loading**: Replace separate stat-then-read with `utils.ReadFile` for local and remote EPUB images, eliminating a TOCTOU gap
 - **Fix path containment check for root SubDir**: Allow SubDir equal to the source root instead of rejecting it as an escape
 - **Fix git clone timeout and credential hang**: Set `GIT_TERMINAL_PROMPT=0` and `WaitDelay` to prevent git credential prompts from blocking indefinitely; allow configurable clone timeout
+- **Guard http.DefaultTransport type assertion**: Add safe type-assertion check to prevent panic if `DefaultTransport` has been replaced with a non-standard type
+- **Use atomic ReadFile to eliminate TOCTOU**: Replace stat-then-read patterns with single atomic read calls
 
 ### Improved
 
 - **Add macOS Gatekeeper quarantine workaround**: Document `xattr -d` command for removing quarantine attribute on downloaded binaries
 - **Upgrade Go to 1.26.3**: Pick up security fixes in html/template, net, net/http, and other stdlib packages
-- **Upgrade indirect deps**: Update chroma/v2 to v2.24.1, regexp2 to v1.12.0, pflag to v1.0.10, go-json-experiment/json, x/sys to v0.45.0
+- **Upgrade indirect deps**: Update chroma/v2 to v2.25.0, regexp2/v2 to v2.1.0, pflag to v1.0.10, go-json-experiment/json, x/sys to v0.45.0
 - **Upgrade golangci-lint to v2.12.2 in CI**: Update both GitHub Actions and GitLab CI to use the latest linter version
+- **Expand English CLI reference**: Update command documentation with detailed flag descriptions
+- **Suppress errcheck warnings on Close calls**: Add nolint directives for deferred Close calls where errors are intentionally ignored
 
 ---
 
