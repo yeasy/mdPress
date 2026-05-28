@@ -23,6 +23,7 @@ func TestNewGenerator(t *testing.T) {
 	g := NewGenerator()
 	if g == nil {
 		t.Fatal("NewGenerator returned nil")
+		return
 	}
 	// Verify printBackground is enabled by default
 	if !g.printBackground {

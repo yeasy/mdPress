@@ -84,6 +84,7 @@ func TestNewServer(t *testing.T) {
 
 			if srv == nil {
 				t.Fatal("NewServer returned nil")
+				return
 			}
 			expectedHost := tt.host
 			if expectedHost == "" {

@@ -16,6 +16,7 @@ func TestNewPlugin(t *testing.T) {
 	p := NewPlugin()
 	if p == nil {
 		t.Fatal("NewPlugin returned nil")
+		return
 	}
 	if p.renderer == nil {
 		t.Fatal("renderer should not be nil")
@@ -208,6 +209,7 @@ func TestPluginExecute_CorrectPhase_NoPlantUML(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Execute should return a HookResult even without PlantUML")
+		return
 	}
 	if result.Content != "<p>Just regular HTML</p>" {
 		t.Errorf("content should be unchanged, got %q", result.Content)
@@ -241,6 +243,7 @@ func TestPluginExecute_WithPlantUML(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Execute should return a HookResult")
+		return
 	}
 	// Verify the result contains a diagram div
 	if result.Content == "" {
@@ -274,6 +277,7 @@ func TestPluginExecute_RenderError(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("Execute should return a HookResult even on error")
+		return
 	}
 	// Original content should be returned
 	if result.Content == "" {
