@@ -25,6 +25,7 @@ All notable changes to this project will be documented in this file. The format 
 - **Upgrade golangci-lint to v2.12.2 in CI**: Update both GitHub Actions and GitLab CI to use the latest linter version
 - **Expand English CLI reference**: Update command documentation with detailed flag descriptions
 - **Suppress errcheck warnings on Close calls**: Add nolint directives for deferred Close calls where errors are intentionally ignored
+- **Add ClearCache and PluginError test coverage**: Extend plantuml cache test to verify invalidation; add table-driven tests for PluginError with and without Phase
 
 ---
 
