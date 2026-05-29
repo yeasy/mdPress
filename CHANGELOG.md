@@ -21,7 +21,7 @@ All notable changes to this project will be documented in this file. The format 
 
 - **Add macOS Gatekeeper quarantine workaround**: Document `xattr -d` command for removing quarantine attribute on downloaded binaries
 - **Upgrade Go to 1.26.3**: Pick up security fixes in html/template, net, net/http, and other stdlib packages
-- **Upgrade indirect deps**: Update chroma/v2 to v2.25.0, regexp2/v2 to v2.1.0, pflag to v1.0.10, go-json-experiment/json, x/sys to v0.45.0
+- **Upgrade indirect deps**: Update chroma/v2 to v2.26.1, regexp2/v2 to v2.1.1, pflag to v1.0.10, go-json-experiment/json, x/sys to v0.45.0
 - **Upgrade golangci-lint to v2.12.2 in CI**: Update both GitHub Actions and GitLab CI to use the latest linter version
 - **Expand English CLI reference**: Update command documentation with detailed flag descriptions
 - **Suppress errcheck warnings on Close calls**: Add nolint directives for deferred Close calls where errors are intentionally ignored
