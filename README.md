@@ -75,7 +75,7 @@ Generated sites include:
 
 ## Installation
 
-### Homebrew (macOS / Linux)
+### Homebrew (macOS)
 
 ```bash
 brew tap yeasy/tap
