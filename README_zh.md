@@ -75,7 +75,7 @@ $ mdpress build --format site,pdf,html,epub
 
 ## 安装
 
-### Homebrew（macOS / Linux）
+### Homebrew（macOS）
 
 ```bash
 brew tap yeasy/tap
