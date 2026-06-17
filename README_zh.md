@@ -82,11 +82,7 @@ brew tap yeasy/tap
 brew install --cask mdpress
 ```
 
-> **macOS Gatekeeper 提示：** 如果 macOS 因未签名而阻止运行，请移除隔离标记：
->
-> ```bash
-> xattr -d com.apple.quarantine "$(which mdpress)"
-> ```
+Homebrew cask 会自动移除 macOS 隔离标记，因此 Gatekeeper 不会拦截。
 
 ### Go Install
 
@@ -109,6 +105,12 @@ docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 从 [GitHub Releases](https://github.com/yeasy/mdpress/releases) 下载对应平台的预编译 binary。
 
 支持平台：macOS (amd64 / arm64)、Linux (amd64 / arm64)、Windows (amd64 / arm64)。
+
+> **macOS Gatekeeper 提示：** 二进制目前尚未公证。通过 Homebrew cask 安装会自动移除隔离标记；如果你直接下载二进制且被 macOS 阻止，手动清除一次即可：
+>
+> ```bash
+> xattr -d com.apple.quarantine ./mdpress
+> ```
 
 ## 60 秒上手
 
