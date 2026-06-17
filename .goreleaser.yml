@@ -64,6 +64,14 @@ homebrew_casks:
     description: "Markdown publishing CLI for book-style and documentation-style projects"
     url:
       verified: "github.com/yeasy/mdpress/"
+    # Binaries are not notarized yet. Strip the quarantine attribute on
+    # install so macOS Gatekeeper does not block the unsigned binary.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mdpress"]
+          end
 
 release:
   github:

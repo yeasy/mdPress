@@ -82,11 +82,7 @@ brew tap yeasy/tap
 brew install --cask mdpress
 ```
 
-> **macOS Gatekeeper note:** if macOS blocks the binary because it is not notarized, remove the quarantine flag:
->
-> ```bash
-> xattr -d com.apple.quarantine "$(which mdpress)"
-> ```
+The Homebrew cask clears the macOS quarantine flag automatically, so Gatekeeper will not block it.
 
 ### Go Install
 
@@ -109,6 +105,12 @@ docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 Download a pre-built binary for your platform from [GitHub Releases](https://github.com/yeasy/mdpress/releases).
 
 Supported platforms: macOS (amd64 / arm64), Linux (amd64 / arm64), Windows (amd64 / arm64).
+
+> **macOS Gatekeeper note:** binaries are not notarized yet. The Homebrew cask clears the quarantine flag for you; if you download the binary directly and macOS blocks it, clear the flag once:
+>
+> ```bash
+> xattr -d com.apple.quarantine ./mdpress
+> ```
 
 ## Get Started In 60 Seconds
 

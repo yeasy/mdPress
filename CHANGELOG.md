@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.7.11] - 2026-06-17
+
 ### Fixed
 
 - **Replace deprecated navigator.platform usage**: Switch to `navigator.userAgent` for Mac detection so keyboard shortcut badges display correctly in modern browsers
@@ -19,7 +23,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Improved
 
-- **Add macOS Gatekeeper quarantine workaround**: Document `xattr -d` command for removing quarantine attribute on downloaded binaries
+- **Auto-remove macOS Gatekeeper quarantine in Homebrew cask**: Add a post-install hook to the cask so the quarantine attribute is stripped automatically on `brew install --cask`; users no longer need to run `xattr -d` manually. Direct binary downloads still document the one-time manual command
 - **Upgrade Go to 1.26.3**: Pick up security fixes in html/template, net, net/http, and other stdlib packages
 - **Upgrade indirect deps**: Update chroma/v2 to v2.26.1, regexp2/v2 to v2.1.1, pflag to v1.0.10, go-json-experiment/json, x/sys to v0.45.0
 - **Upgrade golangci-lint to v2.12.2 in CI**: Update both GitHub Actions and GitLab CI to use the latest linter version
@@ -892,7 +896,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.10...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.11...HEAD
+[0.7.11]: https://github.com/yeasy/mdpress/compare/v0.7.10...v0.7.11
 [0.7.10]: https://github.com/yeasy/mdpress/compare/v0.7.9...v0.7.10
 [0.7.9]: https://github.com/yeasy/mdpress/compare/v0.7.8...v0.7.9
 [0.7.8]: https://github.com/yeasy/mdpress/compare/v0.7.7...v0.7.8
