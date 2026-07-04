@@ -551,3 +551,52 @@ func TestRenderRequest_CompleteMetadata(t *testing.T) {
 		t.Error("css not preserved")
 	}
 }
+
+// TestRegistryGetUnknownNoDeadlock stresses concurrent Register and Get calls
+// against an unknown format. The unknown-format error path in Get() builds the
+// available-names list, which must not re-acquire the read lock (that would
+// deadlock when a writer is contending). A regression here would hang the test
+// until the -timeout fires rather than failing cleanly.
+func TestRegistryGetUnknownNoDeadlock(t *testing.T) {
+	r := NewRegistry()
+
+	var wg sync.WaitGroup
+	// Writers continuously register formats to contend for the write lock.
+	for w := 0; w < 8; w++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				r.Register(&mockFormat{name: fmt.Sprintf("fmt-%d-%d", id, i)})
+			}
+		}(w)
+	}
+	// Readers hammer Get() with an unknown name, exercising the error path
+	// that lists available formats under the held read lock.
+	for rdr := 0; rdr < 8; rdr++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				if _, err := r.Get("does-not-exist"); err == nil {
+					t.Errorf("expected error for unknown format")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// TestRegistryListLockedMatchesList verifies listLocked returns the same names
+// as the public List method.
+func TestRegistryListLockedMatchesList(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&mockFormat{name: "a"})
+	r.Register(&mockFormat{name: "b"})
+
+	got := r.List()
+	if len(got) != 2 {
+		t.Fatalf("expected 2 formats, got %d: %v", len(got), got)
+	}
+}

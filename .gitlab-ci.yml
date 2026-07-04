@@ -1,8 +1,8 @@
 # mdpress GitLab CI/CD configuration
 #
-# This pipeline mirrors the GitHub Actions CI workflow.
-# It runs tests across multiple Go versions, builds the binary,
-# and generates a coverage report.
+# This pipeline runs lint, test, and build on a single Go 1.26 toolchain.
+# It does NOT include the Docker smoke-test job from the GitHub Actions CI
+# workflow, and it tests a single Go version (not a matrix).
 #
 # Requirements:
 #   - GitLab Runner with Docker executor
@@ -15,14 +15,18 @@ stages:
 
 variables:
   GOPATH: "$CI_PROJECT_DIR/.go"
+  GOCACHE: "$CI_PROJECT_DIR/.gocache"
+  GOLANGCI_LINT_CACHE: "$CI_PROJECT_DIR/.golangci-cache"
   GOFLAGS: "-mod=readonly"
 
-# Cache Go modules across jobs.
+# Cache Go modules, the build cache, and the golangci-lint cache across jobs.
 .go-cache: &go-cache
   cache:
     key: "${CI_COMMIT_REF_SLUG}-go"
     paths:
       - .go/pkg/mod/
+      - .gocache/
+      - .golangci-cache/
 
 # --- Lint ---
 
@@ -36,22 +40,19 @@ lint:
 
 # --- Test ---
 
-.test-template: &test-template
+test:go-1.26:
   stage: test
+  image: golang:1.26
   <<: *go-cache
   script:
     - go mod download
     - go vet ./...
     - go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+  coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     paths:
       - coverage.txt
     when: always
-
-test:go-1.26:
-  <<: *test-template
-  image: golang:1.26
-  coverage: '/^total:\s+\(statements\)\s+(\d+\.\d+)%/'
 
 # --- Build ---
 

@@ -795,9 +795,14 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 		}),
 	)
 	if err != nil {
-		// Only try CLI fallback for file:// URLs.
-		if htmlPath, ok := strings.CutPrefix(pageURL, "file://"); ok {
-			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, htmlPath, outputPath); fallbackErr == nil {
+		// Only try CLI fallback for file:// URLs. Parse the URL so the path is
+		// decoded back to a real filesystem path: pageURL is percent-encoded
+		// (url.URL.String() escaped spaces/CJK as %XX), and CutPrefix would
+		// leave those escapes in place. generatePDFViaChromeCLI re-wraps the
+		// path in a url.URL, which would then double-encode % as %25 and break
+		// the fallback for paths containing spaces or non-ASCII characters.
+		if u, parseErr := url.Parse(pageURL); parseErr == nil && u.Scheme == "file" {
+			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
 				return nil
 			}
 		}

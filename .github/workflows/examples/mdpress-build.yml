@@ -97,7 +97,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Job-level permissions REPLACE the workflow-level block, so contents: read
+    # must be restated here or actions/checkout fails on private repos.
     permissions:
+      contents: read
       pages: write
       id-token: write
 

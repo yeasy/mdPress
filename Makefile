@@ -79,16 +79,18 @@ fmt:
 	$(GO_RUN_ENV) $(GO) fmt ./...
 
 # ---------- Pre-commit quality gate ----------
-# fmt check + lint + build + fast tests.
+# gofmt verification + lint + build + fast tests.
+# Does NOT rewrite files: it fails if anything is unformatted so the hook
+# blocks the commit. Run 'make fmt' to fix, then re-stage.
 # Invoked by .githooks/pre-commit.
 
 .PHONY: check
-check: fmt
+check:
 	@echo ">>> [check] gofmt"
 	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*' -not -path './.cache/*')); \
 	if [ -n "$$UNFMT" ]; then \
 		echo "Files need formatting:"; echo "$$UNFMT"; \
-		echo "Run: make fmt"; exit 1; \
+		echo "Run 'make fmt' and re-stage the changes (git add), then commit again."; exit 1; \
 	fi
 	@echo ">>> [check] lint + build + test (parallel)"
 	@$(MAKE) --no-print-directory -j3 _lint _build _test
@@ -167,7 +169,7 @@ help:
 	@echo "  make coverage   Generate a test coverage report"
 	@echo "  make lint       Run static checks (vet + golangci-lint)"
 	@echo "  make fmt        Format code"
-	@echo "  make check      Pre-commit quality gate (fmt + lint + build + test)"
+	@echo "  make check      Pre-commit quality gate (gofmt check + lint + build + test)"
 	@echo "  make hooks      Install pre-commit git hooks"
 	@echo "  make clean      Remove build artifacts"
 	@echo "  make docker     Build both Docker images (minimal + full)"

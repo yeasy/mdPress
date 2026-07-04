@@ -12,6 +12,21 @@ import (
 	"github.com/yeasy/mdpress/internal/theme"
 )
 
+// allowPlugins opts in to executing plugins declared in a remote project's
+// book.yaml.  It is registered as the --allow-plugins flag on both the build
+// and serve commands.  Plugins are executed at load time (probe), so building
+// or serving an untrusted remote repository would otherwise run arbitrary code
+// from that repository's book.yaml.  For local sources plugins always load.
+var allowPlugins bool
+
+// buildSourceIsRemote signals that the currently resolved build/serve source is
+// a remote (e.g. GitHub) repository rather than a local path.  It is set by the
+// build and serve commands right after source.Detect resolves the input and is
+// consulted by newBuildOrchestrator when deciding whether to load book.yaml
+// plugins.  Using a package-level flag keeps newBuildOrchestrator's signature
+// unchanged for existing callers.
+var buildSourceIsRemote bool
+
 // BuildOrchestrator encapsulates the shared build initialization workflow
 // used by both `build` and `serve` commands.
 type buildOrchestrator struct {
@@ -57,9 +72,19 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 
 	// Load plugins declared in book.yaml.  A loading error produces a warning
 	// but does not abort the build.
-	pluginMgr := plugin.MustLoadPlugins(cfg, func(msg string) {
-		logger.Warn(msg)
-	})
+	//
+	// Plugins execute at load time (probe), so refuse to run plugins declared
+	// by a remote project unless the user explicitly opts in with
+	// --allow-plugins.  Local sources keep the existing behavior.
+	var pluginMgr *plugin.Manager
+	if buildSourceIsRemote && !allowPlugins && cfg != nil && len(cfg.Plugins) > 0 {
+		logger.Warn(fmt.Sprintf("Refusing to run %d plugin(s) from a remote project; pass --allow-plugins to trust and execute them.", len(cfg.Plugins)))
+		pluginMgr = plugin.NewManager()
+	} else {
+		pluginMgr = plugin.MustLoadPlugins(cfg, func(msg string) {
+			logger.Warn(msg)
+		})
+	}
 
 	return &buildOrchestrator{
 		Config:        cfg,

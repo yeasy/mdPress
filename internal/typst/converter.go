@@ -4,6 +4,7 @@ package typst
 import (
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -145,12 +146,80 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 // convertInline processes inline Markdown formatting, skipping code spans.
 func (c *MarkdownToTypstConverter) convertInline(text string) string {
 	return c.processOutsideCodeSpans(text, func(segment string) string {
+		// Convert images and links first: these emit Typst markup (#image,
+		// #link) and carry URLs that must NOT be escaped as prose. Their
+		// output is protected behind placeholder tokens so the subsequent
+		// prose-escaping pass leaves the markup and URLs intact.
 		segment = c.convertImages(segment)
 		segment = c.convertLinks(segment)
+
+		var tokens []string
+		segment, tokens = protectTypstMarkup(segment, tokens)
+
+		// Escape Typst control characters in the remaining prose. Bold/italic
+		// markers (* and _) are intentionally left for the passes below.
+		segment = escapeTypstProse(segment)
+
 		segment = c.convertItalic(segment)
 		segment = c.convertBold(segment)
+
+		// Restore the protected #image()/#link() markup.
+		segment = restoreTypstMarkup(segment, tokens)
 		return segment
 	})
+}
+
+// typstProseReplacer escapes Typst control characters that appear in ordinary
+// prose and would otherwise break compilation ($, #, @, <, >). It deliberately
+// does NOT touch '*' or '_' (used for bold/italic conversion), brackets/parens,
+// or backticks (code spans, already excluded upstream).
+var typstProseReplacer = strings.NewReplacer(
+	"$", "\\$",
+	"#", "\\#",
+	"@", "\\@",
+	"<", "\\<",
+	">", "\\>",
+)
+
+// escapeTypstProse escapes Typst control characters in a plain-text prose
+// segment. It runs after image/link markup has been protected so that Typst
+// markup and URLs (which may legitimately contain '#', '@', etc.) are untouched.
+func escapeTypstProse(text string) string {
+	return typstProseReplacer.Replace(text)
+}
+
+// typstMarkupPattern matches the markup emitted by convertImages/convertLinks
+// so it can be shielded from prose escaping. Only the URL-bearing prefix is
+// protected: the whole #image("...") span, and the #link("...") prefix (its
+// trailing [text] is left in place so that prose escaping and bold/italic
+// conversion still apply to the visible link text).
+var typstMarkupPattern = regexp.MustCompile(`#image\("[^"]*"\)|#link\("[^"]*"\)`)
+
+// typstMarkupSentinel delimits protected markup placeholders. It uses control
+// characters (\x00) that cannot appear in Markdown source, so it never
+// collides with user content and is never itself escaped.
+const typstMarkupSentinel = "\x00MDPRESSMARKUP\x00"
+
+// protectTypstMarkup replaces already-converted Typst markup spans with
+// sentinel placeholder tokens, appending each removed span to tokens. It
+// returns the rewritten text and the updated token slice.
+func protectTypstMarkup(text string, tokens []string) (string, []string) {
+	out := typstMarkupPattern.ReplaceAllStringFunc(text, func(m string) string {
+		idx := len(tokens)
+		tokens = append(tokens, m)
+		return typstMarkupSentinel + strconv.Itoa(idx) + typstMarkupSentinel
+	})
+	return out, tokens
+}
+
+// restoreTypstMarkup replaces sentinel placeholder tokens with their original
+// Typst markup spans.
+func restoreTypstMarkup(text string, tokens []string) string {
+	for i, tok := range tokens {
+		placeholder := typstMarkupSentinel + strconv.Itoa(i) + typstMarkupSentinel
+		text = strings.Replace(text, placeholder, tok, 1)
+	}
+	return text
 }
 
 // processOutsideCodeSpans splits text on backtick-delimited code spans

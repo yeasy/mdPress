@@ -57,7 +57,8 @@ Examples:
   mdpress serve --host 0.0.0.0
   mdpress serve --open
   mdpress serve --config path/to/book.yaml
-  mdpress serve https://github.com/yeasy/agentic_ai_guide`,
+  mdpress serve https://github.com/yeasy/agentic_ai_guide
+  mdpress serve https://github.com/yeasy/agentic_ai_guide --branch main`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var inputSource string
 		if len(args) > 0 {
@@ -77,9 +78,12 @@ Examples:
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", defaultServePort, "HTTP server port")
 	serveCmd.Flags().StringVar(&serveHost, "host", defaultServeHost, "HTTP listen address (default 127.0.0.1)")
-	serveCmd.Flags().StringVar(&serveDir, "output", "", "Output directory (defaults to _book)")
+	serveCmd.Flags().StringVarP(&serveDir, "output", "o", "", "Directory to write the generated site (default _book)")
 	serveCmd.Flags().BoolVar(&serveOpen, "open", false, "Open the browser automatically (default false)")
 	serveCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
+	serveCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
+	serveCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
+	serveCmd.Flags().BoolVar(&allowPlugins, "allow-plugins", false, "Execute plugins declared by a remote project's book.yaml (arbitrary code; local sources always run plugins)")
 }
 
 func executeServe(ctx context.Context, inputSource string, opts serveOptions) error {
@@ -102,6 +106,9 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		if err != nil {
 			return fmt.Errorf("failed to parse input source: %w", err)
 		}
+		// Record whether the resolved source is remote so the orchestrator can
+		// gate plugin execution from untrusted remote projects.
+		buildSourceIsRemote = src.Type() != "local"
 		srcCleanup = src.Cleanup
 
 		workDir, err = src.Prepare()
@@ -110,6 +117,8 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		}
 		logger.Info("Source directory is ready", slog.String("type", src.Type()), slog.String("dir", workDir))
 	} else {
+		// Default to the current directory (always a local source).
+		buildSourceIsRemote = false
 		var absErr error
 		workDir, absErr = filepath.Abs(".")
 		if absErr != nil {

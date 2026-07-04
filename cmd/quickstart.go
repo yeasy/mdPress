@@ -14,6 +14,10 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// quickstartForce permits scaffolding into a non-empty directory.  Individual
+// existing files are still never overwritten.
+var quickstartForce bool
+
 // quickstartCmd creates a sample book project.
 var quickstartCmd = &cobra.Command{
 	Use:   "quickstart [directory]",
@@ -24,6 +28,7 @@ You can build and preview it immediately.
 
 Examples:
   mdpress quickstart my-book
+  mdpress quickstart my-book --force
   mdpress quickstart`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -35,6 +40,10 @@ Examples:
 	},
 }
 
+func init() {
+	quickstartCmd.Flags().BoolVar(&quickstartForce, "force", false, "Allow scaffolding into a non-empty directory (never overwrites existing files)")
+}
+
 // executeQuickstart creates the sample project.
 func executeQuickstart(dir string) error {
 	absDir, err := filepath.Abs(dir)
@@ -42,21 +51,36 @@ func executeQuickstart(dir string) error {
 		return fmt.Errorf("failed to resolve directory path: %w", err)
 	}
 
-	// Refuse to write into a non-empty directory.
+	// Refuse to write into a non-empty directory unless --force is set.
+	// Stat the path first so an existing regular file yields a friendly error
+	// rather than a raw "readdir ...: not a directory" from os.ReadDir.
 	// Use os.ReadDir instead of filepath.Glob because Glob("*") does not
 	// match hidden files/directories (e.g. .git, .DS_Store), which could
 	// lead to silently overwriting an existing Git repository.
-	if utils.FileExists(absDir) {
+	if info, statErr := os.Stat(absDir); statErr == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("target %q exists and is a file; choose a different name", dir)
+		}
 		entries, err := os.ReadDir(absDir)
 		if err != nil {
 			return fmt.Errorf("failed to read directory %s: %w", dir, err)
 		}
-		if len(entries) > 0 {
-			return fmt.Errorf("directory %s already exists and is not empty; choose a new directory name", dir)
+		if len(entries) > 0 && !quickstartForce {
+			return fmt.Errorf("directory %s already exists and is not empty; choose a new directory name or pass --force", dir)
 		}
 	}
 
 	projectName := filepath.Base(absDir)
+
+	// quickstartWriteFile writes a scaffolded file but never overwrites an
+	// existing one, so --force can populate a non-empty directory without
+	// clobbering user files.
+	quickstartWriteFile := func(path string, data []byte) error {
+		if utils.FileExists(path) {
+			return fmt.Errorf("refusing to overwrite existing file %q", path)
+		}
+		return utils.WriteFile(path, data)
+	}
 
 	utils.Header("mdpress Quickstart")
 	utils.Info("Creating sample project: %s", projectName)
@@ -64,56 +88,56 @@ func executeQuickstart(dir string) error {
 
 	// 1. Create book.yaml.
 	bookYAML := generateQuickstartBookYAML(projectName)
-	if err := utils.WriteFile(filepath.Join(absDir, "book.yaml"), []byte(bookYAML)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "book.yaml"), []byte(bookYAML)); err != nil {
 		return fmt.Errorf("failed to create book.yaml: %w", err)
 	}
 	utils.Success("book.yaml - book configuration")
 
 	// 2. Create README.md.
 	readmeContent := generateQuickstartREADME(projectName)
-	if err := utils.WriteFile(filepath.Join(absDir, "README.md"), []byte(readmeContent)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "README.md"), []byte(readmeContent)); err != nil {
 		return fmt.Errorf("failed to create README.md: %w", err)
 	}
 	utils.Success("README.md - project overview")
 
 	// 3. Create the preface.
 	prefaceContent := generateQuickstartPreface()
-	if err := utils.WriteFile(filepath.Join(absDir, "preface.md"), []byte(prefaceContent)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "preface.md"), []byte(prefaceContent)); err != nil {
 		return fmt.Errorf("failed to create preface.md: %w", err)
 	}
 	utils.Success("preface.md - preface")
 
 	// 4. Create chapter 1.
 	ch01Content := generateQuickstartChapter01()
-	if err := utils.WriteFile(filepath.Join(absDir, "chapter01", "README.md"), []byte(ch01Content)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "chapter01", "README.md"), []byte(ch01Content)); err != nil {
 		return fmt.Errorf("failed to create chapter01: %w", err)
 	}
 	utils.Success("chapter01/README.md - Chapter 1: Getting Started")
 
 	// 5. Create chapter 2.
 	ch02Content := generateQuickstartChapter02()
-	if err := utils.WriteFile(filepath.Join(absDir, "chapter02", "README.md"), []byte(ch02Content)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "chapter02", "README.md"), []byte(ch02Content)); err != nil {
 		return fmt.Errorf("failed to create chapter02: %w", err)
 	}
 	utils.Success("chapter02/README.md - Chapter 2: Advanced Usage")
 
 	// 6. Create chapter 3.
 	ch03Content := generateQuickstartChapter03()
-	if err := utils.WriteFile(filepath.Join(absDir, "chapter03", "README.md"), []byte(ch03Content)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "chapter03", "README.md"), []byte(ch03Content)); err != nil {
 		return fmt.Errorf("failed to create chapter03: %w", err)
 	}
 	utils.Success("chapter03/README.md - Chapter 3: Best Practices")
 
 	// 7. Create the image directory and placeholder notes.
 	imgPlaceholder := generateImagePlaceholder()
-	if err := utils.WriteFile(filepath.Join(absDir, "images", "README.md"), []byte(imgPlaceholder)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "images", "README.md"), []byte(imgPlaceholder)); err != nil {
 		return fmt.Errorf("failed to create images directory notes: %w", err)
 	}
 	utils.Success("images/ - image assets directory")
 
 	// 8. Create the placeholder SVG cover.
 	coverSVG := generatePlaceholderCoverSVG(projectName)
-	if err := utils.WriteFile(filepath.Join(absDir, "images", "cover.svg"), []byte(coverSVG)); err != nil {
+	if err := quickstartWriteFile(filepath.Join(absDir, "images", "cover.svg"), []byte(coverSVG)); err != nil {
 		return fmt.Errorf("failed to create placeholder cover: %w", err)
 	}
 	utils.Success("images/cover.svg - placeholder cover")

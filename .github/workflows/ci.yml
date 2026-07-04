@@ -75,14 +75,33 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v6
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
     - name: Build minimal Docker image
-      run: docker build --target minimal -t mdpress:test-minimal .
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        target: minimal
+        load: true
+        push: false
+        tags: mdpress:test-minimal
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Verify minimal image
       run: docker run --rm mdpress:test-minimal --help
 
     - name: Build full Docker image
-      run: docker build --target full -t mdpress:test-full .
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        target: full
+        load: true
+        push: false
+        tags: mdpress:test-full
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Verify full image
       run: docker run --rm mdpress:test-full --help

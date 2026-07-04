@@ -430,6 +430,69 @@ func TestDirectoryValidation(t *testing.T) {
 	}
 }
 
+// TestQuickstartTargetIsFile verifies a friendly error when the target path
+// exists as a regular file rather than a directory.
+func TestQuickstartTargetIsFile(t *testing.T) {
+	defer suppressOutput(t)()
+	tmpDir := t.TempDir()
+	target := filepath.Join(tmpDir, "my-book")
+	if err := os.WriteFile(target, []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	err := executeQuickstart(target)
+	if err == nil {
+		t.Fatalf("expected error when target is a file")
+	}
+	if !strings.Contains(err.Error(), "exists and is a file") {
+		t.Errorf("expected friendly file error, got %q", err.Error())
+	}
+}
+
+// TestQuickstartForceNonEmptyDir verifies --force allows scaffolding into a
+// non-empty directory while still refusing to overwrite an existing file.
+func TestQuickstartForceNonEmptyDir(t *testing.T) {
+	defer suppressOutput(t)()
+
+	prev := quickstartForce
+	quickstartForce = true
+	defer func() { quickstartForce = prev }()
+
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "test-project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+	// Pre-existing unrelated file makes the directory non-empty.
+	if err := os.WriteFile(filepath.Join(projectDir, "notes.txt"), []byte("keep me"), 0o644); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("expected --force to allow non-empty directory, got: %v", err)
+	}
+	// The unrelated file must be preserved.
+	if data, err := os.ReadFile(filepath.Join(projectDir, "notes.txt")); err != nil || string(data) != "keep me" {
+		t.Errorf("existing file was not preserved: data=%q err=%v", string(data), err)
+	}
+	// Scaffolded file must exist.
+	if !utilsFileExistsForTest(filepath.Join(projectDir, "book.yaml")) {
+		t.Errorf("book.yaml was not created")
+	}
+
+	// A second run must now refuse to overwrite the scaffolded book.yaml.
+	err := executeQuickstart(projectDir)
+	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite existing file") {
+		t.Errorf("expected refuse-to-overwrite error on second run, got %v", err)
+	}
+}
+
+// utilsFileExistsForTest is a tiny local helper to avoid importing utils here.
+func utilsFileExistsForTest(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 // Test template file generation with table-driven tests
 func TestTemplateGeneration(t *testing.T) {
 	tests := []struct {

@@ -6,16 +6,27 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 )
 
+// defaultVersion is the compiled-in version. When mdpress is built via
+// -ldflags (goreleaser release), Version is overridden to the real tag.
+// For `go install`/source builds it stays at defaultVersion, and we fall
+// back to runtime/debug build info at startup (see initBuildInfo).
+const defaultVersion = "0.7.12"
+
 var (
 	// Version is overridden at build time via -ldflags.
-	Version = "0.7.10"
+	Version = defaultVersion
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
+	// Commit is overridden at build time via -ldflags (git commit hash).
+	// Left empty when not injected; populated from build info for source builds.
+	Commit = ""
 	// rootCmd is the root command for the mdpress application.
 	rootCmd *cobra.Command
 	// cfgFile stores the config file path.
@@ -30,8 +41,42 @@ var (
 	noCache bool
 )
 
+// initBuildInfo backfills Version/Commit/BuildTime from the embedded Go build
+// info for builds that were NOT stamped via -ldflags (e.g. `go install`).
+// It never overrides values already injected at release time.
+func initBuildInfo() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	// Only trust the module version for source/go-install builds where the
+	// compiled-in default is still present. A real version looks like "v1.2.3";
+	// "" and "(devel)" mean the module version is unknown.
+	if Version == defaultVersion {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			Version = strings.TrimPrefix(v, "v")
+		}
+	}
+
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if Commit == "" && s.Value != "" {
+				Commit = s.Value
+			}
+		case "vcs.time":
+			if (BuildTime == "" || BuildTime == "unknown") && s.Value != "" {
+				BuildTime = s.Value
+			}
+		}
+	}
+}
+
 // init configures the root command.
 func init() {
+	initBuildInfo()
+
 	rootCmd = &cobra.Command{
 		Use:   "mdpress",
 		Short: "mdpress - Markdown book publishing tool",
@@ -58,6 +103,11 @@ Common commands:
   mdpress validate             Validate project configuration
   mdpress doctor               Check environment and project readiness`,
 		Version: Version,
+		// Cobra otherwise prints the error itself AND dumps full usage on any
+		// RunE failure. We silence both here so Execute() is the single error
+		// print path and runtime failures don't bury the message under usage.
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Define global persistent flags.

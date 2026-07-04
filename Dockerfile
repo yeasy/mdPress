@@ -1,5 +1,8 @@
 # ---- Build stage ----
-FROM golang:1.26.3-alpine AS builder
+# Pin the builder to the native build platform so cross-arch builds (e.g.
+# linux/arm64) compile with Go's own cross-compiler instead of emulating the
+# whole toolchain under QEMU. CGO is off, so cross-compilation is free.
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
 
 RUN apk add --no-cache ca-certificates
 
@@ -11,8 +14,11 @@ COPY . .
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
+# Populated by buildx from the target platform.
+ARG TARGETOS
+ARG TARGETARCH
 
-RUN CGO_ENABLED=0 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags "-s -w -X github.com/yeasy/mdpress/cmd.Version=${VERSION} -X github.com/yeasy/mdpress/cmd.BuildTime=${BUILD_TIME}" \
     -o /usr/local/bin/mdpress .
 

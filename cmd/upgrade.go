@@ -22,6 +22,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,15 @@ const (
 
 var upgradeCheckOnly bool
 
+// upgradeForce bypasses the package-manager install-method guard and forces the
+// binary-replacement path even for Homebrew/go-install managed installs.
+var upgradeForce bool
+
+// upgradeSkipChecksum bypasses checksum verification. Verification fails hard by
+// default (including when the checksum asset is missing or its download fails);
+// this flag exists only as an explicit escape hatch.
+var upgradeSkipChecksum bool
+
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Check for and install a newer version of mdpress",
@@ -82,7 +92,9 @@ To only check without installing:
 The upgrade command:
   - Fetches the latest release from the GitHub API
   - Compares with the current version
+  - Detects package-manager installs (Homebrew, go install) and defers to them
   - Downloads the appropriate binary for your OS/arch
+  - Verifies the download against the published checksums
   - Replaces the current mdpress binary
   - Shows progress during the download`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -92,6 +104,8 @@ The upgrade command:
 
 func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check", false, "Only check for updates, do not install")
+	upgradeCmd.Flags().BoolVar(&upgradeForce, "force", false, "Force binary replacement even for Homebrew/go-install managed installs")
+	upgradeCmd.Flags().BoolVar(&upgradeSkipChecksum, "skip-checksum", false, "Skip checksum verification of the downloaded binary (not recommended)")
 }
 
 // gitHubRelease represents a GitHub release from the API.
@@ -247,6 +261,20 @@ func parseVersion(version string) []int {
 // installNewVersion downloads and installs the new binary.
 // Uses atomic file replacement to prevent corruption if the process crashes mid-write.
 func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion string) error {
+	// Classify how mdpress was installed. Overwriting a Homebrew keg or a
+	// go-install binary desyncs from the package manager, so defer to it unless
+	// the user explicitly forces a binary replacement with --force.
+	if !upgradeForce {
+		if method, advice := upgradeDetectInstallMethod(); method != upgradeInstallBinary {
+			fmt.Println()
+			utils.Warning("%s", advice)
+			fmt.Println()
+			fmt.Println("Use 'mdpress upgrade --force' to overwrite the binary in place anyway (not recommended).")
+			// Abort cleanly: this is not an error, the user just needs a different command.
+			return nil
+		}
+	}
+
 	// Find the appropriate asset for this OS/arch.
 	assetURL, assetName := findAssetForPlatform(release)
 	if assetURL == "" {
@@ -269,14 +297,16 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 
 	utils.Success("Downloaded %d bytes", len(assetData))
 
-	// Verify checksum if available.
-	if err := verifyChecksum(ctx, release, assetName, assetData); err != nil {
-		// Abort on integrity failures (mismatch or missing entry in existing checksum file).
-		// Only warn for non-critical issues (no checksum file in release, download failure).
-		if errors.Is(err, errChecksumMismatch) || errors.Is(err, errNoChecksumEntry) {
-			return fmt.Errorf("checksum verification failed: %w", err)
-		}
-		slog.Warn("checksum verification", slog.Any("warning", err))
+	// Verify the download against the published checksums. The release always
+	// ships a checksums.txt (see .goreleaser.yml), so any verification error --
+	// mismatch, missing entry, missing checksum asset, or a failed checksum
+	// download -- is treated as a hard failure to avoid installing an unverified
+	// binary. The only bypass is the explicit --skip-checksum flag.
+	if upgradeSkipChecksum {
+		slog.Warn("skipping checksum verification (--skip-checksum)")
+		utils.Warning("Skipping checksum verification (--skip-checksum)")
+	} else if err := verifyChecksum(ctx, release, assetName, assetData); err != nil {
+		return fmt.Errorf("checksum verification failed: %w", err)
 	}
 
 	binaryData, err := extractBinaryData(assetName, assetData)
@@ -352,6 +382,160 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 	fmt.Println("Verify the upgrade with: mdpress --version")
 
 	return nil
+}
+
+// upgradeInstallMethod identifies how the running mdpress binary was installed,
+// which determines whether the self-updater may replace the binary in place.
+type upgradeInstallMethod int
+
+const (
+	// upgradeInstallBinary means mdpress was installed as a standalone binary
+	// (curl/download, manual copy); the self-updater may replace it in place.
+	upgradeInstallBinary upgradeInstallMethod = iota
+	// upgradeInstallBrew means mdpress lives inside a Homebrew keg; brew owns it.
+	upgradeInstallBrew
+	// upgradeInstallGoInstall means mdpress was placed by `go install`; the Go
+	// tooling and module cache own it.
+	upgradeInstallGoInstall
+)
+
+// upgradeReadBuildInfo is a hook allowing tests to inject build info. It returns
+// the main module version, main module path, and whether build info was present.
+var upgradeReadBuildInfo = func() (version string, mainPath string, ok bool) {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", "", false
+	}
+	return bi.Main.Version, bi.Main.Path, true
+}
+
+// upgradeDetectInstallMethod classifies the current executable's install method
+// and returns human-readable advice when it is package-manager managed.
+func upgradeDetectInstallMethod() (method upgradeInstallMethod, advice string) {
+	exePath, err := os.Executable()
+	if err != nil {
+		// Cannot determine the executable path; fall through to binary replacement.
+		return upgradeInstallBinary, ""
+	}
+
+	// Resolve symlinks so Homebrew's bin/ shims (which point into the Cellar)
+	// are classified by their real location.
+	resolvedPath := exePath
+	if resolved, err := filepath.EvalSymlinks(exePath); err == nil {
+		resolvedPath = resolved
+	}
+
+	goBinDirs := upgradeGoBinDirs()
+	version, mainPath, hasBuildInfo := upgradeReadBuildInfo()
+
+	return upgradeClassifyInstallPath(exePath, resolvedPath, upgradeHomebrewPrefixes(), goBinDirs, version, mainPath, hasBuildInfo)
+}
+
+// upgradeClassifyInstallPath is the path-based core of install-method detection,
+// split out so it can be unit-tested without touching the real filesystem.
+//   - rawPath/resolvedPath: the executable path before/after symlink resolution.
+//   - brewPrefixes: Homebrew prefixes to check (e.g. /opt/homebrew, /usr/local).
+//   - goBinDirs: directories that `go install` writes to (GOBIN, GOPATH/bin).
+//   - biVersion/biMainPath/hasBuildInfo: runtime/debug build info about the binary.
+func upgradeClassifyInstallPath(
+	rawPath, resolvedPath string,
+	brewPrefixes, goBinDirs []string,
+	biVersion, biMainPath string,
+	hasBuildInfo bool,
+) (upgradeInstallMethod, string) {
+	// Homebrew: the raw or resolved path is inside a Caskroom/Cellar or under a
+	// Homebrew prefix.
+	for _, p := range []string{rawPath, resolvedPath} {
+		if upgradeIsBrewManaged(p, brewPrefixes) {
+			return upgradeInstallBrew,
+				"mdpress was installed via Homebrew -- run: brew update && brew upgrade --cask mdpress"
+		}
+	}
+
+	// go install: build info reports a real module version/path AND the binary
+	// lives under a Go bin directory (GOBIN or GOPATH/bin).
+	if hasBuildInfo && biMainPath != "" && biVersion != "" && biVersion != "(devel)" {
+		for _, p := range []string{rawPath, resolvedPath} {
+			if upgradePathUnderAny(p, goBinDirs) {
+				return upgradeInstallGoInstall,
+					"mdpress was installed via go install -- run: go install github.com/yeasy/mdpress@latest"
+			}
+		}
+	}
+
+	return upgradeInstallBinary, ""
+}
+
+// upgradeIsBrewManaged reports whether path is Homebrew-managed: it contains a
+// Caskroom/Cellar component or lives under one of the given Homebrew prefixes.
+func upgradeIsBrewManaged(path string, brewPrefixes []string) bool {
+	if path == "" {
+		return false
+	}
+	normalized := filepath.ToSlash(path)
+	if strings.Contains(normalized, "/Caskroom/") || strings.Contains(normalized, "/Cellar/") {
+		return true
+	}
+	for _, prefix := range brewPrefixes {
+		if prefix == "" {
+			continue
+		}
+		if upgradePathUnderAny(path, []string{filepath.Join(prefix, "Caskroom"), filepath.Join(prefix, "Cellar")}) {
+			return true
+		}
+	}
+	return false
+}
+
+// upgradeHomebrewPrefixes returns candidate Homebrew prefixes, honoring
+// HOMEBREW_PREFIX and falling back to the common defaults.
+func upgradeHomebrewPrefixes() []string {
+	if prefix := strings.TrimSpace(os.Getenv("HOMEBREW_PREFIX")); prefix != "" {
+		return []string{prefix}
+	}
+	return []string{"/opt/homebrew", "/usr/local"}
+}
+
+// upgradeGoBinDirs returns the directories `go install` may write binaries to:
+// $GOBIN if set, otherwise $GOPATH/bin (or the default GOPATH's bin).
+func upgradeGoBinDirs() []string {
+	if gobin := strings.TrimSpace(os.Getenv("GOBIN")); gobin != "" {
+		return []string{gobin}
+	}
+	var dirs []string
+	if gopath := strings.TrimSpace(os.Getenv("GOPATH")); gopath != "" {
+		for _, p := range filepath.SplitList(gopath) {
+			if p != "" {
+				dirs = append(dirs, filepath.Join(p, "bin"))
+			}
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		dirs = append(dirs, filepath.Join(home, "go", "bin"))
+	}
+	return dirs
+}
+
+// upgradePathUnderAny reports whether path is inside one of dirs (or equal to it),
+// using cleaned, separator-boundary-aware comparison to avoid prefix false positives.
+func upgradePathUnderAny(path string, dirs []string) bool {
+	if path == "" {
+		return false
+	}
+	cleanPath := filepath.Clean(path)
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		cleanDir := filepath.Clean(dir)
+		if cleanPath == cleanDir {
+			return true
+		}
+		if strings.HasPrefix(cleanPath, cleanDir+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // platformOS and platformArch can be overridden in tests to simulate different platforms.
@@ -566,7 +750,9 @@ func isExpectedBinaryEntry(name string) bool {
 
 // verifyChecksum verifies the downloaded binary against a checksum file in the release assets.
 // It looks for a file named "checksums.txt" or similar in the release.
-// Returns nil if verification passes, or a warning error if checksum file not found.
+// Returns nil only if verification passes. Any failure -- a missing checksum
+// asset, a failed checksum download, a missing entry, or a hash mismatch -- is
+// returned as a non-nil error so callers never install an unverified binary.
 func verifyChecksum(ctx context.Context, release *gitHubRelease, assetName string, binaryData []byte) error {
 	// Look for a checksum file in the release assets.
 	var checksumURL string

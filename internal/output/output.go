@@ -81,7 +81,11 @@ func (r *Registry) Get(name string) (OutputFormat, error) {
 	defer r.mu.RUnlock()
 	f, ok := r.formats[name]
 	if !ok {
-		return nil, fmt.Errorf("unsupported output format: %s (available: %v)", name, r.List())
+		// Build the names list inline under the already-held read lock.
+		// Calling r.List() here would take r.mu.RLock() a second time, which
+		// can deadlock if a writer is blocked between the two RLock calls
+		// (Go's RWMutex does not permit recursive read locking in that case).
+		return nil, fmt.Errorf("unsupported output format: %s (available: %v)", name, r.listLocked())
 	}
 	return f, nil
 }
@@ -90,6 +94,13 @@ func (r *Registry) Get(name string) (OutputFormat, error) {
 func (r *Registry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.listLocked()
+}
+
+// listLocked returns the names of all registered formats. It assumes the
+// caller already holds r.mu (read or write) and therefore must not take the
+// lock itself.
+func (r *Registry) listLocked() []string {
 	names := make([]string, 0, len(r.formats))
 	for name := range r.formats {
 		names = append(names, name)

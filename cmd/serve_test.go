@@ -39,6 +39,9 @@ func TestServeCommand_FlagRegistration(t *testing.T) {
 		{"output", true},
 		{"open", true},
 		{"summary", true},
+		{"branch", true},
+		{"subdir", true},
+		{"allow-plugins", true},
 	}
 
 	for _, f := range flags {
@@ -46,6 +49,11 @@ func TestServeCommand_FlagRegistration(t *testing.T) {
 		if f.isValid && flag == nil {
 			t.Errorf("serve command should have --%s flag", f.name)
 		}
+	}
+
+	// The --output flag should have an -o shorthand.
+	if outFlag := serveCmd.Flags().Lookup("output"); outFlag != nil && outFlag.Shorthand != "o" {
+		t.Errorf("serve --output should have shorthand -o, got %q", outFlag.Shorthand)
 	}
 }
 

@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -620,6 +622,82 @@ func TestBuildOrchestrator_ConfigPreservation(t *testing.T) {
 	if orchestrator.Config.Book.Author != "Test Author" {
 		t.Errorf("Config.Book.Author should be preserved, got: %q", orchestrator.Config.Book.Author)
 	}
+}
+
+// TestNewBuildOrchestrator_RemotePluginsGated verifies that plugins declared by
+// a remote project are NOT loaded unless --allow-plugins is set, while local
+// sources keep loading them.
+func TestNewBuildOrchestrator_RemotePluginsGated(t *testing.T) {
+	cfgWithPlugin := func() *config.BookConfig {
+		return &config.BookConfig{
+			Book:  config.BookMeta{Title: "Test Book"},
+			Style: config.StyleConfig{Theme: "technical"},
+			Plugins: []config.PluginConfig{
+				{Name: "sample", Path: "plugins/sample"},
+			},
+			Chapters: []config.ChapterDef{},
+		}
+	}
+
+	// Save and restore package-level gating state.
+	prevRemote, prevAllow := buildSourceIsRemote, allowPlugins
+	defer func() { buildSourceIsRemote, allowPlugins = prevRemote, prevAllow }()
+
+	t.Run("remote without opt-in is gated with warning", func(t *testing.T) {
+		buildSourceIsRemote = true
+		allowPlugins = false
+
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		orch, err := newBuildOrchestrator(cfgWithPlugin(), logger)
+		if err != nil {
+			t.Fatalf("newBuildOrchestrator failed: %v", err)
+		}
+		if orch.PluginManager == nil {
+			t.Fatal("PluginManager should be a no-op manager, not nil")
+		}
+		if got := len(orch.PluginManager.Plugins()); got != 0 {
+			t.Errorf("expected 0 plugins when gated, got %d", got)
+		}
+		if !strings.Contains(buf.String(), "Refusing to run 1 plugin(s) from a remote project") {
+			t.Errorf("expected refusal warning, got logs: %q", buf.String())
+		}
+	})
+
+	t.Run("remote with --allow-plugins attempts to load", func(t *testing.T) {
+		buildSourceIsRemote = true
+		allowPlugins = true
+
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		orch, err := newBuildOrchestrator(cfgWithPlugin(), logger)
+		if err != nil {
+			t.Fatalf("newBuildOrchestrator failed: %v", err)
+		}
+		if orch.PluginManager == nil {
+			t.Fatal("PluginManager should not be nil")
+		}
+		if strings.Contains(buf.String(), "Refusing to run") {
+			t.Errorf("did not expect refusal warning when --allow-plugins is set, got: %q", buf.String())
+		}
+	})
+
+	t.Run("local source is not gated", func(t *testing.T) {
+		buildSourceIsRemote = false
+		allowPlugins = false
+
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+		if _, err := newBuildOrchestrator(cfgWithPlugin(), logger); err != nil {
+			t.Fatalf("newBuildOrchestrator failed: %v", err)
+		}
+		if strings.Contains(buf.String(), "Refusing to run") {
+			t.Errorf("local source should not be gated, got: %q", buf.String())
+		}
+	})
 }
 
 // TestBuildOrchestrator_PluginManagerInitialized tests that plugin manager is initialized

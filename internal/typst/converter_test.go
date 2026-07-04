@@ -1865,6 +1865,109 @@ func TestIsOrderedListItemUnicode(t *testing.T) {
 	}
 }
 
+// TestEscapeTypstProse tests that Typst control characters in prose are
+// escaped so that documents containing $, #, @, <, > compile.
+func TestEscapeTypstProse(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "dollar sign is escaped",
+			input:    "The price is 5 dollars: $5",
+			expected: `The price is 5 dollars: \$5`,
+		},
+		{
+			name:     "hash in prose is escaped",
+			input:    "Use the #tag here",
+			expected: `Use the \#tag here`,
+		},
+		{
+			name:     "at sign is escaped",
+			input:    "email me at-foo",
+			expected: `email me at-foo`, // no @ here; sanity check
+		},
+		{
+			name:     "literal at symbol is escaped",
+			input:    "contact user@host",
+			expected: `contact user\@host`,
+		},
+		{
+			name:     "angle brackets are escaped",
+			input:    "3 < 4 and 5 > 2",
+			expected: `3 \< 4 and 5 \> 2`,
+		},
+		{
+			name:     "mixed control chars",
+			input:    "The price is 5 dollars and email at-foo or C# $ @ < > stuff",
+			expected: `The price is 5 dollars and email at-foo or C\# \$ \@ \< \> stuff`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := strings.TrimSpace(converter.Convert(tt.input))
+			if result != tt.expected {
+				t.Errorf("Convert(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestEscapeTypstProsePreservesMarkup verifies that escaping prose does not
+// corrupt the '#' introduced by image/link conversion, nor URL anchors.
+func TestEscapeTypstProsePreservesMarkup(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "image markup hash not escaped",
+			input:    "See ![alt](img.png) and pay $5",
+			expected: `See #image("img.png") and pay \$5`,
+		},
+		{
+			name:     "link markup and anchor not escaped",
+			input:    "Go to [sec](url#anchor) now",
+			expected: `Go to #link("url#anchor")[sec] now`,
+		},
+		{
+			name:     "prose hash escaped but link markup intact",
+			input:    "Tag #1 links [here](http://x/y#z)",
+			expected: `Tag \#1 links #link("http://x/y#z")[here]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := strings.TrimSpace(converter.Convert(tt.input))
+			if result != tt.expected {
+				t.Errorf("Convert(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCodeSpanEscapingIsolation verifies control characters inside code spans
+// are NOT escaped (they are emitted verbatim) while surrounding prose is.
+func TestCodeSpanEscapingIsolation(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	input := "Value `$x = @y` costs $5"
+	// Code span content stays verbatim; the trailing $5 in prose is escaped.
+	expected := "Value `$x = @y` costs \\$5"
+	result := strings.TrimSpace(converter.Convert(input))
+	if result != expected {
+		t.Errorf("Convert(%q) = %q, want %q", input, result, expected)
+	}
+}
+
 // TestCodeSpanProtection tests that inline conversions skip code spans.
 func TestCodeSpanProtection(t *testing.T) {
 	converter := &MarkdownToTypstConverter{}

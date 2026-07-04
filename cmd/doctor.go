@@ -26,9 +26,17 @@ const (
 	networkCheckTimeout = 5 * time.Second
 	// dfCommandTimeout is the timeout for the local df command used to check disk space.
 	dfCommandTimeout = 5 * time.Second
+	// typstVersionTimeout is the timeout for running `typst --version` in the doctor check.
+	typstVersionTimeout = 5 * time.Second
 )
 
-var doctorReportPath string
+var (
+	doctorReportPath string
+	// doctorStrict makes `mdpress doctor` exit non-zero when any error-level
+	// finding is recorded, so it can be used as a CI gate. Default false keeps
+	// the historical always-exit-0 behavior for existing scripts.
+	doctorStrict bool
+)
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor [directory]",
@@ -37,6 +45,7 @@ var doctorCmd = &cobra.Command{
   - Runtime platform information
   - Go runtime version (informational)
   - Chrome/Chromium availability for PDF output
+  - Typst availability for --format typst PDF output
   - Go version (>=1.26 recommended)
   - Git availability for remote source builds
   - Network connectivity to github.com
@@ -45,7 +54,11 @@ var doctorCmd = &cobra.Command{
   - Plugin health and availability
   - Presence of book.yaml / SUMMARY.md / LANGS.md
   - Whether the project can be loaded
-  - Whether Markdown chapter links stay inside the build graph`,
+  - Whether Markdown chapter links stay inside the build graph
+
+Pass --strict to exit with a non-zero status when any error-level check fails
+(for example a missing PDF backend or an unloadable book.yaml), which makes
+mdpress doctor usable as a CI gate. Without --strict the command always exits 0.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		targetDir := "."
@@ -57,7 +70,8 @@ var doctorCmd = &cobra.Command{
 }
 
 func init() {
-	doctorCmd.Flags().StringVar(&doctorReportPath, "report", "", "Write doctor report to .json or .md")
+	doctorCmd.Flags().StringVarP(&doctorReportPath, "report", "o", "", "Write doctor report to .json or .md")
+	doctorCmd.Flags().BoolVar(&doctorStrict, "strict", false, "Exit with a non-zero status when any error-level check fails (useful as a CI gate)")
 }
 
 type doctorReport struct {
@@ -66,6 +80,8 @@ type doctorReport struct {
 	CacheDir           string                   `json:"cache_dir,omitempty"`
 	CacheDisabled      bool                     `json:"cache_disabled"`
 	ChromiumAvailable  bool                     `json:"chromium_available"`
+	TypstAvailable     bool                     `json:"typst_available"`
+	TypstVersion       string                   `json:"typst_version,omitempty"`
 	CJKFontsAvailable  bool                     `json:"cjk_fonts_available"`
 	PlantUMLAvailable  bool                     `json:"plantuml_available"`
 	PlantUMLNeeded     bool                     `json:"plantuml_needed"`
@@ -84,6 +100,17 @@ type doctorReport struct {
 	TopLevelChapters   int                      `json:"top_level_chapters,omitempty"`
 	Warnings           []string                 `json:"warnings,omitempty"`
 	UnresolvedMarkdown []unresolvedMarkdownLink `json:"unresolved_markdown_links,omitempty"`
+	// doctorErrors counts error-level findings (Chromium+Typst both missing,
+	// book.yaml load failure, low disk, broken plugins, etc). Not serialized;
+	// used only to decide the --strict exit code.
+	doctorErrors int
+}
+
+// addDoctorError records an error-level finding and its human-readable message
+// as a warning entry, so `--strict` can gate the exit code on it.
+func (r *doctorReport) addDoctorError(msg string) {
+	r.doctorErrors++
+	r.Warnings = append(r.Warnings, msg)
 }
 
 func executeDoctor(ctx context.Context, targetDir string) error {
@@ -116,13 +143,27 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		utils.Success("Runtime cache: %s", report.CacheDir)
 	}
 
-	if err := pdf.CheckChromiumAvailable(); err != nil {
-		utils.Error("Chromium/Chrome is unavailable (PDF output will fail)")
-		fmt.Printf("    %s\n", err.Error())
-		report.Warnings = append(report.Warnings, "Chromium/Chrome is unavailable (PDF output will fail)")
-	} else {
+	// Check the two PDF backends. PDF output needs either Chromium/Chrome OR
+	// Typst, so a missing backend is only an error when BOTH are unavailable.
+	chromiumErr := pdf.CheckChromiumAvailable()
+	if chromiumErr == nil {
 		report.ChromiumAvailable = true
 		utils.Success("Chromium/Chrome is available")
+	}
+
+	checkTypst(&report)
+
+	if chromiumErr != nil {
+		if report.TypstAvailable {
+			utils.Warning("Chromium/Chrome is unavailable — use --format typst for PDF output instead")
+			fmt.Printf("    %s\n", chromiumErr.Error())
+			report.Warnings = append(report.Warnings, "Chromium/Chrome is unavailable (use --format typst for PDF output)")
+		} else {
+			utils.Error("No PDF backend available: Chromium/Chrome and Typst are both missing (PDF output will fail)")
+			fmt.Printf("    %s\n", chromiumErr.Error())
+			fmt.Println("    Install Chrome/Chromium, or install Typst (brew install typst) and build with --format typst")
+			report.addDoctorError("No PDF backend available: Chromium/Chrome and Typst are both missing (PDF output will fail)")
+		}
 	}
 
 	// Check Go version
@@ -200,13 +241,13 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		// book.yaml exists but failed to load — report the error.
 		if _, loadErr := config.Load(bookPath); loadErr != nil {
 			utils.Error("Failed to load book.yaml: %v", loadErr)
-			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
+			report.addDoctorError(fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
 		}
 	} else if _, err := os.Stat(summaryPath); err == nil {
 		cfg, discoverErr := config.Discover(ctx, absDir)
 		if discoverErr != nil {
 			utils.Error("Failed to auto-discover project from SUMMARY.md: %v", discoverErr)
-			report.Warnings = append(report.Warnings, fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))
+			report.addDoctorError(fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))
 		} else {
 			report.ProjectLoadable = true
 			report.ProjectTitle = cfg.Book.Title
@@ -226,6 +267,14 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	}
 
 	fmt.Println()
+
+	// In strict mode, surface error-level findings as a non-zero exit code so
+	// `mdpress doctor --strict` can act as a CI gate. Default mode always
+	// returns nil (unless the directory itself was inaccessible above).
+	if doctorStrict && report.doctorErrors > 0 {
+		return fmt.Errorf("doctor found %d error-level issue(s) (run without --strict to ignore)", report.doctorErrors)
+	}
+
 	return nil
 }
 
@@ -293,6 +342,34 @@ func checkGoVersion(report *doctorReport) {
 	} else {
 		utils.Warning("Go version %s (< 1.26) — some features may not work as expected", versionStr)
 		report.Warnings = append(report.Warnings, fmt.Sprintf("Go version %s is below recommended 1.26", versionStr))
+	}
+}
+
+// checkTypst reports whether the `typst` CLI is available for `mdpress build
+// --format typst`. It is intentionally self-contained (no internal/typst
+// import) to avoid coupling the doctor command to the Typst backend package.
+func checkTypst(report *doctorReport) {
+	path, err := exec.LookPath("typst")
+	if err != nil {
+		utils.Warning("Typst not found (required for --format typst PDF output)")
+		report.Warnings = append(report.Warnings, "Typst is not available (required for --format typst PDF output)")
+		return
+	}
+
+	report.TypstAvailable = true
+
+	// Try to capture the version string; treat failure as non-fatal.
+	ctx, cancel := context.WithTimeout(context.Background(), typstVersionTimeout)
+	defer cancel()
+	out, verErr := exec.CommandContext(ctx, path, "--version").Output()
+	if verErr == nil {
+		report.TypstVersion = strings.TrimSpace(string(out))
+	}
+
+	if report.TypstVersion != "" {
+		utils.Success("Typst is available: %s", report.TypstVersion)
+	} else {
+		utils.Success("Typst is available")
 	}
 }
 
@@ -407,7 +484,7 @@ func checkDiskSpace(ctx context.Context, targetDir string, cfg *config.BookConfi
 	const minDiskSpaceGB = 0.1
 	if availableGB < minDiskSpaceGB {
 		utils.Error("Disk space critically low (%.2f GB available, < 100 MB required)", availableGB)
-		report.Warnings = append(report.Warnings, fmt.Sprintf("Disk space critically low: only %.2f GB available", availableGB))
+		report.addDoctorError(fmt.Sprintf("Disk space critically low: only %.2f GB available", availableGB))
 		return
 	}
 
@@ -476,7 +553,7 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 		utils.Success("All %d plugin(s) are valid", len(cfg.Plugins))
 	} else {
 		report.PluginsValid = false
-		report.Warnings = append(report.Warnings, fmt.Sprintf("%d plugin(s) have issues", len(cfg.Plugins)))
+		report.addDoctorError(fmt.Sprintf("%d plugin(s) have issues", len(cfg.Plugins)))
 	}
 }
 
@@ -672,6 +749,10 @@ func renderDoctorMarkdown(report doctorReport) string {
 		fmt.Fprintf(&b, "- Cache dir: %s\n", report.CacheDir)
 	}
 	fmt.Fprintf(&b, "- Chromium available: %t\n", report.ChromiumAvailable)
+	fmt.Fprintf(&b, "- Typst available: %t\n", report.TypstAvailable)
+	if report.TypstVersion != "" {
+		fmt.Fprintf(&b, "- Typst version: %s\n", report.TypstVersion)
+	}
 	fmt.Fprintf(&b, "- CJK fonts available: %t\n", report.CJKFontsAvailable)
 	fmt.Fprintf(&b, "- Git available: %t\n", report.GitAvailable)
 	fmt.Fprintf(&b, "- Network connectivity: %t\n", report.NetworkAvailable)

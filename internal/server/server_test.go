@@ -1863,3 +1863,73 @@ func TestSecurityHeaders(t *testing.T) {
 		t.Errorf("CSP missing CDN allowlist for Mermaid/KaTeX: %s", csp)
 	}
 }
+
+// TestSecurityHeadersOnInjectedHTML verifies that injected HTML pages, which
+// are written directly by injectLiveReload (bypassing the inner fileServer),
+// still carry the security headers when the injection handler is wrapped.
+func TestSecurityHeadersOnInjectedHTML(t *testing.T) {
+	outputDir := t.TempDir()
+	htmlContent := "<!DOCTYPE html><html><head></head><body><h1>Hi</h1></body></html>"
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(htmlContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
+	fileServer := http.FileServer(http.Dir(outputDir))
+	handler := securityHeaders(srv.injectLiveReload(fileServer))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// Confirm the response is the injected HTML (not proxied to fileServer).
+	if !strings.Contains(rec.Body.String(), "__mdpress_ws") {
+		t.Fatal("expected injected live-reload script in HTML response")
+	}
+	for _, header := range []string{"X-Content-Type-Options", "X-Frame-Options", "Content-Security-Policy"} {
+		if rec.Header().Get(header) == "" {
+			t.Errorf("injected HTML response missing security header %q", header)
+		}
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html", ct)
+	}
+}
+
+// TestWSClientCloseNilConn verifies that Close is safe on a sentinel client
+// whose conn is still nil (registered before Upgrade completes). Previously the
+// shutdown loop dereferenced conn directly and would panic here.
+func TestWSClientCloseNilConn(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Close on nil-conn client panicked: %v", r)
+		}
+	}()
+	client := &wsClient{} // conn == nil, like the shutdown-race sentinel
+	client.Close()
+	// writeMessage must also stay a no-op on a nil conn.
+	if err := client.writeMessage(websocket.TextMessage, []byte("x")); err != nil {
+		t.Errorf("writeMessage on nil conn returned error: %v", err)
+	}
+}
+
+// TestListenNonAddrInUseError verifies that Listen only attaches the
+// "already in use" hint for genuine address-in-use failures; other listen
+// errors (e.g. an unresolvable/invalid host) report a generic failure.
+func TestListenNonAddrInUseError(t *testing.T) {
+	// An invalid host that fails to resolve produces a non-EADDRINUSE error.
+	srv := NewServer("no.such.host.invalid.", 12345, t.TempDir(), t.TempDir(), slog.Default())
+	_, err := srv.Listen()
+	if err == nil {
+		t.Skip("listen unexpectedly succeeded on invalid host; skipping")
+	}
+	if isAddrInUse(err) {
+		t.Skipf("environment reported addr-in-use for invalid host: %v", err)
+	}
+	if strings.Contains(err.Error(), "already in use") {
+		t.Errorf("non-addr-in-use error should not mention 'already in use': %v", err)
+	}
+	if !strings.Contains(err.Error(), "failed to listen") {
+		t.Errorf("expected generic listen failure message, got: %v", err)
+	}
+}

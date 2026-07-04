@@ -30,7 +30,11 @@ jobs:
           version: "~> v2"
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          # Default token: scoped to this repo, enough to create the release
+          # (the job declares contents: write).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT: used ONLY for the cross-repo push to yeasy/homebrew-tap.
+          TAP_GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   docker:
     runs-on: ubuntu-latest
@@ -46,6 +50,17 @@ jobs:
           echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           REPO="${{ github.repository }}"
           echo "REPO_LC=${REPO,,}" >> "$GITHUB_OUTPUT"
+          # Only stable releases (vMAJOR.MINOR.PATCH) move the :latest/:full
+          # tags; prereleases (e.g. v0.8.0-rc1) and out-of-order backport
+          # tags must not repoint them.
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "IS_STABLE=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "IS_STABLE=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -69,7 +84,7 @@ jobs:
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
           tags: |
             ghcr.io/${{ steps.version.outputs.REPO_LC }}:${{ steps.version.outputs.VERSION }}
-            ghcr.io/${{ steps.version.outputs.REPO_LC }}:latest
+            ${{ steps.version.outputs.IS_STABLE == 'true' && format('ghcr.io/{0}:latest', steps.version.outputs.REPO_LC) || '' }}
 
       - name: Build and push full image
         uses: docker/build-push-action@v6
@@ -83,4 +98,4 @@ jobs:
             BUILD_TIME=${{ steps.version.outputs.BUILD_TIME }}
           tags: |
             ghcr.io/${{ steps.version.outputs.REPO_LC }}:${{ steps.version.outputs.VERSION }}-full
-            ghcr.io/${{ steps.version.outputs.REPO_LC }}:full
+            ${{ steps.version.outputs.IS_STABLE == 'true' && format('ghcr.io/{0}:full', steps.version.outputs.REPO_LC) || '' }}

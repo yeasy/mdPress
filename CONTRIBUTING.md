@@ -34,7 +34,9 @@ Feature suggestions are welcome. Please describe in the issue:
 3. Install pre-commit hooks: `make hooks`
 4. Write code and add tests
 5. Commit changes: `git commit -m "feat: add new feature"`
-   The pre-commit hook automatically runs gofmt, go vet, golangci-lint, build, and fast tests.
+   The pre-commit hook runs a gofmt check, go vet, golangci-lint (if installed),
+   build, and fast tests. Install the pinned linter version with:
+   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`
 6. Push the branch: `git push origin feature/my-feature`
 7. Open a Pull Request describing your changes and motivation
 

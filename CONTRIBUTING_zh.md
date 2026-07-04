@@ -34,7 +34,9 @@
 3. 安装 pre-commit hook：`make hooks`
 4. 编写代码并添加测试
 5. 提交更改：`git commit -m "feat: 添加新功能"`
-   pre-commit hook 会自动运行 gofmt、go vet、golangci-lint、编译检查和快速测试。
+   pre-commit hook 会运行 gofmt 检查、go vet、golangci-lint（如已安装）、编译检查和快速测试。
+   安装指定版本的 linter：
+   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`
 6. 推送分支：`git push origin feature/my-feature`
 7. 创建 Pull Request，描述你的变更内容和动机
 

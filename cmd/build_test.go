@@ -34,6 +34,7 @@ func TestBuildCommand_FlagRegistration(t *testing.T) {
 		"subdir",
 		"output",
 		"summary",
+		"allow-plugins",
 	}
 
 	for _, f := range flags {
@@ -41,6 +42,14 @@ func TestBuildCommand_FlagRegistration(t *testing.T) {
 		if flag == nil {
 			t.Errorf("build command should have --%s flag", f)
 		}
+	}
+
+	// Verify shorthands.
+	if f := buildCmd.Flags().Lookup("format"); f != nil && f.Shorthand != "f" {
+		t.Errorf("build --format should have shorthand -f, got %q", f.Shorthand)
+	}
+	if f := buildCmd.Flags().Lookup("output"); f != nil && f.Shorthand != "o" {
+		t.Errorf("build --output should have shorthand -o, got %q", f.Shorthand)
 	}
 }
 

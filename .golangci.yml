@@ -69,6 +69,14 @@ linters:
           - gosec
         path: ".*_test\\.go"
 
+formatters:
+  # golangci-lint v2 runs formatters separately from linters. Enabling gofmt
+  # here makes `golangci-lint run` fail on unformatted code, which enforces
+  # formatting on both GitHub Actions and GitLab CI (they share this config).
+  enable:
+    - gofmt
+    - goimports
+
 issues:
   # Show all issues (no limit).
   max-issues-per-linter: 0

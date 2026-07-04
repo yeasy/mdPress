@@ -1,6 +1,7 @@
 package typst
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -925,6 +926,105 @@ func TestGeneratorWithMultipleOptions(t *testing.T) {
 				t.Error(tt.errMsg)
 			}
 		})
+	}
+}
+
+// TestRenderTypstDocumentFontLine verifies that the CSS font stack is
+// converted into a valid Typst font array line in the rendered document,
+// with generic families dropped and names double-quoted.
+func TestRenderTypstDocumentFontLine(t *testing.T) {
+	data := TypstTemplateData{
+		Title:        "T",
+		Language:     "en",
+		Content:      "= X",
+		PageWidth:    "210mm",
+		PageHeight:   "297mm",
+		MarginTop:    "20mm",
+		MarginRight:  "20mm",
+		MarginBottom: "20mm",
+		MarginLeft:   "20mm",
+		FontFamily:   "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', Arial, sans-serif",
+		FontSize:     "12pt",
+		LineHeight:   1.6,
+	}
+
+	out, err := renderTypstDocument(data)
+	if err != nil {
+		t.Fatalf("renderTypstDocument: %v", err)
+	}
+
+	if !strings.Contains(out, `font: ("PingFang SC", "Segoe UI", "Arial")`) {
+		t.Errorf("expected valid Typst font array line, got:\n%s", out)
+	}
+	// The invalid raw CSS keywords must not leak into the document.
+	for _, bad := range []string{"sans-serif", "-apple-system", "BlinkMacSystemFont", "'"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("rendered document should not contain %q", bad)
+		}
+	}
+}
+
+// TestRenderTypstDocumentEmptyFontFallback verifies an empty font family
+// still produces a valid (default) font line.
+func TestRenderTypstDocumentEmptyFontFallback(t *testing.T) {
+	data := TypstTemplateData{
+		Title:        "T",
+		Language:     "en",
+		Content:      "= X",
+		PageWidth:    "210mm",
+		PageHeight:   "297mm",
+		MarginTop:    "20mm",
+		MarginRight:  "20mm",
+		MarginBottom: "20mm",
+		MarginLeft:   "20mm",
+		FontFamily:   "",
+		FontSize:     "12pt",
+		LineHeight:   1.6,
+	}
+	out, err := renderTypstDocument(data)
+	if err != nil {
+		t.Fatalf("renderTypstDocument: %v", err)
+	}
+	if !strings.Contains(out, "font: ("+typstDefaultFonts+")") {
+		t.Errorf("expected default font line, got:\n%s", out)
+	}
+}
+
+// TestGenerateImageDocumentGolden compiles a document containing an image
+// against a project root, verifying that root-relative image paths resolve.
+// It is skipped when the typst binary is unavailable.
+func TestGenerateImageDocumentGolden(t *testing.T) {
+	if err := checkTypstAvailable(); err != nil {
+		t.Skipf("typst not available: %v", err)
+	}
+
+	root := t.TempDir()
+	// Create a minimal 1x1 PNG under root/images.
+	imgDir := filepath.Join(root, "images")
+	if err := os.MkdirAll(imgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	png := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+		0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+		0x0C, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
+		0x00, 0x05, 0xFE, 0x02, 0xFE, 0x0D, 0xEF, 0x46, 0xB8, 0x00, 0x00, 0x00,
+		0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+	}
+	if err := os.WriteFile(filepath.Join(imgDir, "pic.png"), png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gen := NewGenerator(WithRootDir(root), WithTitle("Img Doc"))
+	// The image path is root-relative so it resolves against --root.
+	md := "# Chapter\n\nHere is a picture:\n\n![alt](/images/pic.png)\n\nAnd prose with $5 and #tag.\n"
+	out := filepath.Join(t.TempDir(), "out.pdf")
+	if err := gen.Generate(md, out); err != nil {
+		t.Fatalf("Generate with image failed: %v", err)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Fatalf("expected PDF at %s: %v", out, err)
 	}
 }
 
