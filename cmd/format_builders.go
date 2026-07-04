@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -221,6 +222,9 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 		IncludeCover:   ctx.Config.Output.Cover,
 		CoverImagePath: coverImagePath,
 	})
+	// Use the book root as the image-containment base so chapters can reference
+	// shared assets above their own directory (e.g. ../images/pic.png).
+	epubGen.SetBookRoot(ctx.Config.BaseDir())
 	epubGen.SetCSS(ctx.Theme.ToCSS() + "\n" + ctx.CustomCSS)
 	for i, ch := range ctx.ChaptersHTML {
 		sourceDir := ""
@@ -255,6 +259,14 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 	outputPath := baseName + "-typst.pdf"
 	ctx.Logger.Info("Generating PDF via Typst", slog.String("output", outputPath))
 
+	// Determine the Typst project root: the book source directory, made
+	// absolute. Image paths are rewritten to be root-relative against this
+	// directory so that "typst compile --root <root>" can resolve them.
+	typstRoot, err := filepath.Abs(ctx.Config.BaseDir())
+	if err != nil {
+		return fmt.Errorf("failed to resolve book root directory: %w", err)
+	}
+
 	// Extract text from chapters
 	var markdownContent strings.Builder
 
@@ -275,6 +287,14 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		if i < len(ctx.ChapterMarkdown) {
 			md = ctx.ChapterMarkdown[i]
 		}
+		// Rewrite chapter-relative image paths to root-relative paths that
+		// resolve under typstRoot, skipping images that do not exist.
+		chapterDir := ""
+		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {
+			chapterDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
+		}
+		md = rewriteTypstImagePaths(md, chapterDir, typstRoot, ctx.Logger)
+
 		mdTrimmed := strings.TrimSpace(md)
 		startsWithH1orH2 := (strings.HasPrefix(mdTrimmed, "# ") || strings.HasPrefix(mdTrimmed, "#\t") ||
 			strings.HasPrefix(mdTrimmed, "## ") || strings.HasPrefix(mdTrimmed, "##\t"))
@@ -306,6 +326,7 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		typst.WithFontFamily(ctx.Config.Style.FontFamily),
 		typst.WithFontSize(ctx.Config.Style.FontSize),
 		typst.WithLineHeight(ctx.Config.Style.LineHeight),
+		typst.WithRootDir(typstRoot),
 		typst.WithMargins(
 			typst.ConvertMarginToTypst(ctx.Config.Output.MarginLeft, "20mm"),
 			typst.ConvertMarginToTypst(ctx.Config.Output.MarginRight, "20mm"),
@@ -320,4 +341,80 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 
 	ctx.Logger.Info("Output ready", slog.String("format", "Typst PDF"), slog.String("path", outputPath))
 	return nil
+}
+
+// typstImagePattern matches Markdown image syntax ![alt](path).
+var typstImagePattern = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+
+// rewriteTypstImagePaths rewrites chapter-relative Markdown image paths so they
+// resolve when the document is compiled with "typst compile --root <root>".
+//
+// For each local image reference it:
+//   - resolves the path relative to chapterDir,
+//   - verifies the file exists (missing images are replaced with their alt text
+//     so a single broken image does not abort the whole PDF build), and
+//   - rewrites the path to be root-relative ("/sub/dir/img.png") against root,
+//     which Typst resolves against the --root directory.
+//
+// Remote references (http://, https://, data:) and images that already resolve
+// outside the root are left unchanged.
+func rewriteTypstImagePaths(md, chapterDir, root string, logger *slog.Logger) string {
+	if md == "" {
+		return md
+	}
+	return typstImagePattern.ReplaceAllStringFunc(md, func(match string) string {
+		m := typstImagePattern.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		alt, src := m[1], strings.TrimSpace(m[2])
+
+		// Leave remote/data URIs untouched.
+		lower := strings.ToLower(src)
+		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") ||
+			strings.HasPrefix(lower, "data:") {
+			return match
+		}
+
+		// Resolve the image to an absolute path.
+		absImg := src
+		if !filepath.IsAbs(absImg) {
+			base := chapterDir
+			if base == "" {
+				base = root
+			}
+			absImg = filepath.Join(base, src)
+		}
+
+		// Warn and drop images that do not exist, replacing them with their
+		// alt text so the build does not abort.
+		if info, err := os.Stat(absImg); err != nil || info.IsDir() {
+			if logger != nil {
+				logger.Warn("Typst: skipping missing image",
+					slog.String("path", src), slog.String("resolved", absImg))
+			}
+			return imageFallbackText(alt)
+		}
+
+		// Compute a path relative to the Typst root. If the image lives
+		// outside the root, Typst cannot reference it, so drop it too.
+		rel, err := filepath.Rel(root, absImg)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			if logger != nil {
+				logger.Warn("Typst: image outside project root, skipping",
+					slog.String("path", src), slog.String("resolved", absImg))
+			}
+			return imageFallbackText(alt)
+		}
+
+		// Root-relative path with forward slashes (Typst path separator).
+		rootRel := "/" + filepath.ToSlash(rel)
+		return "![" + alt + "](" + rootRel + ")"
+	})
+}
+
+// imageFallbackText returns replacement text for an image that cannot be
+// rendered: its alt text if present, otherwise an empty string.
+func imageFallbackText(alt string) string {
+	return strings.TrimSpace(alt)
 }

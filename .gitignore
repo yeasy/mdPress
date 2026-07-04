@@ -7,7 +7,6 @@
 *.dll
 *.so
 *.dylib
-docker_practice.html
 
 # Tests
 *.test
@@ -30,8 +29,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Generated PDFs
+# Generated PDFs and e-books
 *.pdf
+*.epub
+*.mobi
 
 # Temporary files
 *.tmp
@@ -54,32 +55,20 @@ _book/
 .playwright-cli/
 
 # Internal documents (not part of the release)
-/report.md
-/bugs-found.md
-/PLANTUML_IMPLEMENTATION.md
 /internal/plantuml/QUICK_START.md
 /internal/plantuml/README.md
 
-# Generated analysis and log files
-/check.log
-/TEST_COVERAGE_ANALYSIS.md
-/AUDIT_SUMMARY.txt
-/HTML_UX_AUDIT_REPORT.md
-/IMPROVEMENT_CHECKLIST.md
-/README_AUDIT.md
-/SECURITY_AND_TEST_REVIEW.md
-/TESTING_GUIDE.md
-/CODE_ANALYSIS_INDEX.md
-/CODE_QUALITY_SUMMARY.txt
-/CODE_QUALITY_ANALYSIS.md
-/DETAILED_FINDINGS.md
-/ANALYSIS_COMPLETE.txt
+# One-off scratch files (analysis notes, logs, probes, etc.)
+/scratch/
 
 # Additional temporary directories
 /tmp_pdf_probe/
 
 # Agent workspace (not part of the project)
 .agent/
+
+# Claude Code local settings (per-developer, not shared)
+.claude/settings.local.json
 
 # Secrets and credentials
 .env

@@ -1,6 +1,7 @@
 package source
 
 import (
+	"encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -534,6 +535,78 @@ func TestGitHubSourceSubDirValidation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestGitHubAuthEnv verifies githubAuthEnv builds the correct git config
+// environment variables and never embeds the raw token in argv-style values.
+func TestGitHubAuthEnv(t *testing.T) {
+	// Unset token yields no env (plain public clone is unaffected).
+	if env := githubAuthEnv(""); env != nil {
+		t.Errorf("githubAuthEnv(\"\") = %v, want nil", env)
+	}
+
+	const token = "supersecrettoken123"
+	env := githubAuthEnv(token)
+	if len(env) != 3 {
+		t.Fatalf("githubAuthEnv returned %d entries, want 3: %v", len(env), env)
+	}
+
+	joined := strings.Join(env, "\n")
+	// The raw token must never appear verbatim in the env values.
+	if strings.Contains(joined, token) {
+		t.Errorf("githubAuthEnv leaked the raw token: %v", env)
+	}
+
+	// The header must carry the base64 of "x-access-token:<token>".
+	wantBasic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	wantValue := "GIT_CONFIG_VALUE_0=Authorization: Basic " + wantBasic
+	found := map[string]bool{
+		"GIT_CONFIG_COUNT=1": false,
+		"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader": false,
+		wantValue: false,
+	}
+	for _, e := range env {
+		if _, ok := found[e]; ok {
+			found[e] = true
+		}
+	}
+	for k, ok := range found {
+		if !ok {
+			t.Errorf("githubAuthEnv missing expected entry %q; got %v", k, env)
+		}
+	}
+}
+
+// TestGitHubCloneURLHasNoToken verifies the clone URL and argv built by
+// Prepare never embed the token, so it cannot leak via the process table or
+// the persisted .git/config remote URL. It runs Prepare against a
+// non-existent repo (the clone fails fast) with a token set and asserts the
+// token never appears in the returned error, which includes the clone URL.
+func TestGitHubCloneURLHasNoToken(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed, skipping clone URL test")
+	}
+
+	const token = "tok-should-not-leak-abc123"
+	t.Setenv("GITHUB_TOKEN", token)
+
+	src := NewGitHubSource("nonexistent-test-owner", "nonexistent-test-repo", Options{
+		CloneTimeout: 30 * time.Second,
+	})
+	_, err := src.Prepare()
+	if err == nil {
+		src.Cleanup() //nolint:errcheck
+		t.Skip("clone unexpectedly succeeded")
+	}
+	// The error message embeds the clone URL; the token must not be in it.
+	if strings.Contains(err.Error(), token) {
+		t.Errorf("token leaked into clone error/URL: %v", err)
+	}
+	// tempDir is cleaned up on failure.
+	if src.tempDir != "" {
+		os.RemoveAll(src.tempDir)
+		t.Errorf("tempDir should be empty after clone failure, got %q", src.tempDir)
 	}
 }
 

@@ -947,3 +947,232 @@ func BenchmarkGenerateSimpleEpub(b *testing.B) {
 		}
 	}
 }
+
+// readEpubFileNames returns the list of file entry names inside an EPUB zip.
+func readEpubFileNames(t *testing.T, path string) []string {
+	t.Helper()
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close()
+	names := make([]string, 0, len(r.File))
+	for _, f := range r.File {
+		names = append(names, f.Name)
+	}
+	return names
+}
+
+// readEpubFile returns the content of a named entry inside an EPUB zip.
+func readEpubFile(t *testing.T, path, name string) string {
+	t.Helper()
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		if f.Name != name {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open entry %s: %v", name, err)
+		}
+		defer rc.Close()
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("read entry %s: %v", name, err)
+		}
+		return string(data)
+	}
+	t.Fatalf("entry %s not found in epub", name)
+	return ""
+}
+
+// TestEpubPackagesSharedImageAboveChapterDir verifies that an image referenced
+// above the chapter's own directory (e.g. a shared ../images/pic.png from a
+// chapter in docs/) is packaged rather than silently dropped. This exercises
+// the book-root containment logic.
+func TestEpubPackagesSharedImageAboveChapterDir(t *testing.T) {
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	imagesDir := filepath.Join(root, "images")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(imagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Minimal valid 1x1 PNG.
+	png := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+		0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+		0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+		0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+		0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+		0x42, 0x60, 0x82,
+	}
+	imgPath := filepath.Join(imagesDir, "pic.png")
+	if err := os.WriteFile(imgPath, png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gen := NewEpubGenerator(EpubMeta{Title: "T", Author: "A", Language: "en"})
+	gen.SetBookRoot(root)
+	gen.AddChapter(EpubChapter{
+		Title:     "Ch1",
+		ID:        "ch1",
+		Filename:  "ch1.xhtml",
+		HTML:      `<p><img src="../images/pic.png" alt="pic"></p>`,
+		SourceDir: docsDir,
+	})
+
+	out := filepath.Join(t.TempDir(), "book.epub")
+	if err := gen.Generate(out); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	names := readEpubFileNames(t, out)
+	var hasAsset bool
+	for _, n := range names {
+		if strings.HasPrefix(n, "OEBPS/assets/") {
+			hasAsset = true
+		}
+	}
+	if !hasAsset {
+		t.Fatalf("expected shared image to be packaged, got entries: %v", names)
+	}
+
+	chapter := readEpubFile(t, out, "OEBPS/ch1.xhtml")
+	if strings.Contains(chapter, "../images/pic.png") {
+		t.Errorf("chapter XHTML still references original ../images src: %s", chapter)
+	}
+}
+
+// TestEpubCommonAncestorPackagesSharedImage verifies the fallback containment
+// base (common ancestor of chapter source dirs) also packages shared images
+// even without an explicit book root.
+func TestEpubCommonAncestorPackagesSharedImage(t *testing.T) {
+	root := t.TempDir()
+	docsDir := filepath.Join(root, "docs")
+	imagesDir := filepath.Join(root, "images")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(imagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	png := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+		0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+		0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+		0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+		0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+		0x42, 0x60, 0x82,
+	}
+	if err := os.WriteFile(filepath.Join(imagesDir, "pic.png"), png, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gen := NewEpubGenerator(EpubMeta{Title: "T", Author: "A", Language: "en"})
+	// No SetBookRoot; two chapters both under docs/ so the common ancestor is
+	// docs/, which does NOT contain ../images. Add a second chapter one level
+	// up so the common ancestor becomes root and ../images is contained.
+	gen.AddChapter(EpubChapter{
+		Title:     "Ch1",
+		ID:        "ch1",
+		Filename:  "ch1.xhtml",
+		HTML:      `<p><img src="../images/pic.png" alt="pic"></p>`,
+		SourceDir: docsDir,
+	})
+	gen.AddChapter(EpubChapter{
+		Title:     "Ch2",
+		ID:        "ch2",
+		Filename:  "ch2.xhtml",
+		HTML:      `<p>no image</p>`,
+		SourceDir: root,
+	})
+
+	out := filepath.Join(t.TempDir(), "book.epub")
+	if err := gen.Generate(out); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	chapter := readEpubFile(t, out, "OEBPS/ch1.xhtml")
+	if strings.Contains(chapter, "../images/pic.png") {
+		t.Errorf("expected shared image packaged via common ancestor, chapter still has original src: %s", chapter)
+	}
+}
+
+// TestEpubMalformedDataURIDoesNotFailBuild verifies that an unsupported /
+// malformed data URI no longer aborts the whole EPUB build. The original src is
+// preserved and generation succeeds.
+func TestEpubMalformedDataURIDoesNotFailBuild(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "T", Author: "A", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title:    "Ch1",
+		ID:       "ch1",
+		Filename: "ch1.xhtml",
+		HTML:     `<p><img src="data:image/png;notbase64!!!" alt="broken"></p>`,
+	})
+	out := filepath.Join(t.TempDir(), "book.epub")
+	if err := gen.Generate(out); err != nil {
+		t.Fatalf("malformed data URI should not fail build, got: %v", err)
+	}
+	chapter := readEpubFile(t, out, "OEBPS/ch1.xhtml")
+	if !strings.Contains(chapter, "data:image/png;notbase64") {
+		t.Errorf("expected original malformed data URI src preserved, got: %s", chapter)
+	}
+}
+
+// TestEpubNonBase64SVGDataURIPackaged verifies that a non-base64 (utf8 or
+// URL-encoded) SVG data URI is decoded and packaged as an asset.
+func TestEpubNonBase64SVGDataURIPackaged(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "T", Author: "A", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title:    "Ch1",
+		ID:       "ch1",
+		Filename: "ch1.xhtml",
+		HTML:     `<p><img src="data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E" alt="svg"></p>`,
+	})
+	out := filepath.Join(t.TempDir(), "book.epub")
+	if err := gen.Generate(out); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	names := readEpubFileNames(t, out)
+	var found bool
+	for _, n := range names {
+		if strings.HasPrefix(n, "OEBPS/assets/img-") && strings.HasSuffix(n, ".svg") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected non-base64 SVG data URI packaged as .svg asset, entries: %v", names)
+	}
+}
+
+// TestBuildNonBase64DataURIImageAsset unit-tests the non-base64 decoder.
+func TestBuildNonBase64DataURIImageAsset(t *testing.T) {
+	// URL-encoded payload.
+	asset, ok := buildNonBase64DataURIImageAsset(`data:image/svg+xml,%3Csvg%2F%3E`, 1)
+	if !ok || asset == nil {
+		t.Fatalf("expected asset for url-encoded svg, ok=%v asset=%v", ok, asset)
+	}
+	if string(asset.Data) != "<svg/>" {
+		t.Errorf("expected decoded <svg/>, got %q", string(asset.Data))
+	}
+	if asset.MediaType != "image/svg+xml" {
+		t.Errorf("unexpected media type %q", asset.MediaType)
+	}
+
+	// A base64 data URI is not a non-base64 form.
+	if _, ok := buildNonBase64DataURIImageAsset(`data:image/png;base64,AAAA`, 2); ok {
+		t.Errorf("base64 data URI should not be handled as non-base64")
+	}
+}

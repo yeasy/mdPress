@@ -30,6 +30,7 @@ type Generator struct {
 	title        string
 	version      string
 	date         string
+	rootDir      string
 }
 
 // GeneratorOption customizes a Typst generator.
@@ -119,6 +120,14 @@ func WithVersion(version string) GeneratorOption {
 	return func(g *Generator) { g.version = version }
 }
 
+// WithRootDir sets the Typst project root directory. When set, the generator
+// writes the .typ file inside this directory and runs "typst compile --root
+// <dir>" so that root-relative image paths (e.g. "/images/x.png") resolve
+// against the book source tree rather than the OS temp directory.
+func WithRootDir(dir string) GeneratorOption {
+	return func(g *Generator) { g.rootDir = dir }
+}
+
 // Generate converts Markdown content to a PDF file via Typst.
 func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	if outputPath == "" {
@@ -165,8 +174,15 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 		return fmt.Errorf("failed to render Typst document: %w", err)
 	}
 
-	// Write to a temporary .typ file
+	// Write to a temporary .typ file. When a project root is configured, the
+	// file must live inside that root so that "typst compile --root <root>"
+	// can resolve root-relative image paths (e.g. "/images/x.png"); typst
+	// forbids referencing files outside the compilation root. Otherwise fall
+	// back to the OS temp directory.
 	tmpDir := os.TempDir()
+	if g.rootDir != "" {
+		tmpDir = g.rootDir
+	}
 	f, err := os.CreateTemp(tmpDir, "mdpress-*.typ")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary Typst file: %w", err)
@@ -214,10 +230,21 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 		return fmt.Errorf("failed to resolve output file path: %w", err)
 	}
 
-	// Run: typst compile <input.typ> <output.pdf>
+	// Run: typst compile [--root <root>] <input.typ> <output.pdf>
+	// The --root flag lets root-relative image paths ("/images/x.png") in the
+	// document resolve against the book source tree.
 	ctx, cancel := context.WithTimeout(context.Background(), g.timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "typst", "compile", absTypPath, absOutputPath)
+	args := []string{"compile"}
+	if g.rootDir != "" {
+		if absRoot, rerr := filepath.Abs(g.rootDir); rerr == nil {
+			args = append(args, "--root", absRoot)
+		} else {
+			args = append(args, "--root", g.rootDir)
+		}
+	}
+	args = append(args, absTypPath, absOutputPath)
+	cmd := exec.CommandContext(ctx, "typst", args...)
 
 	// Limit captured output to prevent OOM from malicious/buggy Typst documents.
 	var stdout, stderr bytes.Buffer

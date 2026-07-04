@@ -4,6 +4,7 @@ package source
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -70,19 +71,24 @@ func (s *GitHubSource) Prepare() (string, error) {
 	}
 
 	// Build the clone URL.
-	// When GITHUB_TOKEN is set, embed it in the URL for authenticated access
-	// to private repositories. The token is never logged.
+	// The token is NEVER embedded in the URL. Embedding it there would leak
+	// it via the process table (ps / /proc/<pid>/cmdline) for the clone
+	// duration and would persist it into <tempDir>/.git/config as
+	// remote.origin.url. Instead we always clone the plain https URL and, when
+	// GITHUB_TOKEN is set, inject credentials through an http.extraheader via
+	// git config environment variables (the approach actions/checkout uses).
+	// The token is never logged.
 	token := os.Getenv("GITHUB_TOKEN")
 	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", s.owner, s.repo)
 	logURL := cloneURL // safe URL for logging (no token)
 	if token != "" {
-		cloneURL = fmt.Sprintf("https://x-access-token:%s@github.com/%s/%s.git", token, s.owner, s.repo)
 		slog.Info("Cloning GitHub repository (authenticated)", slog.String("url", logURL))
 	} else {
 		slog.Info("Cloning GitHub repository", slog.String("url", logURL))
 	}
 
-	// Build the git clone command.
+	// Build the git clone command. cloneURL is the plain https URL, so the
+	// token never appears in argv and never gets written into .git/config.
 	args := []string{"clone", "--depth", "1"}
 	if s.opts.Branch != "" {
 		// Validate the branch name to avoid command injection.
@@ -104,7 +110,11 @@ func (s *GitHubSource) Prepare() (string, error) {
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.WaitDelay = 5 * time.Second
+	// Inject auth via git config env vars so the token stays out of argv and
+	// out of the persisted .git/config. GIT_TERMINAL_PROMPT=0 disables any
+	// interactive credential prompt.
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(cmd.Env, githubAuthEnv(token)...)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	const maxGitOutput = 10 * 1024 * 1024 // 10 MB
 	cmd.Stdout = &utils.LimitedWriter{W: &stdoutBuf, N: maxGitOutput}
@@ -220,6 +230,25 @@ func (s *GitHubSource) Type() string {
 // RepoName returns the full repository name.
 func (s *GitHubSource) RepoName() string {
 	return s.owner + "/" + s.repo
+}
+
+// githubAuthEnv returns the git config environment variables that inject an
+// HTTP Authorization header for github.com when token is non-empty. This keeps
+// the token out of argv and out of the cloned repo's .git/config, unlike
+// embedding it in the remote URL. It mirrors the mechanism used by
+// actions/checkout: an http.<base>.extraheader carrying a Basic credential of
+// "x-access-token:<token>". When token is empty, it returns nil so a plain
+// public clone is unaffected.
+func githubAuthEnv(token string) []string {
+	if token == "" {
+		return nil
+	}
+	basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+	return []string{
+		"GIT_CONFIG_COUNT=1",
+		"GIT_CONFIG_KEY_0=http.https://github.com/.extraheader",
+		"GIT_CONFIG_VALUE_0=Authorization: Basic " + basic,
+	}
 }
 
 // redactToken replaces all occurrences of token in s with "[REDACTED]".

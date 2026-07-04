@@ -62,6 +62,7 @@ Examples:
   mdpress build https://github.com/yeasy/agentic_ai_guide
   mdpress build github.com/yeasy/agentic_ai_guide --branch main
   mdpress build https://github.com/yeasy/agentic_ai_guide --subdir docs/
+  mdpress build https://github.com/yeasy/agentic_ai_guide --allow-plugins
   mdpress build --verbose`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var inputSource string
@@ -73,11 +74,12 @@ Examples:
 }
 
 func init() {
-	buildCmd.Flags().StringVar(&buildFormat, "format", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
+	buildCmd.Flags().StringVarP(&buildFormat, "format", "f", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
-	buildCmd.Flags().StringVar(&buildOutput, "output", "", "Output file path, directory, or filename prefix")
+	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or filename prefix")
 	buildCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
+	buildCmd.Flags().BoolVar(&allowPlugins, "allow-plugins", false, "Execute plugins declared by a remote project's book.yaml (arbitrary code; local sources always run plugins)")
 }
 
 // executeBuild runs the full build flow.
@@ -100,6 +102,9 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		if err != nil {
 			return fmt.Errorf("failed to parse input source: %w", err)
 		}
+		// Record whether the resolved source is remote so the orchestrator can
+		// gate plugin execution from untrusted remote projects.
+		buildSourceIsRemote = src.Type() != "local"
 		defer func() {
 			if err := src.Cleanup(); err != nil {
 				logger.Debug("Failed to clean up source", slog.Any("error", err))
@@ -114,7 +119,8 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 		logger.Info("source directory is ready", slog.String("dir", workDir))
 	} else {
-		// Default to the current directory.
+		// Default to the current directory (always a local source).
+		buildSourceIsRemote = false
 		workDir = "."
 		if buildSubDir != "" {
 			workDir = buildSubDir

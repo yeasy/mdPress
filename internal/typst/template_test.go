@@ -314,11 +314,18 @@ func TestMakeTypstFont_Extended(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"", `"Segoe UI", "Helvetica", sans-serif`},
-		{"Arial", "Arial"},
-		{"Helvetica, sans-serif", "Helvetica, sans-serif"},
-		{`"Noto Sans", sans-serif`, `"Noto Sans", sans-serif`},
-		{"custom-font", "custom-font"},
+		// Empty stack falls back to a sane default Typst font array.
+		{"", typstDefaultFonts},
+		// A single concrete name is quoted.
+		{"Arial", `"Arial"`},
+		// Generic families (sans-serif) are dropped; concrete names kept.
+		{"Helvetica, sans-serif", `"Helvetica"`},
+		// CSS single/double quotes are normalized to Typst double quotes.
+		{`"Noto Sans", sans-serif`, `"Noto Sans"`},
+		{`'PingFang SC', sans-serif`, `"PingFang SC"`},
+		{"custom-font", `"custom-font"`},
+		// A stack of only generic keywords yields the default.
+		{"-apple-system, BlinkMacSystemFont, system-ui", typstDefaultFonts},
 	}
 
 	for _, tt := range tests {
@@ -328,6 +335,31 @@ func TestMakeTypstFont_Extended(t *testing.T) {
 				t.Errorf("makeTypstFont(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
+	}
+}
+
+// TestMakeTypstFontDefaultStack verifies the real default CSS font stack from
+// the config converts into a valid Typst font array containing concrete names
+// and no generic CSS keywords.
+func TestMakeTypstFontDefaultStack(t *testing.T) {
+	const defaultStack = "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+	got := makeTypstFont(defaultStack)
+
+	// Concrete names must be present and double-quoted.
+	for _, want := range []string{`"PingFang SC"`, `"Segoe UI"`, `"Arial"`, `"Noto Sans SC"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in %q", want, got)
+		}
+	}
+	// Generic families / system keywords must be dropped.
+	for _, unwanted := range []string{"sans-serif", "apple-system", "BlinkMacSystemFont"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("did not expect %q in %q", unwanted, got)
+		}
+	}
+	// Single quotes from the CSS stack must not survive.
+	if strings.Contains(got, "'") {
+		t.Errorf("single quotes should be normalized away, got %q", got)
 	}
 }
 

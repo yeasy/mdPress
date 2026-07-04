@@ -49,6 +49,12 @@ type EpubGenerator struct {
 	meta     EpubMeta
 	chapters []EpubChapter
 	css      string
+	// bookRoot is the containment base used when resolving relative image
+	// paths. Images resolving inside this directory are packaged, even when
+	// they live above an individual chapter's directory (e.g. a shared
+	// ../images referenced from chapters in docs/). When empty, the common
+	// ancestor of all chapter source directories is used instead.
+	bookRoot string
 }
 
 type epubAsset struct {
@@ -73,6 +79,15 @@ func NewEpubGenerator(meta EpubMeta) *EpubGenerator {
 // SetCSS sets the global CSS.
 func (g *EpubGenerator) SetCSS(css string) {
 	g.css = css
+}
+
+// SetBookRoot sets the containment base directory used to resolve relative
+// image paths. Relative images (including those above a chapter's own
+// directory, such as a shared ../images) are packaged as long as they resolve
+// inside this root. When unset, the common ancestor of all chapter source
+// directories is used as the containment base.
+func (g *EpubGenerator) SetBookRoot(root string) {
+	g.bookRoot = root
 }
 
 // AddChapter appends a chapter.
@@ -625,8 +640,14 @@ func (g *EpubGenerator) collectChapterAssets() ([]EpubChapter, []*epubAsset, err
 		cache: make(map[string]*epubAsset),
 	}
 
+	// Determine the containment base: the configured book root when available,
+	// otherwise the common ancestor of all chapter source directories. This
+	// lets shared images referenced above a chapter's own directory (e.g.
+	// ../images from chapters in docs/) resolve inside the book and be packaged.
+	containBase := g.containmentBase(chapters)
+
 	for i := range chapters {
-		updated, chapterAssets, err := collectImageAssetsFromHTML(chapters[i].HTML, chapters[i].SourceDir, remoteTempDir, collector)
+		updated, chapterAssets, err := collectImageAssetsFromHTML(chapters[i].HTML, chapters[i].SourceDir, containBase, remoteTempDir, collector)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to collect EPUB assets for chapter %q: %w", chapters[i].Title, err)
 		}
@@ -637,7 +658,65 @@ func (g *EpubGenerator) collectChapterAssets() ([]EpubChapter, []*epubAsset, err
 	return chapters, assets, nil
 }
 
-func collectImageAssetsFromHTML(html string, sourceDir string, remoteTempDir string, collector *epubAssetCollector) (string, []*epubAsset, error) {
+// containmentBase returns the directory that resolved relative image paths must
+// stay within. It prefers the explicitly configured book root; otherwise it
+// falls back to the common ancestor directory of all chapter source dirs.
+func (g *EpubGenerator) containmentBase(chapters []EpubChapter) string {
+	if strings.TrimSpace(g.bookRoot) != "" {
+		if abs, err := filepath.Abs(g.bookRoot); err == nil {
+			return abs
+		}
+		return g.bookRoot
+	}
+	return commonAncestorDir(chapters)
+}
+
+// commonAncestorDir computes the deepest directory that is an ancestor of (or
+// equal to) every non-empty chapter source directory. It returns "" when there
+// are no usable source directories, in which case containment falls back to
+// each chapter's own source directory.
+func commonAncestorDir(chapters []EpubChapter) string {
+	var common string
+	for _, ch := range chapters {
+		dir := strings.TrimSpace(ch.SourceDir)
+		if dir == "" {
+			continue
+		}
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if common == "" {
+			common = abs
+			continue
+		}
+		common = commonPrefixDir(common, abs)
+	}
+	return common
+}
+
+// commonPrefixDir returns the longest shared ancestor directory of two absolute
+// paths.
+func commonPrefixDir(a, b string) string {
+	aParts := strings.Split(a, string(filepath.Separator))
+	bParts := strings.Split(b, string(filepath.Separator))
+	n := len(aParts)
+	if len(bParts) < n {
+		n = len(bParts)
+	}
+	i := 0
+	for i < n && aParts[i] == bParts[i] {
+		i++
+	}
+	prefix := strings.Join(aParts[:i], string(filepath.Separator))
+	if prefix == "" {
+		// Preserve the leading separator for absolute POSIX paths.
+		return string(filepath.Separator)
+	}
+	return prefix
+}
+
+func collectImageAssetsFromHTML(html string, sourceDir string, containBase string, remoteTempDir string, collector *epubAssetCollector) (string, []*epubAsset, error) {
 	var collectErr error
 	assets := make([]*epubAsset, 0)
 
@@ -655,7 +734,7 @@ func collectImageAssetsFromHTML(html string, sourceDir string, remoteTempDir str
 		prefix := matches[1]
 		suffix := matches[3]
 
-		asset, created, err := collector.assetForSource(src, sourceDir, remoteTempDir)
+		asset, created, err := collector.assetForSource(src, sourceDir, containBase, remoteTempDir)
 		if err != nil {
 			collectErr = err
 			return match
@@ -676,8 +755,8 @@ func collectImageAssetsFromHTML(html string, sourceDir string, remoteTempDir str
 	return updated, assets, nil
 }
 
-func (c *epubAssetCollector) assetForSource(src string, sourceDir string, remoteTempDir string) (*epubAsset, bool, error) {
-	key, asset, err := buildImageAssetFromSource(src, sourceDir, remoteTempDir, c.nextIndex)
+func (c *epubAssetCollector) assetForSource(src string, sourceDir string, containBase string, remoteTempDir string) (*epubAsset, bool, error) {
+	key, asset, err := buildImageAssetFromSource(src, sourceDir, containBase, remoteTempDir, c.nextIndex)
 	if err != nil || asset == nil {
 		return asset, false, err
 	}
@@ -689,7 +768,7 @@ func (c *epubAssetCollector) assetForSource(src string, sourceDir string, remote
 	return asset, true, nil
 }
 
-func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir string, index int) (string, *epubAsset, error) {
+func buildImageAssetFromSource(src string, sourceDir string, containBase string, remoteTempDir string, index int) (string, *epubAsset, error) {
 	if strings.HasPrefix(src, "data:") {
 		asset, err := buildDataURIImageAsset(src, index)
 		return "data:" + src, asset, err
@@ -700,15 +779,27 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 	}
 	if filepath.IsAbs(src) {
 		// Reject absolute paths to prevent reading arbitrary files.
+		slog.Warn("Skipping EPUB image with absolute path; keeping original src", slog.String("src", src))
 		return "", nil, nil
 	}
 	if sourceDir != "" && src != "" && !strings.HasPrefix(src, "#") {
+		// Resolve the image relative to the chapter's own directory, but use
+		// the book root (containBase) as the containment boundary so that a
+		// shared image referenced above the chapter directory (e.g.
+		// ../images/pic.png from a chapter in docs/) is still packaged.
 		resolved := filepath.Clean(filepath.Join(sourceDir, filepath.FromSlash(src)))
-		// Ensure the resolved path stays within the source directory.
+		// Fall back to the chapter directory when no wider containment base is
+		// available (preserves the previous, stricter behavior).
+		base := containBase
+		if strings.TrimSpace(base) == "" {
+			base = sourceDir
+		}
+		// Ensure the resolved path stays within the containment base.
 		// Use EvalSymlinks to prevent symlink-based containment bypass.
-		absBase, err1 := filepath.Abs(sourceDir)
+		absBase, err1 := filepath.Abs(base)
 		absResolved, err2 := filepath.Abs(resolved)
 		if err1 != nil || err2 != nil {
+			slog.Warn("Skipping EPUB image; cannot resolve path", slog.String("src", src))
 			return "", nil, nil
 		}
 		// Resolve symlinks to prevent containment bypass. Only apply when
@@ -720,22 +811,43 @@ func buildImageAssetFromSource(src string, sourceDir string, remoteTempDir strin
 			}
 		}
 		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
+			slog.Warn("Skipping EPUB image outside book root; keeping original src",
+				slog.String("src", src), slog.String("resolved", absResolved), slog.String("root", absBase))
 			return "", nil, nil
 		}
 		asset, err := buildFileImageAsset(resolved, index)
-		return "file:" + resolved, asset, err
+		if err != nil {
+			// Missing/unreadable file: warn and keep the original src rather
+			// than failing the whole build.
+			slog.Warn("Skipping EPUB image that could not be read; keeping original src",
+				slog.String("src", src), slog.Any("error", err))
+			return "file:" + resolved, nil, nil
+		}
+		return "file:" + resolved, asset, nil
 	}
 	return "", nil, nil
 }
 
+// dataURINonBase64Pattern matches non-base64 data URIs of the form
+// data:<mediatype>,<data> where <data> is either plain (e.g. utf8) or
+// URL/percent-encoded text (common for inline SVG). The payload is decoded
+// via url.PathUnescape below.
+var dataURINonBase64Pattern = regexp.MustCompile(`^data:([^;,]+)(;[^,]*)?,(.*)$`)
+
 func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 	matches := dataURIImagePattern.FindStringSubmatch(src)
 	if len(matches) != 3 {
-		preview := src
-		if len(preview) > 80 {
-			preview = preview[:80] + "..."
+		// Not a base64 data URI. Try to salvage non-base64 variants (e.g.
+		// data:image/svg+xml;utf8,<svg...> or URL-encoded SVG payloads) so a
+		// single unusual inline image never aborts the whole EPUB build.
+		if asset, ok := buildNonBase64DataURIImageAsset(src, index); ok {
+			return asset, nil
 		}
-		return nil, fmt.Errorf("unsupported data URI image format: %s", preview)
+		// Genuinely unsupported: log a warning and keep the original src by
+		// returning (nil, nil) so the build degrades gracefully instead of
+		// failing the entire .epub.
+		slog.Warn("Skipping unsupported data URI image; keeping original src", slog.String("preview", dataURIPreview(src)))
+		return nil, nil
 	}
 
 	mediaType := strings.TrimSpace(matches[1])
@@ -762,6 +874,63 @@ func buildDataURIImageAsset(src string, index int) (*epubAsset, error) {
 		MediaType: mediaType,
 		Data:      data,
 	}, nil
+}
+
+// dataURIPreview returns a short, log-safe preview of a data URI.
+func dataURIPreview(src string) string {
+	preview := src
+	if len(preview) > 80 {
+		preview = preview[:80] + "..."
+	}
+	return preview
+}
+
+// buildNonBase64DataURIImageAsset handles non-base64 data URIs whose payload is
+// stored inline as plain or URL/percent-encoded text (commonly used for inline
+// SVG, e.g. data:image/svg+xml;utf8,<svg...> or data:image/svg+xml,%3Csvg...).
+// It returns (asset, true) when the URI is a recognized non-base64 form, or
+// (nil, false) when it is not so the caller can decide how to degrade.
+func buildNonBase64DataURIImageAsset(src string, index int) (*epubAsset, bool) {
+	matches := dataURINonBase64Pattern.FindStringSubmatch(src)
+	if len(matches) != 4 {
+		return nil, false
+	}
+	// Defensively skip base64 URIs; those are handled by the base64 path.
+	if strings.Contains(strings.ToLower(matches[2]), "base64") {
+		return nil, false
+	}
+	mediaType := strings.TrimSpace(matches[1])
+	payload := matches[3]
+
+	// Reject oversized payloads before decoding.
+	if len(payload) > int(utils.MaxImageSize) {
+		return nil, false
+	}
+
+	// Payloads may be percent-encoded (e.g. %3Csvg%3E). PathUnescape decodes
+	// those; if there is nothing to decode it returns the input unchanged.
+	decoded, err := url.PathUnescape(payload)
+	if err != nil {
+		// Fall back to the raw payload when unescaping fails (e.g. a stray %).
+		decoded = payload
+	}
+
+	data := []byte(decoded)
+	if int64(len(data)) > utils.MaxImageSize {
+		return nil, false
+	}
+
+	ext := extensionForMediaType(mediaType)
+	if ext == "" {
+		ext = ".bin"
+	}
+
+	return &epubAsset{
+		ID:        fmt.Sprintf("asset-img-%03d", index),
+		Filename:  filepath.ToSlash(filepath.Join("assets", fmt.Sprintf("img-%03d%s", index, ext))),
+		MediaType: mediaType,
+		Data:      data,
+	}, true
 }
 
 func buildFileImageAsset(src string, index int) (*epubAsset, error) {

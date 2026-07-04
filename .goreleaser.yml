@@ -21,7 +21,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X github.com/yeasy/mdpress/cmd.Version={{ .Version }} -X github.com/yeasy/mdpress/cmd.BuildTime={{ .Date }}
+      - -s -w -X github.com/yeasy/mdpress/cmd.Version={{ .Version }} -X github.com/yeasy/mdpress/cmd.BuildTime={{ .Date }} -X github.com/yeasy/mdpress/cmd.Commit={{ .Commit }}
 
 archives:
   - id: binaries
@@ -35,6 +35,23 @@ archives:
           - zip
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+nfpms:
+  - id: packages
+    ids:
+      - mdpress
+    package_name: mdpress
+    formats:
+      - deb
+      - rpm
+      - apk
+    maintainer: "Baohua Yang <yeasy.github.com>"
+    homepage: "https://github.com/yeasy/mdpress"
+    description: "Markdown publishing CLI for book-style and documentation-style projects"
+    license: MIT
+
+source:
+  enabled: true
 
 checksum:
   name_template: checksums.txt
@@ -59,6 +76,9 @@ homebrew_casks:
     repository:
       owner: yeasy
       name: homebrew-tap
+      # Cross-repo push needs a PAT; the default GITHUB_TOKEN cannot push
+      # to another repository. Supplied via TAP_GITHUB_TOKEN in release.yml.
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     directory: Casks
     homepage: "https://github.com/yeasy/mdpress"
     description: "Markdown publishing CLI for book-style and documentation-style projects"

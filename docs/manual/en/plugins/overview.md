@@ -2,6 +2,21 @@
 
 mdPress plugins are external executables declared in `book.yaml`. They are not in-process Go plugins.
 
+> **Security: plugins are arbitrary code.** Because a plugin is any executable
+> named in `book.yaml`, mdPress runs it on your machine during **build** and
+> **serve** — including at plugin-probe time (`--mdpress-info` /
+> `--mdpress-hooks`). That means `mdpress build <github-url>`, or opening any
+> third-party project, can run arbitrary code from that project. Only
+> build or serve projects you trust.
+>
+> As a guard, remote sources (such as a GitHub URL) **refuse** to run a
+> project's plugins unless you opt in with `--allow-plugins` (added in
+> v0.7.12). Local sources always run their declared plugins.
+>
+> ```bash
+> mdpress build https://github.com/owner/repo --allow-plugins
+> ```
+
 ## Configure A Plugin
 
 ```yaml

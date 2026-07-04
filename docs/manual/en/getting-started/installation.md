@@ -1,6 +1,6 @@
 # Installation
 
-mdPress is a Go CLI. Install it with Go or build it from source.
+mdPress is a Go CLI. Install it with Homebrew, Docker, a pre-built binary, `go install`, or build it from source.
 
 ## Requirements
 
@@ -9,7 +9,38 @@ mdPress is a Go CLI. Install it with Go or build it from source.
 - Typst if you want to try `mdpress build --format typst`.
 - PlantUML and Java only if you use `plantuml` code blocks.
 
-## Install
+## Homebrew (macOS)
+
+```bash
+brew tap yeasy/tap
+brew install --cask mdpress
+```
+
+The cask clears the macOS quarantine flag automatically, so Gatekeeper will not block it.
+
+## Docker
+
+```bash
+# Minimal image (~15 MB, no PDF support)
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
+
+# Full image (~300 MB, with Chromium for PDF)
+docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
+```
+
+## Download Binary
+
+Download a pre-built binary for your platform from [GitHub Releases](https://github.com/yeasy/mdpress/releases).
+
+Supported platforms: macOS (amd64 / arm64), Linux (amd64 / arm64), Windows (amd64 / arm64).
+
+> **macOS Gatekeeper note:** binaries are not notarized yet. If you download the binary directly and macOS blocks it, clear the quarantine flag once:
+>
+> ```bash
+> xattr -d com.apple.quarantine ./mdpress
+> ```
+
+## Go Install
 
 ```bash
 go install github.com/yeasy/mdpress@latest
@@ -41,3 +72,13 @@ go build -o mdpress .
 mdpress --help
 mdpress doctor
 ```
+
+## Upgrade
+
+Update an existing install to the latest release in place:
+
+```bash
+mdpress upgrade
+```
+
+(Homebrew users can also run `brew upgrade --cask mdpress`.)

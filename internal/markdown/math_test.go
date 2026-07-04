@@ -67,6 +67,112 @@ func TestMathPreprocessorNoMath(t *testing.T) {
 	}
 }
 
+func TestMathPreprocessorSkipsCode(t *testing.T) {
+	tests := []struct {
+		name string
+		// wantMath is true if the input should produce math placeholders.
+		wantMath bool
+		input    string
+		// mustContain is a literal that must survive verbatim in the processed
+		// output (e.g. code that must not be turned into math).
+		mustContain []string
+		// mustNotContain must be absent from the processed output.
+		mustNotContain []string
+	}{
+		{
+			name:     "inline math outside code becomes placeholder",
+			wantMath: true,
+			input:    "The value $x_1^2$ matters.",
+		},
+		{
+			name:     "block math outside code becomes placeholder",
+			wantMath: true,
+			input:    "Before\n$$E = mc^2$$\nAfter\n",
+		},
+		{
+			name:           "dollar inside bash fenced block untouched",
+			wantMath:       false,
+			input:          "Run this:\n\n```bash\necho \"$HOME\" and \"$PATH\"\nkill $$\nwait $$\n```\n\nDone.\n",
+			mustContain:    []string{`echo "$HOME" and "$PATH"`, "kill $$", "wait $$"},
+			mustNotContain: []string{"MDPMATHINLINE", "MDPMATHBLOCK"},
+		},
+		{
+			name:           "dollar inside tilde fenced block untouched",
+			wantMath:       false,
+			input:          "~~~\nawk '{print $$1}'\n~~~\n",
+			mustContain:    []string{"awk '{print $$1}'"},
+			mustNotContain: []string{"MDPMATHINLINE", "MDPMATHBLOCK"},
+		},
+		{
+			name:           "dollar inside inline code span untouched",
+			wantMath:       false,
+			input:          "Use `echo $PATH` in your shell and `kill $$` too.",
+			mustContain:    []string{"`echo $PATH`", "`kill $$`"},
+			mustNotContain: []string{"MDPMATHINLINE", "MDPMATHBLOCK"},
+		},
+		{
+			name:        "real inline code span and real math on one line",
+			wantMath:    true,
+			input:       "The var `$PATH` is a path but $E = mc^2$ is physics.",
+			mustContain: []string{"`$PATH`"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMathPreprocessor()
+			processed := m.preprocess(tc.input)
+
+			hasMath := strings.Contains(processed, "MDPMATHINLINE") ||
+				strings.Contains(processed, "MDPMATHBLOCK")
+			if hasMath != tc.wantMath {
+				t.Errorf("wantMath=%v but got placeholders=%v; processed=%q",
+					tc.wantMath, hasMath, processed)
+			}
+
+			for _, s := range tc.mustContain {
+				if !strings.Contains(processed, s) {
+					t.Errorf("expected processed output to contain %q, got: %q", s, processed)
+				}
+			}
+			for _, s := range tc.mustNotContain {
+				if strings.Contains(processed, s) {
+					t.Errorf("expected processed output NOT to contain %q, got: %q", s, processed)
+				}
+			}
+
+			// Round-trip through postprocess must be lossless for code content.
+			restored := m.postprocess(processed)
+			for _, s := range tc.mustContain {
+				if !strings.Contains(restored, s) {
+					t.Errorf("expected restored output to contain %q, got: %q", s, restored)
+				}
+			}
+		})
+	}
+}
+
+func TestMathPreprocessorRealMathAndCodeSpan(t *testing.T) {
+	m := newMathPreprocessor()
+	input := "The var `$PATH` is a path but $E = mc^2$ is physics."
+	processed := m.preprocess(input)
+
+	if !strings.Contains(processed, "MDPMATHINLINE") {
+		t.Errorf("expected inline math placeholder for real math, got: %q", processed)
+	}
+	if !strings.Contains(processed, "`$PATH`") {
+		t.Errorf("code span with $ must be preserved, got: %q", processed)
+	}
+
+	restored := m.postprocess(processed)
+	if !strings.Contains(restored, "E = mc^2") {
+		t.Errorf("real math content not restored, got: %q", restored)
+	}
+	if !strings.Contains(restored, "`$PATH`") {
+		t.Errorf("code span lost after round-trip, got: %q", restored)
+	}
+}
+
 func TestParserWithMath(t *testing.T) {
 	p := NewParser()
 	source := []byte("# Euler\n\nEuler's identity: $e^{i\\pi} + 1 = 0$\n\nDisplay:\n\n$$\n\\int_0^\\infty e^{-x} dx = 1\n$$\n")

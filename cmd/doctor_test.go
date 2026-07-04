@@ -868,6 +868,71 @@ func TestIsExecutable(t *testing.T) {
 	}
 }
 
+// TestCheckTypst verifies checkTypst records availability consistent with PATH.
+func TestCheckTypst(t *testing.T) {
+	report := &doctorReport{}
+	checkTypst(report)
+
+	_, lookErr := exec.LookPath("typst")
+	typstOnPath := lookErr == nil
+
+	if report.TypstAvailable != typstOnPath {
+		t.Errorf("report.TypstAvailable = %v, but exec.LookPath says typst available = %v", report.TypstAvailable, typstOnPath)
+	}
+	if !typstOnPath && len(report.Warnings) == 0 {
+		t.Error("checkTypst should record a warning when typst is not on PATH")
+	}
+}
+
+// TestAddDoctorError verifies addDoctorError increments the error counter and
+// records a warning message.
+func TestAddDoctorError(t *testing.T) {
+	report := &doctorReport{}
+	report.addDoctorError("boom")
+	if report.doctorErrors != 1 {
+		t.Errorf("doctorErrors = %d, want 1", report.doctorErrors)
+	}
+	if len(report.Warnings) != 1 || report.Warnings[0] != "boom" {
+		t.Errorf("Warnings = %v, want [boom]", report.Warnings)
+	}
+}
+
+// TestDoctorStrictExit verifies --strict turns error-level findings into a
+// non-zero exit (returned error), while the default mode still exits 0.
+func TestDoctorStrictExit(t *testing.T) {
+	defer suppressOutput(t)()
+	tmpDir := t.TempDir()
+
+	// A book.yaml that fails to load produces an error-level finding.
+	bookPath := filepath.Join(tmpDir, "book.yaml")
+	if err := os.WriteFile(bookPath, []byte("book:\n  title: [not valid mapping\n"), 0o644); err != nil {
+		t.Fatalf("failed to write book.yaml: %v", err)
+	}
+
+	// Default (non-strict) mode must still return nil.
+	if err := executeDoctor(context.Background(), tmpDir); err != nil {
+		t.Fatalf("executeDoctor without --strict should not error, got: %v", err)
+	}
+
+	// Strict mode must return a non-nil error when an error-level finding exists.
+	doctorStrict = true
+	t.Cleanup(func() { doctorStrict = false })
+	if err := executeDoctor(context.Background(), tmpDir); err == nil {
+		t.Error("executeDoctor with --strict should return an error when a book.yaml fails to load")
+	}
+}
+
+// TestDoctorCmdStrictFlag verifies the --strict flag is registered.
+func TestDoctorCmdStrictFlag(t *testing.T) {
+	strictFlag := doctorCmd.Flags().Lookup("strict")
+	if strictFlag == nil {
+		t.Fatal("doctorCmd should have 'strict' flag")
+	}
+	if strictFlag.Usage == "" {
+		t.Error("strict flag should have usage description")
+	}
+}
+
 func TestScanFileForPlantUML(t *testing.T) {
 	t.Run("file with plantuml block", func(t *testing.T) {
 		dir := t.TempDir()

@@ -12,6 +12,9 @@ var versionCmd = &cobra.Command{
 	Long:  "Display the version, build time, and other build information for mdpress.",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("mdpress version %s\n", Version)
+		if Commit != "" {
+			fmt.Printf("Commit %s\n", Commit)
+		}
 		if BuildTime != "unknown" && BuildTime != "" {
 			fmt.Printf("Built at %s\n", BuildTime)
 		}

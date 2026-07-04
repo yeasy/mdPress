@@ -214,13 +214,16 @@ dist/
     └── ...
 ```
 
-### Build Specific Languages
+### Build a Specific Language
+
+`build` has no `--lang` flag. To build a single language, point `build` at that
+language's subdirectory as the source and pick an output path:
 
 ```bash
-mdpress build --lang en,ja
+mdpress build ./en --output ./dist/en
 ```
 
-Builds only English and Japanese, skipping Chinese.
+This builds only the English version.
 
 ### Build with Output Directory
 
@@ -241,10 +244,10 @@ cd en
 mdpress build
 ```
 
-Or from the root:
+Or from the root, pass the language subdirectory as the source:
 
 ```bash
-mdpress build --lang en --output ./dist/en
+mdpress build ./en --output ./dist/en
 ```
 
 This is useful for deploying individual language versions to separate servers or domains.
@@ -265,10 +268,11 @@ dist/
 
 ### Incremental Builds
 
-For large multi-language projects, rebuild only changed languages:
+For large multi-language projects, rebuild only changed languages by building
+each language subdirectory on its own:
 
 ```bash
-mdpress build --lang zh
+mdpress build ./zh --output ./dist/zh
 ```
 
 Only rebuilds the Chinese version, leaving other languages untouched.

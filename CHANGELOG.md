@@ -8,6 +8,56 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.12] - 2026-07-05
+
+Large hardening release from a full project audit: correctness bugs across the Markdown/Typst/EPUB/PDF pipelines, live-server robustness, safer self-update and remote-project handling, plus release, CI, and documentation fixes.
+
+### Security
+
+- **Do not execute plugins from untrusted remote projects**: `mdpress build`/`serve` against a remote source (e.g. `github.com/owner/repo`) no longer loads and runs `book.yaml` plugins — which execute at probe time — unless the new `--allow-plugins` flag is passed. Local projects are unaffected
+- **Stop leaking GITHUB_TOKEN in git clones**: the token is no longer embedded in the clone URL (visible via the process table) or persisted into the temp clone's `.git/config`; auth is injected via `http.extraheader` env config instead
+- **Apply security headers to served HTML pages**: the live-reload injection handler is now wrapped by the `securityHeaders` middleware, so actual pages (not just static assets) get `X-Content-Type-Options`, `X-Frame-Options`, CSP, etc.
+- **Document the plugin trust model**: manuals now warn that `book.yaml` plugins are arbitrary executables run during build and serve, and describe `--allow-plugins`
+
+### Fixed
+
+- **Math preprocessor corrupted code blocks containing `$`**: `$`/`$$` math substitution now skips fenced code blocks and inline code spans, so shell/Makefile/awk/PHP samples (e.g. `kill $$`, `"$HOME"`) are no longer mangled into math across HTML, site, PDF, and EPUB output
+- **Typst backend produced invalid `font:` output**: the CSS font stack is converted to a valid Typst string array (generic families dropped), so `--format typst` compiles with the default config
+- **Typst images failed to resolve**: the generator compiles with `--root <book dir>` and rewrites image paths so book images resolve instead of aborting the build; missing images now warn and are skipped
+- **Typst prose broke compilation**: `$`, `#`, `@`, `<`, `>` and unpaired `*`/`_` in ordinary text are now escaped outside code spans
+- **EPUB dropped images referenced above the chapter dir**: image containment now uses the book root, so shared `../images/...` assets are packaged; genuinely skipped images are logged
+- **EPUB aborted on a single non-base64 data URI**: unsupported `data:` image variants now warn and keep the original `src` instead of failing the whole build
+- **Output registry could deadlock**: `Registry.Get` no longer re-acquires a read lock via `List()` on the error path
+- **Chrome CLI PDF fallback double-encoded file URLs**: paths with spaces/non-ASCII now resolve for the CLI fallback
+- **Live server did not watch newly created directories**: directory `Create` events are handled before the extension filter and recursively added
+- **Live server ran overlapping rebuilds**: builds are serialized with a mutex, preventing races on the output-dir swap
+- **WebSocket connections could stall/leak**: write deadlines plus ping/pong keepalive drop dead clients instead of blocking reload notifications
+- **Nil-pointer panic on shutdown**: the graceful-shutdown loop guards the sentinel WebSocket client's nil connection
+- **Misleading "address already in use" error**: `Listen` only shows the in-use hint for actual `EADDRINUSE`, and reports permission/DNS/address errors accurately
+- **`mdpress serve` ignored `--branch`/`--subdir`**: both flags are now registered on `serve`, enabling live preview of a non-default branch or subdirectory of a remote repo
+- **`mdpress version` reported a stale version for source builds**: `go install`/source builds fall back to `runtime/debug.ReadBuildInfo()` for version, commit, and build time
+- **`mdpress doctor` never checked Typst**: added a Typst availability check; a missing Chrome is only an error when Typst is also unavailable
+- **`mdpress doctor` always exited 0**: with the new `--strict` flag it exits non-zero when error-level checks fail, making it usable as a CI gate
+- **Build errors printed twice with a usage dump**: `SilenceUsage`/`SilenceErrors` on the root command leave a single, clean error message for runtime failures
+- **`mdpress quickstart` mishandled an existing file target**: it now returns a friendly error, and a new `--force` scaffolds into a non-empty directory without overwriting existing files
+
+### Changed
+
+- **`mdpress upgrade` respects the install method**: Homebrew- and `go install`-managed binaries are no longer silently clobbered — upgrade aborts with guidance (`brew upgrade --cask mdpress` / `go install ...@latest`); use `--force` to override
+- **`mdpress upgrade` fails closed on checksums**: a missing or undownloadable `checksums.txt` is now a hard error instead of installing an unverified binary; `--skip-checksum` opts out explicitly
+- **New CLI flags/shorthands**: `--allow-plugins` (build/serve), `-o`/`-f` shorthands (build/serve output, build format), `--strict` (doctor), `--force`/`--skip-checksum` (upgrade), `--force` (quickstart)
+
+### Improved
+
+- **Linux packages and source archive**: releases now include `.deb`/`.rpm`/`.apk` (nfpms) and a checksummed source tarball
+- **Faster, more reliable Docker builds**: the builder stage cross-compiles via `$BUILDPLATFORM`/`$TARGETOS`/`$TARGETARCH` (no QEMU toolchain emulation), with an explicit `setup-qemu-action`; moving `:latest`/`:full` tags are only pushed for stable releases
+- **Scoped release token**: the cross-repo Homebrew tap push uses a dedicated `TAP_GITHUB_TOKEN`; release creation uses the default `GITHUB_TOKEN`
+- **Formatting enforced in CI**: `gofmt` runs as a golangci-lint formatter; the self-defeating `make check` gofmt gate is fixed; GitLab CI caches the build and lint caches
+- **Documentation accuracy**: removed nonexistent `build --lang` and `serve --no-open`/`--no-watch` examples, corrected the site output directory, quickstart file tree, `themes preview` output filename, and `MDPRESS_DISABLE_CACHE` values; added Homebrew/Docker/binary install paths to the manuals and brought the Chinese manual back into parity with the English one
+- **Repo hygiene**: `.gitignore` now ignores `*.epub` and Claude local settings and drops accumulated one-off scratch entries; `CONTRIBUTING` clarifies that the pre-commit hook runs golangci-lint only when installed
+
+---
+
 ## [0.7.11] - 2026-06-17
 
 ### Fixed
@@ -896,7 +946,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.11...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.12...HEAD
+[0.7.12]: https://github.com/yeasy/mdpress/compare/v0.7.11...v0.7.12
 [0.7.11]: https://github.com/yeasy/mdpress/compare/v0.7.10...v0.7.11
 [0.7.10]: https://github.com/yeasy/mdpress/compare/v0.7.9...v0.7.10
 [0.7.9]: https://github.com/yeasy/mdpress/compare/v0.7.8...v0.7.9

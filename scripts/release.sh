@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
-# release.sh - Cross-platform release builder for mdPress
+# release.sh - Cross-platform release builder for mdPress.
+#
+# GoReleaser is the single source of truth for releases (platforms, archive
+# naming, in-archive binary name, checksums, packages, Homebrew cask). This
+# script is a thin wrapper around a local GoReleaser snapshot build so the
+# artifacts you produce locally match exactly what CI publishes. Do not
+# reimplement the build matrix here -- edit .goreleaser.yml instead.
+#
+# Usage:
+#   scripts/release.sh            # build a snapshot into ./dist
+#   scripts/release.sh --help     # show goreleaser help
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,49 +17,25 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT"
 
-VERSION="${1:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
-BUILD_TIME="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-DIST_DIR="dist"
-MODULE="github.com/yeasy/mdpress"
-LDFLAGS="-s -w -X ${MODULE}/cmd.Version=${VERSION} -X ${MODULE}/cmd.BuildTime=${BUILD_TIME}"
+if ! command -v goreleaser >/dev/null 2>&1; then
+    echo "error: goreleaser is not installed." >&2
+    echo "Install it from https://goreleaser.com/install/ and retry." >&2
+    exit 1
+fi
 
-echo "Building mdPress ${VERSION} (${BUILD_TIME})"
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    exec goreleaser release --help
+fi
+
+echo ">>> Building a local snapshot with GoReleaser (single source of truth)..."
+echo ">>> This does NOT publish anything; artifacts land in ./dist/."
 echo ""
 
-rm -rf "${DIST_DIR}"
-mkdir -p "${DIST_DIR}"
-
-PLATFORMS=(
-    "linux/amd64"
-    "linux/arm64"
-    "darwin/amd64"
-    "darwin/arm64"
-    "windows/amd64"
-)
-
-for platform in "${PLATFORMS[@]}"; do
-    GOOS="${platform%/*}"
-    GOARCH="${platform#*/}"
-    output_name="mdpress-${VERSION}-${GOOS}-${GOARCH}"
-    if [ "$GOOS" = "windows" ]; then
-        output_name="${output_name}.exe"
-    fi
-
-    echo "  Building ${GOOS}/${GOARCH}..."
-    GOOS="$GOOS" GOARCH="$GOARCH" go build -ldflags "$LDFLAGS" -o "${DIST_DIR}/${output_name}" .
-
-    # Create tarball (or zip for Windows)
-    pushd "${DIST_DIR}" > /dev/null
-    if [ "$GOOS" = "windows" ]; then
-        zip -q "${output_name%.exe}.zip" "${output_name}"
-    else
-        tar czf "${output_name}.tar.gz" "${output_name}"
-    fi
-    popd > /dev/null
-done
+# --snapshot: no git tag / publish required. --clean: wipe ./dist first.
+goreleaser release --snapshot --clean "$@"
 
 echo ""
-echo "Release artifacts in ${DIST_DIR}/:"
-ls -lh "${DIST_DIR}/"
+echo "Release artifacts in dist/:"
+ls -lh dist/
 echo ""
-echo "Done."
+echo "Done. To publish a real release, push a git tag; CI runs 'goreleaser release --clean'."

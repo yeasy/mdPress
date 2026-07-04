@@ -1276,3 +1276,152 @@ func TestWriteBinaryFile_InvalidPath(t *testing.T) {
 		t.Fatal("expected error writing to impossible path")
 	}
 }
+
+// TestUpgradeClassifyInstallPath tests the path-based install-method classifier.
+func TestUpgradeClassifyInstallPath(t *testing.T) {
+	brewPrefixes := []string{"/opt/homebrew", "/usr/local"}
+	goBinDirs := []string{"/home/user/go/bin"}
+
+	tests := []struct {
+		name          string
+		rawPath       string
+		resolvedPath  string
+		biVersion     string
+		biMainPath    string
+		hasBuildInfo  bool
+		wantMethod    upgradeInstallMethod
+		wantAdviceSub string
+	}{
+		{
+			name:          "homebrew cellar via resolved symlink",
+			rawPath:       "/opt/homebrew/bin/mdpress",
+			resolvedPath:  "/opt/homebrew/Cellar/mdpress/0.7.11/bin/mdpress",
+			wantMethod:    upgradeInstallBrew,
+			wantAdviceSub: "Homebrew",
+		},
+		{
+			name:          "homebrew caskroom raw path",
+			rawPath:       "/opt/homebrew/Caskroom/mdpress/0.7.11/mdpress",
+			resolvedPath:  "/opt/homebrew/Caskroom/mdpress/0.7.11/mdpress",
+			wantMethod:    upgradeInstallBrew,
+			wantAdviceSub: "Homebrew",
+		},
+		{
+			name:          "homebrew under usr local prefix cellar",
+			rawPath:       "/usr/local/bin/mdpress",
+			resolvedPath:  "/usr/local/Cellar/mdpress/1.0.0/bin/mdpress",
+			wantMethod:    upgradeInstallBrew,
+			wantAdviceSub: "Homebrew",
+		},
+		{
+			name:          "go install under gobin with build info",
+			rawPath:       "/home/user/go/bin/mdpress",
+			resolvedPath:  "/home/user/go/bin/mdpress",
+			biVersion:     "v0.7.11",
+			biMainPath:    "github.com/yeasy/mdpress",
+			hasBuildInfo:  true,
+			wantMethod:    upgradeInstallGoInstall,
+			wantAdviceSub: "go install",
+		},
+		{
+			name:         "go bin path but devel build info is not go install",
+			rawPath:      "/home/user/go/bin/mdpress",
+			resolvedPath: "/home/user/go/bin/mdpress",
+			biVersion:    "(devel)",
+			biMainPath:   "github.com/yeasy/mdpress",
+			hasBuildInfo: true,
+			wantMethod:   upgradeInstallBinary,
+		},
+		{
+			name:         "go bin path but no build info falls through to binary",
+			rawPath:      "/home/user/go/bin/mdpress",
+			resolvedPath: "/home/user/go/bin/mdpress",
+			hasBuildInfo: false,
+			wantMethod:   upgradeInstallBinary,
+		},
+		{
+			name:         "standalone binary in usr local bin is not brew",
+			rawPath:      "/usr/local/bin/mdpress",
+			resolvedPath: "/usr/local/bin/mdpress",
+			biVersion:    "v0.7.11",
+			biMainPath:   "github.com/yeasy/mdpress",
+			hasBuildInfo: true,
+			wantMethod:   upgradeInstallBinary,
+		},
+		{
+			name:         "arbitrary path is plain binary",
+			rawPath:      "/opt/tools/mdpress",
+			resolvedPath: "/opt/tools/mdpress",
+			wantMethod:   upgradeInstallBinary,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			method, advice := upgradeClassifyInstallPath(
+				tt.rawPath, tt.resolvedPath,
+				brewPrefixes, goBinDirs,
+				tt.biVersion, tt.biMainPath, tt.hasBuildInfo,
+			)
+			if method != tt.wantMethod {
+				t.Errorf("upgradeClassifyInstallPath() method = %d, want %d", method, tt.wantMethod)
+			}
+			if tt.wantAdviceSub != "" && !strings.Contains(advice, tt.wantAdviceSub) {
+				t.Errorf("advice = %q, want it to contain %q", advice, tt.wantAdviceSub)
+			}
+			if tt.wantMethod == upgradeInstallBinary && advice != "" {
+				t.Errorf("expected empty advice for binary install, got %q", advice)
+			}
+		})
+	}
+}
+
+// TestUpgradeIsBrewManaged tests the Homebrew path classifier helper.
+func TestUpgradeIsBrewManaged(t *testing.T) {
+	prefixes := []string{"/opt/homebrew", "/usr/local"}
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/opt/homebrew/Cellar/mdpress/1.0.0/bin/mdpress", true},
+		{"/opt/homebrew/Caskroom/mdpress/1.0.0/mdpress", true},
+		{"/usr/local/Cellar/mdpress/1.0.0/bin/mdpress", true},
+		{"/home/user/go/bin/mdpress", false},
+		{"/usr/local/bin/mdpress", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := upgradeIsBrewManaged(tt.path, prefixes); got != tt.want {
+			t.Errorf("upgradeIsBrewManaged(%q) = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+}
+
+// TestUpgradePathUnderAny tests separator-boundary-aware path containment.
+func TestUpgradePathUnderAny(t *testing.T) {
+	dirs := []string{"/home/user/go/bin"}
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/home/user/go/bin/mdpress", true},
+		{"/home/user/go/bin", true},
+		{"/home/user/go/binary/mdpress", false}, // prefix false positive guard
+		{"/home/user/other/mdpress", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := upgradePathUnderAny(tt.path, dirs); got != tt.want {
+			t.Errorf("upgradePathUnderAny(%q) = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+}
+
+// TestUpgradeFlagsDefined verifies the new --force and --skip-checksum flags exist.
+func TestUpgradeFlagsDefined(t *testing.T) {
+	for _, name := range []string{"force", "skip-checksum"} {
+		if upgradeCmd.Flags().Lookup(name) == nil {
+			t.Errorf("--%s flag not found", name)
+		}
+	}
+}

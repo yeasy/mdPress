@@ -39,6 +39,9 @@ const (
 	browserOpenDelay      = 500 * time.Millisecond
 	browserOpenTimeout    = 10 * time.Second
 	wsReadLimit           = 4096
+	wsWriteTimeout        = 10 * time.Second // Per-message write deadline.
+	wsPongWait            = 60 * time.Second // Max time to wait for a pong.
+	wsPingPeriod          = 54 * time.Second // Ping interval; must be < wsPongWait.
 	httpReadHeaderTimeout = 10 * time.Second
 	httpReadTimeout       = 30 * time.Second
 	httpWriteTimeout      = 60 * time.Second
@@ -51,14 +54,29 @@ type wsClient struct {
 	writeMu sync.Mutex
 }
 
-// writeMessage sends a message to the connection safely.
+// writeMessage sends a message to the connection safely. A write deadline is
+// applied so a dead or sleeping client cannot block the write indefinitely
+// while holding writeMu (which would stall notifications for all clients).
 func (c *wsClient) writeMessage(msgType int, data []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	if c.conn == nil {
 		return nil
 	}
+	if err := c.conn.SetWriteDeadline(time.Now().Add(wsWriteTimeout)); err != nil {
+		return err
+	}
 	return c.conn.WriteMessage(msgType, data)
+}
+
+// Close closes the underlying connection, guarding against a nil conn (the
+// sentinel registered before Upgrade has no connection yet).
+func (c *wsClient) Close() {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	if c.conn != nil {
+		c.conn.Close() //nolint:errcheck
+	}
 }
 
 // buildWSMessage constructs a WebSocket JSON message with timestamp.
@@ -104,6 +122,13 @@ type Server struct {
 	debounceTimer    *time.Timer
 	debounceMu       sync.Mutex
 	lastTriggeredExt string
+
+	// buildMu serializes the actual rebuild work. The debounce timer only
+	// coalesces changes within its window; once a timer fires a change that
+	// arrives during a slow build would schedule a second callback. Holding
+	// buildMu around the whole build ensures BuildFunc (and its output-dir
+	// RemoveAll/Rename swap) never runs concurrently with itself.
+	buildMu sync.Mutex
 }
 
 // NewServer creates a preview server.
@@ -145,7 +170,10 @@ func (s *Server) Listen() (net.Listener, error) {
 	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("address %s is already in use (try mdpress serve --host %s --port %d): %w", addr, s.Host, s.Port+1, err)
+		if isAddrInUse(err) {
+			return nil, fmt.Errorf("address %s is already in use (try mdpress serve --host %s --port %d): %w", addr, s.Host, s.Port+1, err)
+		}
+		return nil, fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 	if tcpAddr, ok := ln.Addr().(*net.TCPAddr); ok {
 		s.Port = tcpAddr.Port
@@ -206,9 +234,11 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	// Create the router.
 	mux := http.NewServeMux()
 
-	// Static file server with injected live reload support.
-	fileServer := securityHeaders(http.FileServer(http.Dir(s.OutputDir)))
-	mux.Handle("/", s.injectLiveReload(fileServer))
+	// Static file server with injected live reload support. Wrap the injection
+	// handler itself with securityHeaders so directly written HTML pages (which
+	// bypass the inner fileServer) also carry the security headers.
+	fileServer := http.FileServer(http.Dir(s.OutputDir))
+	mux.Handle("/", securityHeaders(s.injectLiveReload(fileServer)))
 
 	// WebSocket endpoint for reload notifications.
 	mux.HandleFunc("/__mdpress_ws", s.handleWebSocket)
@@ -232,7 +262,7 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 		// Close all WebSocket clients.
 		s.clientsMu.Lock()
 		for client := range s.clients {
-			client.conn.Close() //nolint:errcheck
+			client.Close()
 		}
 		s.clientsMu.Unlock()
 
@@ -376,12 +406,46 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		s.clientsMu.Lock()
 		delete(s.clients, client)
 		s.clientsMu.Unlock()
-		conn.Close() //nolint:errcheck
+		client.Close()
 		s.logger.Debug("WebSocket client disconnected")
+	}()
+
+	// Periodically ping the client so a dead/sleeping connection is detected
+	// and cleaned up rather than leaking a goroutine forever. The ticker is
+	// stopped when the read loop exits.
+	pingDone := make(chan struct{})
+	defer close(pingDone)
+	go func() {
+		ticker := time.NewTicker(wsPingPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pingDone:
+				return
+			case <-r.Context().Done():
+				client.Close()
+				return
+			case <-ticker.C:
+				if err := client.writeMessage(websocket.PingMessage, nil); err != nil {
+					// Write failed (dead client); closing the conn unblocks
+					// the read loop below, which removes the client.
+					client.Close()
+					return
+				}
+			}
+		}
 	}()
 
 	// Limit incoming message size — the server only reads to detect disconnects.
 	conn.SetReadLimit(wsReadLimit)
+	// Establish a read deadline and refresh it on every pong so a client that
+	// stops responding is dropped instead of blocking the read loop forever.
+	if err := conn.SetReadDeadline(time.Now().Add(wsPongWait)); err != nil {
+		return
+	}
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
@@ -773,17 +837,26 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 	}
 	// else: keep the previous non-CSS ext so a full reload is triggered
 
-	capturedExt := s.lastTriggeredExt
 	s.debounceTimer = time.AfterFunc(debounceInterval, func() {
 		if ctx.Err() != nil {
 			return
 		}
-		// Always reset for next debounce cycle, even on build failure.
-		defer func() {
-			s.debounceMu.Lock()
-			s.lastTriggeredExt = ""
-			s.debounceMu.Unlock()
-		}()
+		// Snapshot and reset the batched extension at fire time under the
+		// debounce mutex, so escalations that arrived during the window are
+		// honored and the next cycle starts clean even on build failure.
+		s.debounceMu.Lock()
+		capturedExt := s.lastTriggeredExt
+		s.lastTriggeredExt = ""
+		s.debounceMu.Unlock()
+
+		// Serialize the actual build so a callback scheduled while a slow
+		// build is still running cannot race on the output-dir swap.
+		s.buildMu.Lock()
+		defer s.buildMu.Unlock()
+		if ctx.Err() != nil {
+			return
+		}
+
 		s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
 		s.notifyBuildStart()
 		if s.BuildFunc != nil {
@@ -813,6 +886,30 @@ func isWatchedExtension(ext string) bool {
 	return ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css"
 }
 
+// addWatchDirRecursive walks root and adds every non-skipped directory
+// (including root itself) to the watcher, so that a newly created directory
+// tree is monitored recursively. Skipped directories are pruned.
+func (s *Server) addWatchDirRecursive(watcher *fsnotify.Watcher, root string) {
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			s.logger.Warn("failed to access path during watch setup", slog.String("path", path), slog.Any("error", err))
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if isSkippedDir(filepath.Base(path)) {
+			return filepath.SkipDir
+		}
+		if addErr := watcher.Add(path); addErr != nil {
+			s.logger.Warn("failed to watch directory", slog.String("path", path), slog.Any("error", addErr))
+		}
+		return nil
+	}); err != nil {
+		s.logger.Warn("failed to walk directory during watch setup", slog.String("root", root), slog.Any("error", err))
+	}
+}
+
 // watchFilesWithFsnotify uses fsnotify to watch for changes and trigger rebuilds.
 func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	watcher, err := fsnotify.NewWatcher()
@@ -824,26 +921,7 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 	defer watcher.Close() //nolint:errcheck
 
 	// Recursively add watched directories.
-	err = filepath.WalkDir(s.WatchDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			s.logger.Warn("failed to access path during watch setup", slog.String("path", path), slog.Any("error", err))
-			return nil
-		}
-		if d.IsDir() {
-			if isSkippedDir(filepath.Base(path)) {
-				return filepath.SkipDir
-			}
-			if addErr := watcher.Add(path); addErr != nil {
-				s.logger.Warn("failed to watch directory", slog.String("path", path), slog.Any("error", addErr))
-			}
-			return nil
-		}
-		return nil
-	})
-	if err != nil {
-		s.logger.Error("Failed to add watch directory", slog.Any("error", err))
-		return
-	}
+	s.addWatchDirRecursive(watcher, s.WatchDir)
 
 	s.logger.Info("fsnotify watcher started", slog.String("dir", s.WatchDir))
 
@@ -864,6 +942,26 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			if !ok {
 				return
 			}
+			// Handle newly created directories BEFORE the extension filter:
+			// a Create event for a directory has an empty extension and would
+			// otherwise be dropped, leaving nested files unwatched. Add the
+			// new dir (and any pre-existing children) to the watcher and walk
+			// it to register nested subdirectories, then trigger a rebuild
+			// since files may already exist inside it.
+			if event.Op&fsnotify.Create != 0 {
+				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+					if isSkippedDir(filepath.Base(event.Name)) {
+						continue
+					}
+					s.addWatchDirRecursive(watcher, event.Name)
+					s.logger.Debug("Added new directory to watcher", slog.String("dir", event.Name))
+					// Files may already exist inside the new directory; rebuild.
+					ext := strings.ToLower(filepath.Ext(event.Name))
+					s.debouncedRebuild(ctx, event.Name, ext)
+					continue
+				}
+			}
+
 			// Only rebuild on changes to .md, .yaml, .yml, and .css files.
 			ext := strings.ToLower(filepath.Ext(event.Name))
 			if !isWatchedExtension(ext) {
@@ -873,20 +971,6 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			// Only react to write and create events.
 			if event.Op&(fsnotify.Write|fsnotify.Create) == 0 {
 				continue
-			}
-
-			// Watch newly created directories for recursive monitoring.
-			if event.Op&fsnotify.Create != 0 {
-				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-					if !isSkippedDir(filepath.Base(event.Name)) {
-						if addErr := watcher.Add(event.Name); addErr != nil {
-							s.logger.Warn("Failed to watch new directory", slog.String("dir", event.Name), slog.Any("error", addErr))
-						} else {
-							s.logger.Debug("Added new directory to watcher", slog.String("dir", event.Name))
-						}
-					}
-					continue
-				}
 			}
 
 			s.logger.Debug("Detected file change", slog.String("file", event.Name), slog.String("op", event.Op.String()))

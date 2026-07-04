@@ -178,7 +178,13 @@ Generate a preview of all built-in themes.
 
 ```bash
 mdpress themes preview
-# Output: preview-themes.html
+# Output: themes-preview.html
+```
+
+Use `-o, --output <path>` to write the preview to a custom location:
+
+```bash
+mdpress themes preview --output custom-preview.html
 ```
 
 ## completion

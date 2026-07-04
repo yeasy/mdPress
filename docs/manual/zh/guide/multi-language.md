@@ -188,7 +188,7 @@ languageSwitcher:
 
 ## 构建多语言文档
 
-使用命令行标志构建所有语言或特定语言。
+多语言构建由 `LANGS.md` 驱动。当项目根目录存在 `LANGS.md` 时，`mdpress build` 会为其中列出的每种语言各构建一次。要单独构建某一种语言，把该语言的子目录作为源目录传入即可。`build` 命令没有 `--lang` 标志。
 
 ### 构建所有语言
 
@@ -214,13 +214,16 @@ dist/
     └── ...
 ```
 
-### 构建特定语言
+### 只构建某一种语言
+
+要仅构建单一语言，把该语言的子目录作为源目录传入，并用 `--output` 指定输出位置：
 
 ```bash
-mdpress build --lang en,ja
+mdpress build ./en --output ./dist/en
+mdpress build ./ja --output ./dist/ja
 ```
 
-仅构建英文和日文，跳过中文。
+每条命令只处理对应的语言目录，跳过其余语言。
 
 ### 使用输出目录构建
 
@@ -241,10 +244,10 @@ cd en
 mdpress build
 ```
 
-或从根目录：
+或从根目录，把语言子目录作为源目录传入：
 
 ```bash
-mdpress build --lang en --output ./dist/en
+mdpress build ./en --output ./dist/en
 ```
 
 这对于将各个语言版本部署到单独的服务器或域很有用。
@@ -265,10 +268,10 @@ dist/
 
 ### 增量构建
 
-对于大型多语言项目，仅重建更改的语言：
+对于大型多语言项目，仅重建更改的语言——把该语言的子目录作为源目录传入：
 
 ```bash
-mdpress build --lang zh
+mdpress build ./zh --output ./dist/zh
 ```
 
 仅重建中文版本，保持其他语言不变。

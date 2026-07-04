@@ -31,6 +31,11 @@ type TypstTemplateData struct {
 	FontFamily   string
 	FontSize     string
 	LineHeight   float64
+	// FontLine is the fully-rendered Typst "font: (...)" line (including a
+	// trailing newline) or empty to omit it. It is computed from FontFamily
+	// by renderTypstDocument so the template never interpolates a raw CSS
+	// font stack (which is invalid Typst).
+	FontLine string
 }
 
 // TypstTemplate defines the base Typst document template.
@@ -48,8 +53,7 @@ const typstTemplateStr = `#set page(
 )
 
 #set text(
-  font: ({{ .FontFamily }}),
-  size: {{ .FontSize }},
+{{ .FontLine }}  size: {{ .FontSize }},
   lang: "{{ .Language }}",
 )
 
@@ -166,8 +170,11 @@ func renderTypstDocument(data TypstTemplateData) (string, error) {
 	data.MarginBottom = sanitizeDimension(data.MarginBottom, "25mm")
 	data.MarginLeft = sanitizeDimension(data.MarginLeft, "25mm")
 	data.FontSize = sanitizeDimension(data.FontSize, "11pt")
-	// FontFamily needs Typst text escaping, not dimension validation.
-	data.FontFamily = sanitizeTypstText(data.FontFamily)
+	// Convert the CSS font stack in FontFamily into a valid Typst font array
+	// line. makeTypstFont drops generic families/keywords and quotes each
+	// concrete name; an empty stack falls back to a sane default, so the
+	// resulting line is always valid Typst.
+	data.FontLine = "  font: (" + makeTypstFont(data.FontFamily) + "),\n"
 
 	// Defense-in-depth: clamp LineHeight at point of use.
 	if data.LineHeight < 0.5 || data.LineHeight > 5.0 {
@@ -247,13 +254,101 @@ func prepareTypstContent(content string) string {
 	return content
 }
 
-// makeTypstFont converts a CSS font family string to a Typst font list.
-// The input is sanitized to prevent Typst code injection.
+// typstGenericFontKeywords are CSS generic families / system keywords that are
+// meaningless (and invalid) as Typst font names and must be dropped when
+// converting a CSS font stack to a Typst font array.
+var typstGenericFontKeywords = map[string]bool{
+	"sans-serif":         true,
+	"serif":              true,
+	"monospace":          true,
+	"cursive":            true,
+	"fantasy":            true,
+	"system-ui":          true,
+	"ui-sans-serif":      true,
+	"ui-serif":           true,
+	"ui-monospace":       true,
+	"ui-rounded":         true,
+	"-apple-system":      true,
+	"blinkmacsystemfont": true,
+	"inherit":            true,
+	"initial":            true,
+	"unset":              true,
+}
+
+// typstDefaultFonts is the fallback Typst font array used when a CSS font stack
+// yields no concrete font names (e.g. it consisted only of generic keywords).
+const typstDefaultFonts = `"Segoe UI", "Helvetica Neue", "Arial"`
+
+// makeTypstFont converts a CSS font-family stack (e.g.
+// "-apple-system, BlinkMacSystemFont, 'PingFang SC', ..., sans-serif") into the
+// contents of a Typst font array: a comma-separated list of double-quoted font
+// names with CSS generic families and system keywords removed. The returned
+// string does NOT include the surrounding parentheses; callers wrap it as
+// needed. If no concrete font names remain, a sane default is returned.
+//
+// CSS single-quoted names are unquoted and re-emitted with Typst double quotes;
+// bare identifiers are treated as font names. Each name is sanitized to prevent
+// Typst code injection (double quotes and other control characters stripped).
 func makeTypstFont(cssFontFamily string) string {
-	if cssFontFamily == "" {
-		return `"Segoe UI", "Helvetica", sans-serif`
+	names := parseTypstFontNames(cssFontFamily)
+	if len(names) == 0 {
+		return typstDefaultFonts
 	}
-	return sanitizeTypstValue(cssFontFamily)
+	quoted := make([]string, 0, len(names))
+	for _, n := range names {
+		quoted = append(quoted, `"`+n+`"`)
+	}
+	return strings.Join(quoted, ", ")
+}
+
+// parseTypstFontNames splits a CSS font stack on commas, trims whitespace,
+// strips surrounding single/double quotes, drops empty entries and generic CSS
+// families/keywords, and sanitizes each remaining name for Typst.
+func parseTypstFontNames(cssFontFamily string) []string {
+	var names []string
+	for _, part := range strings.Split(cssFontFamily, ",") {
+		name := strings.TrimSpace(part)
+		// Strip surrounding quotes (single or double).
+		name = strings.Trim(name, `"'`)
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if typstGenericFontKeywords[strings.ToLower(name)] {
+			continue
+		}
+		// Sanitize to remove any residual quotes/control chars that could
+		// break out of the Typst string literal.
+		name = sanitizeTypstFontName(name)
+		if name == "" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+// sanitizeTypstFontName removes characters that could break out of a Typst
+// double-quoted string literal or inject code. It permits letters (including
+// non-ASCII, for CJK font names), digits, spaces, hyphens, and dots.
+func sanitizeTypstFontName(val string) string {
+	var b strings.Builder
+	for _, ch := range val {
+		switch {
+		case ch == '"' || ch == '\\' || ch == '\n' || ch == '\r':
+			// drop quote/backslash/newlines that would break the literal
+		case ch == '-' || ch == '.' || ch == ' ' || ch == '_':
+			b.WriteRune(ch)
+		case ch >= '0' && ch <= '9':
+			b.WriteRune(ch)
+		case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z':
+			b.WriteRune(ch)
+		case ch > 127:
+			// Allow non-ASCII (e.g. CJK) font names.
+			b.WriteRune(ch)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // makeTypstFontSize converts a CSS font size (e.g., "12pt", "14px") to Typst format.
