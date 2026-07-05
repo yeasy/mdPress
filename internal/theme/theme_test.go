@@ -1333,7 +1333,7 @@ func TestThemeCloneIndependence(t *testing.T) {
 	if original.FontSize != 11 {
 		t.Errorf("original theme FontSize was modified: %d", original.FontSize)
 	}
-	if original.Colors.Text != "#2C3E50" {
+	if original.Colors.Text != "#1F2933" {
 		t.Errorf("original theme color was modified: %q", original.Colors.Text)
 	}
 }

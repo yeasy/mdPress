@@ -9,17 +9,17 @@ func builtinTechnical() *Theme {
 		FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
 		FontSize:   11,
 		CodeTheme:  "github",
-		LineHeight: 1.6,
+		LineHeight: 1.75,
 
 		Colors: ColorScheme{
-			Text:       "#2C3E50",
+			Text:       "#1F2933",
 			Background: "#FFFFFF",
-			Heading:    "#1A5490",
-			Link:       "#0066CC",
+			Heading:    "#12344D",
+			Link:       "#1C5A9E",
 			CodeBg:     "#F5F7F9",
-			CodeText:   "#2C3E50",
-			Accent:     "#0066CC",
-			Border:     "#D4D4D4",
+			CodeText:   "#1F2933",
+			Accent:     "#1C5A9E",
+			Border:     "#E4E7EB",
 		},
 
 		Margins: MarginSettings{

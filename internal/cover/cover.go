@@ -16,6 +16,11 @@ import (
 // light from dark colors (~73% brightness on a 0-255 scale, ITU-R BT.601).
 const luminanceThreshold = 186
 
+// defaultCoverBg is the deep navy used for the default cover background when the
+// book does not configure book.cover.background or book.cover.image. It gives
+// the out-of-the-box cover a premium, professionally-typeset look.
+const defaultCoverBg = "#102a43"
+
 // cssColorPattern matches safe CSS color values (hex, rgb, rgba, hsl, hsla, named colors).
 var cssColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([\d\s,%.]+\)|[a-z]{1,30})$`)
 
@@ -94,8 +99,9 @@ func (cg *CoverGenerator) renderStyles() string {
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
 	} else {
-		// Clean white background by default — no gradients or colors.
-		buf.WriteString(`      background-color: #ffffff;` + "\n")
+		// Premium default: a deep navy publication cover. Users can still
+		// override via book.cover.background or book.cover.image.
+		fmt.Fprintf(&buf, "      background-color: %s;\n", defaultCoverBg)
 	}
 
 	buf.WriteString(`    }` + "\n\n")
@@ -103,15 +109,17 @@ func (cg *CoverGenerator) renderStyles() string {
 	// Cover content layout.
 	// Text color adapts: dark text on light/no background, white text on dark backgrounds.
 	// For hex colors we compute luminance; images and non-hex colors assume dark.
-	hasDarkBg := false
+	// The default cover uses a dark navy background, so text is light unless the
+	// user explicitly configures a light background color.
+	hasDarkBg := true
 	if cg.meta.Cover.Image != "" {
 		hasDarkBg = true
 	} else if cg.meta.Cover.Background != "" {
 		hasDarkBg = !isLightColor(cg.meta.Cover.Background)
 	}
-	textColor := "#1A5490" // Deep blue on white (default).
-	if hasDarkBg {
-		textColor = "white"
+	textColor := "#f6f8fc" // Near-white on the dark default background.
+	if !hasDarkBg {
+		textColor = "#14304a" // Deep navy ink on a light background.
 	}
 	buf.WriteString(`    .cover-content {` + "\n")
 	buf.WriteString(`      text-align: center;` + "\n")
@@ -121,18 +129,20 @@ func (cg *CoverGenerator) renderStyles() string {
 
 	// Title styles — clean publication font sizing.
 	buf.WriteString(`    .cover-title {` + "\n")
-	buf.WriteString(`      font-size: 48px;` + "\n")
+	buf.WriteString(`      font-size: 46px;` + "\n")
 	buf.WriteString(`      font-weight: 700;` + "\n")
-	buf.WriteString(`      margin-bottom: 16px;` + "\n")
-	buf.WriteString(`      letter-spacing: 1px;` + "\n")
-	buf.WriteString(`      line-height: 1.3;` + "\n")
+	buf.WriteString(`      margin-bottom: 18px;` + "\n")
+	buf.WriteString(`      letter-spacing: 0.5px;` + "\n")
+	buf.WriteString(`      line-height: 1.25;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
 	// Subtitle styles.
 	buf.WriteString(`    .cover-subtitle {` + "\n")
-	buf.WriteString(`      font-size: 20px;` + "\n")
+	buf.WriteString(`      font-size: 21px;` + "\n")
 	buf.WriteString(`      font-weight: 400;` + "\n")
-	buf.WriteString(`      margin-bottom: 40px;` + "\n")
+	buf.WriteString(`      letter-spacing: 0.3px;` + "\n")
+	buf.WriteString(`      margin-bottom: 8px;` + "\n")
+	buf.WriteString(`      opacity: 0.85;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
 	// Divider.

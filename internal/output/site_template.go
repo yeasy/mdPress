@@ -220,9 +220,15 @@ body.sidebar-resizing .main { transition: none; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
 }
+/* Collapse the right page-TOC rail when it has no entries so the reading
+   column can center in the full width instead of hugging the left. */
+.main-body:has(> .page-toc:empty),
+.main-body:has(> .page-toc.toc-hidden) {
+  grid-template-columns: minmax(0, 1fr);
+}
 .content {
-  max-width: min(860px, 100%); padding: 40px 50px 80px; overflow-wrap: anywhere;
-  min-width: 0;
+  max-width: min(860px, 100%); margin: 0 auto; padding: 40px 50px 80px;
+  overflow-wrap: anywhere; min-width: 0;
 }
 @media (min-width: 1400px) {
   .content { max-width: 960px; }

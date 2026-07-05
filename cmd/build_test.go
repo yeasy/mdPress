@@ -414,3 +414,25 @@ func TestBuildFlagTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveSiteOutputDir verifies the single-language "site" output directory:
+// default "_book" under the project, overridable via --output.
+func TestResolveSiteOutputDir(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseDir  string
+		override string
+		want     string
+	}{
+		{"default is _book under project", "/proj", "", filepath.Join("/proj", "_book")},
+		{"explicit relative output wins", "/proj", "public", "public"},
+		{"explicit absolute output wins", "/proj", "/out/site", "/out/site"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveSiteOutputDir(tt.baseDir, tt.override); got != tt.want {
+				t.Errorf("resolveSiteOutputDir(%q, %q) = %q, want %q", tt.baseDir, tt.override, got, tt.want)
+			}
+		})
+	}
+}

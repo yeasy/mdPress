@@ -104,7 +104,10 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		if err != nil {
 			return fmt.Errorf("resolve output for language %s: %w", lang.Dir, err)
 		}
-		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, logger); err != nil {
+		// Multi-language builds keep the per-language "<name>_site" layout so
+		// each variant lands in a distinct directory; pass an empty siteDir to
+		// select that fallback.
+		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, "", logger); err != nil {
 			return fmt.Errorf("failed to build language %s: %w", lang.Dir, err)
 		}
 		summaries = append(summaries, languageBuildSummary{
@@ -132,7 +135,7 @@ func normalizeMultilingualRootDir(rootDir string) (string, error) {
 	return filepath.Abs(rootDir)
 }
 
-func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride string, logger *slog.Logger) error {
+func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride, siteDir string, logger *slog.Logger) error {
 	logger.Info("configuration loaded",
 		slog.String("title", cfg.Book.Title),
 		slog.String("author", cfg.Book.Author),
@@ -342,6 +345,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		ChapterFiles:       chapterFiles,
 		ChapterMarkdown:    chapterMarkdown,
 		CustomCSS:          customCSS,
+		SiteDir:            siteDir,
 		Logger:             logger,
 	}
 	registry := newFormatBuilderRegistry()
