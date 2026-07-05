@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.7.13] - 2026-07-05
+
 ### Changed
 
 - **Beautiful defaults out of the box**: the default `technical` theme was retuned for a premium, publication-grade look across PDF, HTML, and site output — a deep-navy full-bleed cover by default (no config needed; still overridable via `book.cover`), a refined navy ink palette, cleaner heading rhythm, and a chapter-title accent rule. The book table of contents now renders as a proper hierarchy (bold chapters, indented muted sub-entries, no underlines) instead of underlined blue links. Tables gain hairline borders, a tinted header with an accent underline, and subtle zebra striping; block images get a light frame; inline code gets a subtle tinted chip; blockquotes use a clean accent bar. Callouts no longer split across PDF pages. The site's reading column now centers (and the right page-TOC rail collapses when empty) instead of hugging the left with a large void.
@@ -14,6 +18,10 @@ All notable changes to this project will be documented in this file. The format 
 ### Fixed
 
 - **Documentation**: corrected the `site` output directory to `_book/` in the output-formats manuals (EN + ZH) and documented the `--output` override.
+
+---
+
+## [0.7.12] - 2026-07-05
 
 Large hardening release from a full project audit: correctness bugs across the Markdown/Typst/EPUB/PDF pipelines, live-server robustness, safer self-update and remote-project handling, plus release, CI, and documentation fixes.
 
@@ -951,7 +959,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.12...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.13...HEAD
+[0.7.13]: https://github.com/yeasy/mdpress/compare/v0.7.12...v0.7.13
 [0.7.12]: https://github.com/yeasy/mdpress/compare/v0.7.11...v0.7.12
 [0.7.11]: https://github.com/yeasy/mdpress/compare/v0.7.10...v0.7.11
 [0.7.10]: https://github.com/yeasy/mdpress/compare/v0.7.9...v0.7.10
