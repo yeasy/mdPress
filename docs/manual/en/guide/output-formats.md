@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `pdf` | `book.pdf` | Default PDF output via Chromium. Honors page size, margins, TOC, cover, headers, and footers. |
 | `html` | `book.html` | Single self-contained HTML file. |
-| `site` | `book_site/` | Multi-page static site with `index.html`, chapter pages, search, and sidebar navigation. |
+| `site` | `_book/` | Multi-page static site with `index.html`, chapter pages, search, and sidebar navigation. |
 | `epub` | `book.epub` | EPUB 3 package for e-readers. |
 | `typst` | `book-typst.pdf` | Alternate PDF backend that requires Typst in `PATH`. |
 
@@ -23,12 +23,16 @@ mdpress build --format all
 
 ## Output Path
 
-`--output` sets the base path. mdPress adds the format suffix:
+For file formats, `--output` sets the base path and mdPress adds the format suffix:
 
 - `book.pdf`
 - `book.html`
 - `book.epub`
-- `book_site/`
 - `book-typst.pdf` (typst format)
 
 If you pass a directory, the files are written inside that directory.
+
+The `site` format produces a directory rather than a single file. By default it is
+written to `_book/` under the project directory — the same location `mdpress serve`
+uses, and the directory the deployment examples assume. Pass `--output <dir>` to
+write the site somewhere else (for example `--output public`).

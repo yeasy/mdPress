@@ -257,58 +257,73 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);\n")
 	css.WriteString("}\n\n")
 
-	// Heading styles.
+	// Heading styles. Only color/weight/rhythm live here; per-format sizing is
+	// owned by each renderer so the type scale can differ between PDF and web.
 	css.WriteString("h1, h2, h3, h4, h5, h6 {\n")
 	css.WriteString("  color: var(--color-heading);\n")
-	css.WriteString("  font-weight: bold;\n")
-	css.WriteString("  margin-top: 1em;\n")
-	css.WriteString("  margin-bottom: 0.5em;\n")
+	css.WriteString("  font-weight: 600;\n")
+	css.WriteString("  line-height: 1.35;\n")
 	css.WriteString("}\n\n")
 
-	// Link styles.
+	// Link styles. No underline by default (cleaner in headings, TOC, and body);
+	// underline appears on hover for on-screen affordance.
 	css.WriteString("a {\n")
 	css.WriteString("  color: var(--color-link);\n")
+	css.WriteString("  text-decoration: none;\n")
+	css.WriteString("}\n\n")
+
+	css.WriteString("a:hover {\n")
 	css.WriteString("  text-decoration: underline;\n")
 	css.WriteString("}\n\n")
 
-	// Code styles -- no background color, professional book style.
+	// Code styles. Block code has no background here (the syntax highlighter
+	// supplies one); inline code gets a subtle tinted chip for legibility.
 	css.WriteString("code, pre {\n")
 	css.WriteString("  background: none;\n")
 	css.WriteString("  color: var(--color-code-text);\n")
 	css.WriteString("  font-family: var(--font-family-mono);\n")
 	css.WriteString("}\n\n")
 
+	css.WriteString(":not(pre) > code {\n")
+	css.WriteString("  background: var(--color-code-bg);\n")
+	css.WriteString("  padding: 0.12em 0.36em;\n")
+	css.WriteString("  border-radius: 4px;\n")
+	css.WriteString("  font-size: 0.88em;\n")
+	css.WriteString("}\n\n")
+
 	css.WriteString("pre {\n")
-	css.WriteString("  padding: 0.8em 1em;\n")
+	css.WriteString("  padding: 0.9em 1.1em;\n")
 	css.WriteString("  font-size: 0.82em;\n")
-	css.WriteString("  line-height: 1.5;\n")
+	css.WriteString("  line-height: 1.55;\n")
 	css.WriteString("  border: 1px solid var(--color-border);\n")
-	css.WriteString("  border-radius: 3px;\n")
+	css.WriteString("  border-radius: 6px;\n")
 	css.WriteString("  overflow-x: auto;\n")
 	css.WriteString("  white-space: pre-wrap;\n")
 	css.WriteString("  overflow-wrap: anywhere;\n")
 	css.WriteString("  word-break: break-all;\n")
 	css.WriteString("}\n\n")
 
-	// Blockquote styles.
+	// Blockquote styles: an accent rule with muted text and no heavy fill.
 	css.WriteString("blockquote {\n")
-	css.WriteString("  border-left: 4px solid var(--color-accent);\n")
-	css.WriteString("  margin-left: 0;\n")
-	css.WriteString("  padding-left: 1em;\n")
+	css.WriteString("  border-left: 3px solid var(--color-accent);\n")
+	css.WriteString("  margin: 1.2em 0;\n")
+	css.WriteString("  padding: 0.2em 0 0.2em 1.1em;\n")
 	css.WriteString("  color: var(--color-text);\n")
-	css.WriteString("  opacity: 0.8;\n")
+	css.WriteString("  opacity: 0.78;\n")
 	css.WriteString("}\n\n")
 
-	// Table styles.
+	// Table styles: full width, hairline borders, tinted header with an accent
+	// underline, and subtle zebra striping.
 	css.WriteString("table {\n")
 	css.WriteString("  border-collapse: collapse;\n")
 	css.WriteString("  width: 100%;\n")
-	css.WriteString("  margin: 1em 0;\n")
+	css.WriteString("  margin: 1.2em 0;\n")
+	css.WriteString("  font-size: 0.96em;\n")
 	css.WriteString("}\n\n")
 
 	css.WriteString("table th, table td {\n")
 	css.WriteString("  border: 1px solid var(--color-border);\n")
-	css.WriteString("  padding: 0.5em;\n")
+	css.WriteString("  padding: 0.55em 0.85em;\n")
 	css.WriteString("  text-align: left;\n")
 	css.WriteString("  overflow-wrap: anywhere;\n")
 	css.WriteString("  word-break: break-word;\n")
@@ -317,6 +332,12 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("table th {\n")
 	css.WriteString("  background-color: var(--color-code-bg);\n")
 	css.WriteString("  color: var(--color-heading);\n")
+	css.WriteString("  font-weight: 600;\n")
+	css.WriteString("  border-bottom: 2px solid var(--color-accent);\n")
+	css.WriteString("}\n\n")
+
+	css.WriteString("table tbody tr:nth-child(even) td {\n")
+	css.WriteString("  background-color: var(--color-code-bg);\n")
 	css.WriteString("}\n\n")
 
 	return css.String()

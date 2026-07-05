@@ -57,8 +57,7 @@ const htmlTemplate = `<!DOCTYPE html>
       justify-content: center;
       text-align: center;
       page-break-after: always;
-      background: white;
-      color: #1A5490;
+      background: transparent;
       position: relative;
     }
 
@@ -95,43 +94,43 @@ const htmlTemplate = `<!DOCTYPE html>
       text-align: center;
     }
 
-    .toc-list {
+    /* Table of contents — the generator emits <nav class="toc"><ul><li><a>. */
+    .toc ul {
       list-style: none;
-      padding: 0;
       margin: 0;
+      padding: 0;
     }
 
-    .toc-item {
-      margin: 0.5rem 0;
-      padding-left: 2rem;
-      text-indent: -2rem;
+    .toc li {
+      margin: 0.4rem 0;
+      line-height: 1.5;
     }
 
-    .toc-item a {
-      color: #333;
+    .toc a {
+      color: var(--color-heading, #14263b);
       text-decoration: none;
     }
 
-    .toc-item a:hover {
-      text-decoration: underline;
+    /* Top-level entries (chapters) stand out. */
+    .toc > ul > li {
+      margin-top: 0.85rem;
     }
 
-    .toc-item-level-1 {
+    .toc > ul > li > a {
       font-weight: 600;
-      font-size: 1.1em;
-      margin-top: 1rem;
+      font-size: 1.08em;
     }
 
-    .toc-item-level-2 {
-      margin-left: 2rem;
-      font-size: 0.95em;
-      color: #666;
+    /* Nested entries: indented and lighter. */
+    .toc ul ul {
+      padding-left: 1.4rem;
+      margin-top: 0.15rem;
     }
 
-    .toc-item-level-3 {
-      margin-left: 4rem;
-      font-size: 0.9em;
-      color: #999;
+    .toc ul ul a {
+      color: #4a5561;
+      font-weight: 400;
+      font-size: 0.97em;
     }
 
     /* ============================================
@@ -149,11 +148,13 @@ const htmlTemplate = `<!DOCTYPE html>
     }
 
     .chapter-title {
-      font-size: 2em;
+      font-size: 2.1em;
       font-weight: 700;
-      margin: 0 0 1.5rem 0;
-      color: #222;
-      line-height: 1.3;
+      margin: 0 0 1.6rem 0;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--color-accent, #1C5A9E);
+      color: var(--color-heading, #12344D);
+      line-height: 1.25;
     }
 
     .chapter-content {
@@ -313,11 +314,14 @@ const htmlTemplate = `<!DOCTYPE html>
       page-break-inside: avoid;
     }
 
-    /* Standalone images (sole child of a paragraph) render as centered blocks. */
+    /* Standalone images (sole child of a paragraph) render as centered blocks
+       with a subtle frame. */
     p > img:only-child,
     p > a:only-child > img {
       display: block;
-      margin: 1rem auto;
+      margin: 1.4rem auto;
+      border: 1px solid var(--color-border, #E4E7EB);
+      border-radius: 6px;
     }
 
     figure {
@@ -379,15 +383,10 @@ const htmlTemplate = `<!DOCTYPE html>
         background: white !important;
       }
 
-      /* Strip decorative backgrounds that inflate PDF size.
-         Code blocks keep their background since it aids readability. */
-      table tbody tr:nth-child(even) {
-        background-color: transparent !important;
-      }
+      /* Blockquotes render without a fill in print — the accent bar carries
+         them. Table header and zebra tints are kept: they aid scanning and
+         compress well as flat fills. */
       blockquote {
-        background-color: transparent !important;
-      }
-      table th {
         background-color: transparent !important;
       }
 
@@ -401,8 +400,8 @@ const htmlTemplate = `<!DOCTYPE html>
         color: inherit;
       }
 
-      /* Keep tables and code blocks on the same page when possible */
-      table, pre {
+      /* Keep tables, code blocks, and callouts on the same page when possible */
+      table, pre, .alert {
         page-break-inside: avoid;
       }
 

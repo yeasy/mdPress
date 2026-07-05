@@ -207,8 +207,9 @@ func TestTemplateTOCStyles(t *testing.T) {
 	tocStyles := []string{
 		".toc-page",
 		".toc-title",
-		".toc-list",
-		".toc-item",
+		".toc ul",
+		".toc a",
+		".toc > ul > li > a",
 		"list-style: none;",
 	}
 

@@ -35,7 +35,13 @@ type buildContext struct {
 	ChapterFiles       []string
 	ChapterMarkdown    []string
 	CustomCSS          string
-	Logger             *slog.Logger
+	// SiteDir is the directory the "site" format writes into. When empty the
+	// site builder falls back to "<baseName>_site" (used for multi-language
+	// builds, where each language needs a distinct directory). Single-language
+	// builds set this to "_book" (matching `mdpress serve`) or to an explicit
+	// --output directory.
+	SiteDir string
+	Logger  *slog.Logger
 }
 
 // formatBuilder generates output in a specific format.
@@ -185,7 +191,10 @@ type siteBuilder struct{}
 func (b *siteBuilder) Name() string { return "site" }
 
 func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
-	outputDir := baseName + "_site"
+	outputDir := ctx.SiteDir
+	if outputDir == "" {
+		outputDir = baseName + "_site"
+	}
 	ctx.Logger.Info("Generating HTML site", slog.String("output", outputDir))
 
 	pageNames := sitePageFilenames(ctx.ChapterFiles)

@@ -233,7 +233,19 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 	}
 
-	return executeBuildForConfig(ctx, cfg, formats, outputOverride, logger)
+	siteDir := resolveSiteOutputDir(cfg.BaseDir(), outputOverride)
+	return executeBuildForConfig(ctx, cfg, formats, outputOverride, siteDir, logger)
+}
+
+// resolveSiteOutputDir picks the directory the "site" format writes into for a
+// single-language build. An explicit --output wins (used verbatim as the target
+// directory); otherwise the default is the GitBook-style "_book" directory under
+// the project, matching `mdpress serve` and the CI deploy examples.
+func resolveSiteOutputDir(baseDir, outputOverride string) string {
+	if outputOverride != "" {
+		return outputOverride
+	}
+	return filepath.Join(baseDir, "_book")
 }
 
 func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
