@@ -143,7 +143,7 @@ func TestGoldenHTML(t *testing.T) {
 		t.Fatalf("failed to load theme %q: %v", cfg.Style.Theme, err)
 	}
 
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	coverHTML := coverGen.RenderHTML()
 
 	chapters, allHeadings := parseChapters(t, cfg)
@@ -204,7 +204,7 @@ func TestGoldenTOC(t *testing.T) {
 func TestGoldenCover(t *testing.T) {
 	cfg := loadConfig(t)
 
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	got := coverGen.RenderHTML()
 
 	// Sanity checks before golden comparison.

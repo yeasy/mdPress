@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -55,6 +56,9 @@ type EpubGenerator struct {
 	// ../images referenced from chapters in docs/). When empty, the common
 	// ancestor of all chapter source directories is used instead.
 	bookRoot string
+	// thm is the active document theme; when set the generator can derive
+	// EPUB-appropriate CSS from it (reader-friendly, literal values).
+	thm *theme.Theme
 }
 
 type epubAsset struct {
@@ -79,6 +83,12 @@ func NewEpubGenerator(meta EpubMeta) *EpubGenerator {
 // SetCSS sets the global CSS.
 func (g *EpubGenerator) SetCSS(css string) {
 	g.css = css
+}
+
+// SetTheme sets the active document theme used to derive EPUB-appropriate
+// styling. A nil theme leaves the explicitly set CSS as-is.
+func (g *EpubGenerator) SetTheme(thm *theme.Theme) {
+	g.thm = thm
 }
 
 // SetBookRoot sets the containment base directory used to resolve relative

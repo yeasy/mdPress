@@ -108,7 +108,7 @@ func TestE2E_QuickstartBuildVerify(t *testing.T) {
 	}
 
 	// 6. Generate cover
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	coverHTML := coverGen.RenderHTML()
 
 	// 7. Generate TOC

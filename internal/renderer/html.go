@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -145,6 +146,9 @@ func (r *HTMLRenderer) buildFullCSS(customCSS string) string {
 	// Theme CSS.
 	if r.theme != nil {
 		css.WriteString(r.theme.ToCSS())
+		css.WriteString("\n")
+		// Class-based syntax-highlighting stylesheet (light; PDF has no dark mode).
+		css.WriteString(markdown.HighlightCSSLight(r.theme.CodeTheme))
 		css.WriteString("\n")
 	}
 

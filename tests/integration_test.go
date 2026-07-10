@@ -206,7 +206,7 @@ func TestCoverGeneration(t *testing.T) {
 	}
 
 	// Generate cover
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	coverHTML := coverGen.RenderHTML()
 
 	// Verify cover HTML structure
@@ -307,7 +307,7 @@ func TestFullHTMLRender(t *testing.T) {
 	}
 
 	// Generate cover
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	coverHTML := coverGen.RenderHTML()
 
 	// Parse chapter 1
@@ -701,7 +701,7 @@ output:
 	}
 
 	// Generate cover and TOC
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	coverHTML := coverGen.RenderHTML()
 
 	tocGen := toc.NewGenerator()
@@ -917,7 +917,7 @@ func TestThemeApplication(t *testing.T) {
 	}
 
 	// Generate full document
-	coverGen := cover.NewCoverGenerator(cfg.Book)
+	coverGen := cover.NewCoverGenerator(cfg.Book, nil)
 	tocGen := toc.NewGenerator()
 
 	tocHeadings := make([]toc.HeadingInfo, len(headings))
