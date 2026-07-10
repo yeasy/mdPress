@@ -2004,3 +2004,37 @@ func TestListenNonAddrInUseError(t *testing.T) {
 		t.Errorf("expected generic listen failure message, got: %v", err)
 	}
 }
+
+// TestIsIgnoredPath_OutputDirContainsWatchRoot reproduces the Linux CI
+// condition where the watch root lives under the configured output directory
+// (e.g. outputDir "/tmp" with a t.TempDir() watch root): the output-prefix
+// rule must NOT swallow the entire watch tree.
+func TestIsIgnoredPath_OutputDirContainsWatchRoot(t *testing.T) {
+	parent := t.TempDir()
+	watchDir := filepath.Join(parent, "book")
+	if err := os.MkdirAll(watchDir, 0o755); err != nil {
+		t.Fatalf("mkdir watch dir: %v", err)
+	}
+
+	// Output directory is an ancestor of the watch root.
+	srv := NewServer("127.0.0.1", 8080, watchDir, parent, slog.Default())
+	md := filepath.Join(watchDir, "chapter.md")
+	if srv.isIgnoredPath(md) {
+		t.Errorf("watched file must not be ignored when output dir contains the watch root")
+	}
+
+	// Name-based filtering must still apply below the watch root.
+	if !srv.isIgnoredPath(filepath.Join(watchDir, "_book", "index.html")) {
+		t.Errorf("_book below the watch root should still be ignored")
+	}
+
+	// A sibling output dir (the normal layout) must still be prefix-ignored.
+	sibling := filepath.Join(watchDir, "public")
+	srv2 := NewServer("127.0.0.1", 8080, watchDir, sibling, slog.Default())
+	if !srv2.isIgnoredPath(filepath.Join(sibling, "index.html")) {
+		t.Errorf("files inside a normal output dir should be ignored")
+	}
+	if !srv2.isIgnoredPath(sibling + ".old") {
+		t.Errorf("output swap backup should be ignored")
+	}
+}
