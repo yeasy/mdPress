@@ -20,11 +20,10 @@ mdpress doctor [directory] [flags]
 
 ## 命令参数
 
-`doctor` 支持一个专属报告参数，以及常见日志参数：
-
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--report <path>` | 空 | 将检查结果写入 `.json` 或 `.md` 报告文件。 |
+| `-o, --report <path>` | 空 | 将检查结果写入 `.json` 或 `.md` 报告文件。 |
+| `--strict` | 关闭 | 当任何错误级检查失败时以非零状态退出，可用作 CI 门禁。 |
 | `-v, --verbose` | 关闭 | 输出详细日志。 |
 | `-q, --quiet` | 关闭 | 只输出错误。 |
 
@@ -41,6 +40,7 @@ mdpress doctor [directory] [flags]
 可用性检查：
 
 - Chrome / Chromium 是否可用（用于 PDF 输出）
+- Typst CLI 是否可用（只有当 Typst 也不可用时，缺少 Chrome 才会被报告为错误）
 - Go 版本检查（>= 1.26）
 - Git 是否可用（用于远程源构建）
 - github.com 网络连通性

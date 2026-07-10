@@ -1,359 +1,148 @@
 # Headers and Footers
 
-Headers and footers allow you to add consistent branding, page information, and navigation elements to every page in your PDF output. They're configured in `book.yaml` and support dynamic template variables.
+Headers and footers add consistent page information to every page of your PDF output. They are configured in `book.yaml` and support a small set of placeholder tokens.
 
-**Note:** Headers and footers are a PDF-only feature. They do not appear in HTML output.
+**Note:** Headers and footers are a PDF-only feature (Chromium backend). They do not appear in HTML, site, or EPUB output.
+
+## Defaults
+
+Out of the box, PDFs get:
+
+- **Footer**: a centered page number in subtle small print
+- **Header**: none
+
+You only need configuration to change this.
 
 ## Basic Configuration
 
-Define headers and footers in the `style` section of `book.yaml`:
+Define headers and footers in the `style` section of `book.yaml`. Each has three optional cells — `left`, `center`, and `right`:
 
 ```yaml
 style:
   header:
-    left: "{{.Book.Title}}"
+    left: "{title}"
     center: ""
-    right: "{{.PageNum}}"
+    right: "{page}"
 
   footer:
-    left: "{{.Book.Author}}"
-    center: ""
-    right: "{{.Date}}"
+    center: "{page} / {pages}"
 ```
 
-Each section (left, center, right) is optional. Omit sections you don't need.
+Omit cells you don't need. If every cell of a header/footer is empty, it is not rendered.
 
-## Template Variables
+## Switching Headers and Footers Off
 
-Headers and footers support dynamic content through template variables. These are replaced with actual values during PDF generation.
-
-### Book Variables
-
-Access book-level information from `book.yaml`:
-
-- `{{.Book.Title}}` - The book title
-- `{{.Book.Author}}` - The book author
-- `{{.Book.Subtitle}}` - The book subtitle (if defined)
-- `{{.Book.Version}}` - The book version (if defined)
-- `{{.Book.Description}}` - The book description
-
-Example:
+The `output.header` and `output.footer` booleans act as on/off switches:
 
 ```yaml
-style:
-  header:
-    left: "{{.Book.Title}} v{{.Book.Version}}"
-    right: "{{.Book.Author}}"
+output:
+  header: false   # never render a header
+  footer: false   # never render a footer (also disables the default page number)
 ```
 
-### Chapter Variables
+Both default to `true`.
 
-Access the current chapter information:
+## Supported Tokens
 
-- `{{.Chapter.Title}}` - The title of the current chapter
-- `{{.Chapter.Number}}` - The chapter number
-- `{{.Chapter.File}}` - The source filename of the chapter
+| Token | Replaced with |
+| --- | --- |
+| `{page}` | Current page number |
+| `{pages}` | Total number of pages |
+| `{title}` | The book title from `book.yaml` |
 
-Example:
+Legacy Go-template-style tokens from older scaffolded configs are also accepted: `{{.PageNum}}` (= `{page}`), `{{.TotalPages}}` (= `{pages}`), and `{{.Book.Title}}` (= `{title}`). `{{.Chapter.Title}}` is accepted for compatibility but expands to nothing — Chrome print templates have no per-chapter context.
 
-```yaml
-style:
-  header:
-    left: "{{.Chapter.Title}}"
-    center: ""
-    right: "Page {{.PageNum}}"
-```
-
-### Page Variables
-
-Dynamic page information:
-
-- `{{.PageNum}}` - Current page number (integer)
-- `{{.PageTotal}}` - Total number of pages
-- `{{.TotalPages}}` - Alias for `.PageTotal`
-
-Create "page X of Y" footers:
-
-```yaml
-style:
-  footer:
-    right: "Page {{.PageNum}} of {{.PageTotal}}"
-```
-
-### Date Variables
-
-Date and time information:
-
-- `{{.Date}}` - Current date in default format (YYYY-MM-DD)
-- `{{.DateTime}}` - Current date and time (YYYY-MM-DD HH:MM:SS)
-- `{{.Year}}` - Current year
-- `{{.Month}}` - Current month (1-12)
-- `{{.Day}}` - Current day of month
-
-Example:
-
-```yaml
-style:
-  footer:
-    left: "Generated on {{.Date}}"
-    right: "{{.Year}}"
-```
-
-### Section Variables
-
-For documentation organized into sections:
-
-- `{{.Section}}` - Name of current section (if available)
-- `{{.Subsection}}` - Name of current subsection (if available)
-
-## Complete Configuration Examples
-
-### Technical Documentation
-
-```yaml
-style:
-  header:
-    left: "{{.Book.Title}} - {{.Chapter.Title}}"
-    right: "{{.PageNum}}"
-
-  footer:
-    left: "{{.Book.Author}}"
-    center: "Confidential"
-    right: "{{.Date}}"
-```
-
-This creates headers showing the document and chapter title, with page numbers on the right. Footers include author, a confidentiality notice, and the date.
-
-### User Manual
-
-```yaml
-style:
-  header:
-    left: "{{.Chapter.Title}}"
-    right: "Page {{.PageNum}} of {{.PageTotal}}"
-
-  footer:
-    center: "{{.Book.Title}} v{{.Book.Version}}"
-```
-
-Displays the current chapter in the header with page numbering, and the book title with version in the footer.
-
-### Corporate Report
-
-```yaml
-style:
-  header:
-    left: "{{.Book.Title}}"
-    center: ""
-    right: "{{.Book.Version}}"
-
-  footer:
-    left: "{{.Book.Author}}"
-    center: ""
-    right: "{{.Year}}"
-```
-
-Corporate-style formatting with title and version in the header, author and year in the footer.
-
-### Academic Document
-
-```yaml
-style:
-  header:
-    left: "{{.Book.Author}}"
-    right: "{{.Date}}"
-
-  footer:
-    left: "{{.Book.Title}}"
-    center: "{{.PageNum}}"
-    right: ""
-```
-
-Academic format with author and date in header, title and centered page numbers in footer.
-
-## Styling Headers and Footers
-
-Headers and footers use default styling, but you can customize their appearance through PDF generation options. The font size, font family, and colors inherit from your theme.
-
-### Controlling Appearance
-
-```yaml
-pdf:
-  header_height: 0.5in
-  footer_height: 0.5in
-  header_font_size: 10
-  footer_font_size: 10
-  margins:
-    top: 1in
-    bottom: 1in
-```
-
-Adjust margins to provide enough space for headers and footers:
-
-```yaml
-pdf:
-  margins:
-    top: 1.2in        # Extra space for header
-    bottom: 1.2in     # Extra space for footer
-    left: 1in
-    right: 1in
-```
-
-## Advanced Patterns
-
-### Alternating Headers
-
-Show different headers on odd and even pages (useful for books):
-
-```yaml
-style:
-  header:
-    left: "{{.Book.Title}}"
-    right: "{{.Chapter.Title}}"
-```
-
-When printed double-sided, the left page shows the book title, right page shows the chapter title.
-
-### Section Dividers
-
-Use chapter numbers in headers to indicate structure:
-
-```yaml
-style:
-  header:
-    left: "Chapter {{.Chapter.Number}}: {{.Chapter.Title}}"
-    right: "{{.PageNum}}"
-```
-
-### Branding Information
-
-Include company information in footers:
+Everything else is treated as literal text (HTML-escaped for safety), so you can freely combine tokens with fixed text:
 
 ```yaml
 style:
   footer:
     left: "© 2026 Acme Corporation"
-    center: "Internal Use Only"
-    right: "{{.Date}}"
+    center: "Page {page} of {pages}"
+    right: "{title}"
 ```
 
-### Version Control
+## Examples
 
-Track document versions:
+### Page X of Y
+
+```yaml
+style:
+  footer:
+    center: "Page {page} of {pages}"
+```
+
+### Title in the Header, Page Number in the Footer
 
 ```yaml
 style:
   header:
-    left: "{{.Book.Title}}"
-    center: "Version {{.Book.Version}}"
-    right: "Generated {{.DateTime}}"
+    left: "{title}"
+  footer:
+    center: "{page}"
 ```
 
-This is useful for tracking when PDFs were generated.
-
-## Conditional Content
-
-While template variables don't support full conditionals, you can work around this:
-
-Use a separator when both variables are needed:
+### Draft Marker
 
 ```yaml
 style:
   footer:
-    left: "{{.Book.Author}} — {{.Book.Title}}"
+    center: "DRAFT — {title} — {page}"
 ```
 
-Or create multiple variations of the footer for different purposes:
+For a diagonal DRAFT overlay across the page instead, use `output.watermark`.
 
-```yaml
-# For drafts
-style:
-  footer:
-    center: "DRAFT — {{.Date}}"
+## Styling
 
-# For final release (comment out the draft version)
-# style:
-#   footer:
-#     center: "Final Release"
-```
+Header and footer text uses a fixed, deliberately subtle style (9px, muted gray, matching the system font stack). The content is customizable; the styling is not. If headers or footers feel cramped, increase the page margins via `output.margin_top` / `output.margin_bottom` (e.g. `"20mm"`).
 
 ## Troubleshooting
 
-### Variables Not Replaced
+### Tokens Appear Literally in the PDF
 
-If variables like `{{.Book.Title}}` appear literally in the PDF:
+1. Check the spelling — supported tokens are exactly `{page}`, `{pages}`, and `{title}` (case-sensitive).
+2. Check that you are generating PDF output; headers/footers do not apply to other formats.
 
-1. Check that you're generating PDF (headers/footers are PDF-only)
-2. Verify the variable name matches exactly (case-sensitive)
-3. Ensure the variable is defined in your `book.yaml`
+### No Header Appears
 
-### Headers/Footers Overlapping Content
+The default header is empty. A header renders only when you set `style.header` cells to non-empty values (and `output.header` is not `false`).
 
-If headers or footers overlap the main content:
+### Header/Footer Overlaps Content
 
-1. Increase margin values in your PDF configuration:
-   ```yaml
-   pdf:
-     margins:
-       top: 1.2in
-       bottom: 1.2in
-   ```
+Increase the PDF margins:
 
-2. Reduce header/footer height if configured:
-   ```yaml
-   pdf:
-     header_height: 0.4in
-     footer_height: 0.4in
-   ```
-
-### Missing Variables in Chapter
-
-If `{{.Chapter.Title}}` is blank:
-
-1. Ensure each markdown file has an H1 heading
-2. Verify the chapter is properly listed in `book.yaml` under `chapters`
-3. Check that the markdown file isn't empty
+```yaml
+output:
+  margin_top: "20mm"
+  margin_bottom: "20mm"
+```
 
 ## Complete Example
-
-Here's a complete `book.yaml` with headers and footers configured:
 
 ```yaml
 book:
   title: "mdPress Documentation"
   author: "mdPress Team"
-  version: "1.0"
-  description: "Complete guide to mdPress"
 
 chapters:
-  - chapters/01-introduction.md
-  - chapters/02-installation.md
-  - chapters/03-usage.md
+  - title: Introduction
+    file: chapters/01-introduction.md
+  - title: Installation
+    file: chapters/02-installation.md
 
 style:
   theme: technical
-
   header:
-    left: "{{.Book.Title}}"
-    center: ""
-    right: "{{.PageNum}}"
-
+    left: "{title}"
+    right: "{page}"
   footer:
-    left: "{{.Book.Author}} — v{{.Book.Version}}"
-    center: ""
-    right: "{{.Date}}"
+    center: "Page {page} of {pages}"
 
-pdf:
-  output: build/mdpress-guide.pdf
-  margins:
-    top: 1.2in
-    bottom: 1.2in
-    left: 1in
-    right: 1in
+output:
+  header: true
+  footer: true
+  margin_top: "18mm"
+  margin_bottom: "18mm"
 ```
 
-When you generate the PDF, every page will include:
-- **Header**: "mdPress Documentation" on the left, page numbers on the right
-- **Footer**: "mdPress Team — v1.0" on the left, today's date on the right
-
-See [Custom CSS](./custom-css.md) and [Built-in Themes](./builtin-themes.md) for more styling options.
+See [Custom CSS](./custom-css.md) and [Built-in Themes](./builtin-themes.md) for more styling options, and the [template token reference](../reference/template-variables.md) for the full token list.

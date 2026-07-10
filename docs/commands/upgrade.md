@@ -17,6 +17,8 @@ mdpress upgrade [flags]
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--check` | off | Only check for updates without installing. Useful for CI/CD pipelines or regular health checks. |
+| `--force` | off | Force binary replacement even for Homebrew- or `go install`-managed installs. |
+| `--skip-checksum` | off | Skip checksum verification of the downloaded binary (not recommended). |
 | `-v, --verbose` | off | Print detailed logs during the upgrade process. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -35,6 +37,14 @@ The `upgrade` command performs these steps:
 7. **Cleanup**: Removes the backup on successful installation
 
 If an error occurs during installation, the command automatically attempts to restore from the backup.
+
+### Install-Method Awareness
+
+`upgrade` respects how mdpress was installed. Homebrew- and `go install`-managed binaries are not silently replaced: the command aborts with guidance (`brew upgrade --cask mdpress` / `go install github.com/yeasy/mdpress@latest`). Pass `--force` to override and replace the binary anyway.
+
+### Checksum Verification
+
+Downloads are verified against the release's `checksums.txt`. A missing or undownloadable checksum file is a hard error — the unverified binary is not installed. Pass `--skip-checksum` to opt out explicitly (not recommended).
 
 ### Version Detection
 

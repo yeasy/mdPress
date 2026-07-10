@@ -20,11 +20,10 @@ mdpress doctor [directory] [flags]
 
 ## Flags
 
-`doctor` supports one dedicated reporting flag plus the standard logging flags:
-
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--report <path>` | empty | Write the check results to a `.json` or `.md` report file. |
+| `-o, --report <path>` | empty | Write the check results to a `.json` or `.md` report file. |
+| `--strict` | off | Exit with a non-zero status when any error-level check fails. Useful as a CI gate. |
 | `-v, --verbose` | off | Print detailed logs. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -41,6 +40,7 @@ Environment information:
 Readiness checks:
 
 - Chrome/Chromium availability (for PDF output)
+- Typst CLI availability (a missing Chrome is only reported as an error when Typst is also unavailable)
 - Go version check (>= 1.26)
 - Git availability (for remote source builds)
 - Network connectivity to github.com

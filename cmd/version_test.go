@@ -76,7 +76,7 @@ func TestVersionCommandOmitsEmptyFields(t *testing.T) {
 
 // TestDefaultVersionConstant guards against stale hardcoded versions.
 func TestDefaultVersionConstant(t *testing.T) {
-	if defaultVersion != "0.7.13" {
-		t.Errorf("defaultVersion = %q, want 0.7.13", defaultVersion)
+	if defaultVersion != "0.7.14" {
+		t.Errorf("defaultVersion = %q, want 0.7.14", defaultVersion)
 	}
 }

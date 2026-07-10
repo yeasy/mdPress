@@ -8,6 +8,42 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.7.14] - 2026-07-10
+
+Quality sweep release: a full product audit surfaced 63 confirmed issues across the CLI, all output formats, theming, the live server, docs, and scaffolding — this release fixes them.
+
+### Fixed
+
+- **`--output` + multi-format with `site` no longer collides**: `mdpress build --format html,site -o release/manual.html` now writes `release/manual.html` and `release/manual_site/` (v0.7.13 regression created a directory at the .html path and failed the build). `--output dir/` (trailing slash or existing directory) writes all formats into that directory
+- **Remote GitHub builds keep their outputs**: `mdpress build <github-url>` without `--output` used to write everything into the temp clone and delete it on exit; outputs now land in the current working directory (site in `./_book/`)
+- **`mdpress serve` infinite rebuild loop**: the atomic-swap artifacts (`_book.old`, temp dirs) re-triggered the file watcher — one edit caused ~40 rebuilds; the watcher now ignores all generated/output paths (watcher test coverage 0→~80%)
+- **Site works on GitHub Pages project sites and via `file://`**: all navigation, search, and asset links are now relative instead of root-absolute
+- **Dark mode actually works**: standalone HTML no longer renders white content with an unreadable sidebar; site tables (zebra rows) and code blocks are readable in dark mode
+- **Syntax highlighting is now class-based with a real dark palette**: code uses chroma classes plus paired light/dark stylesheets (github→github-dark etc.) instead of one inline-styled light palette; code-language labels now display the actual language
+- **`--format html` no longer drops the cover**: standalone HTML opens with a cover hero matching the book branding
+- **EPUB validity and readability**: chapters regain their `<h1>` title, math chapters are declared `scripted remote-resources` in the OPF, the stylesheet is reader-friendly (no fixed page margins or absolute sizes, links underlined), and the cover honors `cover.background` (navy default otherwise)
+- **`mdpress themes` desync**: list/show/preview now derive from the live built-in palettes instead of a stale copy
+- **`cover.background: white`** (and named/rgb colors) now correctly render dark text on light covers
+- **Site rebuilds prune stale pages**: `build --format site` swaps `_book/` atomically like `serve` (with a safety check that refuses to replace a non-generated directory) and hints when a legacy `<name>_site/` directory is left over
+
+### Added
+
+- **Custom themes**: `style.theme: mytheme.yaml` loads a YAML theme file, and `themes/<name>.yaml` in the project overrides or defines a theme; `mdpress themes show` documents the schema
+- **PDF page numbers and configurable header/footer**: default footer is a centered page number (the forced "Built with mdPress" footer is gone); `style.header`/`style.footer` render with `{page}`/`{pages}`/`{title}` tokens; `output.tagged_pdf: false` produces significantly smaller PDFs
+- **`output.site_url`**: enables a spec-compliant sitemap.xml (absolute URLs + lastmod); no sitemap is emitted without it
+- **`output.edit_base`**: adds an "Edit this page" link on every site page
+- **404 page** generated with the site
+- **Build summary**: every build prints `✓ Generated <format> → <path>` per format (kept even with `--quiet`)
+- **quickstart/init scaffolds a `.gitignore`** covering generated artifacts, and no longer hardcodes a cover background or placeholder SVG over the premium default cover
+
+### Changed
+
+- **elegant and minimal themes retuned** to match the premium default look (warm serif book with bronze accents; quiet monochrome with grayscale code style); default covers are theme-aware (navy / deep warm brown / light)
+- **`style.code_theme` default is now theme-inherited** (github for technical/elegant, bw for minimal); explicit values still win
+- **Shell completion help** now uses working `source <(mdpress completion …)` idioms; `make clean` covers generated artifacts with a separate `clean-cache` target; dead incremental-build manifest machinery removed
+
+---
+
 ## [0.7.13] - 2026-07-05
 
 ### Changed
@@ -959,7 +995,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.13...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.14...HEAD
+[0.7.14]: https://github.com/yeasy/mdpress/compare/v0.7.13...v0.7.14
 [0.7.13]: https://github.com/yeasy/mdpress/compare/v0.7.12...v0.7.13
 [0.7.12]: https://github.com/yeasy/mdpress/compare/v0.7.11...v0.7.12
 [0.7.11]: https://github.com/yeasy/mdpress/compare/v0.7.10...v0.7.11

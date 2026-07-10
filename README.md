@@ -16,10 +16,10 @@
 $ mdpress build --format site,pdf,html,epub
   ✓ Loaded book.yaml (12 chapters)
   ✓ Parsed Markdown (technical theme)
-  ✓ Generated PDF        → _output/my-book.pdf
-  ✓ Generated HTML       → _output/my-book.html
-  ✓ Generated site       → _output/my-book_site/
-  ✓ Generated ePub       → _output/my-book.epub
+  ✓ Generated pdf   → my-book.pdf
+  ✓ Generated html  → my-book.html
+  ✓ Generated site  → _book/
+  ✓ Generated epub  → my-book.epub
 ```
 
 Use `book.yaml` for full control, `SUMMARY.md` for GitBook-style projects, or zero-config discovery for a focused docs folder. For large repositories, point mdPress at the specific docs/book directory instead of the repo root.
@@ -100,11 +100,13 @@ docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
 docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 ```
 
-### Download Binary
+### Download Binary or Package
 
 Download a pre-built binary for your platform from [GitHub Releases](https://github.com/yeasy/mdpress/releases).
 
 Supported platforms: macOS (amd64 / arm64), Linux (amd64 / arm64), Windows (amd64 / arm64).
+
+Since v0.7.12, releases also ship Linux packages (`.deb`, `.rpm`, `.apk`) and a checksummed source tarball.
 
 > **macOS Gatekeeper note:** binaries are not notarized yet. The Homebrew cask clears the quarantine flag for you; if you download the binary directly and macOS blocks it, clear the flag once:
 >
@@ -250,12 +252,12 @@ mdPress ships with three themes. List them with `mdpress themes list`:
 
 ```
 $ mdpress themes list
-  technical   — Clean and structured, ideal for technical documentation
-  elegant     — Refined serif typography for books and essays
-  minimal     — Light and distraction-free
+  technical   — Clean, professional style for technical documentation and IT books
+  elegant     — Elegant serif-based style for fiction, essays, and publishing
+  minimal     — Minimal style with generous whitespace and high readability
 ```
 
-Set `style.theme` in `book.yaml` to switch themes.
+Set `style.theme` in `book.yaml` to switch themes. Custom themes are supported too: place a `themes/<name>.yaml` file in your project to define (or override) a theme, or point `style.theme` directly at a YAML theme file (e.g. `style.theme: mytheme.yaml`).
 
 ## All Commands
 
