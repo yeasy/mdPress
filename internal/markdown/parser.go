@@ -5,8 +5,10 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	htmlpkg "html"
 	"regexp"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/ast"
@@ -65,9 +67,18 @@ func (p *Parser) initGoldmark() {
 		extension.Linkify,
 		// Footnotes.
 		extension.Footnote,
-		// Syntax highlighting.
+		// Syntax highlighting. Class-based output (WithClasses) keeps token
+		// colors out of inline style attributes; the matching stylesheets come
+		// from HighlightCSSLight/HighlightCSSDark so code stays readable when
+		// the reader toggles light/dark mode. Unknown theme names are resolved
+		// to defaultCodeTheme so the emitted mode class ("chroma light"/"chroma
+		// dark") always matches the generated stylesheets.
 		highlighting.NewHighlighting(
-			highlighting.WithStyle(p.codeTheme),
+			highlighting.WithStyle(resolveCodeTheme(p.codeTheme)),
+			highlighting.WithFormatOptions(
+				chromahtml.WithClasses(true),
+			),
+			highlighting.WithCodeBlockOptions(codeBlockLangOptions),
 		),
 	}
 
@@ -208,3 +219,46 @@ func WithCodeTheme(theme string) ParserOption {
 		p.codeTheme = theme
 	}
 }
+
+// codeBlockLangOptions returns per-code-block chroma formatter options that
+// carry the fence language onto the rendered HTML (a data-lang attribute on
+// <pre> and a language-<lang> class on <code>) so client-side JS can label
+// code blocks. It only runs for highlighted blocks; fences whose language has
+// no chroma lexer (e.g. mermaid, plantuml) keep goldmark-highlighting's
+// default <pre><code class="language-..."> shape, which the mermaid/PlantUML
+// post-processing regexes depend on.
+func codeBlockLangOptions(c highlighting.CodeBlockContext) []chromahtml.Option {
+	lang, ok := c.Language()
+	if !ok || len(lang) == 0 {
+		return nil
+	}
+	return []chromahtml.Option{
+		chromahtml.WithPreWrapper(&langPreWrapper{lang: string(lang)}),
+	}
+}
+
+// langPreWrapper reproduces chroma's default <pre><code> wrapper while adding
+// the source language as data-lang / language-<lang> hooks.
+type langPreWrapper struct {
+	lang string
+}
+
+// Start writes the opening wrapper. styleAttr is chroma's own attribute for
+// the <pre> element (` class="chroma light"` in class mode).
+func (w *langPreWrapper) Start(code bool, styleAttr string) string {
+	if !code {
+		return fmt.Sprintf(`<pre%s>`, styleAttr)
+	}
+	lang := htmlpkg.EscapeString(w.lang)
+	return fmt.Sprintf(`<pre%s data-lang="%s"><code class="language-%s">`, styleAttr, lang, lang)
+}
+
+// End writes the closing wrapper.
+func (w *langPreWrapper) End(code bool) string {
+	if code {
+		return `</code></pre>`
+	}
+	return `</pre>`
+}
+
+var _ chromahtml.PreWrapper = (*langPreWrapper)(nil)

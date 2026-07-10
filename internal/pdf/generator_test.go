@@ -220,6 +220,30 @@ func TestWithTaggedPDFOption(t *testing.T) {
 	}
 }
 
+// TestWithHeaderTemplateOption tests setting a custom header template.
+func TestWithHeaderTemplateOption(t *testing.T) {
+	const tmpl = "<div><span class='title'></span></div>"
+	g := NewGenerator(WithHeaderTemplate(tmpl))
+	if g.headerTemplate != tmpl {
+		t.Errorf("headerTemplate = %q, want %q", g.headerTemplate, tmpl)
+	}
+	if !g.displayHeaderFooter {
+		t.Error("WithHeaderTemplate should enable displayHeaderFooter")
+	}
+}
+
+// TestWithFooterTemplateOption tests setting a custom footer template.
+func TestWithFooterTemplateOption(t *testing.T) {
+	const tmpl = "<div><span class='pageNumber'></span></div>"
+	g := NewGenerator(WithFooterTemplate(tmpl))
+	if g.footerTemplate != tmpl {
+		t.Errorf("footerTemplate = %q, want %q", g.footerTemplate, tmpl)
+	}
+	if !g.displayHeaderFooter {
+		t.Error("WithFooterTemplate should enable displayHeaderFooter")
+	}
+}
+
 func TestResolveChromiumPathPrefersMDPRESSChromePath(t *testing.T) {
 	t.Setenv("CHROME_BIN", "")
 	originalCandidates := chromiumExecutableCandidates

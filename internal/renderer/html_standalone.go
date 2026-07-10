@@ -29,8 +29,11 @@ type StandaloneHTMLRenderer struct {
 // standaloneData is the template data model.
 type standaloneData struct {
 	Title       string
+	Subtitle    string
 	Author      string
+	Version     string
 	Language    string
+	HasCover    bool // Render the synthesized cover hero section
 	CSS         template.CSS
 	Chapters    []standaloneChapter
 	SidebarHTML template.HTML
@@ -81,7 +84,11 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		return "", errors.New("render parts cannot be nil")
 	}
 
-	// Assemble CSS bundle (theme CSS + syntax highlighting + custom CSS).
+	// Assemble CSS bundle (theme CSS + syntax highlighting + web layout
+	// re-assertions + custom CSS). The web reset comes after the theme CSS so
+	// PDF-oriented ToCSS rules (mm page margins, pt font sizing, pre-wrap
+	// code, framed tables) cannot leak into the app shell, while custom CSS
+	// stays last so users keep the final say.
 	var cssBuilder strings.Builder
 	if r.theme != nil {
 		cssBuilder.WriteString(r.theme.ToCSS())
@@ -91,6 +98,8 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		cssBuilder.WriteString(markdown.HighlightCSSDark(r.theme.CodeTheme))
 		cssBuilder.WriteString("\n")
 	}
+	cssBuilder.WriteString(standaloneWebReset)
+	cssBuilder.WriteString("\n")
 	if parts.CustomCSS != "" {
 		cssBuilder.WriteString(utils.SanitizeCSS(parts.CustomCSS))
 		cssBuilder.WriteString("\n")
@@ -134,10 +143,18 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		})
 	}
 
+	// A non-empty CoverHTML signals that output.cover is enabled; the
+	// standalone layout synthesizes its own hero section from the book
+	// metadata instead of embedding the cover's full HTML document.
+	// TOCHTML is intentionally not rendered: the sidebar already provides
+	// the complete book navigation.
 	data := standaloneData{
 		Title:       r.config.Book.Title,
+		Subtitle:    r.config.Book.Subtitle,
 		Author:      r.config.Book.Author,
+		Version:     r.config.Book.Version,
 		Language:    r.config.Book.Language,
+		HasCover:    parts.CoverHTML != "",
 		CSS:         template.CSS(cssBuilder.String()),
 		Chapters:    chapters,
 		SidebarHTML: template.HTML(r.buildSidebar(parts.ChaptersHTML)),

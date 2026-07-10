@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -30,9 +32,13 @@ type SiteChapter struct {
 	Filename string // Output HTML filename, for example "ch01.html".
 	Content  string // Rendered HTML content.
 	Markdown string // Source markdown after variable expansion.
-	Depth    int
-	Headings []SiteNavHeading
-	Children []SiteChapter
+	// SourcePath is the chapter's markdown source path relative to the book
+	// root (e.g. "chapter01/section1.md"), used to build "edit this page"
+	// links. When empty, the path is derived from Filename as a best effort.
+	SourcePath string
+	Depth      int
+	Headings   []SiteNavHeading
+	Children   []SiteChapter
 }
 
 // SiteNavHeading stores an in-chapter navigation tree.
@@ -160,6 +166,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		return fmt.Errorf("failed to parse page template: %w", err)
 	}
 
+	// sitemap.xml is only generated when the public site URL is configured,
+	// so pages only reference it in that case.
+	hasSitemap := strings.TrimSpace(g.Meta.SiteURL) != ""
+
 	// Render every page.
 	for i, page := range flatPages {
 		var prevLink, nextLink, prevTitle, nextTitle string
@@ -172,6 +182,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			nextTitle = flatPages[i+1].Title
 		}
 
+		sitemapLink := ""
+		if hasSitemap {
+			sitemapLink = relativeSiteHref(page.Filename, "sitemap.xml")
+		}
 		sidebarHTML := g.buildSidebar(g.Chapters, page.Filename)
 		data := pageData{
 			SiteTitle:        g.Meta.Title,
@@ -183,16 +197,17 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ThemeDescription: g.Meta.ThemeDescription,
 			PageTitle:        page.Title,
 			Description:      extractDescription(page.Content),
-			Breadcrumbs:      resolveBreadcrumbs(g.buildBreadcrumbs(g.Chapters, page.Filename)),
+			Breadcrumbs:      resolveBreadcrumbs(g.buildBreadcrumbs(g.Chapters, page.Filename), page.Filename),
 			Content:          page.Content,
 			CSS:              g.CSS,
 			SidebarHTML:      sidebarHTML,
-			HomeLink:         absoluteSiteHref("index.html"),
-			SitemapLink:      absoluteSiteHref("sitemap.xml"),
-			PrevLink:         absoluteSiteHref(prevLink),
+			HomeLink:         relativeSiteHref(page.Filename, "index.html"),
+			SitemapLink:      sitemapLink,
+			PrevLink:         relativeSiteHref(page.Filename, prevLink),
 			PrevTitle:        prevTitle,
-			NextLink:         absoluteSiteHref(nextLink),
+			NextLink:         relativeSiteHref(page.Filename, nextLink),
 			NextTitle:        nextTitle,
+			EditLink:         g.editPageLink(page),
 			ActiveFile:       page.Filename,
 			TotalPages:       len(flatPages),
 			CurrentPage:      i + 1,
@@ -229,6 +244,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			nextLink = flatPages[1].Filename
 			nextTitle = flatPages[1].Title
 		}
+		idxSitemapLink := ""
+		if hasSitemap {
+			idxSitemapLink = "sitemap.xml"
+		}
 		idxData := pageData{
 			SiteTitle:        g.Meta.Title,
 			SiteSubtitle:     g.Meta.Subtitle,
@@ -243,10 +262,11 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			Content:          firstPage.Content,
 			CSS:              g.CSS,
 			SidebarHTML:      g.buildSidebar(g.Chapters, "index.html"),
-			HomeLink:         "/index.html",
-			SitemapLink:      "/sitemap.xml",
-			NextLink:         absoluteSiteHref(nextLink),
+			HomeLink:         "index.html",
+			SitemapLink:      idxSitemapLink,
+			NextLink:         relativeSiteHref("index.html", nextLink),
 			NextTitle:        nextTitle,
+			EditLink:         g.editPageLink(firstPage),
 			ActiveFile:       "index.html",
 			TotalPages:       len(flatPages),
 			CurrentPage:      1,
@@ -266,19 +286,33 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write index.html: %w", err)
 	}
-	// Generate sitemap.xml for search engine indexing.
-	if len(flatPages) > 0 {
+	// Generate sitemap.xml for search engine indexing.  The sitemap protocol
+	// requires fully-qualified URLs, so the file is only written when the
+	// public base URL of the site is configured via output.site_url.
+	if len(flatPages) > 0 && hasSitemap {
+		base := strings.TrimRight(strings.TrimSpace(g.Meta.SiteURL), "/")
+		lastMod := time.Now().Format("2006-01-02")
 		var sm strings.Builder
 		sm.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 		sm.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-		sm.WriteString("  <url><loc>index.html</loc><priority>1.0</priority></url>\n")
+		fmt.Fprintf(&sm, "  <url><loc>%s/</loc><lastmod>%s</lastmod><priority>1.0</priority></url>\n",
+			template.HTMLEscapeString(base), lastMod)
 		for _, page := range flatPages {
-			fmt.Fprintf(&sm, "  <url><loc>%s</loc></url>\n", template.HTMLEscapeString(page.Filename))
+			fmt.Fprintf(&sm, "  <url><loc>%s/%s</loc><lastmod>%s</lastmod></url>\n",
+				template.HTMLEscapeString(base), template.HTMLEscapeString(page.Filename), lastMod)
 		}
 		sm.WriteString("</urlset>\n")
 		if err := os.WriteFile(filepath.Join(outputDir, "sitemap.xml"), []byte(sm.String()), 0o644); err != nil {
 			return fmt.Errorf("failed to write sitemap.xml: %w", err)
 		}
+	} else if len(flatPages) > 0 {
+		slog.Debug("Skipping sitemap.xml: output.site_url is not configured")
+	}
+
+	// Generate a 404 fallback page (served automatically by GitHub Pages,
+	// Netlify, and similar hosts for unknown URLs).
+	if err := g.generate404(outputDir); err != nil {
+		return err
 	}
 
 	// Generate search-index.json for client-side full-text search.
@@ -361,6 +395,7 @@ type pageData struct {
 	PrevTitle        string
 	NextLink         string
 	NextTitle        string
+	EditLink         string // "Edit this page" URL; empty disables the link.
 	ActiveFile       string
 	TotalPages       int
 	CurrentPage      int
@@ -385,6 +420,7 @@ type pageData struct {
 	UIsearchMatchText   string
 	UIsearchMatched     string
 	UIonThisPage        string
+	UIeditPage          string
 	UIcopy              string
 	UIcopied            string
 	UIhideSidebar       string
@@ -445,19 +481,35 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func absoluteSiteHref(target string) string {
+// relativeSiteHref returns a href for target computed relative to the page at
+// fromFile.  Both arguments are slash-separated paths from the site root.
+// Relative hrefs keep the generated site fully relocatable: it works when
+// served from a subdirectory (e.g. a GitHub Pages project site at
+// https://user.github.io/repo/) and when opened directly via file://.  The
+// SPA router rewrites the static sidebar links to absolute URLs at load time
+// so they stay correct after client-side navigation changes the browser URL.
+// Uses the path package (not filepath) since these are URL paths.
+func relativeSiteHref(fromFile, target string) string {
 	if target == "" {
 		return ""
 	}
-	// Use absolute paths (rooted with "/") so that links remain correct after
-	// SPA client-side navigation changes the browser URL.  Relative paths
-	// break because the sidebar HTML is not re-rendered during SPA page swaps,
-	// and the browser resolves relative hrefs against the new (changed) URL.
-	// Use path.Clean (not filepath.Clean) since these are URL paths, not filesystem paths.
-	return "/" + path.Clean(target)
+	target = path.Clean(strings.TrimPrefix(target, "/"))
+	fromDir := path.Dir(path.Clean(strings.TrimPrefix(fromFile, "/")))
+	if fromDir == "." {
+		return target
+	}
+	fromParts := strings.Split(fromDir, "/")
+	targetParts := strings.Split(target, "/")
+	// Skip the directory components shared by both paths, keeping at least
+	// the target's final (file) component.
+	common := 0
+	for common < len(fromParts) && common < len(targetParts)-1 && fromParts[common] == targetParts[common] {
+		common++
+	}
+	return strings.Repeat("../", len(fromParts)-common) + strings.Join(targetParts[common:], "/")
 }
 
-func resolveBreadcrumbs(crumbs []breadcrumb) []breadcrumb {
+func resolveBreadcrumbs(crumbs []breadcrumb, fromFile string) []breadcrumb {
 	if len(crumbs) == 0 {
 		return nil
 	}
@@ -465,8 +517,81 @@ func resolveBreadcrumbs(crumbs []breadcrumb) []breadcrumb {
 	for i, crumb := range crumbs {
 		out[i] = breadcrumb{
 			Title:    crumb.Title,
-			Filename: absoluteSiteHref(crumb.Filename),
+			Filename: relativeSiteHref(fromFile, crumb.Filename),
 		}
 	}
 	return out
+}
+
+// editSourcePath returns the markdown source path used for the
+// "edit this page" link.  It prefers the chapter's explicit SourcePath and
+// falls back to deriving one from the page filename, mirroring how page
+// filenames are produced from sources (index.html -> README.md).
+func editSourcePath(ch SiteChapter) string {
+	if ch.SourcePath != "" {
+		return ch.SourcePath
+	}
+	f := strings.TrimPrefix(ch.Filename, "/")
+	if f == "" || !strings.HasSuffix(f, ".html") {
+		return ""
+	}
+	if path.Base(f) == "index.html" {
+		dir := path.Dir(f)
+		if dir == "." {
+			return "README.md"
+		}
+		return dir + "/README.md"
+	}
+	return strings.TrimSuffix(f, ".html") + ".md"
+}
+
+// editPageLink joins the configured edit base URL with the chapter's markdown
+// source path.  It returns "" when edit links are not configured or the
+// source path cannot be determined.
+func (g *SiteGenerator) editPageLink(ch SiteChapter) string {
+	base := strings.TrimSpace(g.Meta.EditBase)
+	if base == "" {
+		return ""
+	}
+	src := editSourcePath(ch)
+	if src == "" {
+		return ""
+	}
+	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(src, "/")
+}
+
+// generate404 writes a small standalone 404 page linking back to the site
+// home.  Hosts may serve the page at any URL depth, so the home link uses the
+// configured absolute site URL when available and falls back to a relative
+// link that works at the site root.
+func (g *SiteGenerator) generate404(outputDir string) error {
+	homeLink := "index.html"
+	if url := strings.TrimSpace(g.Meta.SiteURL); url != "" {
+		homeLink = strings.TrimRight(url, "/") + "/"
+	}
+	tmpl, err := template.New("404").Parse(site404Template)
+	if err != nil {
+		return fmt.Errorf("failed to parse 404 template: %w", err)
+	}
+	data := struct {
+		Language  string
+		SiteTitle string
+		Title     string
+		HomeLink  string
+		HomeLabel string
+	}{
+		Language:  g.Meta.Language,
+		SiteTitle: g.Meta.Title,
+		Title:     uiString(g.Meta.Language, "not_found_title"),
+		HomeLink:  homeLink,
+		HomeLabel: uiString(g.Meta.Language, "not_found_home"),
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to render 404.html: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "404.html"), []byte(buf.String()), 0o644); err != nil {
+		return fmt.Errorf("failed to write 404.html: %w", err)
+	}
+	return nil
 }

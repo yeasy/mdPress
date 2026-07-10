@@ -1,35 +1,23 @@
-# mdpress technical documentation theme
-# Suitable for technical books, API docs, and programming tutorials
+# Example custom theme file. A file at themes/<name>.yaml overrides the
+# built-in theme of the same name; see `mdpress themes show technical`.
+# These values mirror the built-in "technical" theme.
 name: technical
 page_size: A4
-font_family: "-apple-system, BlinkMacSystemFont, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, Segoe UI, Helvetica Neue, Arial, sans-serif"
-font_size: 12
-code_theme: monokai
-line_height: 1.6
-
+font_family: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+font_size: 11
+code_theme: github
+line_height: 1.75
 colors:
-  text: "#333333"
-  background: "#ffffff"
-  heading: "#1a237e"
-  link: "#1565c0"
-  code_bg: "#f5f5f5"
-  code_text: "#c7254e"
-  accent: "#1976d2"
-  border: "#e0e0e0"
-
+  text: "#1F2933"
+  background: "#FFFFFF"
+  heading: "#12344D"
+  link: "#1C5A9E"
+  code_bg: "#F5F7F9"
+  code_text: "#1F2933"
+  accent: "#1C5A9E"
+  border: "#E4E7EB"
 margins:
-  top: 25
-  bottom: 25
-  left: 20
-  right: 20
-
-header_template: |
-  <div style="font-size:9pt;color:#999;border-bottom:1px solid #eee;padding-bottom:4pt;">
-    <span style="float:left;">{{.Book.Title}}</span>
-    <span style="float:right;">{{.Chapter.Title}}</span>
-  </div>
-
-footer_template: |
-  <div style="font-size:9pt;color:#999;border-top:1px solid #eee;padding-top:4pt;text-align:center;">
-    {{.PageNum}}
-  </div>
+  top: 20.0
+  bottom: 20.0
+  left: 20.0
+  right: 20.0

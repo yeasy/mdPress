@@ -235,6 +235,7 @@ func executeInit(ctx context.Context, dir string) error {
 		fmt.Println()
 		fmt.Println("  Created files:")
 		fmt.Println("    • book.yaml")
+		fmt.Println("    • .gitignore")
 		fmt.Println("    • preface.md")
 		fmt.Println("    • chapter01/README.md")
 		fmt.Printf("\n  Next steps:\n")
@@ -464,11 +465,15 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 	b.WriteString("  version: \"1.0.0\"\n")
 	fmt.Fprintf(&b, "  language: %q\n", answers.Language)
 
-	b.WriteString("  cover:\n")
 	if coverImage != "" {
+		b.WriteString("  cover:\n")
 		fmt.Fprintf(&b, "    image: %q\n", coverImage)
 	} else {
-		b.WriteString("    background: \"#1a1a2e\"\n")
+		// A styled cover is generated from the metadata by default; keep the
+		// override keys as commented-out examples only.
+		b.WriteString("  # cover:\n")
+		b.WriteString("  #   image: \"cover.png\"       # use a custom cover image\n")
+		b.WriteString("  #   background: \"#102a43\"    # override the default cover background color\n")
 	}
 
 	if files == nil {
@@ -625,6 +630,15 @@ func createStarterTemplate(dir string) error {
 	}
 	if err := utils.WriteFile(filepath.Join(ch01Dir, "README.md"), []byte(ch01Content)); err != nil {
 		return fmt.Errorf("failed to create chapter01/README.md: %w", err)
+	}
+
+	// Create .gitignore so default build artifacts are not committed.
+	// Never overwrite an existing one.
+	gitignorePath := filepath.Join(dir, ".gitignore")
+	if !utils.FileExists(gitignorePath) {
+		if err := utils.WriteFile(gitignorePath, []byte(scaffoldGitignore)); err != nil {
+			return fmt.Errorf("failed to create .gitignore: %w", err)
+		}
 	}
 
 	return nil

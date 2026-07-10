@@ -383,12 +383,21 @@ const standaloneJS = `
       if (pre.parentElement && pre.parentElement.classList.contains('code-block-wrapper')) return;
 
       var code = pre.querySelector('code');
-      var lang = '';
-      if (code) {
-        Array.from(code.classList).some(function(cls) {
-          var m = cls.match(/^language-(.+)$/);
-          if (m) { lang = m[1]; return true; }
-          return false;
+
+      // Language detection: prefer the data-lang attribute emitted by the
+      // markdown renderer (on the pre, its code child, or a wrapper element),
+      // then fall back to a language-<lang> class, then to 'text'.
+      var lang = pre.getAttribute('data-lang') || '';
+      if (!lang && code) lang = code.getAttribute('data-lang') || '';
+      if (!lang && pre.parentElement) lang = pre.parentElement.getAttribute('data-lang') || '';
+      if (!lang) {
+        [code, pre, pre.parentElement].some(function(el) {
+          if (!el) return false;
+          return Array.from(el.classList).some(function(cls) {
+            var m = cls.match(/^language-(.+)$/);
+            if (m) { lang = m[1]; return true; }
+            return false;
+          });
         });
       }
 

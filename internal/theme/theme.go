@@ -223,16 +223,37 @@ func quoteFontFamily(family string) string {
 	return strings.Join(parts, ", ")
 }
 
-// ToCSS converts theme settings to CSS code.
+// cssVar renders a var() reference with a literal fallback value so the rule
+// still applies in consumers that drop the :root custom properties (e.g.
+// older EPUB reading systems). An empty fallback yields a plain var().
+func cssVar(name, fallback string) string {
+	if fallback == "" {
+		return fmt.Sprintf("var(%s)", name)
+	}
+	return fmt.Sprintf("var(%s, %s)", name, fallback)
+}
+
+// ToCSS converts theme settings to CSS code. Every var() usage carries a
+// literal fallback derived from the theme values, so the styling survives
+// engines without custom-property support.
 func (t *Theme) ToCSS() string {
 	var css strings.Builder
 
+	fontFamily := quoteFontFamily(t.FontFamily)
+	monoFamily := quoteFontFamily(defaultCJKMonoFontFamily)
+	fontSize := fmt.Sprintf("%dpt", t.FontSize)
+	lineHeight := fmt.Sprintf("%.2f", t.LineHeight)
+	marginTop := fmt.Sprintf("%.2fmm", t.Margins.Top)
+	marginBottom := fmt.Sprintf("%.2fmm", t.Margins.Bottom)
+	marginLeft := fmt.Sprintf("%.2fmm", t.Margins.Left)
+	marginRight := fmt.Sprintf("%.2fmm", t.Margins.Right)
+
 	css.WriteString("/* Auto-generated theme CSS */\n")
 	css.WriteString(":root {\n")
-	fmt.Fprintf(&css, "  --font-family: %s;\n", quoteFontFamily(t.FontFamily))
-	fmt.Fprintf(&css, "  --font-family-mono: %s;\n", quoteFontFamily(defaultCJKMonoFontFamily))
-	fmt.Fprintf(&css, "  --font-size: %dpt;\n", t.FontSize)
-	fmt.Fprintf(&css, "  --line-height: %.2f;\n", t.LineHeight)
+	fmt.Fprintf(&css, "  --font-family: %s;\n", fontFamily)
+	fmt.Fprintf(&css, "  --font-family-mono: %s;\n", monoFamily)
+	fmt.Fprintf(&css, "  --font-size: %s;\n", fontSize)
+	fmt.Fprintf(&css, "  --line-height: %s;\n", lineHeight)
 	fmt.Fprintf(&css, "  --color-text: %s;\n", t.Colors.Text)
 	fmt.Fprintf(&css, "  --color-background: %s;\n", t.Colors.Background)
 	fmt.Fprintf(&css, "  --color-heading: %s;\n", t.Colors.Heading)
@@ -241,26 +262,30 @@ func (t *Theme) ToCSS() string {
 	fmt.Fprintf(&css, "  --color-code-text: %s;\n", t.Colors.CodeText)
 	fmt.Fprintf(&css, "  --color-accent: %s;\n", t.Colors.Accent)
 	fmt.Fprintf(&css, "  --color-border: %s;\n", t.Colors.Border)
-	fmt.Fprintf(&css, "  --margin-top: %.2fmm;\n", t.Margins.Top)
-	fmt.Fprintf(&css, "  --margin-bottom: %.2fmm;\n", t.Margins.Bottom)
-	fmt.Fprintf(&css, "  --margin-left: %.2fmm;\n", t.Margins.Left)
-	fmt.Fprintf(&css, "  --margin-right: %.2fmm;\n", t.Margins.Right)
+	fmt.Fprintf(&css, "  --margin-top: %s;\n", marginTop)
+	fmt.Fprintf(&css, "  --margin-bottom: %s;\n", marginBottom)
+	fmt.Fprintf(&css, "  --margin-left: %s;\n", marginLeft)
+	fmt.Fprintf(&css, "  --margin-right: %s;\n", marginRight)
 	css.WriteString("}\n\n")
 
 	// Base styles.
 	css.WriteString("body {\n")
-	css.WriteString("  font-family: var(--font-family);\n")
-	css.WriteString("  font-size: var(--font-size);\n")
-	css.WriteString("  line-height: var(--line-height);\n")
-	css.WriteString("  color: var(--color-text);\n")
-	css.WriteString("  background-color: var(--color-background);\n")
-	css.WriteString("  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);\n")
+	fmt.Fprintf(&css, "  font-family: %s;\n", cssVar("--font-family", fontFamily))
+	fmt.Fprintf(&css, "  font-size: %s;\n", cssVar("--font-size", fontSize))
+	fmt.Fprintf(&css, "  line-height: %s;\n", cssVar("--line-height", lineHeight))
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-text", t.Colors.Text))
+	fmt.Fprintf(&css, "  background-color: %s;\n", cssVar("--color-background", t.Colors.Background))
+	fmt.Fprintf(&css, "  margin: %s %s %s %s;\n",
+		cssVar("--margin-top", marginTop),
+		cssVar("--margin-right", marginRight),
+		cssVar("--margin-bottom", marginBottom),
+		cssVar("--margin-left", marginLeft))
 	css.WriteString("}\n\n")
 
 	// Heading styles. Only color/weight/rhythm live here; per-format sizing is
 	// owned by each renderer so the type scale can differ between PDF and web.
 	css.WriteString("h1, h2, h3, h4, h5, h6 {\n")
-	css.WriteString("  color: var(--color-heading);\n")
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-heading", t.Colors.Heading))
 	css.WriteString("  font-weight: 600;\n")
 	css.WriteString("  line-height: 1.35;\n")
 	css.WriteString("}\n\n")
@@ -268,7 +293,7 @@ func (t *Theme) ToCSS() string {
 	// Link styles. No underline by default (cleaner in headings, TOC, and body);
 	// underline appears on hover for on-screen affordance.
 	css.WriteString("a {\n")
-	css.WriteString("  color: var(--color-link);\n")
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-link", t.Colors.Link))
 	css.WriteString("  text-decoration: none;\n")
 	css.WriteString("}\n\n")
 
@@ -280,12 +305,12 @@ func (t *Theme) ToCSS() string {
 	// supplies one); inline code gets a subtle tinted chip for legibility.
 	css.WriteString("code, pre {\n")
 	css.WriteString("  background: none;\n")
-	css.WriteString("  color: var(--color-code-text);\n")
-	css.WriteString("  font-family: var(--font-family-mono);\n")
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-code-text", t.Colors.CodeText))
+	fmt.Fprintf(&css, "  font-family: %s;\n", cssVar("--font-family-mono", monoFamily))
 	css.WriteString("}\n\n")
 
 	css.WriteString(":not(pre) > code {\n")
-	css.WriteString("  background: var(--color-code-bg);\n")
+	fmt.Fprintf(&css, "  background: %s;\n", cssVar("--color-code-bg", t.Colors.CodeBg))
 	css.WriteString("  padding: 0.12em 0.36em;\n")
 	css.WriteString("  border-radius: 4px;\n")
 	css.WriteString("  font-size: 0.88em;\n")
@@ -295,7 +320,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  padding: 0.9em 1.1em;\n")
 	css.WriteString("  font-size: 0.82em;\n")
 	css.WriteString("  line-height: 1.55;\n")
-	css.WriteString("  border: 1px solid var(--color-border);\n")
+	fmt.Fprintf(&css, "  border: 1px solid %s;\n", cssVar("--color-border", t.Colors.Border))
 	css.WriteString("  border-radius: 6px;\n")
 	css.WriteString("  overflow-x: auto;\n")
 	css.WriteString("  white-space: pre-wrap;\n")
@@ -305,10 +330,10 @@ func (t *Theme) ToCSS() string {
 
 	// Blockquote styles: an accent rule with muted text and no heavy fill.
 	css.WriteString("blockquote {\n")
-	css.WriteString("  border-left: 3px solid var(--color-accent);\n")
+	fmt.Fprintf(&css, "  border-left: 3px solid %s;\n", cssVar("--color-accent", t.Colors.Accent))
 	css.WriteString("  margin: 1.2em 0;\n")
 	css.WriteString("  padding: 0.2em 0 0.2em 1.1em;\n")
-	css.WriteString("  color: var(--color-text);\n")
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-text", t.Colors.Text))
 	css.WriteString("  opacity: 0.78;\n")
 	css.WriteString("}\n\n")
 
@@ -322,7 +347,7 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("}\n\n")
 
 	css.WriteString("table th, table td {\n")
-	css.WriteString("  border: 1px solid var(--color-border);\n")
+	fmt.Fprintf(&css, "  border: 1px solid %s;\n", cssVar("--color-border", t.Colors.Border))
 	css.WriteString("  padding: 0.55em 0.85em;\n")
 	css.WriteString("  text-align: left;\n")
 	css.WriteString("  overflow-wrap: anywhere;\n")
@@ -330,14 +355,14 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("}\n\n")
 
 	css.WriteString("table th {\n")
-	css.WriteString("  background-color: var(--color-code-bg);\n")
-	css.WriteString("  color: var(--color-heading);\n")
+	fmt.Fprintf(&css, "  background-color: %s;\n", cssVar("--color-code-bg", t.Colors.CodeBg))
+	fmt.Fprintf(&css, "  color: %s;\n", cssVar("--color-heading", t.Colors.Heading))
 	css.WriteString("  font-weight: 600;\n")
-	css.WriteString("  border-bottom: 2px solid var(--color-accent);\n")
+	fmt.Fprintf(&css, "  border-bottom: 2px solid %s;\n", cssVar("--color-accent", t.Colors.Accent))
 	css.WriteString("}\n\n")
 
 	css.WriteString("table tbody tr:nth-child(even) td {\n")
-	css.WriteString("  background-color: var(--color-code-bg);\n")
+	fmt.Fprintf(&css, "  background-color: %s;\n", cssVar("--color-code-bg", t.Colors.CodeBg))
 	css.WriteString("}\n\n")
 
 	return css.String()

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/glossary"
@@ -40,17 +43,58 @@ type buildOrchestrator struct {
 	PluginManager *plugin.Manager
 }
 
+// customThemePath returns the on-disk YAML file the configured theme should
+// be loaded from, or "" when the theme should resolve to a built-in.
+//
+// Two custom-theme sources are supported (this is the mechanism advertised by
+// `mdpress themes show`):
+//  1. style.theme set to a YAML file path (ending in .yaml or .yml),
+//     resolved relative to the directory containing book.yaml.
+//  2. A project-local override at <project>/themes/<name>.yaml, where <name>
+//     is the configured theme name (the default "technical" when unset).
+//     When the file exists it replaces the built-in theme of the same name.
+func customThemePath(cfg *config.BookConfig) string {
+	name := cfg.Style.Theme
+	if strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
+		return cfg.ResolvePath(name)
+	}
+	if name == "" {
+		name = defaultThemeName
+	}
+	for _, ext := range []string{".yaml", ".yml"} {
+		override := cfg.ResolvePath(filepath.Join("themes", name+ext))
+		if info, err := os.Stat(override); err == nil && info.Mode().IsRegular() {
+			return override
+		}
+	}
+	return ""
+}
+
 // NewBuildOrchestrator creates a fully initialized orchestrator from config.
-// It loads the theme (with fallback), creates the parser, and loads the glossary.
+// It loads the theme (custom theme file, or built-in with fallback), creates
+// the parser, and loads the glossary.
 func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOrchestrator, error) {
-	// Initialize the theme.
+	// Initialize the theme. A project-local custom theme (explicit
+	// style.theme YAML path or themes/<name>.yaml override) takes
+	// precedence over the built-ins; a custom theme that fails to load or
+	// validate is a hard error rather than a silent fallback.
 	tm := theme.NewThemeManager()
-	thm, err := tm.Get(cfg.Style.Theme)
-	if err != nil {
-		logger.Warn("theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.Any("error", err))
-		thm, err = tm.Get("technical")
+	var thm *theme.Theme
+	var err error
+	if path := customThemePath(cfg); path != "" {
+		thm, err = tm.LoadFromFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load default theme: %w", err)
+			return nil, fmt.Errorf("custom theme %s: %w", path, err)
+		}
+		logger.Debug("loaded custom theme", slog.String("path", path), slog.String("theme", thm.Name))
+	} else {
+		thm, err = tm.Get(cfg.Style.Theme)
+		if err != nil {
+			logger.Warn("theme lookup failed, falling back to default", slog.String("theme", cfg.Style.Theme), slog.Any("error", err))
+			thm, err = tm.Get(defaultThemeName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load default theme: %w", err)
+			}
 		}
 	}
 

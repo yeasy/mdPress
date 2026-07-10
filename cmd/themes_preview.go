@@ -10,7 +10,9 @@ import (
 )
 
 // themes_preview.go contains the implementation for the "themes preview" subcommand.
-// It generates a self-contained HTML file showcasing all built-in themes with sample content.
+// It generates a self-contained HTML file showcasing all built-in themes with sample
+// content styled by each theme's real pipeline stylesheet (theme.ToCSS), so the
+// preview always matches what builds actually produce.
 
 // executeThemesPreview generates an HTML preview of all themes.
 func executeThemesPreview(outputPath string) error {
@@ -21,11 +23,11 @@ func executeThemesPreview(outputPath string) error {
 		outputPath = "themes-preview.html"
 	}
 
-	logger.Info("Generating themes preview", slog.String("output", outputPath))
+	logger.Debug("Generating themes preview", slog.String("output", outputPath))
 
 	themes := getAvailableThemes()
 
-	html := generatePreviewHTML(themes)
+	previewHTML := generatePreviewHTML(themes)
 
 	// Write to file
 	absPath, err := filepath.Abs(outputPath)
@@ -33,11 +35,13 @@ func executeThemesPreview(outputPath string) error {
 		return fmt.Errorf("failed to resolve output path: %w", err)
 	}
 
-	if err := os.WriteFile(absPath, []byte(html), 0o644); err != nil {
+	if err := os.WriteFile(absPath, []byte(previewHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write preview file: %w", err)
 	}
 
-	fmt.Printf("✓ Theme preview generated: %s\n", absPath)
+	if !quiet {
+		fmt.Printf("✓ Theme preview generated: %s\n", absPath)
+	}
 	return nil
 }
 
@@ -66,7 +70,7 @@ func generatePreviewHTML(themes []themeInfo) string {
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -90,7 +94,7 @@ func generatePreviewHTML(themes []themeInfo) string {
 
         .themes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
             gap: 40px;
             margin-bottom: 60px;
         }
@@ -134,9 +138,20 @@ func generatePreviewHTML(themes []themeInfo) string {
             border-bottom: 1px solid #e0e0e0;
         }
 
+        .theme-props {
+            padding: 10px 20px;
+            font-size: 0.85em;
+            color: #666;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .theme-props li {
+            margin-left: 1.2em;
+        }
+
         .theme-colors {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             padding: 15px 20px;
             border-bottom: 1px solid #e0e0e0;
@@ -151,7 +166,7 @@ func generatePreviewHTML(themes []themeInfo) string {
 
         .color-box {
             width: 100%;
-            height: 50px;
+            height: 40px;
             border-radius: 4px;
             border: 1px solid #ddd;
             box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.1);
@@ -171,68 +186,12 @@ func generatePreviewHTML(themes []themeInfo) string {
             font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
         }
 
-        .theme-content {
-            padding: 30px;
-        }
-
-        .theme-content h2 {
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid;
-        }
-
-        .theme-content p {
-            margin-bottom: 15px;
-            line-height: 1.7;
-        }
-
-        .theme-content code {
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
-            font-size: 0.9em;
-        }
-
-        .theme-content pre {
-            margin: 15px 0;
-            padding: 12px;
-            border-radius: 4px;
-            overflow-x: auto;
-            font-family: 'Monaco', 'Courier New', 'PingFang SC', 'Noto Sans Mono CJK SC', monospace;
-            font-size: 0.85em;
-            line-height: 1.4;
-        }
-
-        .theme-content pre code {
-            padding: 0;
-            background: none;
-        }
-
-        .theme-content table {
+        .theme-sample {
+            border: 0;
             width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-            font-size: 0.95em;
-        }
-
-        .theme-content table th {
-            padding: 10px;
-            text-align: left;
-            font-weight: 600;
-            border-bottom: 2px solid;
-        }
-
-        .theme-content table td {
-            padding: 10px;
-            border-bottom: 1px solid;
-        }
-
-        .theme-content blockquote {
-            margin: 15px 0;
-            padding: 15px;
-            border-left: 4px solid;
-            border-radius: 0 4px 4px 0;
-            font-style: italic;
+            height: 660px;
+            display: block;
+            background: white;
         }
 
         .footer {
@@ -259,21 +218,21 @@ func generatePreviewHTML(themes []themeInfo) string {
     <div class="container">
         <div class="header">
             <h1>mdpress Theme Showcase</h1>
-            <p>Interactive preview of all built-in themes</p>
+            <p>Each sample below is rendered with the theme's real build stylesheet</p>
         </div>
 
         <div class="themes-grid">
 `)
 
 	// Generate preview for each theme
-	for _, theme := range themes {
-		sb.WriteString(generateThemePreviewSection(theme))
+	for _, thm := range themes {
+		sb.WriteString(generateThemePreviewSection(thm))
 	}
 
 	sb.WriteString(`        </div>
 
         <div class="footer">
-            <p>Generated by mdpress &mdash; All themes are customizable via your project's themes/ directory</p>
+            <p>Generated by mdpress &mdash; customize any theme by creating themes/&lt;name&gt;.yaml next to book.yaml (see 'mdpress themes show &lt;name&gt;')</p>
         </div>
     </div>
 </body>
@@ -284,8 +243,18 @@ func generatePreviewHTML(themes []themeInfo) string {
 }
 
 // generateThemePreviewSection creates an HTML section for a single theme.
-func generateThemePreviewSection(theme themeInfo) string {
-	section := fmt.Sprintf(`            <div class="theme-section">
+// The sample content is rendered inside a sandboxed iframe whose stylesheet
+// is the theme's actual pipeline CSS (theme.ToCSS), so headings, links,
+// inline-code chips, code blocks, blockquotes, and zebra-striped tables all
+// show the exact styling that builds produce.
+func generateThemePreviewSection(thm themeInfo) string {
+	displayName := thm.displayName
+	if thm.isDefault {
+		displayName += " (default)"
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `            <div class="theme-section">
                 <div class="theme-header" style="background: linear-gradient(135deg, %s 0%%, %s 100%%);">
                     <div class="theme-name">%s</div>
                     <div class="theme-code">%s</div>
@@ -294,89 +263,94 @@ func generateThemePreviewSection(theme themeInfo) string {
                 <div class="theme-info">
                     %s
                 </div>
+`,
+		thm.colors.primary,
+		thm.colors.secondary,
+		html.EscapeString(displayName),
+		html.EscapeString(thm.name),
+		html.EscapeString(thm.description),
+	)
 
+	if len(thm.features) > 0 {
+		sb.WriteString(`
+                <ul class="theme-props">
+`)
+		for _, feature := range thm.features {
+			fmt.Fprintf(&sb, "                    <li>%s</li>\n", html.EscapeString(feature))
+		}
+		sb.WriteString("                </ul>\n")
+	}
+
+	sb.WriteString(`
                 <div class="theme-colors">
-                    <div class="color-swatch">
+`)
+	for _, swatch := range []struct{ label, value string }{
+		{"Heading", thm.colors.primary},
+		{"Link", thm.colors.secondary},
+		{"Accent", thm.colors.accent},
+		{"Text", thm.colors.text},
+		{"Background", thm.colors.background},
+		{"CodeBg", thm.colors.codeBg},
+		{"CodeText", thm.colors.codeText},
+		{"Border", thm.colors.border},
+	} {
+		fmt.Fprintf(&sb, `                    <div class="color-swatch">
                         <div class="color-box" style="background-color: %s;"></div>
-                        <div class="color-label">Primary</div>
+                        <div class="color-label">%s</div>
                         <div class="color-value">%s</div>
                     </div>
-                    <div class="color-swatch">
-                        <div class="color-box" style="background-color: %s;"></div>
-                        <div class="color-label">Secondary</div>
-                        <div class="color-value">%s</div>
-                    </div>
-                    <div class="color-swatch">
-                        <div class="color-box" style="background-color: %s;"></div>
-                        <div class="color-label">Accent</div>
-                        <div class="color-value">%s</div>
-                    </div>
-                </div>
+`, swatch.value, html.EscapeString(swatch.label), html.EscapeString(swatch.value))
+	}
+	sb.WriteString("                </div>\n")
 
-                <div class="theme-content" style="color: %s; background-color: %s;">
-                    <h2 style="color: %s; border-bottom-color: %s;">Sample Heading</h2>
-                    <p>This is a sample paragraph showcasing the theme's text styling. The quick brown fox jumps over the lazy dog.</p>
+	// Embed the sample document in a srcdoc iframe so each theme's global
+	// stylesheet (body, headings, tables, ...) stays isolated per sample.
+	fmt.Fprintf(&sb, `
+                <iframe class="theme-sample" title="%s sample" srcdoc="%s"></iframe>
+            </div>
+`,
+		html.EscapeString(thm.name),
+		html.EscapeString(themeSampleDocument(thm)),
+	)
 
-                    <p>You can use <code style="color: %s; background-color: %s;">inline code</code> for simple terms and references.</p>
+	return sb.String()
+}
 
-                    <pre style="color: %s; background-color: %s; border: 1px solid %s;"><code>// Sample code block
+// themeSampleDocument builds the standalone HTML document shown inside a
+// theme's preview iframe, styled by the theme's real ToCSS output.
+func themeSampleDocument(thm themeInfo) string {
+	css := ""
+	if thm.theme != nil {
+		css = thm.theme.ToCSS()
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<style>\n")
+	sb.WriteString(css)
+	// Preview-only accommodation: the theme's page margins are meant for
+	// print pagination; keep the sample compact inside the card.
+	sb.WriteString("\nbody { margin: 18px 22px; }\n")
+	sb.WriteString("</style>\n</head>\n<body>\n")
+	sb.WriteString(`<h1>Sample Heading</h1>
+<p>This is a sample paragraph showcasing the theme's text styling with a <a href="#">sample link</a> and <code>inline code</code>. The quick brown fox jumps over the lazy dog.</p>
+<h2>Section Heading</h2>
+<blockquote>A well-designed theme enhances readability and creates a professional appearance for your documentation.</blockquote>
+<pre><code>// Sample code block
 func greet(name string) string {
     return "Hello, " + name
 }</code></pre>
-
-                    <table style="border-color: %s;">
-                        <thead>
-                            <tr style="border-bottom-color: %s; background-color: %s;">
-                                <th>Feature</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom-color: %s;">
-                                <td><strong>Author</strong></td>
-                                <td>%s</td>
-                            </tr>
-                            <tr style="border-bottom-color: %s;">
-                                <td><strong>Version</strong></td>
-                                <td>%s</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <blockquote style="border-left-color: %s; color: %s; background-color: rgba(0, 0, 0, 0.05);">A well-designed theme enhances readability and creates a professional appearance for your documentation.</blockquote>
-                </div>
-            </div>
-`,
-		theme.colors.primary,
-		theme.colors.secondary,
-		html.EscapeString(theme.displayName),
-		html.EscapeString(theme.name),
-		html.EscapeString(theme.description),
-		theme.colors.primary,
-		theme.colors.primary,
-		theme.colors.secondary,
-		theme.colors.secondary,
-		theme.colors.accent,
-		theme.colors.accent,
-		theme.colors.text,
-		theme.colors.background,
-		theme.colors.primary,
-		theme.colors.accent,
-		theme.colors.text,
-		theme.colors.codeBg,
-		theme.colors.text,
-		theme.colors.codeBg,
-		theme.colors.secondary,
-		theme.colors.secondary,
-		theme.colors.secondary,
-		theme.colors.codeBg,
-		theme.colors.secondary,
-		html.EscapeString(theme.author),
-		theme.colors.secondary,
-		html.EscapeString(theme.version),
-		theme.colors.accent,
-		theme.colors.text,
-	)
-
-	return section
+<table>
+<thead>
+<tr><th>Feature</th><th>Value</th></tr>
+</thead>
+<tbody>
+<tr><td>Table header</td><td>tinted with accent underline</td></tr>
+<tr><td>Zebra striping</td><td>even rows tinted</td></tr>
+<tr><td>Inline code</td><td>subtle chip background</td></tr>
+<tr><td>Links</td><td>underline on hover</td></tr>
+</tbody>
+</table>
+`)
+	sb.WriteString("</body>\n</html>\n")
+	return sb.String()
 }

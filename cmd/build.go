@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -35,7 +36,7 @@ var (
 // buildCmd is the main build subcommand.
 var buildCmd = &cobra.Command{
 	Use:   "build [source]",
-	Short: "Build documents (PDF/HTML/ePub)",
+	Short: "Build documents (PDF/HTML/site/ePub/Typst)",
 	Long: `Build high-quality documents from a local directory or GitHub repository.
 
 Supported input sources:
@@ -48,6 +49,13 @@ Output formats:
   site  - Multi-page static site
   epub  - ePub ebook
   typst - PDF via Typst CLI (Chromium-free)
+
+Output paths (--output):
+  pdf/html/epub/typst treat --output as a file path or base name; an existing
+  directory (or a path ending with a separator) receives "<name>.<ext>" files.
+  site writes to the "_book/" directory by default; --output pointing at a
+  directory is used verbatim, while a file path or base name (e.g.
+  ./release/manual.pdf) puts the site in "<base>_site/" next to the files.
 
 Zero-config mode:
   If neither book.yaml nor SUMMARY.md exists, mdpress auto-discovers .md files.
@@ -77,7 +85,7 @@ func init() {
 	buildCmd.Flags().StringVarP(&buildFormat, "format", "f", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
-	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or filename prefix")
+	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or base name for pdf/html/epub/typst; site uses a directory verbatim or \"<base>_site/\" for a file base (default: _book/)")
 	buildCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
 	buildCmd.Flags().BoolVar(&allowPlugins, "allow-plugins", false, "Execute plugins declared by a remote project's book.yaml (arbitrary code; local sources always run plugins)")
 }
@@ -162,11 +170,6 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 	}
 
-	logger.Info("configuration loaded",
-		slog.String("title", cfg.Book.Title),
-		slog.String("author", cfg.Book.Author),
-		slog.Int("chapters", len(cfg.Chapters)))
-
 	// Handle explicit --summary flag.
 	if buildSummary != "" {
 		summaryPath, err := filepath.Abs(buildSummary)
@@ -224,6 +227,21 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		return fmt.Errorf("failed to resolve build output: %w", err)
 	}
 
+	// Remote sources are cloned into a temporary directory that is deleted
+	// when the build finishes, so default outputs must land in the user's
+	// working directory to survive cleanup.
+	remoteOutputDir := ""
+	if buildSourceIsRemote && outputOverride == "" {
+		cwd, cwdErr := os.Getwd()
+		if cwdErr != nil {
+			return fmt.Errorf("failed to resolve current directory for remote build output: %w", cwdErr)
+		}
+		remoteOutputDir = cwd
+		// Trailing separator marks explicit directory intent for file formats.
+		outputOverride = cwd + string(os.PathSeparator)
+		logger.Info("remote source: writing outputs to the current directory", slog.String("dir", cwd))
+	}
+
 	if cfg.LangsFile != "" {
 		langs, langsErr := i18n.ParseLangsFile(cfg.LangsFile)
 		if langsErr != nil {
@@ -234,18 +252,34 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	}
 
 	siteDir := resolveSiteOutputDir(cfg.BaseDir(), outputOverride)
+	if remoteOutputDir != "" {
+		// Keep the site in "<cwd>/_book" rather than spilling its pages into
+		// the working directory itself.
+		siteDir = filepath.Join(remoteOutputDir, "_book")
+	}
 	return executeBuildForConfig(ctx, cfg, formats, outputOverride, siteDir, logger)
 }
 
 // resolveSiteOutputDir picks the directory the "site" format writes into for a
-// single-language build. An explicit --output wins (used verbatim as the target
-// directory); otherwise the default is the GitBook-style "_book" directory under
-// the project, matching `mdpress serve` and the CI deploy examples.
+// single-language build:
+//   - no --output: the GitBook-style "_book" directory under the project,
+//     matching `mdpress serve` and the CI deploy examples;
+//   - --output naming an existing directory (or ending with a path
+//     separator): used verbatim as the target directory;
+//   - --output naming a file path or base name (e.g. release/manual.pdf or
+//     release/manual): the site goes to a "<base>_site" sibling so the other
+//     formats can keep using the same base path for their files.
 func resolveSiteOutputDir(baseDir, outputOverride string) string {
-	if outputOverride != "" {
+	if outputOverride == "" {
+		return filepath.Join(baseDir, "_book")
+	}
+	if hasTrailingPathSeparator(outputOverride) {
+		return filepath.Clean(outputOverride)
+	}
+	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
 		return outputOverride
 	}
-	return filepath.Join(baseDir, "_book")
+	return strings.TrimSuffix(outputOverride, filepath.Ext(outputOverride)) + "_site"
 }
 
 func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {

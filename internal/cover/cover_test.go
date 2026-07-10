@@ -5,8 +5,19 @@ import (
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
+
+// mustTheme fetches a built-in theme by name, failing the test on error.
+func mustTheme(t *testing.T, name string) *theme.Theme {
+	t.Helper()
+	thm, err := theme.NewThemeManager().Get(name)
+	if err != nil {
+		t.Fatalf("failed to load built-in theme %q: %v", name, err)
+	}
+	return thm
+}
 
 // TestNewCoverGenerator verifies cover generator creation.
 func TestNewCoverGenerator(t *testing.T) {
@@ -93,14 +104,154 @@ func TestRenderHTMLWithCoverImage(t *testing.T) {
 	}
 }
 
-// TestRenderHTMLDefaultGradient verifies the default clean white background.
-func TestRenderHTMLDefaultGradient(t *testing.T) {
+// TestRenderHTMLDefaultNavyCover verifies the default navy cover with light
+// text when no theme and no cover background/image are configured.
+func TestRenderHTMLDefaultNavyCover(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}
 	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
-	if !strings.Contains(html, "background-color: #ffffff") {
-		t.Error("clean white background should be used when no cover background is configured")
+	if !strings.Contains(html, "background-color: #102a43") {
+		t.Error("default cover should use the deep navy background")
+	}
+	if !strings.Contains(html, "color: #f6f8fc") {
+		t.Error("default cover should use near-white text on the navy background")
+	}
+	if strings.Contains(html, "color: #14304a") {
+		t.Error("default cover should not use the light-background ink")
+	}
+}
+
+// TestRenderHTMLThemeDefaults verifies that the default cover adapts to the
+// active theme when no cover background/image is configured.
+func TestRenderHTMLThemeDefaults(t *testing.T) {
+	tests := []struct {
+		name        string
+		thm         *theme.Theme
+		wantBg      string
+		wantInk     string
+		wantFont    string
+		wantDivider string
+	}{
+		{
+			name:        "nil theme keeps navy",
+			thm:         nil,
+			wantBg:      "background-color: #102a43",
+			wantInk:     "color: #f6f8fc",
+			wantFont:    `font-family: -apple-system, BlinkMacSystemFont, "Segoe UI"`,
+			wantDivider: "rgba(255, 255, 255, 0.5)",
+		},
+		{
+			name:        "technical keeps navy",
+			thm:         mustTheme(t, "technical"),
+			wantBg:      "background-color: #102a43",
+			wantInk:     "color: #f6f8fc",
+			wantFont:    "font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC'",
+			wantDivider: "rgba(255, 255, 255, 0.5)",
+		},
+		{
+			name:        "elegant gets warm serif cover",
+			thm:         mustTheme(t, "elegant"),
+			wantBg:      "background-color: #33261D",
+			wantInk:     "color: #F5EDDF",
+			wantFont:    "font-family: 'Songti SC'",
+			wantDivider: "rgba(255, 255, 255, 0.5)",
+		},
+		{
+			name:        "minimal gets light cover with near-black ink",
+			thm:         mustTheme(t, "minimal"),
+			wantBg:      "background-color: #FAFAFA",
+			wantInk:     "color: #111111",
+			wantFont:    "font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC'",
+			wantDivider: "background-color: #D4D4D4",
+		},
+		{
+			name: "unknown custom theme falls back to navy",
+			thm: &theme.Theme{
+				Name:       "corporate",
+				FontFamily: "'Custom Font', sans-serif",
+			},
+			wantBg:      "background-color: #102a43",
+			wantInk:     "color: #f6f8fc",
+			wantFont:    "font-family: 'Custom Font', sans-serif",
+			wantDivider: "rgba(255, 255, 255, 0.5)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := config.BookMeta{Title: "Test"}
+			html := NewCoverGenerator(meta, tt.thm).RenderHTML()
+
+			if !strings.Contains(html, tt.wantBg) {
+				t.Errorf("cover should contain %q", tt.wantBg)
+			}
+			if !strings.Contains(html, tt.wantInk) {
+				t.Errorf("cover should contain text ink %q", tt.wantInk)
+			}
+			if !strings.Contains(html, tt.wantFont) {
+				t.Errorf("cover should contain font stack %q", tt.wantFont)
+			}
+			if !strings.Contains(html, tt.wantDivider) {
+				t.Errorf("cover should contain divider style %q", tt.wantDivider)
+			}
+		})
+	}
+}
+
+// TestRenderHTMLLightBackgroundsGetDarkText verifies that configured light
+// backgrounds — hex, named, and rgb() forms — yield dark text instead of the
+// near-invisible near-white default.
+func TestRenderHTMLLightBackgroundsGetDarkText(t *testing.T) {
+	backgrounds := []string{
+		"white",
+		"ivory",
+		"rgb(255, 255, 255)",
+		"rgba(255, 255, 255, 0.9)",
+		"#ffffff",
+		"#FFF",
+	}
+
+	for _, bg := range backgrounds {
+		t.Run(bg, func(t *testing.T) {
+			meta := config.BookMeta{
+				Title: "Test",
+				Cover: config.CoverMeta{Background: bg},
+			}
+			html := NewCoverGenerator(meta, nil).RenderHTML()
+
+			if !strings.Contains(html, "color: #14304a") {
+				t.Errorf("background %q should yield dark text ink", bg)
+			}
+			if strings.Contains(html, "color: #f6f8fc") {
+				t.Errorf("background %q should not yield near-white text", bg)
+			}
+		})
+	}
+}
+
+// TestRenderHTMLDarkBackgroundsGetLightText verifies that configured dark
+// backgrounds keep light text.
+func TestRenderHTMLDarkBackgroundsGetLightText(t *testing.T) {
+	backgrounds := []string{
+		"black",
+		"navy",
+		"rgb(16, 42, 67)",
+		"#1a1a2e",
+	}
+
+	for _, bg := range backgrounds {
+		t.Run(bg, func(t *testing.T) {
+			meta := config.BookMeta{
+				Title: "Test",
+				Cover: config.CoverMeta{Background: bg},
+			}
+			html := NewCoverGenerator(meta, nil).RenderHTML()
+
+			if !strings.Contains(html, "color: #f6f8fc") {
+				t.Errorf("background %q should yield near-white text ink", bg)
+			}
+		})
 	}
 }
 
@@ -300,5 +451,74 @@ func TestRenderHTMLNoAuthor(t *testing.T) {
 	// Rendering should succeed without an author block.
 	if !strings.Contains(html, "cover-page") {
 		t.Error("cover should render successfully")
+	}
+}
+
+// TestIsLightColor verifies light/dark classification across hex, named, and
+// rgb()/rgba() color forms, plus the assume-dark contract for unknown input.
+func TestIsLightColor(t *testing.T) {
+	tests := []struct {
+		color string
+		want  bool
+	}{
+		// Hex: long form, uppercase, shorthand, and alpha variants.
+		{"#ffffff", true},
+		{"#FFFFFF", true},
+		{"#fff", true},
+		{"#ffff", true},     // #rgba shorthand, alpha ignored
+		{"#ffffffff", true}, // #rrggbbaa, alpha ignored
+		{"#fafafa", true},
+		{"#000000", false},
+		{"#102a43", false},
+		{"#1a1a2e", false},
+		{"#33261D", false},
+		{"  #ffffff  ", true}, // surrounding whitespace
+		{"#ff", false},        // too short
+		// Named colors: light table entries (case-insensitive).
+		{"white", true},
+		{"WHITE", true},
+		{"ivory", true},
+		{"snow", true},
+		{"beige", true},
+		{"linen", true},
+		{"seashell", true},
+		{"floralwhite", true},
+		{"ghostwhite", true},
+		{"whitesmoke", true},
+		{"lightyellow", true},
+		{"lightgray", true},
+		{"lightgrey", true},
+		{"gainsboro", true},
+		// Named colors: dark entries and unlisted names.
+		{"black", false},
+		{"navy", false},
+		{"maroon", false},
+		{"rebeccapurple", false}, // unlisted named color -> dark
+		// rgb()/rgba() numeric forms.
+		{"rgb(255, 255, 255)", true},
+		{"rgb(255,250,240)", true},
+		{"RGB(255, 255, 255)", true},
+		{"rgba(255, 255, 255, 0.9)", true},
+		{"rgb(100%, 100%, 100%)", true},
+		{"rgb(255 250 240 / 0.5)", true},
+		{"rgb(16, 42, 67)", false},
+		{"rgba(0, 0, 0, 1)", false},
+		// Unparseable input stays dark (light text is the safe default).
+		{"", false},
+		{"not-a-color", false},
+		{"hsl(0, 0%, 100%)", false},
+		{"rgb()", false},
+		{"rgb(a, b, c)", false},
+	}
+
+	for _, tt := range tests {
+		if got := isLightColor(tt.color); got != tt.want {
+			t.Errorf("isLightColor(%q) = %v, want %v", tt.color, got, tt.want)
+		}
+	}
+
+	// The exported wrapper must agree with the internal implementation.
+	if !IsLightColor("white") || IsLightColor("navy") {
+		t.Error("IsLightColor should classify 'white' as light and 'navy' as dark")
 	}
 }

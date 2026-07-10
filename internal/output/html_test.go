@@ -100,7 +100,7 @@ func TestSiteGeneratorNestedSidebar(t *testing.T) {
 	if !strings.Contains(html, "nav-group") {
 		t.Error("sidebar should contain collapsible nav group")
 	}
-	if !strings.Contains(html, "href=\"/ch1.html\"") {
+	if !strings.Contains(html, "href=\"ch1.html\" data-file=\"ch1.html\"") {
 		t.Error("sidebar should contain child chapter link")
 	}
 }

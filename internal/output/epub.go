@@ -82,7 +82,8 @@ func NewEpubGenerator(meta EpubMeta) *EpubGenerator {
 	}
 }
 
-// SetCSS sets the global CSS.
+// SetCSS sets the user's custom CSS. It is appended after the generator's own
+// theme-derived stylesheet when writing OEBPS/style.css so custom rules win.
 func (g *EpubGenerator) SetCSS(css string) {
 	g.css = css
 }
@@ -206,11 +207,11 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		}
 	}
 
-	// 8. OEBPS/style.css
-	if g.css != "" {
-		if err := writeZipFile(w, "OEBPS/style.css", g.css); err != nil {
-			return fmt.Errorf("failed to write style.css: %w", err)
-		}
+	// 8. OEBPS/style.css — the theme-derived reader stylesheet followed by the
+	// user's custom CSS. Always written: even without a theme or custom CSS a
+	// minimal reader-friendly stylesheet is shipped.
+	if err := writeZipFile(w, "OEBPS/style.css", g.stylesheet()); err != nil {
+		return fmt.Errorf("failed to write style.css: %w", err)
 	}
 
 	// 9. Chapter XHTML documents.
@@ -279,9 +280,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(coverAsset.MediaType))
 	}
 
-	if g.css != "" {
-		b.WriteString("    <item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n")
-	}
+	b.WriteString("    <item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n")
 
 	for _, asset := range chapterAssets {
 		fmt.Fprintf(&b, "    <item id=\"%s\" href=\"%s\" media-type=\"%s\"/>\n",
@@ -289,8 +288,15 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 	}
 
 	for i, ch := range chapters {
-		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"/>\n",
-			i, utils.EscapeXML(ch.Filename))
+		// Chapters containing math embed KaTeX <script> tags and remote CDN
+		// resources; EPUB 3 requires those manifest items to declare the
+		// "scripted" and "remote-resources" properties to validate.
+		props := ""
+		if epubChapterHasMath(ch.HTML) {
+			props = ` properties="scripted remote-resources"`
+		}
+		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"%s/>\n",
+			i, utils.EscapeXML(ch.Filename), props)
 	}
 
 	b.WriteString("  </manifest>\n  <spine toc=\"ncx\">\n")
@@ -375,7 +381,15 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	var b strings.Builder
 	body = normalizeHTMLForXHTML(body)
-	hasMath := strings.Contains(body, `class="math `)
+	hasMath := epubChapterHasMath(body)
+
+	// The chapter pipeline strips the leading <h1> because the PDF/HTML/site
+	// templates re-render the chapter title themselves. EPUB has no such
+	// template layer, so re-emit the title when the body does not already
+	// start with a top-level heading.
+	if strings.TrimSpace(title) != "" && !epubBodyStartsWithH1(body) {
+		body = fmt.Sprintf("<h1>%s</h1>\n", utils.EscapeXML(title)) + body
+	}
 
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -393,9 +407,8 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	b.WriteString("    figure { margin: 1rem 0; text-align: center; }\n")
 	b.WriteString("    figcaption { text-align: center; font-size: 0.9em; color: #666; margin-top: 0.5rem; font-style: italic; }\n")
 	b.WriteString("  </style>\n")
-	if g.css != "" {
-		b.WriteString("  <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/>\n")
-	}
+	// style.css is always packaged (theme-derived or minimal fallback).
+	b.WriteString("  <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/>\n")
 	// Include KaTeX CSS when math is present (works even without JS for visual
 	// structure, e.g. in readers that support CSS but not JS).
 	// NOTE: This relies on external CDN access. Readers without internet access
@@ -426,8 +439,26 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	return b.String()
 }
 
-// generateCoverPage emits a lightweight generated title page for EPUB readers.
+// generateCoverPage emits a generated title page for EPUB readers, styled to
+// match the premium default book cover: a deep navy background (or the
+// configured book.cover.background) with text colors adapted to it.
 func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
+	bg := epubCoverBackground(g.meta.CoverBackground)
+	// Light text on dark backgrounds, deep navy ink on light ones — the same
+	// adaptive logic internal/cover applies to the PDF/HTML cover.
+	titleColor := "#f6f8fc"
+	subtitleColor := "rgba(255, 255, 255, 0.85)"
+	metaColor := "rgba(255, 255, 255, 0.9)"
+	versionColor := "rgba(255, 255, 255, 0.7)"
+	imageShadow := "0 18px 50px rgba(0, 0, 0, 0.45)"
+	if epubIsLightColor(bg) {
+		titleColor = "#14304a"
+		subtitleColor = "#475569"
+		metaColor = "#334155"
+		versionColor = "#64748b"
+		imageShadow = "0 18px 50px rgba(15, 23, 42, 0.22)"
+	}
+
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -440,13 +471,14 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
   <style>
     html, body { height: 100%; margin: 0; }
     body {
-      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(160deg, #f8fafc, #e2e8f0);
-      color: #0f172a;
-      text-align: center;
+`)
+	fmt.Fprintf(&b, "      background-color: %s;\n", bg)
+	fmt.Fprintf(&b, "      color: %s;\n", titleColor)
+	b.WriteString(`      text-align: center;
       padding: 8vh 8vw;
       box-sizing: border-box;
     }
@@ -457,16 +489,18 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
       max-width: min(100%, 24rem);
       max-height: 70vh;
       margin: 0 auto;
-      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
-      border-radius: 0.4rem;
+`)
+	fmt.Fprintf(&b, "      box-shadow: %s;\n", imageShadow)
+	b.WriteString(`      border-radius: 0.4rem;
       background: #fff;
     }
-    .title { font-size: 2.2rem; font-weight: 700; line-height: 1.2; margin: 0; }
-    .subtitle { font-size: 1.1rem; color: #475569; margin: 1rem 0 0; }
-    .meta { margin-top: 2.5rem; color: #334155; }
-    .meta div + div { margin-top: 0.45rem; }
-    .version { color: #64748b; }
-  </style>
+    .title { font-size: 2.2rem; font-weight: 700; line-height: 1.2; margin: 0; letter-spacing: 0.02em; }
+`)
+	fmt.Fprintf(&b, "    .subtitle { font-size: 1.1rem; color: %s; margin: 1rem 0 0; }\n", subtitleColor)
+	fmt.Fprintf(&b, "    .meta { margin-top: 2.5rem; color: %s; }\n", metaColor)
+	b.WriteString("    .meta div + div { margin-top: 0.45rem; }\n")
+	fmt.Fprintf(&b, "    .version { color: %s; }\n", versionColor)
+	b.WriteString(`  </style>
 </head>
 <body>
   <section class="cover" epub:type="cover">
@@ -490,6 +524,193 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 	}
 	b.WriteString("    </div>\n")
 	b.WriteString("  </section>\n</body>\n</html>\n")
+	return b.String()
+}
+
+// epubChapterHasMath reports whether chapter HTML contains math markup
+// (Goldmark math extension output), which is rendered via KaTeX scripts.
+func epubChapterHasMath(html string) bool {
+	return strings.Contains(html, `class="math `)
+}
+
+// epubBodyStartsWithH1 reports whether the body content begins with a
+// top-level <h1> heading (ignoring leading whitespace).
+func epubBodyStartsWithH1(body string) bool {
+	trimmed := strings.TrimSpace(body)
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "<h1") {
+		return false
+	}
+	if len(lower) == 3 {
+		return false // "<h1" alone is not a complete tag
+	}
+	switch lower[3] {
+	case '>', ' ', '\t', '\n', '/':
+		return true
+	}
+	return false
+}
+
+// epubDefaultCoverBg mirrors internal/cover's premium deep-navy default cover
+// background.
+const epubDefaultCoverBg = "#102a43"
+
+// epubCSSColorPattern matches safe CSS color values (hex, rgb[a], hsl[a],
+// named colors) — the same validation internal/cover applies to
+// book.cover.background.
+var epubCSSColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([\d\s,%.]+\)|[a-z]{1,30})$`)
+
+// epubCoverBackground returns the configured cover background when it is a
+// safe CSS color value, otherwise the default navy.
+func epubCoverBackground(configured string) string {
+	configured = strings.TrimSpace(configured)
+	if configured != "" && epubCSSColorPattern.MatchString(configured) {
+		return configured
+	}
+	return epubDefaultCoverBg
+}
+
+// epubIsLightColor reports whether a CSS color is perceptually light. Only hex
+// colors (#rgb, #rgba, #rrggbb, #rrggbbaa) are analyzed; all other formats are
+// assumed dark so light text is the safer default. Same heuristic as
+// internal/cover (ITU-R BT.601 luminance, cutoff 186).
+func epubIsLightColor(color string) bool {
+	color = strings.TrimSpace(color)
+	if !strings.HasPrefix(color, "#") {
+		return false
+	}
+	hex := color[1:]
+	// Expand shorthand (#rgb -> #rrggbb, #rgba -> #rrggbb).
+	if len(hex) == 3 || len(hex) == 4 {
+		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+	}
+	// Strip alpha channel from #rrggbbaa.
+	if len(hex) == 8 {
+		hex = hex[:6]
+	}
+	if len(hex) < 6 {
+		return false
+	}
+	r := epubHexVal(hex[0])*16 + epubHexVal(hex[1])
+	g := epubHexVal(hex[2])*16 + epubHexVal(hex[3])
+	b := epubHexVal(hex[4])*16 + epubHexVal(hex[5])
+	luminance := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
+	return luminance > 186
+}
+
+func epubHexVal(c byte) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	default:
+		return 0
+	}
+}
+
+// epubMonoFontFamily is the monospace stack used for code in EPUB output.
+const epubMonoFontFamily = "ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+
+// epubMinimalCSS is the stylesheet shipped when no theme is available. Only
+// structural, reader-friendly rules: no colors forced on body text, no
+// absolute sizes, links underlined so they stay distinguishable without color.
+const epubMinimalCSS = `/* mdpress EPUB stylesheet (minimal fallback). */
+a { text-decoration: underline; }
+img { max-width: 100%; height: auto; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; }
+table th, table td { border: 1px solid #cccccc; padding: 0.55em 0.85em; text-align: left; }
+blockquote { border-left: 3px solid #cccccc; margin: 1.2em 0; padding: 0.2em 0 0.2em 1.1em; }
+`
+
+// stylesheet returns the full content of OEBPS/style.css: the theme-derived
+// reader stylesheet followed by the user's custom CSS so custom rules win.
+func (g *EpubGenerator) stylesheet() string {
+	css := g.epubThemeCSS()
+	if strings.TrimSpace(g.css) != "" {
+		css += "\n/* Custom user CSS */\n" + g.css
+	}
+	return css
+}
+
+// epubColorOrDefault returns the trimmed color value, or def when empty.
+func epubColorOrDefault(v, def string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return def
+	}
+	return v
+}
+
+// epubThemeCSS derives a reader-friendly stylesheet from the active theme.
+// Unlike theme.ToCSS (which targets paged/print output), it:
+//   - sets no body margins and no forced body background — reading systems own
+//     page geometry and night/dark modes;
+//   - uses only relative font sizes (em/%) so the reader's font-size
+//     preference is honored;
+//   - emits literal color values instead of CSS custom properties so older
+//     EPUB engines (RMSDK, Kindle KF8) don't silently drop every themed rule;
+//   - underlines links so they remain distinguishable without color
+//     (WCAG 1.4.1), e.g. on grayscale e-ink screens.
+func (g *EpubGenerator) epubThemeCSS() string {
+	if g.thm == nil {
+		return epubMinimalCSS
+	}
+
+	text := epubColorOrDefault(g.thm.Colors.Text, "#1F2933")
+	heading := epubColorOrDefault(g.thm.Colors.Heading, "#12344D")
+	link := epubColorOrDefault(g.thm.Colors.Link, "#1C5A9E")
+	codeBg := epubColorOrDefault(g.thm.Colors.CodeBg, "#F5F7F9")
+	codeText := epubColorOrDefault(g.thm.Colors.CodeText, "#1F2933")
+	accent := epubColorOrDefault(g.thm.Colors.Accent, "#1C5A9E")
+	border := epubColorOrDefault(g.thm.Colors.Border, "#E4E7EB")
+	lineHeight := g.thm.LineHeight
+	if lineHeight <= 0 {
+		lineHeight = 1.6
+	}
+
+	var b strings.Builder
+	b.WriteString("/* mdpress EPUB stylesheet — derived from the document theme. */\n")
+	b.WriteString("/* Reader-friendly: no page margins, no forced background, relative sizes, literal colors. */\n\n")
+
+	b.WriteString("body {\n")
+	if ff := strings.TrimSpace(g.thm.FontFamily); ff != "" {
+		fmt.Fprintf(&b, "  font-family: %s;\n", ff)
+	}
+	fmt.Fprintf(&b, "  line-height: %.2f;\n", lineHeight)
+	fmt.Fprintf(&b, "  color: %s;\n", text)
+	b.WriteString("}\n\n")
+
+	// Headings with a modest relative scale — no renderer-level CSS layer
+	// exists for EPUB, so the scale lives here.
+	fmt.Fprintf(&b, "h1, h2, h3, h4, h5, h6 {\n  color: %s;\n  font-weight: 600;\n  line-height: 1.35;\n}\n\n", heading)
+	b.WriteString("h1 { font-size: 1.8em; }\n")
+	b.WriteString("h2 { font-size: 1.45em; }\n")
+	b.WriteString("h3 { font-size: 1.2em; }\n")
+	b.WriteString("h4, h5, h6 { font-size: 1em; }\n\n")
+
+	fmt.Fprintf(&b, "a {\n  color: %s;\n  text-decoration: underline;\n}\n\n", link)
+
+	fmt.Fprintf(&b, "code, pre {\n  font-family: %s;\n  color: %s;\n}\n\n", epubMonoFontFamily, codeText)
+
+	// Inline code chip; reset inside pre (avoids :not(), which some older
+	// EPUB engines do not support).
+	fmt.Fprintf(&b, "code {\n  background-color: %s;\n  padding: 0.12em 0.36em;\n  border-radius: 4px;\n  font-size: 0.88em;\n}\n\n", codeBg)
+	fmt.Fprintf(&b, "pre {\n  padding: 0.9em 1.1em;\n  font-size: 0.82em;\n  line-height: 1.55;\n  border: 1px solid %s;\n  border-radius: 6px;\n  overflow-x: auto;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  word-break: break-all;\n}\n\n", border)
+	b.WriteString("pre code {\n  background: none;\n  padding: 0;\n  border-radius: 0;\n  font-size: 1em;\n}\n\n")
+
+	fmt.Fprintf(&b, "blockquote {\n  border-left: 3px solid %s;\n  margin: 1.2em 0;\n  padding: 0.2em 0 0.2em 1.1em;\n  color: %s;\n  opacity: 0.78;\n}\n\n", accent, text)
+
+	b.WriteString("table {\n  border-collapse: collapse;\n  width: 100%;\n  margin: 1.2em 0;\n  font-size: 0.96em;\n}\n\n")
+	fmt.Fprintf(&b, "table th, table td {\n  border: 1px solid %s;\n  padding: 0.55em 0.85em;\n  text-align: left;\n  overflow-wrap: anywhere;\n  word-break: break-word;\n}\n\n", border)
+	fmt.Fprintf(&b, "table th {\n  background-color: %s;\n  color: %s;\n  font-weight: 600;\n  border-bottom: 2px solid %s;\n}\n\n", codeBg, heading, accent)
+	fmt.Fprintf(&b, "table tbody tr:nth-child(even) td {\n  background-color: %s;\n}\n\n", codeBg)
+
+	b.WriteString("img {\n  max-width: 100%;\n  height: auto;\n}\n")
+
 	return b.String()
 }
 

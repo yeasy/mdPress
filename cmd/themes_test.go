@@ -9,7 +9,31 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/theme"
 )
+
+// captureThemesStdout runs fn while capturing everything written to
+// os.Stdout and returns the captured output together with fn's error.
+func captureThemesStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+	callErr := fn()
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close pipe writer: %v", err)
+	}
+	os.Stdout = orig
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("failed to read captured output: %v", err)
+	}
+	return string(data), callErr
+}
 
 // TestThemesCmd_Creation tests that the themes command is properly created
 func TestThemesCmd_Creation(t *testing.T) {
@@ -128,9 +152,9 @@ func TestGetAvailableThemes_ExpectedSet(t *testing.T) {
 		"minimal":   false,
 	}
 
-	for _, theme := range themes {
-		if _, exists := expectedThemes[theme.name]; exists {
-			expectedThemes[theme.name] = true
+	for _, thm := range themes {
+		if _, exists := expectedThemes[thm.name]; exists {
+			expectedThemes[thm.name] = true
 		}
 	}
 
@@ -141,7 +165,69 @@ func TestGetAvailableThemes_ExpectedSet(t *testing.T) {
 	}
 }
 
-// TestTheme_Structure tests that themes have all required fields
+// TestGetAvailableThemes_DefaultFirst tests that the default theme leads the list
+func TestGetAvailableThemes_DefaultFirst(t *testing.T) {
+	themes := getAvailableThemes()
+	if len(themes) == 0 {
+		t.Fatal("getAvailableThemes should return at least one theme")
+	}
+
+	if themes[0].name != defaultThemeName {
+		t.Errorf("default theme %q should be first, got %q", defaultThemeName, themes[0].name)
+	}
+	if !themes[0].isDefault {
+		t.Error("first theme should be marked as default")
+	}
+}
+
+// TestGetAvailableThemes_MatchesLiveThemes is the anti-desync regression
+// guard: every palette value displayed by the CLI must equal the live theme
+// definition in internal/theme.
+func TestGetAvailableThemes_MatchesLiveThemes(t *testing.T) {
+	tm := theme.NewThemeManager()
+
+	themes := getAvailableThemes()
+	if len(themes) != len(tm.List()) {
+		t.Errorf("getAvailableThemes returned %d themes, theme manager has %d", len(themes), len(tm.List()))
+	}
+
+	for _, info := range themes {
+		live, err := tm.Get(info.name)
+		if err != nil {
+			t.Errorf("theme %q not found in theme manager: %v", info.name, err)
+			continue
+		}
+
+		checks := []struct {
+			field string
+			got   string
+			want  string
+		}{
+			{"primary (heading)", info.colors.primary, live.Colors.Heading},
+			{"secondary (link)", info.colors.secondary, live.Colors.Link},
+			{"accent", info.colors.accent, live.Colors.Accent},
+			{"text", info.colors.text, live.Colors.Text},
+			{"background", info.colors.background, live.Colors.Background},
+			{"codeBg", info.colors.codeBg, live.Colors.CodeBg},
+			{"codeText", info.colors.codeText, live.Colors.CodeText},
+			{"border", info.colors.border, live.Colors.Border},
+		}
+		for _, c := range checks {
+			if c.got != c.want {
+				t.Errorf("theme %q: %s = %q, live theme has %q (CLI display desynced from internal/theme)",
+					info.name, c.field, c.got, c.want)
+			}
+		}
+
+		if info.theme == nil {
+			t.Errorf("theme %q: themeInfo.theme should carry the live theme struct", info.name)
+		} else if info.theme.Colors != live.Colors {
+			t.Errorf("theme %q: themeInfo.theme colors desynced from internal/theme", info.name)
+		}
+	}
+}
+
+// TestTheme_Structure tests that themes have all required display fields
 func TestTheme_Structure(t *testing.T) {
 	themes := getAvailableThemes()
 
@@ -170,35 +256,8 @@ func TestTheme_Structure(t *testing.T) {
 		{
 			name: "has description",
 			check: func(th *themeInfo) error {
-				if th.description == "" {
-					return fmt.Errorf("theme should have a non-empty description")
-				}
-				return nil
-			},
-		},
-		{
-			name: "has author",
-			check: func(th *themeInfo) error {
-				if th.author == "" {
-					return fmt.Errorf("theme should have a non-empty author")
-				}
-				return nil
-			},
-		},
-		{
-			name: "has version",
-			check: func(th *themeInfo) error {
-				if th.version == "" {
-					return fmt.Errorf("theme should have a non-empty version")
-				}
-				return nil
-			},
-		},
-		{
-			name: "has license",
-			check: func(th *themeInfo) error {
-				if th.license == "" {
-					return fmt.Errorf("theme should have a non-empty license")
+				if th.description == "" || th.description == "Unknown theme" {
+					return fmt.Errorf("theme should have a real description, got %q", th.description)
 				}
 				return nil
 			},
@@ -212,12 +271,21 @@ func TestTheme_Structure(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			name: "has live theme",
+			check: func(th *themeInfo) error {
+				if th.theme == nil {
+					return fmt.Errorf("theme should carry the live theme struct")
+				}
+				return nil
+			},
+		},
 	}
 
-	for _, theme := range themes {
+	for _, thm := range themes {
 		for _, tt := range tests {
-			if err := tt.check(&theme); err != nil {
-				t.Errorf("theme %q: %s failed: %v", theme.name, tt.name, err)
+			if err := tt.check(&thm); err != nil {
+				t.Errorf("theme %q: %s failed: %v", thm.name, tt.name, err)
 			}
 		}
 	}
@@ -237,16 +305,18 @@ func TestThemeColorsStructure(t *testing.T) {
 		{"text", func(tc *themeColors) string { return tc.text }},
 		{"background", func(tc *themeColors) string { return tc.background }},
 		{"code background", func(tc *themeColors) string { return tc.codeBg }},
+		{"code text", func(tc *themeColors) string { return tc.codeText }},
+		{"border", func(tc *themeColors) string { return tc.border }},
 	}
 
-	for _, theme := range themes {
+	for _, thm := range themes {
 		for _, field := range colorFields {
-			color := field.get(&theme.colors)
+			color := field.get(&thm.colors)
 			if color == "" {
-				t.Errorf("theme %q: color field %q should not be empty", theme.name, field.name)
+				t.Errorf("theme %q: color field %q should not be empty", thm.name, field.name)
 			}
 			if !strings.HasPrefix(color, "#") {
-				t.Errorf("theme %q: color field %q should be hex format, got %q", theme.name, field.name, color)
+				t.Errorf("theme %q: color field %q should be hex format, got %q", thm.name, field.name, color)
 			}
 		}
 	}
@@ -259,8 +329,32 @@ func TestExecuteThemesList_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("executeThemesList should not return error, got %v", err)
 	}
-	// Note: output goes to fmt.Println, not captured by test
-	// The function returns nil on success
+}
+
+// TestExecuteThemesList_ShowsLivePalette verifies the list output prints the
+// live palette (not a stale hardcoded copy) and marks the default theme.
+func TestExecuteThemesList_ShowsLivePalette(t *testing.T) {
+	tm := theme.NewThemeManager()
+	technical, err := tm.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get technical theme: %v", err)
+	}
+
+	out, err := captureThemesStdout(t, executeThemesList)
+	if err != nil {
+		t.Fatalf("executeThemesList returned error: %v", err)
+	}
+
+	for _, want := range []string{
+		"[default]",
+		technical.Colors.Heading,
+		technical.Colors.Link,
+		technical.Colors.Accent,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("themes list output should contain %q, got:\n%s", want, out)
+		}
+	}
 }
 
 // TestExecuteThemesShow_AllValidThemes tests showing each valid theme
@@ -340,6 +434,54 @@ func TestExecuteThemesShow_InvalidThemes(t *testing.T) {
 	}
 }
 
+// TestExecuteThemesShow_PrintsLiveValuesAndCustomization verifies the show
+// output prints the live theme values and the supported customization path
+// (themes/<name>.yaml, matching customThemePath in build_orchestrator.go).
+func TestExecuteThemesShow_PrintsLiveValuesAndCustomization(t *testing.T) {
+	tm := theme.NewThemeManager()
+	elegant, err := tm.Get("elegant")
+	if err != nil {
+		t.Fatalf("failed to get elegant theme: %v", err)
+	}
+
+	out, err := captureThemesStdout(t, func() error {
+		return executeThemesShow("elegant")
+	})
+	if err != nil {
+		t.Fatalf("executeThemesShow returned error: %v", err)
+	}
+
+	wants := []string{
+		// Live palette values.
+		elegant.Colors.Heading,
+		elegant.Colors.Link,
+		elegant.Colors.Background,
+		elegant.Colors.CodeBg,
+		elegant.CodeTheme,
+		fmt.Sprintf("%dpt", elegant.FontSize),
+		// Configuration hint.
+		`theme: "elegant"`,
+		// Customization mechanism (must match customThemePath).
+		"themes/elegant.yaml",
+		// YAML example with required fields.
+		"page_size: " + elegant.PageSize,
+		fmt.Sprintf("font_size: %d", elegant.FontSize),
+		"line_height:",
+		`text: "` + elegant.Colors.Text + `"`,
+		`background: "` + elegant.Colors.Background + `"`,
+	}
+	for _, want := range wants {
+		if !strings.Contains(out, want) {
+			t.Errorf("themes show output should contain %q, got:\n%s", want, out)
+		}
+	}
+
+	// The removed pre-v0.7.13 hint promised a directory that was never loaded.
+	if strings.Contains(out, "themes/elegant/'") {
+		t.Errorf("themes show should no longer advertise the unimplemented themes/<name>/ directory, got:\n%s", out)
+	}
+}
+
 // TestExecuteThemesShow_MatchesThemeData tests that show outputs match theme data
 func TestExecuteThemesShow_MatchesThemeData(t *testing.T) {
 	defer suppressOutput(t)()
@@ -355,9 +497,38 @@ func TestExecuteThemesShow_MatchesThemeData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executeThemesShow failed for valid theme: %v", err)
 	}
+}
 
-	// The function prints to stdout, so we can't easily verify the output
-	// but we verify it doesn't error for valid themes
+// TestThemeYAMLExample_LoadsAndValidates verifies that the YAML snippet
+// printed by themes show round-trips through the real theme loader.
+func TestThemeYAMLExample_LoadsAndValidates(t *testing.T) {
+	tm := theme.NewThemeManager()
+	for _, name := range tm.List() {
+		t.Run(name, func(t *testing.T) {
+			live, err := tm.Get(name)
+			if err != nil {
+				t.Fatalf("failed to get theme %q: %v", name, err)
+			}
+
+			snippet := themeYAMLExample(live, "")
+			tmpDir := t.TempDir()
+			path := filepath.Join(tmpDir, name+".yaml")
+			if err := os.WriteFile(path, []byte(snippet), 0o644); err != nil {
+				t.Fatalf("failed to write example theme: %v", err)
+			}
+
+			loaded, err := theme.NewThemeManager().LoadFromFile(path)
+			if err != nil {
+				t.Fatalf("example YAML for %q should load via ThemeManager.LoadFromFile, got: %v", name, err)
+			}
+			if loaded.Colors != live.Colors {
+				t.Errorf("round-tripped colors differ for %q: got %+v, want %+v", name, loaded.Colors, live.Colors)
+			}
+			if loaded.PageSize != live.PageSize || loaded.FontSize != live.FontSize {
+				t.Errorf("round-tripped page settings differ for %q", name)
+			}
+		})
+	}
 }
 
 // TestExecuteThemesPreview tests the executeThemesPreview function
@@ -390,6 +561,7 @@ func TestExecuteThemesPreview(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer suppressOutput(t)()
 			outputPath := tt.outputPath
 
 			// For tests that use relative paths, use a temp directory
@@ -416,13 +588,16 @@ func TestExecuteThemesPreview(t *testing.T) {
 // help output.
 func TestThemesCmd_WithoutSubcommand(t *testing.T) {
 	defer suppressOutput(t)()
-	themesCmd.SetArgs([]string{})
+	// Route through rootCmd: Execute() always runs from the command tree
+	// root, so stale rootCmd args from other tests would leak into a bare
+	// themesCmd.Execute() call.
+	rootCmd.SetArgs([]string{"themes"})
 	var out bytes.Buffer
-	themesCmd.SetOut(&out)
-	themesCmd.SetErr(&out)
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
 
 	// Should not panic; verify it either succeeds or returns a known error.
-	err := themesCmd.Execute()
+	err := rootCmd.Execute()
 	// The command may succeed (printing help) or error -- both are acceptable.
 	// The key assertion is that it doesn't panic. Shared-state fd errors
 	// (e.g. "bad file descriptor" from suppressOutput) are benign.

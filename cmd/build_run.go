@@ -114,7 +114,7 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 			Name:    lang.Name,
 			Dir:     lang.Dir,
 			Title:   langCfg.Book.Title,
-			Outputs: predictedOutputLinks(baseOutput, formats),
+			Outputs: predictedOutputLinks(baseOutput, "", formats),
 		})
 	}
 
@@ -146,22 +146,6 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	needsPDF := containsBuildFormat(formats, "pdf")
 	needsNonPDF := containsAnyNonPDFFormat(formats)
 
-	// Initialize incremental build system
-	cacheDir := filepath.Join(utils.CacheRootDir(), "build")
-	manifest, manifestErr := loadManifest(cacheDir)
-	if manifestErr != nil {
-		slog.Warn("failed to load build manifest, starting fresh", slog.Any("error", manifestErr))
-	}
-	if manifest == nil {
-		manifest = newBuildManifest(Version)
-	}
-	// Compute hashes for cache invalidation
-	configPath := filepath.Join(cfg.BaseDir(), "book.yaml")
-	configHash := ""
-	if hash, err := computeChapterHash(configPath); err == nil {
-		configHash = hash
-	}
-
 	progress.Start("Initializing theme system")
 	orchestrator, err := newBuildOrchestrator(cfg, logger)
 	if err != nil {
@@ -177,17 +161,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	}()
 	progress.DoneWithDetail(orchestrator.Theme.Name)
 
-	// Compute CSS hash for cache invalidation
 	customCSS := orchestrator.LoadCustomCSS()
-	cssHash := computeCSSHash(customCSS)
-
-	// Check if manifest is stale and invalidate if needed
-	if manifest.IsStale(Version, configHash, cssHash) {
-		logger.Debug("Build manifest is stale, invalidating cache")
-		manifest = newBuildManifest(Version)
-		manifest.ConfigSH = configHash
-		manifest.CSSHash = cssHash
-	}
 
 	// Shared metadata map for inter-plugin and inter-phase communication.
 	pluginMeta := make(map[string]any)
@@ -363,16 +337,28 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		Metadata: pluginMeta,
 	}, logger)
 
-	// Save the build manifest for incremental builds
-	manifest.ConfigSH = configHash
-	manifest.CSSHash = cssHash
-	if err := saveManifest(cacheDir, manifest); err != nil {
-		logger.Warn("failed to save build manifest", slog.Any("error", err))
-	}
-
 	progress.Done()
 	progress.Finish()
+
+	// The generated locations are a build result, not progress chatter, so
+	// they are printed even in --quiet mode.
+	printBuildOutputs(baseOutput, siteDir, formats)
 	return nil
+}
+
+// printBuildOutputs prints one line per generated format with its output path.
+func printBuildOutputs(baseOutput, siteDir string, formats []string) {
+	links := predictedOutputLinks(baseOutput, siteDir, formats)
+	if len(links) == 0 {
+		return
+	}
+	for _, format := range []string{"pdf", "html", "site", "epub", "typst"} {
+		path, ok := links[format]
+		if !ok {
+			continue
+		}
+		fmt.Printf("  ✓ Generated %-5s → %s\n", format, path)
+	}
 }
 
 // buildFormatsInParallel builds multiple output formats in parallel.
@@ -763,7 +749,18 @@ func resolveRequestedBuildOutput(requested string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve output path: %w", err)
 	}
+	// filepath.Abs drops a trailing separator; keep it, since it signals
+	// explicit directory intent (e.g. --output dist/).
+	if hasTrailingPathSeparator(requested) && !hasTrailingPathSeparator(absPath) {
+		absPath += string(os.PathSeparator)
+	}
 	return absPath, nil
+}
+
+// hasTrailingPathSeparator reports whether path ends with a path separator,
+// which callers treat as explicit directory intent for --output values.
+func hasTrailingPathSeparator(path string) bool {
+	return path != "" && os.IsPathSeparator(path[len(path)-1])
 }
 
 // deriveOutputFilename returns the base output filename for the book.
@@ -810,6 +807,12 @@ func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (stri
 		return safe, nil
 	}
 
+	// A trailing separator is explicit directory intent, even when the
+	// directory does not exist yet (builders create it before writing).
+	if hasTrailingPathSeparator(outputOverride) {
+		return filepath.Join(outputOverride, filepath.Base(filename)), nil
+	}
+
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
 		return filepath.Join(outputOverride, filepath.Base(filename)), nil
 	}
@@ -820,6 +823,10 @@ func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (stri
 func deriveLanguageOutputOverride(outputOverride string, langDir string) string {
 	if outputOverride == "" {
 		return ""
+	}
+
+	if hasTrailingPathSeparator(outputOverride) {
+		return filepath.Join(outputOverride, langDir, "output")
 	}
 
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
@@ -838,17 +845,25 @@ func deriveLanguageOutputOverride(outputOverride string, langDir string) string 
 	return base + "-" + langDir + ext
 }
 
-func predictedOutputLinks(baseOutput string, formats []string) map[string]string {
+// predictedOutputLinks maps each requested format to the path its builder
+// writes. siteDir is the resolved "site" output directory; when empty the
+// per-base "<base>_site" fallback used by multi-language builds applies,
+// mirroring siteBuilder.Build.
+func predictedOutputLinks(baseOutput, siteDir string, formats []string) map[string]string {
 	links := make(map[string]string, len(formats))
 	baseName := strings.TrimSuffix(baseOutput, filepath.Ext(baseOutput))
 	for _, format := range formats {
-		switch strings.ToLower(format) {
+		switch strings.ToLower(strings.TrimSpace(format)) {
 		case "pdf":
 			links["pdf"] = baseName + ".pdf"
 		case "html":
 			links["html"] = baseName + ".html"
 		case "site":
-			links["site"] = filepath.Join(baseName+"_site", "index.html")
+			dir := siteDir
+			if dir == "" {
+				dir = baseName + "_site"
+			}
+			links["site"] = filepath.Join(dir, "index.html")
 		case "epub":
 			links["epub"] = baseName + ".epub"
 		case "typst":
@@ -861,6 +876,9 @@ func predictedOutputLinks(baseOutput string, formats []string) map[string]string
 func multilingualLandingPath(rootDir string, outputOverride string) string {
 	if outputOverride == "" {
 		return filepath.Join(rootDir, "_mdpress_langs.html")
+	}
+	if hasTrailingPathSeparator(outputOverride) {
+		return filepath.Join(outputOverride, "index.html")
 	}
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
 		return filepath.Join(outputOverride, "index.html")

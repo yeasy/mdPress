@@ -876,9 +876,78 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 	s.debounceMu.Unlock()
 }
 
-// isSkippedDir reports whether a directory name should be excluded from file watching.
-func isSkippedDir(name string) bool {
-	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "_book" || name == "vendor"
+// isIgnoredDirName reports whether a single directory name should be excluded
+// from file watching. Besides the usual dependency/hidden directories, it
+// covers every generated-output name mdpress itself produces: the default
+// _book output, the _book.old atomic-swap backup, mdpress-serve-*.tmp staging
+// directories (created by the serve rebuild swap in cmd/serve.go), *_site
+// directories, and _output. Watching any of these would make a rebuild
+// re-trigger the watcher and loop forever.
+func isIgnoredDirName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	switch name {
+	case "node_modules", "vendor", "_book", "_book.old", "_output":
+		return true
+	}
+	if strings.HasSuffix(name, "_site") {
+		return true
+	}
+	// Temp staging dirs from the serve atomic swap: os.MkdirTemp(dir, "mdpress-serve-*.tmp").
+	if strings.HasPrefix(name, "mdpress-serve-") && strings.HasSuffix(name, ".tmp") {
+		return true
+	}
+	return false
+}
+
+// isIgnoredPath reports whether path should be excluded from file watching.
+// It applies isIgnoredDirName to every path component below the watch root
+// and additionally ignores anything inside the resolved output directory or
+// its atomic-swap backup (<output>.old), so a custom --output location is
+// never watched regardless of its name.
+func (s *Server) isIgnoredPath(path string) bool {
+	// Check path components by name. When the path lies under the watch
+	// root, only the components below the root are checked so a watch root
+	// that itself lives inside a dot-directory is not ignored wholesale.
+	checkPath := path
+	if s.WatchDir != "" {
+		if rel, err := filepath.Rel(s.WatchDir, path); err == nil {
+			if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				// Outside the watch root: fall back to the base name only.
+				checkPath = filepath.Base(path)
+			} else {
+				checkPath = rel
+			}
+		} else {
+			checkPath = filepath.Base(path)
+		}
+	}
+	for _, name := range strings.Split(filepath.ToSlash(checkPath), "/") {
+		if isIgnoredDirName(name) {
+			return true
+		}
+	}
+
+	// Absolute-path comparison against the output directory and its swap
+	// backup, which may carry any name when set via --output.
+	if s.OutputDir == "" {
+		return false
+	}
+	absPath, errPath := filepath.Abs(path)
+	absOut, errOut := filepath.Abs(s.OutputDir)
+	if errPath != nil || errOut != nil {
+		return false
+	}
+	for _, ignored := range []string{absOut, absOut + ".old"} {
+		if absPath == ignored || strings.HasPrefix(absPath, ignored+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // isWatchedExtension reports whether ext is a file extension we monitor for changes.
@@ -898,7 +967,7 @@ func (s *Server) addWatchDirRecursive(watcher *fsnotify.Watcher, root string) {
 		if !d.IsDir() {
 			return nil
 		}
-		if isSkippedDir(filepath.Base(path)) {
+		if s.isIgnoredPath(path) {
 			return filepath.SkipDir
 		}
 		if addErr := watcher.Add(path); addErr != nil {
@@ -942,6 +1011,14 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			if !ok {
 				return
 			}
+			// Drop events for ignored paths FIRST, before any other handling.
+			// The serve rebuild swap creates _book.old and mdpress-serve-*.tmp
+			// directories inside the watched root; reacting to those (e.g. by
+			// watching or rebuilding) would make every rebuild re-trigger the
+			// watcher in an infinite loop.
+			if s.isIgnoredPath(event.Name) {
+				continue
+			}
 			// Handle newly created directories BEFORE the extension filter:
 			// a Create event for a directory has an empty extension and would
 			// otherwise be dropped, leaving nested files unwatched. Add the
@@ -950,9 +1027,6 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 			// since files may already exist inside it.
 			if event.Op&fsnotify.Create != 0 {
 				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
-					if isSkippedDir(filepath.Base(event.Name)) {
-						continue
-					}
 					s.addWatchDirRecursive(watcher, event.Name)
 					s.logger.Debug("Added new directory to watcher", slog.String("dir", event.Name))
 					// Files may already exist inside the new directory; rebuild.
@@ -1021,9 +1095,8 @@ func (s *Server) scanModTimes(modTimes map[string]time.Time) {
 		if err != nil {
 			return nil
 		}
-		base := filepath.Base(path)
 		if d.IsDir() {
-			if isSkippedDir(base) {
+			if s.isIgnoredPath(path) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -1052,9 +1125,8 @@ func (s *Server) checkForChanges(modTimes map[string]time.Time) (bool, string) {
 		if err != nil {
 			return nil
 		}
-		base := filepath.Base(path)
 		if d.IsDir() {
-			if isSkippedDir(base) {
+			if s.isIgnoredPath(path) {
 				return filepath.SkipDir
 			}
 			return nil

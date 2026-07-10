@@ -550,6 +550,71 @@ func TestGenerateInteractiveBookYAML(t *testing.T) {
 	}
 }
 
+// TestGenerateBookYAMLWithMetaCoverDefaults verifies that when no cover image
+// is detected, the generated config leaves cover overrides commented out so
+// the built-in generated cover is used.
+func TestGenerateBookYAMLWithMetaCoverDefaults(t *testing.T) {
+	answers := initAnswers{
+		Title:    "My Book",
+		Author:   "Author",
+		Language: "en-US",
+		Theme:    "technical",
+	}
+
+	files := []discoveredFile{{RelPath: "preface.md", Title: "Preface"}}
+	yaml := generateBookYAMLWithMeta(answers, "", files)
+
+	if strings.Contains(yaml, `background: "#1a1a2e"`) {
+		t.Error("generated config must not hardcode the old cover background #1a1a2e")
+	}
+	if !strings.Contains(yaml, "# cover:") {
+		t.Error("generated config should keep the cover block as a commented example")
+	}
+	if !strings.Contains(yaml, "#102a43") {
+		t.Error("commented cover example should reference the default navy background #102a43")
+	}
+
+	// The commented example must not produce active cover settings.
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "book.yaml")
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o644); err != nil {
+		t.Fatalf("failed to write book.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "preface.md"), []byte("# Preface\n"), 0o644); err != nil {
+		t.Fatalf("failed to write preface.md: %v", err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("config.Load should succeed: %v", err)
+	}
+	if cfg.Book.Cover.Background != "" {
+		t.Errorf("cover background should be unset, got %q", cfg.Book.Cover.Background)
+	}
+	if cfg.Book.Cover.Image != "" {
+		t.Errorf("cover image should be unset, got %q", cfg.Book.Cover.Image)
+	}
+}
+
+// TestGenerateBookYAMLWithMetaCoverImage verifies a detected cover image is
+// still written as an active setting.
+func TestGenerateBookYAMLWithMetaCoverImage(t *testing.T) {
+	answers := initAnswers{
+		Title:    "My Book",
+		Author:   "Author",
+		Language: "en-US",
+		Theme:    "technical",
+	}
+
+	yaml := generateBookYAMLWithMeta(answers, "cover.png", nil)
+
+	if !strings.Contains(yaml, "  cover:\n") {
+		t.Error("generated config should contain an active cover block")
+	}
+	if !strings.Contains(yaml, `image: "cover.png"`) {
+		t.Error("generated config should reference the detected cover image")
+	}
+}
+
 // TestCountChapterDefsSimple tests counting flat chapter definitions.
 func TestCountChapterDefsSimple(t *testing.T) {
 	chapters := []config.ChapterDef{
@@ -634,6 +699,57 @@ func TestCreateStarterTemplateBasic(t *testing.T) {
 	ch01ReadmePath := filepath.Join(tmpDir, "chapter01", "README.md")
 	if _, err := os.Stat(ch01ReadmePath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("createStarterTemplate() did not create chapter01/README.md")
+	}
+
+	gitignorePath := filepath.Join(tmpDir, ".gitignore")
+	if _, err := os.Stat(gitignorePath); errors.Is(err, fs.ErrNotExist) {
+		t.Error("createStarterTemplate() did not create .gitignore")
+	}
+}
+
+// TestCreateStarterTemplateGitignoreContent verifies the scaffolded .gitignore
+// covers the artifacts default builds drop into the project.
+func TestCreateStarterTemplateGitignoreContent(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := createStarterTemplate(tmpDir); err != nil {
+		t.Fatalf("createStarterTemplate() failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+
+	contentStr := string(content)
+	for _, pattern := range []string{"_book/", "*_site/", "*.pdf", "*.html", "*.epub"} {
+		if !strings.Contains(contentStr, pattern) {
+			t.Errorf("expected .gitignore to contain %q, got:\n%s", pattern, contentStr)
+		}
+	}
+}
+
+// TestCreateStarterTemplatePreservesGitignore verifies an existing .gitignore
+// is never overwritten.
+func TestCreateStarterTemplatePreservesGitignore(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	existing := "# my rules\nnode_modules/\n"
+	gitignorePath := filepath.Join(tmpDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte(existing), 0o644); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	if err := createStarterTemplate(tmpDir); err != nil {
+		t.Fatalf("createStarterTemplate() failed: %v", err)
+	}
+
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+	if string(content) != existing {
+		t.Errorf("existing .gitignore should be preserved, got:\n%s", string(content))
 	}
 }
 

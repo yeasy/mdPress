@@ -4,14 +4,15 @@
 
 book:
   title: "mdpress User Guide"
-  subtitle: "Convert Markdown to Beautiful PDFs"
+  subtitle: "Publish Markdown as Websites, PDFs, and eBooks"
   author: "yeasy"
   version: "1.0.0"
   language: "en-US"
-  description: "A guide on using mdpress to convert Markdown books into high-quality PDFs."
-  cover:
-    # image: "cover.png"
-    # background: "#1a1a2e"
+  description: "A guide on using mdpress to publish Markdown books as websites, PDFs, standalone HTML, and EPUB."
+  # A styled cover is generated from the metadata above by default.
+  # cover:
+  #   image: "cover.png"       # use a custom cover image
+  #   background: "#102a43"    # override the default cover background color
 
 # Chapters are listed in reading order.
 # Paths are relative to this file.
@@ -26,20 +27,7 @@ chapters:
 style:
   theme: "technical"       # technical | elegant | minimal
   page_size: "A4"          # A4 | A5 | Letter | Legal | B5
-  font_family: "Noto Sans"
-  font_size: "12pt"
-  code_theme: "monokai"    # monokai | github | dracula | solarized-dark
-  line_height: 1.6
-  margin:
-    top: 25
-    bottom: 25
-    left: 20
-    right: 20
-  header:
-    left: "{{.Book.Title}}"
-    right: "{{.Chapter.Title}}"
-  footer:
-    center: "{{.PageNum}}"
+  # code_theme: "github"   # syntax highlighting style for code blocks
   # custom_css: "custom.css"
 
 output:
@@ -47,18 +35,16 @@ output:
   toc: true
   toc_max_depth: 2           # Maximum heading level in TOC (1-6, default 2)
   cover: true
-  header: true
-  footer: true
+  # formats:                 # Optional: build multiple formats at once
+  #   - pdf                  # (same as `mdpress build --format pdf,html,site,epub`)
+  #   - html
+  #   - site
+  #   - epub
   # watermark: "DRAFT"       # Optional: add watermark text to PDF pages
   # watermark_opacity: 0.1   # Watermark transparency (0.0-1.0)
-  # margin_top: "20mm"       # PDF page margins (mm, cm, in, pt, px)
+  # margin_top: "20mm"       # PDF print margins (mm, cm, in, pt, px)
   # margin_bottom: "20mm"
   # margin_left: "25mm"
   # margin_right: "25mm"
   # generate_bookmarks: true  # Generate PDF bookmarks from headings
   # pdf_timeout: 120          # PDF generation timeout in seconds
-  # formats:                 # Optional: output multiple formats at once
-  #   - pdf
-  #   - html
-  #   - site
-  #   - epub

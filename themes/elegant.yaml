@@ -1,34 +1,21 @@
-# mdpress elegant literary theme
-# Suitable for fiction, essays, and poetry
+# Example custom theme file mirroring the built-in "elegant" theme.
 name: elegant
 page_size: A4
-font_family: "Songti SC, STSong, Noto Serif CJK SC, Source Han Serif SC, Georgia, Garamond, Times New Roman, serif"
-font_size: 13
+font_family: "'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', 'Georgia', 'Garamond', 'Times New Roman', serif"
+font_size: 12
 code_theme: github
 line_height: 1.8
-
 colors:
-  text: "#2c2c2c"
-  background: "#fffff8"
-  heading: "#5d4037"
-  link: "#8d6e63"
-  code_bg: "#faf8f0"
-  code_text: "#6a1b9a"
-  accent: "#795548"
-  border: "#d7ccc8"
-
+  text: "#3E2723"
+  background: "#FFFBF0"
+  heading: "#1B0000"
+  link: "#8B6914"
+  code_bg: "#F5F0E6"
+  code_text: "#3E2723"
+  accent: "#A87B3B"
+  border: "#E2D9C8"
 margins:
-  top: 30
-  bottom: 30
-  left: 25
-  right: 25
-
-header_template: |
-  <div style="font-size:9pt;color:#aaa;font-style:italic;text-align:center;border-bottom:0.5pt solid #ddd;padding-bottom:4pt;">
-    {{.Book.Title}} · {{.Chapter.Title}}
-  </div>
-
-footer_template: |
-  <div style="font-size:9pt;color:#aaa;text-align:center;padding-top:4pt;">
-    — {{.PageNum}} —
-  </div>
+  top: 25.0
+  bottom: 25.0
+  left: 25.0
+  right: 25.0

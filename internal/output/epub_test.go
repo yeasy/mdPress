@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/theme"
 )
 
 // TestNewEpubGenerator verifies basic construction of an EpubGenerator.
@@ -257,7 +259,9 @@ func TestWrapXHTMLWithMath(t *testing.T) {
 	}
 }
 
-// TestWrapXHTMLWithoutCSS verifies wrapXHTML without CSS set.
+// TestWrapXHTMLWithoutCSS verifies wrapXHTML without custom CSS set: style.css
+// is always packaged (theme-derived or minimal fallback), so the link is
+// always emitted.
 func TestWrapXHTMLWithoutCSS(t *testing.T) {
 	gen := NewEpubGenerator(EpubMeta{Title: "Test", Language: "en"})
 	// Don't call SetCSS
@@ -265,8 +269,8 @@ func TestWrapXHTMLWithoutCSS(t *testing.T) {
 	html := `<p>Content without CSS</p>`
 	result := gen.wrapXHTML("No CSS", html)
 
-	if strings.Contains(result, `<link rel="stylesheet" type="text/css" href="style.css"/>`) {
-		t.Error("CSS link should not be present when CSS is not set")
+	if !strings.Contains(result, `<link rel="stylesheet" type="text/css" href="style.css"/>`) {
+		t.Error("style.css link should always be present (stylesheet is always packaged)")
 	}
 	if !strings.Contains(result, html) {
 		t.Error("original HTML content not found")
@@ -798,7 +802,8 @@ func TestGenerateMultipleChapters(t *testing.T) {
 	}
 }
 
-// TestGenerateWithoutCSS verifies EPUB generation without CSS.
+// TestGenerateWithoutCSS verifies EPUB generation without custom CSS still
+// ships the reader-friendly fallback stylesheet.
 func TestGenerateWithoutCSS(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "no_css.epub")
@@ -817,20 +822,19 @@ func TestGenerateWithoutCSS(t *testing.T) {
 		t.Fatalf("Generate() failed: %v", err)
 	}
 
-	// Verify EPUB doesn't contain style.css
-	r, err := zip.OpenReader(outputPath)
-	if err != nil {
-		t.Fatalf("failed to open EPUB: %v", err)
+	// style.css is always packaged; without a theme it is the minimal fallback.
+	css := readEpubFile(t, outputPath, "OEBPS/style.css")
+	if !strings.Contains(css, "text-decoration: underline") {
+		t.Error("fallback stylesheet should underline links")
 	}
-	defer r.Close() //nolint:errcheck
-
-	fileMap := make(map[string]*zip.File)
-	for _, f := range r.File {
-		fileMap[f.Name] = f
+	if strings.Contains(css, "var(") {
+		t.Error("fallback stylesheet must not use CSS custom properties")
 	}
 
-	if _, ok := fileMap["OEBPS/style.css"]; ok {
-		t.Error("style.css should not be included when CSS is not set")
+	// The OPF manifest declares the stylesheet.
+	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
+	if !strings.Contains(opf, `<item id="css" href="style.css" media-type="text/css"/>`) {
+		t.Error("style.css manifest item not found in OPF")
 	}
 }
 
@@ -1174,5 +1178,244 @@ func TestBuildNonBase64DataURIImageAsset(t *testing.T) {
 	// A base64 data URI is not a non-base64 form.
 	if _, ok := buildNonBase64DataURIImageAsset(`data:image/png;base64,AAAA`, 2); ok {
 		t.Errorf("base64 data URI should not be handled as non-base64")
+	}
+}
+
+// TestWrapXHTMLInjectsChapterTitleHeading verifies that the chapter title is
+// re-emitted as an <h1> when the body does not already start with one (the
+// chapter pipeline strips the leading h1 for the PDF/HTML templates).
+func TestWrapXHTMLInjectsChapterTitleHeading(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Test", Language: "en"})
+
+	result := gen.wrapXHTML("Chapter & One", `<p>Body text.</p>`)
+
+	if !strings.Contains(result, "<h1>Chapter &amp; One</h1>") {
+		t.Errorf("expected injected escaped chapter title h1, got: %s", result)
+	}
+	if strings.Index(result, "<h1>Chapter &amp; One</h1>") > strings.Index(result, "<p>Body text.</p>") {
+		t.Error("injected h1 should precede the chapter body content")
+	}
+}
+
+// TestWrapXHTMLKeepsExistingHeading verifies that no duplicate h1 is injected
+// when the chapter body already starts with a heading.
+func TestWrapXHTMLKeepsExistingHeading(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Test", Language: "en"})
+
+	result := gen.wrapXHTML("Chapter One", `<h1 id="x">Custom Heading</h1><p>Body</p>`)
+
+	if got := strings.Count(result, "<h1"); got != 1 {
+		t.Errorf("expected exactly 1 h1, got %d in: %s", got, result)
+	}
+	if strings.Contains(result, "<h1>Chapter One</h1>") {
+		t.Error("chapter title should not be injected when body already starts with h1")
+	}
+}
+
+// TestEpubMathChapterManifestProperties verifies that chapters containing math
+// declare properties="scripted remote-resources" in the OPF manifest (required
+// by EPUB 3 for embedded scripts and remote CDN resources), while non-math
+// chapters carry no properties and no scripts.
+func TestEpubMathChapterManifestProperties(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "math.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Math Book", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title:    "Math",
+		Filename: "math.xhtml",
+		HTML:     `<p><span class="math display">E = mc^2</span></p>`,
+	})
+	gen.AddChapter(EpubChapter{
+		Title:    "Plain",
+		Filename: "plain.xhtml",
+		HTML:     `<p>No math here.</p>`,
+	})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
+	if !strings.Contains(opf, `<item id="ch0" href="math.xhtml" media-type="application/xhtml+xml" properties="scripted remote-resources"/>`) {
+		t.Errorf("math chapter manifest item missing scripted/remote-resources properties: %s", opf)
+	}
+	if !strings.Contains(opf, `<item id="ch1" href="plain.xhtml" media-type="application/xhtml+xml"/>`) {
+		t.Errorf("non-math chapter manifest item should have no properties: %s", opf)
+	}
+
+	// The non-math chapter must not embed any scripts.
+	plain := readEpubFile(t, outputPath, "OEBPS/plain.xhtml")
+	if strings.Contains(plain, "<script") {
+		t.Errorf("non-math chapter should contain no scripts: %s", plain)
+	}
+	math := readEpubFile(t, outputPath, "OEBPS/math.xhtml")
+	if !strings.Contains(math, "<script") {
+		t.Error("math chapter should embed KaTeX scripts")
+	}
+}
+
+// TestEpubCoverPageDefaultNavy verifies the generated cover page uses the
+// premium deep-navy default background with light text.
+func TestEpubCoverPageDefaultNavy(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Navy Book"})
+
+	page := gen.generateCoverPage(nil)
+
+	if !strings.Contains(page, "background-color: #102a43") {
+		t.Errorf("expected default navy cover background, got: %s", page)
+	}
+	if !strings.Contains(page, "color: #f6f8fc") {
+		t.Errorf("expected light text on dark default background, got: %s", page)
+	}
+}
+
+// TestEpubCoverPageHonorsConfiguredBackground verifies book.cover.background
+// is applied and text adapts to a light background.
+func TestEpubCoverPageHonorsConfiguredBackground(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Light Book", CoverBackground: "#ffffff"})
+
+	page := gen.generateCoverPage(nil)
+
+	if !strings.Contains(page, "background-color: #ffffff") {
+		t.Errorf("expected configured cover background, got: %s", page)
+	}
+	if !strings.Contains(page, "color: #14304a") {
+		t.Errorf("expected dark text on light configured background, got: %s", page)
+	}
+}
+
+// TestEpubCoverPageRejectsUnsafeBackground verifies that a background value
+// failing CSS color validation falls back to the navy default.
+func TestEpubCoverPageRejectsUnsafeBackground(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{
+		Title:           "Unsafe",
+		CoverBackground: "red; } body { background: url(evil)",
+	})
+
+	page := gen.generateCoverPage(nil)
+
+	if !strings.Contains(page, "background-color: #102a43") {
+		t.Errorf("expected fallback to navy for unsafe background, got: %s", page)
+	}
+	if strings.Contains(page, "evil") {
+		t.Errorf("unsafe background value must not be emitted: %s", page)
+	}
+}
+
+// TestEpubCoverBackgroundValidation unit-tests the background validator.
+func TestEpubCoverBackgroundValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"empty falls back to navy", "", "#102a43"},
+		{"hex color accepted", "#ABCDEF", "#ABCDEF"},
+		{"named color accepted", "navy", "navy"},
+		{"rgb accepted", "rgb(16, 42, 67)", "rgb(16, 42, 67)"},
+		{"injection rejected", "#fff; } * { color: red", "#102a43"},
+		{"url rejected", "url(http://evil)", "#102a43"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := epubCoverBackground(tt.input); got != tt.expected {
+				t.Errorf("epubCoverBackground(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestEpubStylesheetFromTheme verifies the theme-derived stylesheet is
+// reader-friendly: literal colors (no CSS variables), no page margins, no
+// absolute font sizes, underlined links, and custom CSS appended last.
+func TestEpubStylesheetFromTheme(t *testing.T) {
+	thm := &theme.Theme{
+		Name:       "test",
+		FontFamily: "serif",
+		FontSize:   11,
+		LineHeight: 1.7,
+		Colors: theme.ColorScheme{
+			Text:       "#111111",
+			Background: "#fafafa",
+			Heading:    "#222222",
+			Link:       "#123456",
+			CodeBg:     "#eeeeee",
+			CodeText:   "#333333",
+			Accent:     "#445566",
+			Border:     "#dddddd",
+		},
+		Margins: theme.MarginSettings{Top: 20, Bottom: 20, Left: 20, Right: 20},
+	}
+	gen := NewEpubGenerator(EpubMeta{Title: "Styled"})
+	gen.SetTheme(thm)
+	gen.SetCSS("p { color: pink; }")
+
+	css := gen.stylesheet()
+
+	if strings.Contains(css, "var(") {
+		t.Error("EPUB stylesheet must not use CSS custom properties")
+	}
+	if strings.Contains(css, "mm;") || strings.Contains(css, "mm ") {
+		t.Error("EPUB stylesheet must not carry print margins in mm")
+	}
+	if strings.Contains(css, "pt;") {
+		t.Error("EPUB stylesheet must not use absolute pt font sizes")
+	}
+	if !strings.Contains(css, "#123456") {
+		t.Error("theme link color should be emitted as a literal value")
+	}
+	if !strings.Contains(css, "text-decoration: underline") {
+		t.Error("links must be underlined (WCAG 1.4.1)")
+	}
+	if strings.Contains(css, "background-color: #fafafa") {
+		t.Error("theme background must not be forced on the body (breaks reader night modes)")
+	}
+	themeIdx := strings.Index(css, "#123456")
+	customIdx := strings.Index(css, "pink")
+	if customIdx < themeIdx {
+		t.Error("custom CSS should be appended after the theme-derived stylesheet")
+	}
+}
+
+// TestEpubStylesheetNilThemeFallback verifies the minimal fallback stylesheet
+// is used when no theme is set.
+func TestEpubStylesheetNilThemeFallback(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Plain"})
+
+	css := gen.stylesheet()
+
+	if css == "" {
+		t.Fatal("stylesheet should never be empty")
+	}
+	if !strings.Contains(css, "text-decoration: underline") {
+		t.Error("fallback stylesheet should underline links")
+	}
+	if strings.Contains(css, "var(") {
+		t.Error("fallback stylesheet must not use CSS custom properties")
+	}
+}
+
+// TestEpubGeneratedChapterContainsTitleHeading is an end-to-end check that a
+// generated chapter document contains its title as an h1 when the source body
+// has none (regression test for chapters shipping without their heading).
+func TestEpubGeneratedChapterContainsTitleHeading(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "headings.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Headings", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title:    "Chapter One",
+		Filename: "ch1.xhtml",
+		HTML:     `<p>Stripped body without heading.</p>`,
+	})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	chapter := readEpubFile(t, outputPath, "OEBPS/ch1.xhtml")
+	if !strings.Contains(chapter, "<h1>Chapter One</h1>") {
+		t.Errorf("generated chapter should contain its title heading: %s", chapter)
 	}
 }

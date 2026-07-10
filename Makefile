@@ -118,11 +118,29 @@ hooks:
 
 # ---------- Clean ----------
 
+# Removes build artifacts and generated output anywhere in the tree:
+# bin/, dist/, coverage files, tmp/, output/, and every _book/, _book.old/,
+# _output/, *_site/, and mdpress-serve-*.tmp directory (build/serve output).
+# The repo-local Go caches under .cache/ are intentionally kept so incremental
+# builds stay fast; use 'make clean-cache' to remove them.
 .PHONY: clean
 clean:
-	@echo ">>> Cleaning..."
+	@echo ">>> Cleaning build artifacts and generated output..."
 	$(GO) clean
-	rm -rf bin/ dist/ coverage.txt coverage.html
+	rm -rf bin/ dist/ tmp/ output/ coverage.txt coverage.html
+	find . \( -path ./.git -o -path ./.cache \) -prune -o -type d \
+		\( -name '_book' -o -name '_book.old' -o -name '_output' -o -name '*_site' -o -name 'mdpress-serve-*.tmp' \) \
+		-prune -exec rm -rf {} +
+	@echo ">>> Done. Go caches under .cache/ were kept (run 'make clean-cache' to remove them)."
+
+# Removes the repo-local Go module/build caches created by running targets
+# with CACHE_DIR=$(CURDIR)/.cache (they can grow to gigabytes). The module
+# cache is written read-only, so restore write permission before deleting.
+.PHONY: clean-cache
+clean-cache:
+	@echo ">>> Removing repo-local Go caches (.cache/)..."
+	@if [ -d .cache ]; then chmod -R u+w .cache 2>/dev/null || true; rm -rf .cache; fi
+	@echo ">>> Done."
 
 # ---------- Docker ----------
 
@@ -171,7 +189,8 @@ help:
 	@echo "  make fmt        Format code"
 	@echo "  make check      Pre-commit quality gate (gofmt check + lint + build + test)"
 	@echo "  make hooks      Install pre-commit git hooks"
-	@echo "  make clean      Remove build artifacts"
+	@echo "  make clean      Remove build artifacts and generated output (_book, *_site, tmp, coverage)"
+	@echo "  make clean-cache Remove the repo-local Go caches under .cache/"
 	@echo "  make docker     Build both Docker images (minimal + full)"
 	@echo "  make example    Run the example project"
 	@echo "  make help       Show this help message"

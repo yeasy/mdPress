@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"html"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -119,12 +122,19 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 		pdfTimeout = defaultPDFTimeout
 	}
 
+	headerTmpl, footerTmpl := pdfHeaderFooterTemplates(ctx.Config)
+
 	// Prepare margin options from config, with fallback defaults
 	marginOpts := []pdf.GeneratorOption{
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
 		pdf.WithPrintBackground(true),
-		pdf.WithFooterTemplate(`<div style="width:100%;text-align:center;font-size:8px;color:#c0c0c0;font-family:Arial,sans-serif;">Built with <a href="https://github.com/yeasy/mdpress" style="color:#8ab4f8;text-decoration:none;">md<span style="color:#8ab4f8;">Press</span></a></div>`),
+	}
+	if headerTmpl != "" {
+		marginOpts = append(marginOpts, pdf.WithHeaderTemplate(headerTmpl))
+	}
+	if footerTmpl != "" {
+		marginOpts = append(marginOpts, pdf.WithFooterTemplate(footerTmpl))
 	}
 
 	// Add custom margins if provided in config, otherwise use defaults
@@ -137,14 +147,27 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 			ctx.Config.Output.MarginBottom,
 		))
 	} else {
-		// Default margins: 0 on sides, reserved space at bottom for footer branding.
-		const defaultFooterMarginMM = 10
-		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, 0, defaultFooterMarginMM))
+		// Default margins: 0 on the sides, with space reserved at the top and
+		// bottom only where a header or footer is actually rendered.
+		const headerFooterMarginMM = 10
+		topMargin, bottomMargin := 0.0, 0.0
+		if headerTmpl != "" {
+			topMargin = headerFooterMarginMM
+		}
+		if footerTmpl != "" {
+			bottomMargin = headerFooterMarginMM
+		}
+		marginOpts = append(marginOpts, pdf.WithMargins(0, 0, topMargin, bottomMargin))
 	}
 
 	// Always pass the document outline option so that generate_bookmarks: false
 	// actually disables bookmarks (the generator defaults to true).
 	marginOpts = append(marginOpts, pdf.WithDocumentOutline(ctx.Config.Output.GenerateBookmarks))
+
+	// tagged_pdf: false trades accessibility metadata for noticeably smaller
+	// files; unset keeps the accessible default.
+	taggedPDF := ctx.Config.Output.TaggedPDF == nil || *ctx.Config.Output.TaggedPDF
+	marginOpts = append(marginOpts, pdf.WithTaggedPDF(taggedPDF))
 
 	pdfGen := pdf.NewGenerator(marginOpts...)
 	if err := pdfGen.Generate(fullHTML, outputPath); err != nil {
@@ -152,6 +175,83 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	}
 	ctx.Logger.Info("Output ready", slog.String("format", "PDF"), slog.String("path", outputPath))
 	return nil
+}
+
+// defaultPDFFooterTemplate is the out-of-the-box PDF footer: a centered page
+// number in subtle small print.
+const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;'><span class='pageNumber'></span></div>`
+
+// pdfHeaderFooterTemplates derives the Chrome print header/footer templates
+// from the book configuration. The output.header/output.footer booleans act
+// as on/off switches; style.header/style.footer customize the content (with
+// {page}/{title} token expansion). By default PDFs get a centered page-number
+// footer and no header. An empty return value means "no header/footer".
+func pdfHeaderFooterTemplates(cfg *config.BookConfig) (headerTmpl, footerTmpl string) {
+	defaults := config.DefaultConfig().Style
+	if cfg.Output.Footer {
+		if isCustomHeaderFooterStyle(cfg.Style.Footer, defaults.Footer) {
+			footerTmpl = renderPDFHeaderFooter(cfg.Style.Footer, cfg.Book.Title)
+		}
+		if footerTmpl == "" {
+			footerTmpl = defaultPDFFooterTemplate
+		}
+	}
+	if cfg.Output.Header {
+		// Default: no header. Only an explicitly customized style.header
+		// renders one.
+		if isCustomHeaderFooterStyle(cfg.Style.Header, defaults.Header) {
+			headerTmpl = renderPDFHeaderFooter(cfg.Style.Header, cfg.Book.Title)
+		}
+	}
+	return headerTmpl, footerTmpl
+}
+
+// isCustomHeaderFooterStyle reports whether the user customized a
+// header/footer style, i.e. it differs from both the zero value and the
+// built-in default.
+func isCustomHeaderFooterStyle(s, def config.HeaderFooterStyle) bool {
+	return s != (config.HeaderFooterStyle{}) && s != def
+}
+
+// renderPDFHeaderFooter builds a Chrome print template with left/center/right
+// cells from a configured header/footer style. Returns "" when every cell
+// expands to nothing.
+func renderPDFHeaderFooter(parts config.HeaderFooterStyle, title string) string {
+	left := expandPDFTemplateTokens(parts.Left, title)
+	center := expandPDFTemplateTokens(parts.Center, title)
+	right := expandPDFTemplateTokens(parts.Right, title)
+	if left == "" && center == "" && right == "" {
+		return ""
+	}
+	return "<div style='width:100%;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;display:flex;justify-content:space-between;padding:0 10mm;'>" +
+		"<span style='flex:1;text-align:left;'>" + left + "</span>" +
+		"<span style='flex:1;text-align:center;'>" + center + "</span>" +
+		"<span style='flex:1;text-align:right;'>" + right + "</span>" +
+		"</div>"
+}
+
+// expandPDFTemplateTokens HTML-escapes user text and expands the supported
+// placeholder tokens into Chrome print-template markup. Both the documented
+// {page}/{pages}/{title} tokens and the legacy Go-template-style tokens used
+// by scaffolded configs ({{.PageNum}}, {{.Book.Title}}, ...) are supported.
+// {{.Chapter.Title}} has no Chrome equivalent and expands to nothing.
+func expandPDFTemplateTokens(text, title string) string {
+	if text == "" {
+		return ""
+	}
+	const pageSpan = "<span class='pageNumber'></span>"
+	const totalPagesSpan = "<span class='totalPages'></span>"
+	escapedTitle := html.EscapeString(title)
+	replacer := strings.NewReplacer(
+		"{page}", pageSpan,
+		"{pages}", totalPagesSpan,
+		"{title}", escapedTitle,
+		"{{.PageNum}}", pageSpan,
+		"{{.TotalPages}}", totalPagesSpan,
+		"{{.Book.Title}}", escapedTitle,
+		"{{.Chapter.Title}}", "",
+	)
+	return replacer.Replace(html.EscapeString(text))
 }
 
 // ---- HTML ----
@@ -197,12 +297,117 @@ func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 	}
 	ctx.Logger.Info("Generating HTML site", slog.String("output", outputDir))
 
+	// Migration hint: the default site directory moved from "<name>_site" to
+	// "_book" in v0.7.13. Surface the old location so stale deploys pointing
+	// at it do not go unnoticed.
+	if filepath.Base(outputDir) == "_book" {
+		if info, err := os.Stat(baseName + "_site"); err == nil && info.IsDir() {
+			ctx.Logger.Info("site output moved to _book/ in v0.7.13; the legacy directory is no longer updated and can be removed",
+				slog.String("legacy", baseName+"_site"),
+				slog.String("current", outputDir))
+		}
+	}
+
 	pageNames := sitePageFilenames(ctx.ChapterFiles)
 	siteChapters := rewriteChapterLinksForSite(ctx.ChaptersHTML, ctx.ChapterFiles, pageNames)
-	if err := generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, outputDir, siteChapters, ctx.ChapterFiles, pageNames, ctx.ChapterMarkdown); err != nil {
+	generate := func(dir string) error {
+		return generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, dir, siteChapters, ctx.ChapterFiles, pageNames, ctx.ChapterMarkdown)
+	}
+
+	// When the site shares its directory with the other output files (an
+	// explicit "--output <dir>"), other format builders may be writing into
+	// the same directory concurrently, so generate in place instead of
+	// swapping the whole directory out.
+	if filepath.Clean(outputDir) == filepath.Dir(baseName) {
+		if err := generate(outputDir); err != nil {
+			return fmt.Errorf("failed to generate HTML site: %w", err)
+		}
+		ctx.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
+		return nil
+	}
+
+	if err := ensureReplaceableSiteDir(outputDir); err != nil {
+		return err
+	}
+
+	// Build into a temp dir next to the target, then atomically swap it in
+	// (mirroring `mdpress serve`), so the target never holds a half-written
+	// site and stale pages from previous builds are removed.
+	if err := utils.EnsureDir(filepath.Dir(outputDir)); err != nil {
+		return fmt.Errorf("failed to create site output parent directory: %w", err)
+	}
+	tempDir, err := os.MkdirTemp(filepath.Dir(outputDir), "mdpress-site-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary site directory: %w", err)
+	}
+	if err := generate(tempDir); err != nil {
+		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+			ctx.Logger.Debug("failed to remove temporary site directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
+		}
 		return fmt.Errorf("failed to generate HTML site: %w", err)
 	}
+	if err := swapSiteDir(tempDir, outputDir, ctx.Logger); err != nil {
+		// Rename can fail across devices; fall back to building in place.
+		ctx.Logger.Debug("atomic site swap failed, rebuilding in place", slog.Any("error", err))
+		if genErr := generate(outputDir); genErr != nil {
+			return fmt.Errorf("failed to generate HTML site: %w", genErr)
+		}
+	}
 	ctx.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
+	return nil
+}
+
+// ensureReplaceableSiteDir refuses to replace a non-empty directory that does
+// not look like a previously generated site, so the atomic swap can never
+// wipe user data. A generated site always contains index.html and
+// search-index.json.
+func ensureReplaceableSiteDir(dir string) error {
+	info, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stat site output directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("site output path %s already exists as a file; remove it or choose another --output", dir)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read site output directory: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	if utils.FileExists(filepath.Join(dir, "index.html")) || utils.FileExists(filepath.Join(dir, "search-index.json")) {
+		return nil
+	}
+	return fmt.Errorf("refusing to replace %s: the directory is not empty and does not look like a generated site (no index.html or search-index.json); remove it or choose another --output", dir)
+}
+
+// swapSiteDir atomically replaces outputDir with tempDir: the previous output
+// is renamed aside, the fresh build renamed in, and the backup removed. On
+// failure the previous output is restored and an error is returned.
+func swapSiteDir(tempDir, outputDir string, logger *slog.Logger) error {
+	backupDir := outputDir + ".old"
+	if err := os.RemoveAll(backupDir); err != nil {
+		logger.Debug("failed to remove previous backup directory", slog.String("dir", backupDir), slog.Any("error", err))
+	}
+	if err := os.Rename(outputDir, backupDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		logger.Debug("failed to move previous site output aside", slog.Any("error", err))
+	}
+	if err := os.Rename(tempDir, outputDir); err != nil {
+		if restoreErr := os.Rename(backupDir, outputDir); restoreErr != nil && !errors.Is(restoreErr, fs.ErrNotExist) {
+			logger.Debug("failed to restore previous site output", slog.Any("error", restoreErr))
+		}
+		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
+			logger.Debug("failed to remove temporary site directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
+		}
+		return fmt.Errorf("swap site directory: %w", err)
+	}
+	if err := os.RemoveAll(backupDir); err != nil {
+		logger.Debug("failed to remove backup directory after swap", slog.String("dir", backupDir), slog.Any("error", err))
+	}
 	return nil
 }
 

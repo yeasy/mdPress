@@ -28,14 +28,14 @@ Supported shells:
   powershell - PowerShell completion script
 
 Examples:
-  # Generate bash completion and load it immediately
-  mdpress completion bash | source
+  # Load bash completions in your current shell session
+  source <(mdpress completion bash)
 
-  # Generate zsh completion and load it immediately
-  mdpress completion zsh | source
+  # Load zsh completions in your current shell session
+  source <(mdpress completion zsh)
 
-  # Generate fish completion
-  mdpress completion fish
+  # Load fish completions in your current shell session
+  mdpress completion fish | source
 
   # Generate powershell completion
   mdpress completion powershell`,
@@ -52,10 +52,10 @@ var bashCompletionCmd = &cobra.Command{
 	Short: "Generate bash completion script",
 	Long: `Generate bash completion script for mdpress.
 
-To use this, run:
-  mdpress completion bash | source
+To load completions in your current shell session, run:
+  source <(mdpress completion bash)
 
-Or to permanently install it, save to a file:
+Or to permanently install them (requires the bash-completion package), run once:
   mdpress completion bash | sudo tee /etc/bash_completion.d/mdpress`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -70,11 +70,16 @@ var zshCompletionCmd = &cobra.Command{
 	Short: "Generate zsh completion script",
 	Long: `Generate zsh completion script for mdpress.
 
-To use this, run:
-  mdpress completion zsh | source
+If shell completion is not already enabled in your environment,
+you will need to enable it once first:
+  echo "autoload -U compinit; compinit" >> ~/.zshrc
 
-Or to permanently install it, add to your ~/.zshrc:
-  mdpress completion zsh | source`,
+To load completions in your current shell session, run:
+  source <(mdpress completion zsh)
+
+Or to permanently install them, write the script to a directory
+in your $fpath, e.g.:
+  mdpress completion zsh > "${fpath[1]}/_mdpress"`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return rootCmd.GenZshCompletion(os.Stdout)
@@ -87,11 +92,11 @@ var fishCompletionCmd = &cobra.Command{
 	Short: "Generate fish shell completion script",
 	Long: `Generate fish shell completion script for mdpress.
 
-To use this, run:
+To load completions in your current shell session, run:
   mdpress completion fish | source
 
-Or to permanently install it:
-  mdpress completion fish | sudo tee /usr/share/fish/vendor_completions.d/mdpress.fish`,
+Or to permanently install them, run once:
+  mdpress completion fish > ~/.config/fish/completions/mdpress.fish`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		noDesc, _ := cmd.Flags().GetBool("no-descriptions")
@@ -105,7 +110,10 @@ var powershellCompletionCmd = &cobra.Command{
 	Short: "Generate PowerShell completion script",
 	Long: `Generate PowerShell completion script for mdpress.
 
-To use this in your PowerShell profile, run:
+To load completions in your current shell session, run:
+  mdpress completion powershell | Out-String | Invoke-Expression
+
+Or to permanently install them in your PowerShell profile, run:
   mdpress completion powershell | Out-String | Out-File -FilePath $PROFILE -Append`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {

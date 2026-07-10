@@ -3,6 +3,7 @@ package theme
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -757,6 +758,154 @@ func TestThemeToCSS_SelectorCoverage(t *testing.T) {
 	}
 }
 
+// TestThemeToCSS_VarFallbacks tests that every var() reference carries a
+// literal fallback derived from the theme values, so consumers that drop the
+// :root custom properties (e.g. older EPUB engines) still render correctly.
+func TestThemeToCSS_VarFallbacks(t *testing.T) {
+	tm := NewThemeManager()
+	thm, _ := tm.Get("technical")
+	css := thm.ToCSS()
+
+	expectedFallbacks := []string{
+		"var(--color-text, #1F2933)",
+		"var(--color-background, #FFFFFF)",
+		"var(--color-heading, #12344D)",
+		"var(--color-link, #1C5A9E)",
+		"var(--color-code-bg, #F5F7F9)",
+		"var(--color-code-text, #1F2933)",
+		"var(--color-accent, #1C5A9E)",
+		"var(--color-border, #E4E7EB)",
+		"var(--font-size, 11pt)",
+		"var(--line-height, 1.75)",
+		"var(--margin-top, 20.00mm)",
+		"var(--margin-right, 20.00mm)",
+		"var(--margin-bottom, 20.00mm)",
+		"var(--margin-left, 20.00mm)",
+	}
+	for _, want := range expectedFallbacks {
+		if !strings.Contains(css, want) {
+			t.Errorf("CSS should contain fallback reference %q", want)
+		}
+	}
+
+	// The (comma-containing) font stacks must also appear as fallbacks.
+	if !strings.Contains(css, "font-family: var(--font-family, ") {
+		t.Error("CSS should reference --font-family with a literal fallback")
+	}
+	if !strings.Contains(css, "font-family: var(--font-family-mono, ") {
+		t.Error("CSS should reference --font-family-mono with a literal fallback")
+	}
+}
+
+// TestThemeToCSS_NoBareVarReferences tests that no built-in theme emits a
+// var() reference without a fallback value.
+func TestThemeToCSS_NoBareVarReferences(t *testing.T) {
+	bareVar := regexp.MustCompile(`var\(--[a-z-]+\)`)
+	tm := NewThemeManager()
+	for _, name := range tm.List() {
+		thm, _ := tm.Get(name)
+		if matches := bareVar.FindAllString(thm.ToCSS(), -1); len(matches) > 0 {
+			t.Errorf("theme %q emits var() references without fallbacks: %v", name, matches)
+		}
+	}
+}
+
+// TestCSSVar tests the var()-with-fallback helper.
+func TestCSSVar(t *testing.T) {
+	if got := cssVar("--color-accent", "#1C5A9E"); got != "var(--color-accent, #1C5A9E)" {
+		t.Errorf("cssVar with fallback = %q", got)
+	}
+	if got := cssVar("--color-accent", ""); got != "var(--color-accent)" {
+		t.Errorf("cssVar without fallback = %q", got)
+	}
+}
+
+// TestBuiltinThemePalettes pins the built-in palettes: technical is frozen to
+// the approved v0.7.13 retune, while elegant (warm serif book) and minimal
+// (quiet monochrome) carry their own tuned values for the shared ToCSS
+// decorations (th accent underline, zebra rows, inline-code chips,
+// blockquote bar).
+func TestBuiltinThemePalettes(t *testing.T) {
+	tests := []struct {
+		theme     string
+		codeTheme string
+		colors    ColorScheme
+	}{
+		{
+			theme:     "technical",
+			codeTheme: "github",
+			colors: ColorScheme{
+				Text:       "#1F2933",
+				Background: "#FFFFFF",
+				Heading:    "#12344D",
+				Link:       "#1C5A9E",
+				CodeBg:     "#F5F7F9",
+				CodeText:   "#1F2933",
+				Accent:     "#1C5A9E",
+				Border:     "#E4E7EB",
+			},
+		},
+		{
+			theme:     "elegant",
+			codeTheme: "github",
+			colors: ColorScheme{
+				Text:       "#3E2723",
+				Background: "#FFFBF0",
+				Heading:    "#1B0000",
+				Link:       "#8B6914",
+				CodeBg:     "#F5F0E6",
+				CodeText:   "#3E2723",
+				Accent:     "#A87B3B",
+				Border:     "#E2D9C8",
+			},
+		},
+		{
+			theme:     "minimal",
+			codeTheme: "bw",
+			colors: ColorScheme{
+				Text:       "#000000",
+				Background: "#FFFFFF",
+				Heading:    "#000000",
+				Link:       "#0000EE",
+				CodeBg:     "#F6F6F6",
+				CodeText:   "#000000",
+				Accent:     "#1A1A1A",
+				Border:     "#E0E0E0",
+			},
+		},
+	}
+
+	tm := NewThemeManager()
+	for _, tt := range tests {
+		t.Run(tt.theme, func(t *testing.T) {
+			thm, err := tm.Get(tt.theme)
+			if err != nil {
+				t.Fatalf("failed to get theme %q: %v", tt.theme, err)
+			}
+			if thm.CodeTheme != tt.codeTheme {
+				t.Errorf("CodeTheme = %q, want %q", thm.CodeTheme, tt.codeTheme)
+			}
+			if thm.Colors != tt.colors {
+				t.Errorf("Colors = %+v, want %+v", thm.Colors, tt.colors)
+			}
+		})
+	}
+}
+
+// TestElegantHeaderFooterMatchesBorder tests that the elegant theme's
+// header/footer templates use the retuned warm hairline border color.
+func TestElegantHeaderFooterMatchesBorder(t *testing.T) {
+	thm := builtinElegant()
+	for _, tpl := range []string{thm.HeaderTemplate, thm.FooterTemplate} {
+		if strings.Contains(tpl, "#D7CCBB") {
+			t.Errorf("template still references the old border color #D7CCBB: %q", tpl)
+		}
+		if !strings.Contains(tpl, thm.Colors.Border) {
+			t.Errorf("template should use the theme border color %q: %q", thm.Colors.Border, tpl)
+		}
+	}
+}
+
 func TestThemeToCSS_NumericalValues(t *testing.T) {
 	thm := &Theme{
 		Name:       "test",
@@ -1377,8 +1526,8 @@ func TestThemeFontFamilyQuoting(t *testing.T) {
 
 // TestThemeLoadFromYAML tests loading themes from YAML files
 func TestThemeLoadFromYAML(t *testing.T) {
-	// Get theme file directory
-	themeDir := filepath.Join("/sessions/epic-blissful-johnson/mnt/mdpress", "themes")
+	// Get theme file directory (repo-relative; skipped when absent)
+	themeDir := filepath.Join("..", "..", "themes")
 
 	themeFiles := []string{
 		filepath.Join(themeDir, "technical.yaml"),

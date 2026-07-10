@@ -471,6 +471,16 @@ func WithFooterTemplate(tmpl string) GeneratorOption {
 	}
 }
 
+// WithHeaderTemplate sets a custom HTML header template for PDF pages.
+// The template is rendered by Chrome's PrintToPDF and supports CSS styling.
+// Chrome provides special classes: "pageNumber", "totalPages", "date", "title", "url".
+func WithHeaderTemplate(tmpl string) GeneratorOption {
+	return func(g *Generator) {
+		g.headerTemplate = tmpl
+		g.displayHeaderFooter = true
+	}
+}
+
 // WithDocumentOutline toggles PDF bookmark/outline generation from heading hierarchy.
 // Enabled by default. Requires Chrome 128+ for full support.
 func WithDocumentOutline(enable bool) GeneratorOption {
@@ -754,7 +764,7 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 					`return JSON.stringify(diag);` +
 					`})()`).Do(ctx)
 			if err == nil && result != nil && result.Value != nil {
-				slog.Info("PDF font diagnostics", slog.String("info", string(result.Value)))
+				slog.Debug("PDF font diagnostics", slog.String("info", string(result.Value)))
 			}
 			return nil // non-fatal
 		}),
@@ -785,6 +795,9 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 				}
 				if g.footerTemplate != "" {
 					cmd = cmd.WithFooterTemplate(g.footerTemplate)
+				} else {
+					// Suppress Chrome's default footer (URL + page number).
+					cmd = cmd.WithFooterTemplate("<span></span>")
 				}
 			}
 			pdfBuf, _, err = cmd.Do(ctx)

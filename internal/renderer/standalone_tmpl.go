@@ -51,6 +51,21 @@ const standaloneHTMLMiddle = `  </style>
 
   <!-- Center: main content area -->
   <main id="main-content">
+    {{if .HasCover}}
+    <!-- Cover hero: synthesized from book metadata (excluded from search/TOC).
+         Titles use <div> so they never enter the document outline. -->
+    <section class="cover-hero" aria-label="Book cover">
+      <div class="cover-hero-inner">
+        {{if .Title}}<div class="cover-hero-title">{{.Title}}</div>{{end}}
+        {{if .Subtitle}}<div class="cover-hero-subtitle">{{.Subtitle}}</div>{{end}}
+        <div class="cover-hero-divider"></div>
+        <div class="cover-hero-meta">
+          {{if .Author}}<div class="cover-hero-meta-item">{{.Author}}</div>{{end}}
+          {{if .Version}}<div class="cover-hero-meta-item">{{.Version}}</div>{{end}}
+        </div>
+      </div>
+    </section>
+    {{end}}
     {{range .Chapters}}
     <article class="chapter" id="{{.ID}}" data-title="{{.Title}}">
       <h1 class="chapter-title">{{.Title}}</h1>

@@ -68,10 +68,11 @@ func addLazyLoading(html string) string {
 // output format's CSS control code block appearance without specificity fights.
 var chromaPreStylePattern = regexp.MustCompile(`(<pre)\s+style="[^"]*"`)
 
-// stripChromaPreStyle removes inline style attributes from <pre> tags injected
-// by chroma's HTML formatter. Chroma sets background-color (and sometimes color)
-// on <pre> via inline styles, which override the site/standalone/PDF CSS and can
-// cause invisible text when the inline bg conflicts with the CSS text color.
+// stripChromaPreStyle removes inline style attributes from <pre> tags. The
+// parser now renders chroma output with CSS classes (no inline styles), but
+// this guard is kept for raw HTML embedded in Markdown and any legacy content:
+// an inline background on <pre> overrides the site/standalone/PDF CSS and can
+// cause invisible text when it conflicts with the CSS text color.
 func stripChromaPreStyle(html string) string {
 	return chromaPreStylePattern.ReplaceAllString(html, "$1")
 }

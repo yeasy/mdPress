@@ -1,6 +1,6 @@
 # Chapter 2: Advanced Usage
 
-This chapter covers advanced mdpress features for creating professional-grade PDF books.
+This chapter covers advanced mdpress features for creating professional-grade books.
 
 ## 2.1 Custom Themes
 
