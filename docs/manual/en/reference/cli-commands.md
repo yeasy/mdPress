@@ -27,10 +27,11 @@ Build documents from the current directory, a local directory, or a GitHub URL.
 
 Key flags:
 
-- `--format` accepts comma-separated formats such as `pdf,html,epub` or `all`.
+- `-f, --format` accepts comma-separated formats such as `pdf,html,epub` or `all`.
 - `--branch` and `--subdir` apply to GitHub sources.
-- `--output` sets the output base path.
+- `-o, --output` sets the output target: an existing directory (or a path with a trailing slash) receives the files, and site pages are written into it directly; any other path acts as a filename base (`manual.pdf`, `manual.html`, `manual_site/`). Without `--output`, the site format goes to `_book/` under the project directory.
 - `--summary` loads chapters from a specific `SUMMARY.md`.
+- `--allow-plugins` executes plugins declared by a remote project's `book.yaml` (they are skipped by default because plugins are arbitrary executables; local projects always run plugins).
 
 ### `serve`
 
@@ -46,9 +47,11 @@ Key flags:
 
 - `--host` sets the listen address.
 - `--port` sets the listen port.
-- `--output` sets the preview output directory.
+- `-o, --output` sets the preview output directory (default `_book/`).
 - `--open` opens the browser automatically.
 - `--summary` loads chapters from a specific `SUMMARY.md`.
+- `--branch` and `--subdir` apply to GitHub sources.
+- `--allow-plugins` executes plugins declared by a remote project's `book.yaml`.
 
 ### `init`
 
@@ -61,10 +64,10 @@ Scan Markdown files and generate `book.yaml`. Use `-i, --interactive` to answer 
 ### `quickstart`
 
 ```bash
-mdpress quickstart [directory]
+mdpress quickstart [directory] [--force]
 ```
 
-Create a sample project. This command has no dedicated flags.
+Create a sample project. `--force` allows scaffolding into a non-empty directory (existing files are never overwritten).
 
 ### `validate`
 
@@ -84,7 +87,8 @@ mdpress doctor [directory] [flags]
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| `--report <path>` | — | Write diagnostic report to a `.json` or `.md` file |
+| `-o, --report <path>` | — | Write diagnostic report to a `.json` or `.md` file |
+| `--strict` | off | Exit non-zero when any error-level check fails (useful as a CI gate) |
 
 ```bash
 # Check environment
@@ -92,6 +96,9 @@ mdpress doctor
 
 # Generate a JSON report
 mdpress doctor --report report.json
+
+# Fail the CI job on error-level findings
+mdpress doctor --strict
 
 # Check a specific project
 mdpress doctor ./docs
@@ -112,6 +119,8 @@ mdpress upgrade [flags]
 | Flag | Default | Purpose |
 | --- | --- | --- |
 | `--check` | off | Only check for updates, do not install |
+| `--force` | off | Force binary replacement even for Homebrew/`go install` managed installs |
+| `--skip-checksum` | off | Skip checksum verification of the downloaded binary (not recommended) |
 | `-v, --verbose` | off | Enable verbose output |
 | `-q, --quiet` | off | Print errors only |
 
@@ -198,12 +207,11 @@ mdpress completion <shell>
 Supported shells: `bash`, `zsh`, `fish`, `powershell`.
 
 ```bash
-# Bash
-mdpress completion bash > mdpress-completion.bash
-source mdpress-completion.bash
+# Bash (add to ~/.bashrc to make it permanent)
+source <(mdpress completion bash)
 
-# Zsh
-mdpress completion zsh > ~/.zfunc/_mdpress
+# Zsh (add to ~/.zshrc to make it permanent)
+source <(mdpress completion zsh)
 
 # Fish
 mdpress completion fish > ~/.config/fish/completions/mdpress.fish

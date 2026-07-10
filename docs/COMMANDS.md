@@ -137,6 +137,14 @@ The token is embedded in the clone URL and never logged. Any GitHub personal acc
 | Setting | Default | Description |
 | --- | --- | --- |
 | `output.generate_bookmarks` | `true` | Auto-generate PDF bookmarks from heading hierarchy. Improves navigation in PDF readers. |
+| `output.tagged_pdf` | `true` | Generate an accessible tagged PDF. Set `false` for noticeably smaller files. |
+
+### Site Output
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `output.site_url` | unset | Public base URL of the deployed site (e.g. `https://user.github.io/repo`). When set, a spec-compliant `sitemap.xml` is generated; without it no sitemap is written. |
+| `output.edit_base` | unset | Base URL for "edit this page" links (e.g. `https://github.com/user/repo/edit/main/`). |
 
 ### Environment Variables
 

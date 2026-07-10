@@ -24,9 +24,12 @@ mdpress serve [source] [flags]
 | --- | --- | --- |
 | `--host <addr>` | `127.0.0.1` | HTTP listen address. By default, `serve` only accepts local connections. Use an explicit address such as `0.0.0.0` to expose it on the LAN. |
 | `--port <number>` | `9000` | HTTP server port. If not explicitly set, mdpress starts at `9000` and finds the next available port. |
-| `--output <dir>` | `<project>/_book` | Output directory for the preview site. |
+| `-o, --output <dir>` | `<project>/_book` | Output directory for the preview site. |
 | `--open` | off | Open the browser automatically after startup. By default, mdpress does not open the browser. |
 | `--summary <path>` | auto-detect | Explicit path to a `SUMMARY.md` file. Overrides chapters from `book.yaml` or auto-discovery. |
+| `--branch <name>` | repository default branch | GitHub branch name. Only applies to remote repository inputs. |
+| `--subdir <path>` | repository root | Subdirectory inside the repository. Only applies to remote repository inputs. |
+| `--allow-plugins` | off | Execute plugins declared by a remote project's `book.yaml` (arbitrary code). Local sources always run plugins. |
 | `--config <path>` | `book.yaml` | Config file path for local projects. |
 | `-v, --verbose` | off | Print detailed logs. |
 | `-q, --quiet` | off | Print errors only. |
@@ -105,7 +108,8 @@ mdpress serve https://github.com/yeasy/agentic_ai_guide
 
 ## Notes
 
-- `serve` currently accepts GitHub repository URLs, but it does not expose `--branch` or `--subdir`; remote preview uses the repository default branch and repository root.
+- `serve` accepts GitHub repository URLs. Since v0.7.12 it also supports `--branch` and `--subdir` for previewing a non-default branch or a subdirectory of a remote repository.
+- The file watcher ignores generated output (`_book/`, `*_site/`, the configured `--output` directory, and temporary swap directories), so a rebuild does not retrigger itself.
 - For remote repository inputs, if `--output` is not set, the current implementation writes preview artifacts to a temporary directory. Those files are typically removed when the process exits.
 - For remote repository inputs, the current implementation prefers `book.yaml` inside the remote project. A local `--config` path does not override the remote config location.
 - By default, `serve` only accepts local connections on `127.0.0.1`. Network exposure requires an explicit `--host`.

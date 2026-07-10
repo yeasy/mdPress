@@ -22,11 +22,12 @@ mdpress build [source] [flags]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--format <list>` | config value or `pdf` | Output formats, comma-separated (e.g., `pdf,html,epub`) or `all` for all formats. |
+| `-f, --format <list>` | config value or `pdf` | Output formats, comma-separated (e.g., `pdf,html,epub`) or `all` for all formats. |
 | `--branch <name>` | repository default branch | GitHub branch name. Only applies to remote repository inputs. |
 | `--subdir <path>` | repository root | Subdirectory inside the repository. Only applies to remote repository inputs. |
-| `--output <path>` | `output.filename` | Output file path, output directory, or filename prefix. |
+| `-o, --output <path>` | `output.filename` / `_book/` for site | Output file path, output directory, or filename base. |
 | `--summary <path>` | auto-detect | Explicit path to a `SUMMARY.md` file. Overrides chapters from `book.yaml` or auto-discovery. |
+| `--allow-plugins` | off | Execute plugins declared by a remote project's `book.yaml` (arbitrary code). Local sources always run plugins. |
 | `--config <path>` | `book.yaml` | Config file path for local builds. |
 | `-v, --verbose` | off | Print detailed logs and warning-by-warning output. |
 | `-q, --quiet` | off | Print errors only. |
@@ -62,39 +63,45 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 
 ### `--output`
 
-`--output` has three common patterns:
+Without `--output`, file formats are written into the project directory (named after `output.filename` or the book title), and `site` is written to `_book/` under the project directory — the same location `mdpress serve` uses. Multi-language projects (with `LANGS.md`) keep their per-language `<lang>_site/` directories.
 
-1. Pass an existing directory
+With `--output`, there are two patterns:
+
+1. Pass a directory — an existing directory, or any path with a trailing slash
 
 ```bash
 mdpress build --output ./dist
+mdpress build --output ./dist/
 ```
 
-The result becomes something like `./dist/output.pdf` and `./dist/output.html`.
+File formats are written into that directory (e.g. `./dist/<Title>.pdf`, `./dist/<Title>.html`). The `site` pages are written directly into that directory (in place — stale files already there are not pruned).
 
-2. Pass a filename prefix
+2. Pass a file path or filename base
 
 ```bash
-mdpress build --format pdf,html --output ./dist/book
+mdpress build --format pdf,html,site --output ./release/manual.pdf
 ```
 
-The result becomes:
-
-- `./dist/book.pdf`
-- `./dist/book.html`
-- `./dist/book_site/` if `site` is also generated
-
-3. Pass a path with an extension
-
-```bash
-mdpress build --format pdf --output ./release/manual.pdf
-```
-
-The current implementation treats that as a base path:
+A path that does not resolve to a directory is treated as a base path:
 
 - `pdf` becomes `./release/manual.pdf`
 - `html` becomes `./release/manual.html`
 - `site` becomes `./release/manual_site/`
+
+### Site output safety
+
+The site is built into a temporary directory and then atomically swapped into place, so stale pages from renamed or removed chapters are pruned. As a safeguard, a non-empty target directory that does not look generated (no `index.html`/`search-index.json`) is refused instead of being overwritten. If a legacy `<name>_site/` directory from an older mdPress version sits next to a default `_book/` build, a hint is logged.
+
+### Result summary
+
+After every successful build, the CLI prints one line per format, for example:
+
+```
+  ✓ Generated pdf   → my-book.pdf
+  ✓ Generated site  → _book/
+```
+
+These lines are a build result rather than progress output, so they are printed even with `--quiet`.
 
 ## Examples
 
@@ -127,6 +134,8 @@ mdpress build --config ./configs/book.yaml --verbose
 - During the build, mdpress checks heading numbering, Markdown links, and Mermaid diagnostics. Many of these are warnings and do not necessarily stop the build.
 - When `LANGS.md` exists at the project root, `build` generates one output set per language and also creates a language landing page.
 - For remote GitHub inputs, the current implementation prefers the remote repository's `book.yaml`. A local `--config` path does not override the remote project's config location.
+- For remote GitHub inputs without `--output`, outputs are written to the current working directory (files as `./<Title>.pdf` etc., site as `./_book/`).
+- For remote GitHub inputs, plugins declared in the remote `book.yaml` are not executed unless `--allow-plugins` is passed, since plugins are arbitrary executables.
 - If `--quiet` and `--verbose` are both set, the current implementation gives precedence to `--quiet`.
 
 ## FAQ

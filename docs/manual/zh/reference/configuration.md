@@ -8,7 +8,7 @@
 - `book.language`：`zh-CN`
 - `style.theme`：`technical`
 - `style.page_size`：`A4`
-- `style.code_theme`：`github`
+- `style.code_theme`：为空 —— 继承主题的代码配色（technical/elegant 为 `github`，minimal 为 `bw`）；显式设置的值优先
 - `output.filename`：默认为 `output.pdf`，但除非你显式覆盖，否则构建时会使用书籍标题或目录名
 - `output.toc`、`output.cover`、`output.header`、`output.footer`：启用
 - `output.toc_max_depth`：`2`
@@ -25,7 +25,9 @@
 | `language` | string | BCP 47 标签，例如 `en-US` 或 `zh-CN`。 |
 | `description` | string | 用于 EPUB 和 HTML 的元数据。 |
 | `cover.image` | string | 封面图像路径。 |
-| `cover.background` | string | 未使用封面图像时的背景颜色。 |
+| `cover.background` | string | 未使用封面图像时的背景颜色。浅色背景（包括 `white` 以及颜色名/`rgb()` 形式）会自动使用深色封面文字。 |
+
+当 `cover.image` 和 `cover.background` 均未设置时，默认封面跟随主题：`technical` 为深海军蓝，`elegant` 为深暖棕色，`minimal` 为浅色配深色文字。
 
 ## `chapters`
 
@@ -49,11 +51,11 @@ chapters:
 
 ## `style`
 
-- `theme`：`technical`、`elegant` 或 `minimal`。
+- `theme`：内置主题（`technical`、`elegant`、`minimal`）、项目内 `themes/<name>.yaml`（或 `.yml`）定义的自定义主题名，或指向 YAML 主题文件的路径（如 `theme: mytheme.yaml`，相对于 `book.yaml`）。`themes/<name>.yaml` 文件也可以覆盖同名的内置主题。主题文件的字段说明见[内置主题](../themes/builtin-themes.md)。
 - `page_size`：`A4`、`A5`、`Letter`、`Legal` 或 `B5`。
-- `font_family`、`font_size`、`code_theme` 和 `line_height` 控制排版。
+- `font_family`、`font_size`、`code_theme` 和 `line_height` 控制排版。`code_theme` 留空时继承主题的代码配色；站点/HTML 输出中代码高亮会自动匹配深色模式的对应样式（如 `github` → `github-dark`）。
 - `margin` 设置上、下、左、右页边距，单位为毫米。
-- `header` 和 `footer` 接受模板字符串，例如 `{{.Book.Title}}` 和 `{{.PageNum}}`。
+- `header` 和 `footer` 各接受 `left`/`center`/`right` 字符串，用于 PDF 页眉/页脚。支持的占位符：`{page}`、`{pages}`、`{title}`（旧式的 `{{.PageNum}}`、`{{.TotalPages}}`、`{{.Book.Title}}` 也接受）。默认页脚为居中页码，默认没有页眉；`output.header`/`output.footer` 布尔开关控制启停。
 - `custom_css` 指向额外的 CSS 文件。
 
 ## `output`
@@ -75,6 +77,9 @@ chapters:
 | `margin_left` | string | PDF 或 Typst 的页边距覆盖，例如 `20mm`。 |
 | `margin_right` | string | PDF 或 Typst 的页边距覆盖，例如 `20mm`。 |
 | `generate_bookmarks` | bool | 生成 PDF 书签。 |
+| `site_url` | string | 部署站点的公开基础 URL（例如 `https://user.github.io/repo`）。设置后，`site` 格式会生成符合规范的 `sitemap.xml`（绝对 `<loc>` 加 `<lastmod>`）；不设置则不生成 sitemap。 |
+| `edit_base` | string | “编辑此页”链接的基础 URL（例如 `https://github.com/user/repo/edit/main/`）。设置后每个站点章节都会带一个编辑链接。 |
+| `tagged_pdf` | bool | 生成可访问的带标签 PDF（默认 `true`）。设为 `false` 可显著减小文件体积，代价是丢失无障碍标签。 |
 
 `style.margin` 与 `output.margin_*` 字段是相互独立的。用 `style.margin` 做通用布局设置，用 `output.margin_*` 做 PDF 或 Typst 的覆盖。
 

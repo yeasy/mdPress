@@ -30,8 +30,37 @@ mdpress build --format all
 - `book.epub`
 - `book-typst.pdf`（typst 格式）
 
-如果传入的是一个目录，文件会被写入该目录内。
+如果传入的是一个目录——已存在的目录，或任何以斜杠结尾的路径——文件会被写入该目录内，站点页面也会直接写入其中（就地写入，不会清理目录中已有的文件）。其他路径会被当作文件名基名处理：`--output release/manual.html` 会生成 `release/manual.html`、`release/manual.pdf`，站点则在 `release/manual_site/`。
 
 `site` 格式产出的是一个目录而非单个文件。默认写入项目目录下的 `_book/`——与
-`mdpress serve` 使用的位置相同，也是各部署示例默认假设的目录。可用 `--output <目录>`
-把站点写到别处（例如 `--output public`）。
+`mdpress serve` 使用的位置相同，也是各部署示例默认假设的目录。默认站点构建会先在
+临时目录中完成，再原子地替换 `_book/`，因此改名或删除章节留下的旧页面会被清理；
+如果目标目录非空且看起来不是生成产物（没有 `index.html`/`search-index.json`），
+出于安全考虑会拒绝覆盖。
+
+**多语言例外：**含 `LANGS.md` 的项目仍保留按语言划分的 `<lang>_site/` 目录
+（外加语言入口页），而不是单一的 `_book/`。
+
+远程 GitHub 构建（例如 `mdpress build https://github.com/user/repo`）在不传
+`--output` 时会把产物写入当前工作目录：文件为 `./<书名>.pdf` 等，站点为 `./_book/`。
+
+构建成功后，每种格式会打印一行 `✓ Generated <format> → <path>`（`--quiet` 下也会输出）。
+
+## 站点选项
+
+`site` 输出全程使用相对导航链接，因此可以部署在 GitHub Pages 项目站点
+（`https://user.github.io/repo/`），甚至可以直接通过 `file://` 打开。
+构建时会自动生成 `404.html` 页面。
+
+两个 `output` 配置字段可扩展站点功能：
+
+- `site_url`：部署站点的公开基础 URL。设置后会生成符合规范的 `sitemap.xml`
+  （绝对 `<loc>` 加 `<lastmod>`）；不设置则不生成 sitemap。
+- `edit_base`：形如 `https://github.com/user/repo/edit/main/` 的基础 URL。
+  设置后每个章节页面都会带一个“编辑此页”链接。
+
+## PDF 选项
+
+默认情况下 PDF 页脚是居中页码，且没有页眉；可通过 `style.header`/`style.footer`
+自定义（见[配置参考](../reference/configuration.md)）。新的 `output.tagged_pdf`
+选项默认 `true`（生成可访问的带标签 PDF）；设为 `false` 可显著减小文件体积。

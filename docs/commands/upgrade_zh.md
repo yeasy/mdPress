@@ -17,6 +17,8 @@ mdpress upgrade [flags]
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `--check` | 关闭 | 仅检查更新，不进行安装。用于 CI/CD 流程或定期健康检查。 |
+| `--force` | 关闭 | 强制替换二进制，即使安装来源是 Homebrew 或 `go install`。 |
+| `--skip-checksum` | 关闭 | 跳过对下载二进制的校验和验证（不推荐）。 |
 | `-v, --verbose` | 关闭 | 升级过程中输出详细日志。 |
 | `-q, --quiet` | 关闭 | 仅输出错误。 |
 
@@ -35,6 +37,14 @@ mdpress upgrade [flags]
 7. **清理**：成功安装后删除备份
 
 如果安装过程中出现错误，命令会自动尝试从备份中恢复。
+
+### 识别安装方式
+
+`upgrade` 会尊重 mdpress 的安装方式。由 Homebrew 或 `go install` 管理的二进制不会被静默替换：命令会中止并给出指引（`brew upgrade --cask mdpress` / `go install github.com/yeasy/mdpress@latest`）。传 `--force` 可强制替换。
+
+### 校验和验证
+
+下载会依据发布中的 `checksums.txt` 进行校验。校验文件缺失或无法下载时会直接报错，不会安装未验证的二进制。可传 `--skip-checksum` 显式跳过（不推荐）。
 
 ### 版本检测
 

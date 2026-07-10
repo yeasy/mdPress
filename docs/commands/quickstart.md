@@ -20,10 +20,9 @@ mdpress quickstart [directory] [flags]
 
 ## Flags
 
-`quickstart` currently has no dedicated flags. It supports the standard logging flags:
-
 | Flag | Default | Description |
 | --- | --- | --- |
+| `--force` | off | Allow scaffolding into a non-empty directory. Existing files are never overwritten. |
 | `-v, --verbose` | off | Print detailed logs. |
 | `-q, --quiet` | off | Print errors only. |
 
@@ -38,9 +37,9 @@ The current implementation generates:
 - `chapter02/README.md`
 - `chapter03/README.md`
 - `images/README.md`
-- `images/cover.svg`
+- `.gitignore` (ignores build artifacts: `_book/`, `*_site/`, `*.pdf`, `*.html`, `*.epub`)
 
-After generation, the project can be built and previewed immediately.
+The generated `book.yaml` does not hardcode a cover background; a commented example shows how to set one. After generation, the project can be built and previewed immediately.
 
 ## Examples
 
@@ -60,7 +59,8 @@ mdpress serve
 
 ## Notes
 
-- If the target directory already exists and is not empty, the command refuses to write, to avoid overwriting user files.
+- If the target directory already exists and is not empty, the command refuses to write, to avoid overwriting user files. Pass `--force` to scaffold anyway; existing files are kept as-is.
 - If the target directory already exists but is empty, the current implementation allows writing.
+- If the target path exists and is a file, the command returns a friendly error.
 - `quickstart` is for creating a demo project. It does not scan your existing Markdown content; use `mdpress init` for that.
 - `--config` appears in global flags, but `quickstart` does not use it.

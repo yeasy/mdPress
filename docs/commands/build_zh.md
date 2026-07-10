@@ -22,11 +22,12 @@ mdpress build [source] [flags]
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--format <list>` | 配置值或 `pdf` | 输出格式，逗号分隔（如 `pdf,html,epub`）或 `all` 表示所有格式。 |
+| `-f, --format <list>` | 配置值或 `pdf` | 输出格式，逗号分隔（如 `pdf,html,epub`）或 `all` 表示所有格式。 |
 | `--branch <name>` | 仓库默认分支 | GitHub 仓库分支名，仅对远程仓库输入生效。 |
 | `--subdir <path>` | 仓库根目录 | 指定仓库内的子目录，仅对远程仓库输入生效。 |
-| `--output <path>` | `output.filename` | 输出文件路径、输出目录或文件名前缀。 |
+| `-o, --output <path>` | `output.filename` / site 为 `_book/` | 输出文件路径、输出目录或文件名基名。 |
 | `--summary <path>` | 自动检测 | 显式指定 `SUMMARY.md` 文件路径。会覆盖 `book.yaml` 中的章节定义或自动发现结果。 |
+| `--allow-plugins` | 关闭 | 执行远程项目 `book.yaml` 中声明的插件（任意代码）。本地项目始终执行插件。 |
 | `--config <path>` | `book.yaml` | 本地构建时使用的配置文件路径。 |
 | `-v, --verbose` | 关闭 | 输出详细日志和逐条警告。 |
 | `-q, --quiet` | 关闭 | 只输出错误。 |
@@ -62,39 +63,45 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 
 ### `--output` 的行为
 
-`--output` 有三种常见用法：
+不传 `--output` 时，文件类格式会写入项目目录（文件名取 `output.filename` 或书名），`site` 会写入项目目录下的 `_book/` —— 与 `mdpress serve` 使用相同的位置。多语言项目（含 `LANGS.md`）仍保留按语言划分的 `<lang>_site/` 目录。
 
-1. 传一个现有目录
+传 `--output` 时有两种用法：
+
+1. 传一个目录 —— 已存在的目录，或任何以斜杠结尾的路径
 
 ```bash
 mdpress build --output ./dist
+mdpress build --output ./dist/
 ```
 
-结果会写成类似 `./dist/output.pdf`、`./dist/output.html`。
+文件类格式会写入该目录（例如 `./dist/<书名>.pdf`、`./dist/<书名>.html`）。`site` 的页面会直接写入该目录（就地写入，目录中已有的旧文件不会被清理）。
 
-2. 传一个文件名前缀
+2. 传一个文件路径或文件名基名
 
 ```bash
-mdpress build --format pdf,html --output ./dist/book
+mdpress build --format pdf,html,site --output ./release/manual.pdf
 ```
 
-结果会写成：
-
-- `./dist/book.pdf`
-- `./dist/book.html`
-- `./dist/book_site/`，如果同时构建 `site`
-
-3. 传一个带扩展名的路径
-
-```bash
-mdpress build --format pdf --output ./release/manual.pdf
-```
-
-当前实现会把它当作“基准路径”处理。也就是说：
+无法解析为目录的路径会被当作“基准路径”处理：
 
 - `pdf` 会得到 `./release/manual.pdf`
 - `html` 会得到 `./release/manual.html`
 - `site` 会得到 `./release/manual_site/`
+
+### 站点输出的安全机制
+
+站点会先构建到临时目录，然后原子地替换到目标位置，因此改名或删除章节留下的旧页面会被清理。作为保护措施，如果目标目录非空且看起来不是生成产物（没有 `index.html`/`search-index.json`），会拒绝覆盖。如果默认的 `_book/` 构建旁边还留有旧版 mdPress 生成的 `<name>_site/` 目录，会输出一条提示日志。
+
+### 构建结果汇总
+
+每次构建成功后，CLI 会为每种格式打印一行结果，例如：
+
+```
+  ✓ Generated pdf   → my-book.pdf
+  ✓ Generated site  → _book/
+```
+
+这些行属于构建结果而非进度输出，即使指定 `--quiet` 也会打印。
 
 ## 示例
 
@@ -127,6 +134,8 @@ mdpress build --config ./configs/book.yaml --verbose
 - 构建过程中会检查章节标题编号、Markdown 链接和 Mermaid 诊断，但很多问题是警告，不一定直接终止构建。
 - 当项目根目录存在 `LANGS.md` 时，`build` 会按语言分别构建，并额外生成语言入口页。
 - 对远程 GitHub 仓库输入，当前实现优先使用远程仓库中的 `book.yaml`。本地传入的 `--config` 不会覆盖远程项目内的配置文件路径。
+- 对远程 GitHub 仓库输入，如果没有传 `--output`，产物会写入当前工作目录（文件为 `./<书名>.pdf` 等，站点为 `./_book/`）。
+- 对远程 GitHub 仓库输入，除非传入 `--allow-plugins`，否则不会执行远程 `book.yaml` 中声明的插件（插件是任意可执行程序）。
 - 如果同时传 `--quiet` 和 `--verbose`，当前实现以 `--quiet` 为准。
 
 ## 常见问题

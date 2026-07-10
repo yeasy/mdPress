@@ -27,10 +27,11 @@ mdpress build [source] [flags]
 
 主要标志：
 
-- `--format` 接受逗号分隔的格式，例如 `pdf,html,epub`，或 `all`。
+- `-f, --format` 接受逗号分隔的格式，例如 `pdf,html,epub`，或 `all`。
 - `--branch` 和 `--subdir` 适用于 GitHub 源。
-- `--output` 设置输出基础路径。
+- `-o, --output` 设置输出目标：已存在的目录（或以斜杠结尾的路径）会接收各格式文件，站点页面直接写入该目录；其他路径作为文件名基名（`manual.pdf`、`manual.html`、`manual_site/`）。不传 `--output` 时，站点格式输出到项目目录下的 `_book/`。
 - `--summary` 从指定的 `SUMMARY.md` 加载章节。
+- `--allow-plugins` 执行远程项目 `book.yaml` 中声明的插件（插件是任意可执行程序，默认跳过；本地项目始终执行插件）。
 
 ### `serve`
 
@@ -46,9 +47,11 @@ mdpress serve [source] [flags]
 
 - `--host` 设置监听地址。
 - `--port` 设置监听端口。
-- `--output` 设置预览输出目录。
+- `-o, --output` 设置预览输出目录（默认 `_book/`）。
 - `--open` 自动打开浏览器。
 - `--summary` 从指定的 `SUMMARY.md` 加载章节。
+- `--branch` 和 `--subdir` 适用于 GitHub 源。
+- `--allow-plugins` 执行远程项目 `book.yaml` 中声明的插件。
 
 ### `init`
 
@@ -61,10 +64,10 @@ mdpress init [directory] [-i]
 ### `quickstart`
 
 ```bash
-mdpress quickstart [directory]
+mdpress quickstart [directory] [--force]
 ```
 
-创建一个示例项目。该命令没有专用标志。
+创建一个示例项目。`--force` 允许在非空目录中生成脚手架（已有文件绝不会被覆盖）。
 
 ### `validate`
 
@@ -84,7 +87,8 @@ mdpress doctor [directory] [flags]
 
 | 标志 | 默认值 | 用途 |
 | --- | --- | --- |
-| `--report <path>` | — | 将诊断报告写入 `.json` 或 `.md` 文件 |
+| `-o, --report <path>` | — | 将诊断报告写入 `.json` 或 `.md` 文件 |
+| `--strict` | off | 当任何错误级检查失败时以非零状态退出（可用作 CI 门禁） |
 
 ```bash
 # 检查环境
@@ -92,6 +96,9 @@ mdpress doctor
 
 # 生成 JSON 报告
 mdpress doctor --report report.json
+
+# 在 CI 中让错误级检查导致任务失败
+mdpress doctor --strict
 
 # 检查特定项目
 mdpress doctor ./docs
@@ -112,6 +119,8 @@ mdpress upgrade [flags]
 | 标志 | 默认值 | 用途 |
 | --- | --- | --- |
 | `--check` | off | 仅检查更新，不安装 |
+| `--force` | off | 强制替换二进制，即使安装来源是 Homebrew/`go install` |
+| `--skip-checksum` | off | 跳过对下载二进制的校验和验证（不推荐） |
 | `-v, --verbose` | off | 启用详细输出 |
 | `-q, --quiet` | off | 仅打印错误 |
 
@@ -198,12 +207,11 @@ mdpress completion <shell>
 支持的 shell：`bash`、`zsh`、`fish`、`powershell`。
 
 ```bash
-# Bash
-mdpress completion bash > mdpress-completion.bash
-source mdpress-completion.bash
+# Bash（写入 ~/.bashrc 可永久生效）
+source <(mdpress completion bash)
 
-# Zsh
-mdpress completion zsh > ~/.zfunc/_mdpress
+# Zsh（写入 ~/.zshrc 可永久生效）
+source <(mdpress completion zsh)
 
 # Fish
 mdpress completion fish > ~/.config/fish/completions/mdpress.fish

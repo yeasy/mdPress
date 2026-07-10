@@ -137,6 +137,14 @@ Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `content
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `output.generate_bookmarks` | `true` | 从标题层级自动生成 PDF 书签，增强 PDF 阅读器中的导航体验。 |
+| `output.tagged_pdf` | `true` | 生成可访问的带标签 PDF。设为 `false` 可显著减小文件体积。 |
+
+### 站点输出
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `output.site_url` | 未设置 | 部署站点的公开基础 URL（如 `https://user.github.io/repo`）。设置后生成符合规范的 `sitemap.xml`；不设置则不生成。 |
+| `output.edit_base` | 未设置 | "编辑此页"链接的基础 URL（如 `https://github.com/user/repo/edit/main/`）。 |
 
 ### 环境变量
 
