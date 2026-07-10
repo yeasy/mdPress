@@ -1249,6 +1249,8 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 		Language:         cfg.Book.Language,
 		Theme:            thm.Name,
 		ThemeDescription: theme.GetThemeDescription(thm.Name),
+		SiteURL:          cfg.Output.SiteURL,
+		EditBase:         cfg.Output.EditBase,
 	})
 	siteGen.SetCSS(thm.ToCSS() + "\n" +
 		markdown.HighlightCSSLight(thm.CodeTheme) + "\n" +
