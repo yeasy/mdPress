@@ -16,7 +16,7 @@ var sitePageTemplate = `<!DOCTYPE html>
 {{if .Author}}<meta name="author" content="{{.Author}}">{{end}}
 <title>{{.PageTitle}} - {{.SiteTitle}}</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">
-<link rel="sitemap" type="application/xml" href="{{.SitemapLink}}">
+{{if .SitemapLink}}<link rel="sitemap" type="application/xml" href="{{.SitemapLink}}">{{end}}
 <style>
 /* ===== Reset & Base ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -221,8 +221,10 @@ body.sidebar-resizing .main { transition: none; }
   grid-template-columns: minmax(0, 1fr) 220px;
 }
 /* Collapse the right page-TOC rail when it has no entries so the reading
-   column can center in the full width instead of hugging the left. */
-.main-body:has(> .page-toc:empty),
+   column can center in the full width instead of hugging the left.
+   buildPageTOC() toggles .toc-collapsed on .main-body for all browsers;
+   the :has() selector is a progressive enhancement for the same state. */
+.main-body.toc-collapsed,
 .main-body:has(> .page-toc.toc-hidden) {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -261,7 +263,7 @@ body.sidebar-resizing .main { transition: none; }
 .page-toc-nav a.toc-active { color: var(--color-link, #4285f4); border-left-color: var(--color-accent, #4285f4); font-weight: 500; }
 .page-toc-nav a.toc-depth-2 { padding-left: 28px; font-size: 0.78rem; }
 .page-toc-nav a.toc-depth-3 { padding-left: 40px; font-size: 0.76rem; }
-.page-toc:empty, .page-toc.toc-hidden { display: none; }
+.page-toc.toc-hidden { display: none; }
 .content.is-navigating { pointer-events: none; }
 .route-progress {
   position: fixed;
@@ -319,8 +321,13 @@ html.dark .content h4[id] a.header-anchor { color: #89b4fa; }
 .content p { margin: 0.6em 0; text-align: left; }
 .content img { max-width: 100%; height: auto; border-radius: 4px; vertical-align: middle; }
 .content p:has(> img), .content p:has(> a > img) { text-align: center; }
-.content p:has(> img) + p, .content p:has(> a > img) + p { text-align: center; font-size: 0.84rem; color: #666; }
-html.dark .content p:has(> img) + p, html.dark .content p:has(> a > img) + p { color: #a6adc8; }
+/* Only style a following paragraph as a caption when the image stands alone
+   and the paragraph looks like an explicit caption (emphasized text only),
+   so normal body text after an image is never shrunk or grayed. */
+.content p:has(> img:only-child) + p:has(> em:only-child),
+.content p:has(> a:only-child > img:only-child) + p:has(> em:only-child) { text-align: center; font-size: 0.84rem; color: #666; }
+html.dark .content p:has(> img:only-child) + p:has(> em:only-child),
+html.dark .content p:has(> a:only-child > img:only-child) + p:has(> em:only-child) { color: #a6adc8; }
 .content p > a:not(:only-child) > img,
 .content p > a:not(:only-child) > svg { max-height: 20px; width: auto; vertical-align: middle; display: inline; }
 .content p > img:only-child,
@@ -484,6 +491,9 @@ html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-sh
   text-align: center;
   border-top: 1px solid #e8e8e8;
 }
+.page-meta-sep { margin: 0 6px; }
+.edit-page-link { color: var(--color-link, #4285f4); text-decoration: none; }
+.edit-page-link:hover { text-decoration: underline; }
 
 /* ===== Page Transition ===== */
 @keyframes mdpress-page-out {
@@ -798,9 +808,13 @@ html.dark .content pre { background: #262637; color: #cdd6f4; border-color: #363
 html.dark .content code { background: #363849; color: #cdd6f4; }
 html.dark .content pre code { background: transparent; color: inherit; }
 html.dark .content blockquote { border-left-color: #89b4fa; color: #bac2de; background: #262637; }
-html.dark .content table th { background: #262637; color: #cdd6f4; border-color: #363849; }
+/* The theme CSS (appended below) paints header cells and zebra-row TDs with
+   the light --color-code-bg; these higher-specificity overrides keep tables
+   readable in dark mode. */
+html.dark .content table th { background-color: #262637; color: #cdd6f4; border-color: #363849; border-bottom-color: #45475a; }
 html.dark .content table td { border-color: #363849; }
 html.dark .content table tr:nth-child(even) { background: #22223a; }
+html.dark .content table tbody tr:nth-child(even) td { background-color: #22223a; }
 html.dark .content img { border-color: #363849; }
 html.dark .content figcaption { color: #a6adc8; }
 html.dark .content p.caption { color: #a6adc8; }
@@ -809,6 +823,7 @@ html.dark .page-nav a { background: #262637; border-color: #363849; color: #cdd6
 html.dark .page-nav a:hover { border-color: #89b4fa; background: #2a2a3e; }
 html.dark .page-meta, html.dark .build-meta { color: #6c7086; }
 html.dark .build-meta a { color: #89b4fa; }
+html.dark .edit-page-link { color: #89b4fa; }
 html.dark .sidebar-toggle { background: #89b4fa; color: #1e1e2e; }
 html.dark .sidebar-resize-handle:hover, html.dark .sidebar-resize-handle.active { background: rgba(137,180,250,.3); }
 html.dark body.sidebar-open::before { background: rgba(0,0,0,.5); }
@@ -1042,7 +1057,9 @@ body {
         </nav>
 
         <div class="page-meta">
-          <span>{{printf .UIpageOf .CurrentPage .TotalPages}}</span>
+          <span>{{printf .UIpageOf .CurrentPage .TotalPages}}</span>{{if .EditLink}}
+          <span class="page-meta-sep">·</span>
+          <a class="edit-page-link" href="{{.EditLink}}" target="_blank" rel="noopener">{{.UIeditPage}}</a>{{end}}
         </div>
 
         <div class="build-meta">
@@ -1184,6 +1201,46 @@ body {
   var navHeadingLinks = [];
   var headings = [];
 
+  /* siteRoot is the absolute URL of the site root, derived from the current
+     page location and the page's site-relative path. All generated hrefs are
+     relative so the site works when served from a subdirectory (e.g. a
+     GitHub Pages project site) and when opened via file://; the SPA router
+     resolves everything against this root. */
+  var siteRoot = (function() {
+    try {
+      var url = new URL('.', window.location.href);
+      var segments = currentFile.split('/');
+      for (var i = 0; i < segments.length - 1; i++) {
+        url = new URL('..', url);
+      }
+      return url;
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  function resolveSiteHref(file) {
+    if (!siteRoot) return file;
+    try {
+      return new URL(file, siteRoot).toString();
+    } catch (e) {
+      return file;
+    }
+  }
+
+  /* The static sidebar and header links are emitted relative to this page.
+     Rewrite them to absolute URLs once at load so they stay correct after
+     SPA navigation changes the document URL (the sidebar HTML is not
+     re-rendered during SPA page swaps). */
+  (function() {
+    var links = document.querySelectorAll('.sidebar a[href], .page-breadcrumb a[href]');
+    for (var i = 0; i < links.length; i++) {
+      var raw = links[i].getAttribute('href');
+      if (!raw || raw.charAt(0) === '#' || /^[a-z][a-z0-9+.-]*:/i.test(raw)) continue;
+      links[i].setAttribute('href', links[i].href);
+    }
+  })();
+
   try {
     window.sessionStorage.removeItem(internalNavStateKey);
   } catch (e) {}
@@ -1234,7 +1291,13 @@ body {
 
   function getFileFromPathname(pathname) {
     if (!pathname) return currentFile || 'index.html';
-    var clean = pathname.replace(/\/+$/, '').replace(/^\/+/, '');
+    var clean = pathname;
+    var rootPath = siteRoot && siteRoot.pathname ? siteRoot.pathname : '/';
+    if (clean.indexOf(rootPath) === 0) {
+      clean = clean.slice(rootPath.length);
+    }
+    clean = clean.replace(/\/+$/, '').replace(/^\/+/, '');
+    try { clean = decodeURIComponent(clean); } catch (e) {}
     return clean || 'index.html';
   }
 
@@ -1519,6 +1582,7 @@ body {
   // --- Right-side page TOC ---
   var pageToc = document.getElementById('page-toc');
   var pageTocNav = document.getElementById('page-toc-nav');
+  var mainBody = document.querySelector('.main-body');
   var tocObserver = null;
   var tocVisibleMap = Object.create(null);
 
@@ -1550,11 +1614,15 @@ body {
     if (!pageTocNav || !pageToc) return;
     var tocHeadings = Array.from(document.querySelectorAll('.content h2[id], .content h3[id], .content h4[id]'));
     if (tocHeadings.length === 0) {
+      // Collapse the TOC rail. The .toc-collapsed class on .main-body frees
+      // the grid column in browsers without :has() support.
       pageToc.classList.add('toc-hidden');
+      if (mainBody) mainBody.classList.add('toc-collapsed');
       pageTocNav.innerHTML = '';
       return;
     }
     pageToc.classList.remove('toc-hidden');
+    if (mainBody) mainBody.classList.remove('toc-collapsed');
     var html = '';
     for (var i = 0; i < tocHeadings.length; i++) {
       var h = tocHeadings[i];
@@ -2194,12 +2262,10 @@ body {
     var searchIndex = null;
     var activeIdx = -1;
     var debounceTimer = null;
-    var homeLink = document.querySelector('.sidebar-home-link');
-    var basePath = (homeLink ? homeLink.getAttribute('href') : '/').replace(/[^/]*$/, '');
 
     function loadIndex() {
       if (searchIndex) return Promise.resolve(searchIndex);
-      return fetch(basePath + 'search-index.json').then(function(r) {
+      return fetch(resolveSiteHref('search-index.json')).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }).then(function(data) {
@@ -2240,7 +2306,7 @@ body {
       try {
         var titleNode = document.querySelector('.chapter-title, .content h1');
         var title = titleNode ? titleNode.textContent.trim() : (document.title || '').replace(/\s+-\s+.*$/, '');
-        var href = window.location.pathname.replace(/^\//, '') || 'index.html';
+        var href = getFileFromPathname(window.location.pathname);
         if (href === 'index.html') return;
         var path = Array.from(document.querySelectorAll('.page-breadcrumb a')).slice(0, -1).map(function(node) { return node.textContent.trim(); }).join(' > ');
         if (!title || !href) return;
@@ -2280,7 +2346,7 @@ body {
       var html = '';
       for (var i = 0; i < recent.length; i++) {
         var item = recent[i];
-        html += '<a class="search-result" href="' + escapeHTML(item.href) + '">';
+        html += '<a class="search-result" href="' + escapeHTML(resolveSiteHref(item.href)) + '">';
         if (item.path) html += '<div class="search-result-path">' + escapeHTML(item.path) + '</div>';
         html += '<div class="search-result-title">' + escapeHTML(item.title) + '</div>';
         html += '</a>';
@@ -2430,7 +2496,7 @@ body {
           if (m.titleMatch) badges.push(__ui.searchMatchTitle);
           if (m.pathMatch) badges.push(__ui.searchMatchPath);
           if (!m.titleMatch && !m.pathMatch) badges.push(__ui.searchMatchText);
-          html += '<a class="search-result" href="' + escapeHTML(basePath + m.filename) + '">';
+          html += '<a class="search-result" href="' + escapeHTML(resolveSiteHref(m.filename)) + '">';
           if (badges.length) {
             html += '<div class="search-result-meta">';
             for (var k = 0; k < badges.length; k++) {
@@ -2659,5 +2725,49 @@ body {
     };
   })();
   </script>
+</body>
+</html>`
+
+// site404Template renders the "page not found" fallback page served by hosts
+// such as GitHub Pages and Netlify for unknown URLs.  It is a small
+// standalone page (no sidebar/search shell) because it may be served at any
+// URL depth, where the regular page assets would not resolve.
+var site404Template = `<!DOCTYPE html>
+<html lang="{{.Language}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<meta name="generator" content="mdPress">
+<title>{{.Title}} - {{.SiteTitle}}</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Helvetica Neue", Arial, sans-serif;
+  margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: #fff; color: #333;
+}
+.notfound { text-align: center; padding: 40px 24px; }
+.notfound-code { font-size: 5rem; font-weight: 700; color: var(--color-accent, #4285f4); margin: 0; line-height: 1.1; }
+.notfound-title { font-size: 1.3rem; font-weight: 600; margin: 12px 0 4px; }
+.notfound-site { font-size: 0.9rem; color: #888; margin: 0 0 28px; }
+.notfound-home {
+  display: inline-block; padding: 10px 22px; border-radius: 6px;
+  background: var(--color-accent, #4285f4); color: #fff; text-decoration: none; font-weight: 500;
+}
+.notfound-home:hover { opacity: 0.9; }
+@media (prefers-color-scheme: dark) {
+  body { background: #1e1e2e; color: #cdd6f4; }
+  .notfound-site { color: #8b91ab; }
+}
+</style>
+</head>
+<body>
+  <div class="notfound">
+    <p class="notfound-code">404</p>
+    <h1 class="notfound-title">{{.Title}}</h1>
+    <p class="notfound-site">{{.SiteTitle}}</p>
+    <a class="notfound-home" href="{{.HomeLink}}">{{.HomeLabel}}</a>
+  </div>
 </body>
 </html>`

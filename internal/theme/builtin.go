@@ -35,7 +35,9 @@ func builtinTechnical() *Theme {
 }
 
 // builtinElegant returns the "elegant" theme — a serif-based, literary style
-// suited for fiction, essays, and publishing.
+// suited for fiction, essays, and publishing. Tuned as a warm serif book:
+// warm hairline borders, a warm parchment code/table tint that reads against
+// the cream page, and a refined bronze accent for rules and underlines.
 func builtinElegant() *Theme {
 	return &Theme{
 		Name:       "elegant",
@@ -50,10 +52,10 @@ func builtinElegant() *Theme {
 			Background: "#FFFBF0",
 			Heading:    "#1B0000",
 			Link:       "#8B6914",
-			CodeBg:     "#F5F2EB",
+			CodeBg:     "#F5F0E6",
 			CodeText:   "#3E2723",
-			Accent:     "#D4A574",
-			Border:     "#D7CCBB",
+			Accent:     "#A87B3B",
+			Border:     "#E2D9C8",
 		},
 
 		Margins: MarginSettings{
@@ -63,20 +65,22 @@ func builtinElegant() *Theme {
 			Right:  25.0,
 		},
 
-		HeaderTemplate: "<div style='text-align: right; font-size: 11pt; color: #8B6914; border-bottom: 1px solid #D7CCBB; padding-bottom: 5px;'><span class='chapterTitle'></span></div>",
-		FooterTemplate: "<div style='text-align: center; font-size: 11pt; color: #8B6914; border-top: 1px solid #D7CCBB; padding-top: 5px;'>- <span class='pageNumber'></span> -</div>",
+		HeaderTemplate: "<div style='text-align: right; font-size: 11pt; color: #8B6914; border-bottom: 1px solid #E2D9C8; padding-bottom: 5px;'><span class='chapterTitle'></span></div>",
+		FooterTemplate: "<div style='text-align: center; font-size: 11pt; color: #8B6914; border-top: 1px solid #E2D9C8; padding-top: 5px;'>- <span class='pageNumber'></span> -</div>",
 	}
 }
 
 // builtinMinimal returns the "minimal" theme — a clean, whitespace-heavy style
-// with maximum readability.
+// with maximum readability. Tuned as quiet monochrome: a near-black accent,
+// very subtle zebra/chip tint, light gray hairlines, and a grayscale code
+// highlighting style ("bw") so nothing competes with the text.
 func builtinMinimal() *Theme {
 	return &Theme{
 		Name:       "minimal",
 		PageSize:   "A4",
 		FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'San Francisco', 'Segoe UI', Roboto, sans-serif",
 		FontSize:   10,
-		CodeTheme:  "default",
+		CodeTheme:  "bw",
 		LineHeight: 1.7,
 
 		Colors: ColorScheme{
@@ -84,10 +88,10 @@ func builtinMinimal() *Theme {
 			Background: "#FFFFFF",
 			Heading:    "#000000",
 			Link:       "#0000EE",
-			CodeBg:     "#EEEEEE",
+			CodeBg:     "#F6F6F6",
 			CodeText:   "#000000",
-			Accent:     "#555555",
-			Border:     "#CCCCCC",
+			Accent:     "#1A1A1A",
+			Border:     "#E0E0E0",
 		},
 
 		Margins: MarginSettings{

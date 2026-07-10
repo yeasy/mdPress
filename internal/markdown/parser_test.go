@@ -77,13 +77,79 @@ func TestParseCodeHighlight(t *testing.T) {
 	if !strings.Contains(html, "<pre") {
 		t.Error("code block should contain pre tag")
 	}
-	// Chroma inline style on <pre> is stripped by postProcess;
-	// token-level <span style="color:..."> should still be present.
-	if strings.Contains(html, `<pre style="`) {
-		t.Error("chroma inline style on <pre> should be stripped")
+	// Highlighting is class-based: token colors come exclusively from the
+	// HighlightCSSLight/HighlightCSSDark stylesheets so code stays readable
+	// in both light and dark mode. No inline styles may remain.
+	if strings.Contains(html, "style=") {
+		t.Errorf("highlighted code should not contain inline styles, got: %s", html)
 	}
-	if !strings.Contains(html, `style="color`) {
-		t.Error("token-level inline color styles should be preserved")
+	if !strings.Contains(html, `class="chroma`) {
+		t.Error("highlighted code should carry the chroma class on <pre>")
+	}
+	if !strings.Contains(html, "<span class=") {
+		t.Error("token-level class spans should be present")
+	}
+}
+
+// TestParseCodeLanguageEmitted tests that the fence language is carried onto
+// the rendered code block (data-lang on <pre>, language-* class on <code>) so
+// front-end JS can display a language label.
+func TestParseCodeLanguageEmitted(t *testing.T) {
+	parser := NewParser()
+	html, _, err := parser.Parse([]byte("```go\nfunc main() {}\n```"))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if !strings.Contains(html, `data-lang="go"`) {
+		t.Errorf("highlighted block should carry data-lang, got: %s", html)
+	}
+	if !strings.Contains(html, `<code class="language-go">`) {
+		t.Errorf("highlighted block should carry language-go class, got: %s", html)
+	}
+}
+
+// TestParseCodeUnknownLanguageKeepsDefaultShape tests that fences whose
+// language has no chroma lexer keep goldmark-highlighting's default
+// <pre><code class="language-..."> shape (no chroma wrapper, no token spans).
+func TestParseCodeUnknownLanguageKeepsDefaultShape(t *testing.T) {
+	parser := NewParser()
+	html, _, err := parser.Parse([]byte("```nosuchlanguage123\nplain content\n```"))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if !strings.Contains(html, `<pre><code class="language-nosuchlanguage123">`) {
+		t.Errorf("unknown-language fence should keep the default shape, got: %s", html)
+	}
+	if strings.Contains(html, "chroma") || strings.Contains(html, "<span") {
+		t.Errorf("unknown-language fence must not be tokenized, got: %s", html)
+	}
+}
+
+// TestLangPreWrapper tests the chroma pre wrapper that injects the language.
+func TestLangPreWrapper(t *testing.T) {
+	w := &langPreWrapper{lang: "go"}
+	start := w.Start(true, ` class="chroma light"`)
+	if start != `<pre class="chroma light" data-lang="go"><code class="language-go">` {
+		t.Errorf("unexpected wrapper start: %s", start)
+	}
+	if w.End(true) != `</code></pre>` {
+		t.Errorf("unexpected wrapper end: %s", w.End(true))
+	}
+	// Non-code wrappers (line-number columns) keep chroma's default shape.
+	if w.Start(false, "") != "<pre>" || w.End(false) != "</pre>" {
+		t.Error("non-code wrapper should be a bare pre element")
+	}
+}
+
+// TestLangPreWrapperEscapes tests that hostile language strings are escaped.
+func TestLangPreWrapperEscapes(t *testing.T) {
+	w := &langPreWrapper{lang: `go"><script>`}
+	start := w.Start(true, "")
+	if strings.Contains(start, "<script>") {
+		t.Errorf("language must be HTML-escaped, got: %s", start)
+	}
+	if !strings.Contains(start, `data-lang="go&#34;&gt;&lt;script&gt;"`) {
+		t.Errorf("expected escaped data-lang attribute, got: %s", start)
 	}
 }
 

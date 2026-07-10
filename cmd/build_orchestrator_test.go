@@ -700,6 +700,217 @@ func TestNewBuildOrchestrator_RemotePluginsGated(t *testing.T) {
 	})
 }
 
+// validCustomThemeYAML is a minimal theme file accepted by theme.Validate.
+const validCustomThemeYAML = `name: mytheme
+page_size: A4
+font_size: 13
+line_height: 1.6
+code_theme: monokai
+colors:
+  text: "#101010"
+  background: "#FDFDF5"
+  heading: "#204060"
+  link: "#3070B0"
+`
+
+// TestCustomThemePath tests resolution of the custom-theme sources.
+func TestCustomThemePath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	newCfg := func(themeName string) *config.BookConfig {
+		cfg := &config.BookConfig{
+			Book:     config.BookMeta{Title: "Test Book"},
+			Style:    config.StyleConfig{Theme: themeName},
+			Chapters: []config.ChapterDef{},
+		}
+		cfg.SetBaseDir(tmpDir)
+		return cfg
+	}
+
+	t.Run("explicit .yaml path resolves relative to base dir", func(t *testing.T) {
+		got := customThemePath(newCfg("styles/custom.yaml"))
+		want := filepath.Join(tmpDir, "styles", "custom.yaml")
+		if got != want {
+			t.Errorf("customThemePath = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("explicit .yml path resolves relative to base dir", func(t *testing.T) {
+		got := customThemePath(newCfg("custom.yml"))
+		want := filepath.Join(tmpDir, "custom.yml")
+		if got != want {
+			t.Errorf("customThemePath = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("builtin name without project override yields empty", func(t *testing.T) {
+		if got := customThemePath(newCfg("technical")); got != "" {
+			t.Errorf("customThemePath = %q, want empty", got)
+		}
+	})
+
+	t.Run("themes/<name>.yaml override is picked up", func(t *testing.T) {
+		themesDir := filepath.Join(tmpDir, "themes")
+		if err := os.MkdirAll(themesDir, 0o755); err != nil {
+			t.Fatalf("failed to create themes dir: %v", err)
+		}
+		overridePath := filepath.Join(themesDir, "technical.yaml")
+		if err := os.WriteFile(overridePath, []byte(validCustomThemeYAML), 0o644); err != nil {
+			t.Fatalf("failed to write theme override: %v", err)
+		}
+		t.Cleanup(func() { os.RemoveAll(themesDir) })
+
+		if got := customThemePath(newCfg("technical")); got != overridePath {
+			t.Errorf("customThemePath = %q, want %q", got, overridePath)
+		}
+
+		// The empty (default) theme name resolves to the technical override too.
+		if got := customThemePath(newCfg("")); got != overridePath {
+			t.Errorf("customThemePath with empty theme = %q, want %q", got, overridePath)
+		}
+	})
+}
+
+// TestNewBuildOrchestrator_CustomThemeExplicitPath tests loading a theme from
+// an explicit style.theme YAML file path.
+func TestNewBuildOrchestrator_CustomThemeExplicitPath(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "mytheme.yaml"), []byte(validCustomThemeYAML), 0o644); err != nil {
+		t.Fatalf("failed to write theme file: %v", err)
+	}
+
+	cfg := &config.BookConfig{
+		Book:     config.BookMeta{Title: "Test Book"},
+		Style:    config.StyleConfig{Theme: "mytheme.yaml"},
+		Chapters: []config.ChapterDef{},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	orch, err := newBuildOrchestrator(cfg, logger)
+	if err != nil {
+		t.Fatalf("newBuildOrchestrator failed: %v", err)
+	}
+
+	if orch.Theme == nil {
+		t.Fatal("Theme should not be nil")
+	}
+	if orch.Theme.Name != "mytheme" {
+		t.Errorf("Theme.Name = %q, want %q", orch.Theme.Name, "mytheme")
+	}
+	if orch.Theme.Colors.Heading != "#204060" {
+		t.Errorf("Theme.Colors.Heading = %q, want %q", orch.Theme.Colors.Heading, "#204060")
+	}
+	// The custom theme's code theme flows into the parser configuration.
+	if orch.Theme.CodeTheme != "monokai" {
+		t.Errorf("Theme.CodeTheme = %q, want %q", orch.Theme.CodeTheme, "monokai")
+	}
+}
+
+// TestNewBuildOrchestrator_ThemesDirOverride tests that themes/<name>.yaml
+// next to book.yaml replaces the built-in theme of the same name — the
+// customization mechanism advertised by `mdpress themes show`.
+func TestNewBuildOrchestrator_ThemesDirOverride(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	tmpDir := t.TempDir()
+	themesDir := filepath.Join(tmpDir, "themes")
+	if err := os.MkdirAll(themesDir, 0o755); err != nil {
+		t.Fatalf("failed to create themes dir: %v", err)
+	}
+	override := strings.Replace(validCustomThemeYAML, "name: mytheme", "name: technical", 1)
+	if err := os.WriteFile(filepath.Join(themesDir, "technical.yaml"), []byte(override), 0o644); err != nil {
+		t.Fatalf("failed to write theme override: %v", err)
+	}
+
+	for _, themeName := range []string{"technical", ""} {
+		t.Run("style.theme="+themeName, func(t *testing.T) {
+			cfg := &config.BookConfig{
+				Book:     config.BookMeta{Title: "Test Book"},
+				Style:    config.StyleConfig{Theme: themeName},
+				Chapters: []config.ChapterDef{},
+			}
+			cfg.SetBaseDir(tmpDir)
+
+			orch, err := newBuildOrchestrator(cfg, logger)
+			if err != nil {
+				t.Fatalf("newBuildOrchestrator failed: %v", err)
+			}
+
+			if orch.Theme.Name != "technical" {
+				t.Errorf("Theme.Name = %q, want %q", orch.Theme.Name, "technical")
+			}
+			if orch.Theme.Colors.Heading != "#204060" {
+				t.Errorf("Theme.Colors.Heading = %q, want override value %q (built-in was used instead)",
+					orch.Theme.Colors.Heading, "#204060")
+			}
+		})
+	}
+}
+
+// TestNewBuildOrchestrator_CustomThemeErrors tests that a custom theme which
+// is missing or fails validation surfaces a hard error instead of silently
+// falling back to a built-in.
+func TestNewBuildOrchestrator_CustomThemeErrors(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	newCfg := func(baseDir, themeName string) *config.BookConfig {
+		cfg := &config.BookConfig{
+			Book:     config.BookMeta{Title: "Test Book"},
+			Style:    config.StyleConfig{Theme: themeName},
+			Chapters: []config.ChapterDef{},
+		}
+		cfg.SetBaseDir(baseDir)
+		return cfg
+	}
+
+	t.Run("explicit path that does not exist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		_, err := newBuildOrchestrator(newCfg(tmpDir, "missing.yaml"), logger)
+		if err == nil {
+			t.Fatal("expected error for missing explicit theme file")
+		}
+		if !strings.Contains(err.Error(), "custom theme") {
+			t.Errorf("error should mention the custom theme, got: %v", err)
+		}
+	})
+
+	t.Run("explicit path that fails validation", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		// Missing required colors.text/background and line_height.
+		invalid := "name: broken\npage_size: A4\nfont_size: 11\n"
+		if err := os.WriteFile(filepath.Join(tmpDir, "broken.yaml"), []byte(invalid), 0o644); err != nil {
+			t.Fatalf("failed to write theme file: %v", err)
+		}
+		_, err := newBuildOrchestrator(newCfg(tmpDir, "broken.yaml"), logger)
+		if err == nil {
+			t.Fatal("expected validation error for invalid theme file")
+		}
+		if !strings.Contains(err.Error(), "validation") {
+			t.Errorf("error should surface the validation failure, got: %v", err)
+		}
+	})
+
+	t.Run("themes dir override that fails to parse", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		themesDir := filepath.Join(tmpDir, "themes")
+		if err := os.MkdirAll(themesDir, 0o755); err != nil {
+			t.Fatalf("failed to create themes dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(themesDir, "technical.yaml"), []byte("{not: [valid"), 0o644); err != nil {
+			t.Fatalf("failed to write theme file: %v", err)
+		}
+		_, err := newBuildOrchestrator(newCfg(tmpDir, "technical"), logger)
+		if err == nil {
+			t.Fatal("expected error for unparsable theme override")
+		}
+		if !strings.Contains(err.Error(), "custom theme") {
+			t.Errorf("error should mention the custom theme, got: %v", err)
+		}
+	})
+}
+
 // TestBuildOrchestrator_PluginManagerInitialized tests that plugin manager is initialized
 func TestBuildOrchestrator_PluginManagerInitialized(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))

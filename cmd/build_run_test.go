@@ -1088,6 +1088,25 @@ func TestResolveBuildBaseOutput_DirectoryOverride(t *testing.T) {
 	}
 }
 
+// TestResolveBuildBaseOutput_TrailingSeparator verifies that a trailing path
+// separator marks directory intent even when the directory does not exist yet
+// (previously "--output newdir/" produced a file literally named newdir.html).
+func TestResolveBuildBaseOutput_TrailingSeparator(t *testing.T) {
+	cfg := &config.BookConfig{}
+	cfg.SetBaseDir(t.TempDir())
+	cfg.Output.Filename = "custom.pdf"
+
+	missingDir := filepath.Join(t.TempDir(), "newdir") + string(os.PathSeparator)
+	got, err := resolveBuildBaseOutput(cfg, missingDir)
+	if err != nil {
+		t.Fatalf("resolveBuildBaseOutput() error: %v", err)
+	}
+	want := filepath.Join(missingDir, "custom.pdf")
+	if got != want {
+		t.Fatalf("resolveBuildBaseOutput() = %q, want %q", got, want)
+	}
+}
+
 // Tests for deriveLanguageOutputOverride (TG-15: multi-dot filenames)
 func TestDeriveLanguageOutputOverride(t *testing.T) {
 	tests := []struct {
@@ -1216,13 +1235,14 @@ func TestDeriveLanguageOutputOverride(t *testing.T) {
 			expected:       ".hidden-en",
 			description:    "Hidden file (starts with dot)",
 		},
-		// Path-like behavior for directories (note: we can't mock os.Stat, so directory cases won't work in test)
+		// A trailing separator is explicit directory intent even when the
+		// directory does not exist yet.
 		{
 			name:           "path with trailing slash: /output/ + en",
 			outputOverride: "/output/",
 			langDir:        "en",
-			expected:       "/output/-en",
-			description:    "Path-like string with trailing slash (note: os.Stat check won't detect this as dir in test)",
+			expected:       filepath.Join("/output", "en", "output"),
+			description:    "Trailing separator marks directory intent without an os.Stat hit",
 		},
 	}
 

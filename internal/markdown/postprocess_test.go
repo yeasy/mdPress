@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -287,6 +288,37 @@ func TestParseMermaid(t *testing.T) {
 
 	if !strings.Contains(html, `class="mermaid"`) {
 		t.Errorf("mermaid block should be converted, got: %s", html[:min(200, len(html))])
+	}
+	// Mermaid fences must never be syntax-highlighted: the conversion regex
+	// unescapes the raw diagram source, so chroma token spans would corrupt it.
+	if strings.Contains(html, "chroma") || strings.Contains(html, "<span") {
+		t.Errorf("mermaid content must not be tokenized, got: %s", html)
+	}
+}
+
+// TestParsePlantUMLFenceShape verifies that plantuml fences keep the plain
+// <pre><code class="language-plantuml"> shape (never syntax-highlighted),
+// because internal/plantuml's post-parse regex matches exactly that shape to
+// convert the fence into a rendered diagram.
+func TestParsePlantUMLFenceShape(t *testing.T) {
+	parser := NewParser()
+	md := "```plantuml\n@startuml\nA -> B\n@enduml\n```"
+	html, _, err := parser.Parse([]byte(md))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+
+	if !strings.Contains(html, `<pre><code class="language-plantuml">`) {
+		t.Errorf("plantuml fence should keep the default code block shape, got: %s", html)
+	}
+	if strings.Contains(html, "chroma") || strings.Contains(html, "<span") {
+		t.Errorf("plantuml content must not be tokenized, got: %s", html)
+	}
+	// Same pattern as plantumlPattern in internal/plantuml/plantuml.go.
+	plantumlShape := regexp.MustCompile(
+		`<pre[^>]*><code[^>]*class="[^"]*language-plantuml[^"]*"[^>]*>([\s\S]*?)</code></pre>`)
+	if !plantumlShape.MatchString(html) {
+		t.Errorf("plantuml fence no longer matches the internal/plantuml conversion regex, got: %s", html)
 	}
 }
 

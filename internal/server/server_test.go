@@ -1682,7 +1682,7 @@ func TestIsAddrInUseDetection(t *testing.T) {
 	}
 }
 
-func TestIsSkippedDir(t *testing.T) {
+func TestIsIgnoredDirName(t *testing.T) {
 	tests := []struct {
 		name     string
 		dirName  string
@@ -1692,21 +1692,92 @@ func TestIsSkippedDir(t *testing.T) {
 		{"hidden dir generic", ".hidden", true},
 		{"node_modules", "node_modules", true},
 		{"_book", "_book", true},
+		{"_book.old swap backup", "_book.old", true},
+		{"_output", "_output", true},
 		{"vendor", "vendor", true},
+		{"site suffix dir", "mdpress-guide_site", true},
+		{"bare _site dir", "_site", true},
+		{"serve temp staging dir", "mdpress-serve-1234567.tmp", true},
 		{"regular dir", "src", false},
 		{"output dir", "output", false},
 		{"docs dir", "docs", false},
 		{"empty string", "", false},
+		{"current dir marker", ".", false},
+		{"parent dir marker", "..", false},
 		{"cache dir without dot prefix", "cache", false},
+		{"site without underscore", "website", false},
+		{"tmp suffix without serve prefix", "scratch.tmp", false},
+		{"serve prefix without tmp suffix", "mdpress-serve-notes", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isSkippedDir(tt.dirName)
+			result := isIgnoredDirName(tt.dirName)
 			if result != tt.expected {
-				t.Errorf("isSkippedDir(%q) = %v, want %v", tt.dirName, result, tt.expected)
+				t.Errorf("isIgnoredDirName(%q) = %v, want %v", tt.dirName, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestServerIsIgnoredPath(t *testing.T) {
+	watchDir := t.TempDir()
+	outputDir := filepath.Join(watchDir, "public") // custom name via --output
+	srv := NewServer("127.0.0.1", 0, watchDir, outputDir, slog.Default())
+
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{"watch root itself", watchDir, false},
+		{"regular source file", filepath.Join(watchDir, "chapters", "ch01.md"), false},
+		{"default _book dir", filepath.Join(watchDir, "_book"), true},
+		{"file inside _book", filepath.Join(watchDir, "_book", "index.html"), true},
+		{"_book.old backup dir", filepath.Join(watchDir, "_book.old"), true},
+		{"file inside _book.old", filepath.Join(watchDir, "_book.old", "ch01.md"), true},
+		{"serve temp staging dir", filepath.Join(watchDir, "mdpress-serve-98765.tmp"), true},
+		{"nested in temp staging dir", filepath.Join(watchDir, "mdpress-serve-98765.tmp", "a.md"), true},
+		{"_output dir", filepath.Join(watchDir, "_output"), true},
+		{"site suffix dir", filepath.Join(watchDir, "mybook_site"), true},
+		{"hidden dir", filepath.Join(watchDir, ".git", "HEAD"), true},
+		{"nested ignored dir", filepath.Join(watchDir, "docs", "node_modules", "x"), true},
+		{"custom output dir", outputDir, true},
+		{"file inside custom output dir", filepath.Join(outputDir, "index.html"), true},
+		{"custom output swap backup", outputDir + ".old", true},
+		{"file inside custom output backup", filepath.Join(outputDir+".old", "index.html"), true},
+		{"sibling of custom output", filepath.Join(watchDir, "publications"), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := srv.isIgnoredPath(tt.path)
+			if result != tt.expected {
+				t.Errorf("isIgnoredPath(%q) = %v, want %v", tt.path, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestServerIsIgnoredPath_WatchRootInsideDotDir(t *testing.T) {
+	// A watch root nested inside a dot-directory must not be ignored
+	// wholesale: only components below the root are name-checked.
+	parent := t.TempDir()
+	watchDir := filepath.Join(parent, ".config", "book")
+	if err := os.MkdirAll(watchDir, 0o755); err != nil {
+		t.Fatalf("failed to create watch dir: %v", err)
+	}
+	srv := NewServer("127.0.0.1", 0, watchDir, filepath.Join(watchDir, "_book"), slog.Default())
+
+	if srv.isIgnoredPath(watchDir) {
+		t.Errorf("isIgnoredPath(%q) = true, want false (watch root inside a dot-dir)", watchDir)
+	}
+	src := filepath.Join(watchDir, "ch01.md")
+	if srv.isIgnoredPath(src) {
+		t.Errorf("isIgnoredPath(%q) = true, want false", src)
+	}
+	if !srv.isIgnoredPath(filepath.Join(watchDir, "_book.old")) {
+		t.Error("isIgnoredPath should still ignore _book.old below the watch root")
 	}
 }
 

@@ -13,10 +13,10 @@ const standaloneCSS = `    /* ==================================================
       --color-text-muted:   #656d76;
       --color-heading:      #0d1117;
       --color-link:         #0969da;
-      --color-link-hover:   #0550ae;
+      --color-link-hover:   color-mix(in srgb, var(--color-link, #1C5A9E) 80%, black);
       --color-border:       #d0d7de;
       --color-accent:       #0969da;
-      --color-accent-light: rgba(9, 105, 218, 0.08);
+      --color-accent-light: color-mix(in srgb, var(--color-accent, #1C5A9E) 8%, transparent);
 
       /* Code Blocks */
       --color-code-bg:      #f6f8fa;
@@ -25,15 +25,19 @@ const standaloneCSS = `    /* ==================================================
       --color-code-lang:    #57606a;
 
       /* Sidebar */
-      --color-sidebar-hover:  rgba(9, 105, 218, 0.06);
-      --color-sidebar-active: #0969da;
-      --color-sidebar-active-bg: rgba(9, 105, 218, 0.1);
+      --color-sidebar-hover:  color-mix(in srgb, var(--color-accent, #1C5A9E) 6%, transparent);
+      --color-sidebar-active: var(--color-accent, #1C5A9E);
+      --color-sidebar-active-bg: color-mix(in srgb, var(--color-accent, #1C5A9E) 10%, transparent);
 
       /* Tables */
       --color-table-header: #f6f8fa;
       --color-table-stripe: #ffffff;
       --color-table-stripe-alt: #f6f8fa;
-      --color-table-hover:  #eef2ff;
+      --color-table-hover:  color-mix(in srgb, var(--color-accent, #1C5A9E) 7%, var(--color-bg, #ffffff));
+
+      /* Cover Hero */
+      --color-cover-bg:  var(--color-heading, #102a43);
+      --color-cover-ink: #f6f8fc;
 
       /* Callout Boxes */
       --callout-note-bg:        #dbeafe;
@@ -50,13 +54,18 @@ const standaloneCSS = `    /* ==================================================
       --callout-important-color: #9f1239;
 
       /* Progress Bar */
-      --color-progress: #0969da;
+      --color-progress: var(--color-accent, #1C5A9E);
     }
 
     /* ============================================================
        Dark Mode Overrides
+       The :root[data-theme="dark"] selector carries higher specificity
+       (0,2,0) than the theme's :root palette (0,1,0), so dark values win
+       regardless of stylesheet order. Dark state is always expressed via
+       the data-theme attribute (set by the FOUC script in <head> and by
+       the theme toggle), including for prefers-color-scheme users.
        ============================================================ */
-    [data-theme="dark"] {
+    :root[data-theme="dark"] {
       --color-bg:           #1a1a1a;
       --color-bg-alt:       #2a2a2a;
       --color-bg-sidebar:   #1c1c1e;
@@ -64,10 +73,10 @@ const standaloneCSS = `    /* ==================================================
       --color-text-muted:   #8b949e;
       --color-heading:      #f0f6fc;
       --color-link:         #58a6ff;
-      --color-link-hover:   #79c0ff;
+      --color-link-hover:   color-mix(in srgb, var(--color-link, #58a6ff) 80%, white);
       --color-border:       #30363d;
       --color-accent:       #58a6ff;
-      --color-accent-light: rgba(88, 166, 255, 0.15);
+      --color-accent-light: color-mix(in srgb, var(--color-accent, #58a6ff) 15%, transparent);
 
       /* Code Blocks */
       --color-code-bg:      #242424;
@@ -76,15 +85,18 @@ const standaloneCSS = `    /* ==================================================
       --color-code-lang:    #8b949e;
 
       /* Sidebar */
-      --color-sidebar-hover:  rgba(88, 166, 255, 0.1);
-      --color-sidebar-active: #58a6ff;
-      --color-sidebar-active-bg: rgba(88, 166, 255, 0.15);
+      --color-sidebar-hover:  color-mix(in srgb, var(--color-accent, #58a6ff) 10%, transparent);
+      --color-sidebar-active: var(--color-accent, #58a6ff);
+      --color-sidebar-active-bg: color-mix(in srgb, var(--color-accent, #58a6ff) 15%, transparent);
 
       /* Tables */
       --color-table-header: #161b22;
       --color-table-stripe: #0d1117;
       --color-table-stripe-alt: #010409;
-      --color-table-hover:  #1f6feb;
+      --color-table-hover:  color-mix(in srgb, var(--color-accent, #58a6ff) 16%, var(--color-bg, #1a1a1a));
+
+      /* Cover Hero (keep the brand navy; --color-heading is near-white here) */
+      --color-cover-bg:  #102a43;
 
       /* Callout Boxes */
       --callout-note-bg:        #0f2d4d;
@@ -101,7 +113,7 @@ const standaloneCSS = `    /* ==================================================
       --callout-important-color: #f85149;
 
       /* Progress Bar */
-      --color-progress: #58a6ff;
+      --color-progress: var(--color-accent, #58a6ff);
     }
 
     /* ============================================================
@@ -344,14 +356,14 @@ const standaloneCSS = `    /* ==================================================
     }
 
     .toc-link:hover {
-      background-color: rgba(9, 105, 218, 0.1);
+      background-color: var(--color-sidebar-hover);
       color: var(--color-text);
       transform: translateX(2px);
     }
 
     .toc-link.active {
       color: var(--color-sidebar-active);
-      background-color: rgba(9, 105, 218, 0.08);
+      background-color: var(--color-sidebar-active-bg);
       font-weight: 500;
       border-left: 3px solid var(--color-accent);
       padding-left: calc(0.75rem - 3px);
@@ -409,6 +421,9 @@ const standaloneCSS = `    /* ==================================================
        Main Content Area
        ============================================================ */
     #main-content {
+      /* Fill the grid track up to the reading measure; without an explicit
+         width, auto margins make the column shrink-wrap to its content. */
+      width: 100%;
       max-width: 860px;
       margin: 0 auto;
     }
@@ -425,6 +440,60 @@ const standaloneCSS = `    /* ==================================================
       color: var(--color-heading);
       border-bottom: 1px solid var(--color-border);
       padding-bottom: 0.5rem;
+    }
+
+    /* ============================================================
+       Cover Hero (synthesized from book metadata when output.cover
+       is enabled; matches the default navy publication cover)
+       ============================================================ */
+    .cover-hero {
+      min-height: calc(100vh - 60px - 4rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background-color: var(--color-cover-bg, #102a43);
+      color: var(--color-cover-ink, #f6f8fc);
+      border-radius: 12px;
+      padding: 60px 40px;
+      margin: 0 0 3rem 0;
+    }
+
+    .cover-hero-inner {
+      max-width: 800px;
+    }
+
+    .cover-hero-title {
+      font-size: clamp(2rem, 5vw, 2.875rem);
+      font-weight: 700;
+      margin-bottom: 18px;
+      letter-spacing: 0.5px;
+      line-height: 1.25;
+    }
+
+    .cover-hero-subtitle {
+      font-size: 1.3rem;
+      font-weight: 400;
+      letter-spacing: 0.3px;
+      margin-bottom: 8px;
+      opacity: 0.85;
+    }
+
+    .cover-hero-divider {
+      width: 100px;
+      height: 2px;
+      background-color: rgba(255, 255, 255, 0.5);
+      margin: 30px auto;
+    }
+
+    .cover-hero-meta {
+      margin-top: 40px;
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+
+    .cover-hero-meta-item {
+      margin: 10px 0;
     }
 
     /* ============================================================
@@ -857,7 +926,7 @@ const standaloneCSS = `    /* ==================================================
       justify-content: center;
       z-index: 98;
       transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(9, 105, 218, 0.3);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent, #1C5A9E) 30%, transparent);
       opacity: 0;
       transform: scale(0.9);
     }
@@ -869,8 +938,8 @@ const standaloneCSS = `    /* ==================================================
     }
 
     #back-to-top:hover {
-      background-color: var(--color-link-hover);
-      box-shadow: 0 6px 16px rgba(9, 105, 218, 0.4);
+      background-color: color-mix(in srgb, var(--color-accent, #1C5A9E) 80%, black);
+      box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent, #1C5A9E) 40%, transparent);
       transform: scale(1.05);
     }
 
@@ -1010,7 +1079,8 @@ const standaloneCSS = `    /* ==================================================
       justify-content: center;
     }
 
-    .code-block:hover .code-copy-btn {
+    .code-block:hover .code-copy-btn,
+    .code-block-wrapper:hover .code-copy-btn {
       opacity: 1;
       color: var(--color-text);
     }
@@ -1158,14 +1228,14 @@ const standaloneCSS = `    /* ==================================================
 
     .right-toc-link:hover {
       color: var(--color-link);
-      background-color: rgba(9, 105, 218, 0.04);
+      background-color: color-mix(in srgb, var(--color-accent, #1C5A9E) 4%, transparent);
     }
 
     .right-toc-link.active {
       color: var(--color-accent);
       border-left-color: var(--color-accent);
       font-weight: 500;
-      background-color: rgba(9, 105, 218, 0.08);
+      background-color: var(--color-accent-light);
     }
 
     /* Right TOC depth indentation classes */
@@ -1387,6 +1457,11 @@ const standaloneCSS = `    /* ==================================================
         padding: 1.5rem 1rem;
       }
 
+      .cover-hero {
+        min-height: calc(100vh - 52px - 3rem);
+        padding: 40px 24px;
+      }
+
       .toolbar-btn.icon-only {
         padding: 0.5rem;
       }
@@ -1531,3 +1606,57 @@ const standaloneCSS = `    /* ==================================================
        ============================================================ */
     {{.CSS}}
   `
+
+// standaloneWebReset is appended AFTER theme.ToCSS() (and the syntax-highlight
+// stylesheets) in the CSS bundle assembled by StandaloneHTMLRenderer.Render.
+// ToCSS targets paged/PDF output — page margins in mm, pt font sizing,
+// pre-wrap/break-all code, and framed tables — so this block re-asserts the
+// web app-shell layout values, letting the theme palette apply without the
+// print layout leaking into the standalone document.
+const standaloneWebReset = `
+/* ============================================================
+   Standalone web layout re-assertions (undo PDF-oriented theme rules)
+   ============================================================ */
+body {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  background-color: var(--color-bg);
+}
+
+pre {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  overflow-x: auto;
+}
+
+/* Tables: the rounded wrapper owns the frame — no outer margin or per-cell
+   borders inside it; keep the theme's accent header underline. */
+.table-wrapper table {
+  margin: 0;
+}
+
+.table-wrapper th,
+.table-wrapper td {
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table-wrapper th {
+  border-bottom: 2px solid var(--color-accent, #1C5A9E);
+}
+
+/* Zebra striping is owned by the wrapper's row-level rule, which follows the
+   dark-mode palette; neutralize the theme's cell-level stripe. */
+.table-wrapper tbody tr:nth-child(even) td {
+  background-color: transparent;
+}
+
+/* Code blocks: the wrapper supplies the border, radius, and header chrome. */
+.code-block-wrapper pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+`

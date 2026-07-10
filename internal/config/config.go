@@ -168,7 +168,7 @@ func DefaultConfig() *BookConfig {
 			PageSize:   "A4",
 			FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
 			FontSize:   "12pt",
-			CodeTheme:  "github",
+			CodeTheme:  "", // empty inherits the theme's code_theme (e.g. github for technical, bw for minimal)
 			LineHeight: 1.6,
 			Margin: MarginConfig{
 				Top:    25,
@@ -309,12 +309,14 @@ func (c *BookConfig) Validate() error {
 		return fmt.Errorf("unsupported page size: %q (supported: A4, A5, Letter, Legal, B5)", c.Style.PageSize)
 	}
 
-	// Validate the theme name.
+	// Validate the theme name. Besides the built-ins, a theme may be a YAML
+	// file path (style.theme: mytheme.yaml) or the name of a project theme
+	// file at themes/<name>.yaml — both are loaded by the build orchestrator.
 	validThemes := map[string]bool{
 		"technical": true, "elegant": true, "minimal": true, "": true,
 	}
-	if !validThemes[c.Style.Theme] {
-		return fmt.Errorf("unknown theme: %q (built-ins: technical, elegant, minimal; run mdpress themes list for details)", c.Style.Theme)
+	if !validThemes[c.Style.Theme] && !isThemeFileRef(c.Style.Theme) && !c.hasProjectThemeFile(c.Style.Theme) {
+		return fmt.Errorf("unknown theme: %q (built-ins: technical, elegant, minimal; or provide themes/%s.yaml; run mdpress themes list for details)", c.Style.Theme, c.Style.Theme)
 	}
 
 	// Validate output formats.
@@ -483,4 +485,25 @@ func (c *BookConfig) ResolvePath(p string) string {
 		return p
 	}
 	return filepath.Join(c.baseDir, p)
+}
+
+// isThemeFileRef reports whether the theme value is a YAML file reference
+// (style.theme: mytheme.yaml) rather than a theme name.
+func isThemeFileRef(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, ".yaml") || strings.HasSuffix(lower, ".yml")
+}
+
+// hasProjectThemeFile reports whether the project contains a custom theme file
+// at themes/<name>.yaml (or .yml) for the given theme name.
+func (c *BookConfig) hasProjectThemeFile(name string) bool {
+	if name == "" || strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	for _, ext := range []string{".yaml", ".yml"} {
+		if info, err := os.Stat(filepath.Join(c.BaseDir(), "themes", name+ext)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }

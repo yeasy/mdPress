@@ -422,22 +422,22 @@
 }
 
 body {
-  font-family: var(--font-family);
-  font-size: var(--font-size);
-  line-height: var(--line-height);
-  color: var(--color-text);
-  background-color: var(--color-background);
-  margin: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif);
+  font-size: var(--font-size, 11pt);
+  line-height: var(--line-height, 1.75);
+  color: var(--color-text, #1F2933);
+  background-color: var(--color-background, #FFFFFF);
+  margin: var(--margin-top, 20.00mm) var(--margin-right, 20.00mm) var(--margin-bottom, 20.00mm) var(--margin-left, 20.00mm);
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: var(--color-heading);
+  color: var(--color-heading, #12344D);
   font-weight: 600;
   line-height: 1.35;
 }
 
 a {
-  color: var(--color-link);
+  color: var(--color-link, #1C5A9E);
   text-decoration: none;
 }
 
@@ -447,12 +447,12 @@ a:hover {
 
 code, pre {
   background: none;
-  color: var(--color-code-text);
-  font-family: var(--font-family-mono);
+  color: var(--color-code-text, #1F2933);
+  font-family: var(--font-family-mono, ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans Mono CJK SC', monospace);
 }
 
 :not(pre) > code {
-  background: var(--color-code-bg);
+  background: var(--color-code-bg, #F5F7F9);
   padding: 0.12em 0.36em;
   border-radius: 4px;
   font-size: 0.88em;
@@ -462,7 +462,7 @@ pre {
   padding: 0.9em 1.1em;
   font-size: 0.82em;
   line-height: 1.55;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border, #E4E7EB);
   border-radius: 6px;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -471,10 +471,10 @@ pre {
 }
 
 blockquote {
-  border-left: 3px solid var(--color-accent);
+  border-left: 3px solid var(--color-accent, #1C5A9E);
   margin: 1.2em 0;
   padding: 0.2em 0 0.2em 1.1em;
-  color: var(--color-text);
+  color: var(--color-text, #1F2933);
   opacity: 0.78;
 }
 
@@ -486,7 +486,7 @@ table {
 }
 
 table th, table td {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border, #E4E7EB);
   padding: 0.55em 0.85em;
   text-align: left;
   overflow-wrap: anywhere;
@@ -494,17 +494,89 @@ table th, table td {
 }
 
 table th {
-  background-color: var(--color-code-bg);
-  color: var(--color-heading);
+  background-color: var(--color-code-bg, #F5F7F9);
+  color: var(--color-heading, #12344D);
   font-weight: 600;
-  border-bottom: 2px solid var(--color-accent);
+  border-bottom: 2px solid var(--color-accent, #1C5A9E);
 }
 
 table tbody tr:nth-child(even) td {
-  background-color: var(--color-code-bg);
+  background-color: var(--color-code-bg, #F5F7F9);
 }
 
 
+.chroma { background-color: #f7f7f7; -webkit-text-size-adjust: none; }
+.chroma .err { color: #f6f8fa; background-color: #82071e }
+.chroma .lnlinks { outline: none; text-decoration: none; color: inherit }
+.chroma .lntd { vertical-align: top; padding: 0; margin: 0; border: 0; }
+.chroma .lntable { border-spacing: 0; padding: 0; margin: 0; border: 0; }
+.chroma .hl { background-color: #dedede }
+.chroma .lnt { white-space: pre; -webkit-user-select: none; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #7f7f7f }
+.chroma .ln { white-space: pre; -webkit-user-select: none; user-select: none; margin-right: 0.4em; padding: 0 0.4em 0 0.4em;color: #7f7f7f }
+.chroma .line { display: flex; }
+.chroma .k { color: #cf222e }
+.chroma .kc { color: #cf222e }
+.chroma .kd { color: #cf222e }
+.chroma .kn { color: #cf222e }
+.chroma .kp { color: #cf222e }
+.chroma .kr { color: #cf222e }
+.chroma .kt { color: #cf222e }
+.chroma .na { color: #1f2328 }
+.chroma .nc { color: #1f2328 }
+.chroma .no { color: #0550ae }
+.chroma .nd { color: #0550ae }
+.chroma .ni { color: #6639ba }
+.chroma .nl { color: #990000; font-weight: bold }
+.chroma .nn { color: #24292e }
+.chroma .nx { color: #1f2328 }
+.chroma .nt { color: #0550ae }
+.chroma .nb { color: #6639ba }
+.chroma .bp { color: #6a737d }
+.chroma .nv { color: #953800 }
+.chroma .vc { color: #953800 }
+.chroma .vg { color: #953800 }
+.chroma .vi { color: #953800 }
+.chroma .vm { color: #953800 }
+.chroma .nf { color: #6639ba }
+.chroma .fm { color: #6639ba }
+.chroma .s { color: #0a3069 }
+.chroma .sa { color: #0a3069 }
+.chroma .sb { color: #0a3069 }
+.chroma .sc { color: #0a3069 }
+.chroma .dl { color: #0a3069 }
+.chroma .sd { color: #0a3069 }
+.chroma .s2 { color: #0a3069 }
+.chroma .se { color: #0a3069 }
+.chroma .sh { color: #0a3069 }
+.chroma .si { color: #0a3069 }
+.chroma .sx { color: #0a3069 }
+.chroma .sr { color: #0a3069 }
+.chroma .s1 { color: #0a3069 }
+.chroma .ss { color: #032f62 }
+.chroma .m { color: #0550ae }
+.chroma .mb { color: #0550ae }
+.chroma .mf { color: #0550ae }
+.chroma .mh { color: #0550ae }
+.chroma .mi { color: #0550ae }
+.chroma .il { color: #0550ae }
+.chroma .mo { color: #0550ae }
+.chroma .o { color: #0550ae }
+.chroma .ow { color: #0550ae }
+.chroma .or { color: #0550ae }
+.chroma .p { color: #1f2328 }
+.chroma .c { color: #57606a }
+.chroma .ch { color: #57606a }
+.chroma .cm { color: #57606a }
+.chroma .c1 { color: #57606a }
+.chroma .cs { color: #57606a }
+.chroma .cp { color: #57606a }
+.chroma .cpf { color: #57606a }
+.chroma .gd { color: #82071e; background-color: #ffebe9 }
+.chroma .ge { color: #1f2328 }
+.chroma .gi { color: #116329; background-color: #dafbe1 }
+.chroma .go { color: #1f2328 }
+.chroma .gl { text-decoration: underline }
+.chroma .w { color: #ffffff }
 
 
 @page {
@@ -699,13 +771,13 @@ table tbody tr:nth-child(even) td {
 <p>This paragraph contains <strong>bold text</strong> and <em>italic text</em> for formatting tests.</p>
 <h2 id="12-code-block">1.2 Code Block</h2>
 <p>Here is a Go code example:</p>
-<pre><code><span style="display:flex;"><span><span style="color:#cf222e">package</span><span style="color:#fff"> </span><span style="color:#1f2328">main</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#cf222e">import</span><span style="color:#fff"> </span><span style="color:#0a3069">&#34;fmt&#34;</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#cf222e">func</span><span style="color:#fff"> </span><span style="color:#6639ba">main</span><span style="color:#1f2328">()</span><span style="color:#fff"> </span><span style="color:#1f2328">{</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#fff">    </span><span style="color:#1f2328">fmt</span><span style="color:#1f2328">.</span><span style="color:#6639ba">Println</span><span style="color:#1f2328">(</span><span style="color:#0a3069">&#34;Hello, World!&#34;</span><span style="color:#1f2328">)</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#1f2328">}</span><span style="color:#fff">
+<pre class="chroma light" data-lang="go"><code class="language-go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kn">import</span><span class="w"> </span><span class="s">&#34;fmt&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Println</span><span class="p">(</span><span class="s">&#34;Hello, World!&#34;</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span></code></pre><h2 id="13-links">1.3 Links</h2>
 <p>Visit <a href="https://golang.org/doc/">Go documentation</a> for more information.</p>
 <p>See also <a href="https://golang.org">the official Go site</a>.</p>
@@ -777,10 +849,10 @@ table tbody tr:nth-child(even) td {
 <li>列表项三</li>
 </ul>
 <h2 id="33-中文代码注释">3.3 中文代码注释</h2>
-<pre><code><span style="display:flex;"><span><span style="color:#57606a">// 这是中文注释</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#cf222e">func</span><span style="color:#fff"> </span><span style="color:#1f2328">求和</span><span style="color:#1f2328">(</span><span style="color:#1f2328">a</span><span style="color:#1f2328">,</span><span style="color:#fff"> </span><span style="color:#1f2328">b</span><span style="color:#fff"> </span><span style="color:#cf222e">int</span><span style="color:#1f2328">)</span><span style="color:#fff"> </span><span style="color:#cf222e">int</span><span style="color:#fff"> </span><span style="color:#1f2328">{</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#fff">    </span><span style="color:#cf222e">return</span><span style="color:#fff"> </span><span style="color:#1f2328">a</span><span style="color:#fff"> </span><span style="color:#0550ae">+</span><span style="color:#fff"> </span><span style="color:#1f2328">b</span><span style="color:#fff"> </span><span style="color:#57606a">// 返回两数之和</span><span style="color:#fff">
-</span></span></span><span style="display:flex;"><span><span style="color:#1f2328">}</span><span style="color:#fff">
+<pre class="chroma light" data-lang="go"><code class="language-go"><span class="line"><span class="cl"><span class="c1">// 这是中文注释</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nx">求和</span><span class="p">(</span><span class="nx">a</span><span class="p">,</span><span class="w"> </span><span class="nx">b</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">b</span><span class="w"> </span><span class="c1">// 返回两数之和</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span></code></pre><h2 id="34-中文表格">3.4 中文表格</h2>
 <table>
 <thead>

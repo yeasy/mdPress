@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"log/slog"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -13,6 +15,7 @@ import (
 	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/output"
 	"github.com/yeasy/mdpress/internal/renderer"
+	"github.com/yeasy/mdpress/internal/theme"
 )
 
 // ---------------------------------------------------------------------------
@@ -86,6 +89,31 @@ func TestResolveRequestedBuildOutput(t *testing.T) {
 	if got == "" {
 		t.Error("expected non-empty absolute path")
 	}
+
+	// A trailing separator (explicit directory intent) must be preserved
+	// through the filepath.Abs normalization.
+	got, err = resolveRequestedBuildOutput("output" + string(os.PathSeparator))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !hasTrailingPathSeparator(got) {
+		t.Errorf("expected trailing separator to be preserved, got %q", got)
+	}
+	if !filepath.IsAbs(got) {
+		t.Errorf("expected absolute path, got %q", got)
+	}
+}
+
+func TestHasTrailingPathSeparator(t *testing.T) {
+	if hasTrailingPathSeparator("") {
+		t.Error("empty string should not report a trailing separator")
+	}
+	if hasTrailingPathSeparator("dist") {
+		t.Error("plain name should not report a trailing separator")
+	}
+	if !hasTrailingPathSeparator("dist/") {
+		t.Error("dist/ should report a trailing separator")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +122,7 @@ func TestResolveRequestedBuildOutput(t *testing.T) {
 
 func TestPredictedOutputLinks(t *testing.T) {
 	base := "/out/mybook"
-	links := predictedOutputLinks(base, []string{"pdf", "html", "site", "epub"})
+	links := predictedOutputLinks(base, "", []string{"pdf", "html", "site", "epub"})
 
 	if links["pdf"] != "/out/mybook.pdf" {
 		t.Errorf("pdf link = %q", links["pdf"])
@@ -105,19 +133,27 @@ func TestPredictedOutputLinks(t *testing.T) {
 	if links["epub"] != "/out/mybook.epub" {
 		t.Errorf("epub link = %q", links["epub"])
 	}
-	// site points to <base>_site/index.html
-	if !strings.Contains(links["site"], "index.html") {
-		t.Errorf("site link does not end with index.html: %q", links["site"])
+	// With no explicit site dir, site falls back to <base>_site/index.html,
+	// matching siteBuilder's multi-language fallback.
+	if links["site"] != filepath.Join("/out/mybook_site", "index.html") {
+		t.Errorf("site link = %q, want %q", links["site"], filepath.Join("/out/mybook_site", "index.html"))
+	}
+
+	// An explicit site dir must be advertised verbatim: the same directory
+	// the site builder actually writes into.
+	linksSite := predictedOutputLinks(base, "/proj/_book", []string{"site"})
+	if linksSite["site"] != filepath.Join("/proj/_book", "index.html") {
+		t.Errorf("site link = %q, want %q", linksSite["site"], filepath.Join("/proj/_book", "index.html"))
 	}
 
 	// typst produces a distinct PDF filename.
-	linksTypst := predictedOutputLinks(base, []string{"typst"})
+	linksTypst := predictedOutputLinks(base, "", []string{"typst"})
 	if linksTypst["typst"] != "/out/mybook-typst.pdf" {
 		t.Errorf("typst link = %q, want %q", linksTypst["typst"], "/out/mybook-typst.pdf")
 	}
 
 	// Unknown format is ignored.
-	links2 := predictedOutputLinks(base, []string{"docx"})
+	links2 := predictedOutputLinks(base, "", []string{"docx"})
 	if len(links2) != 0 {
 		t.Errorf("expected empty map for unknown format, got %v", links2)
 	}
@@ -744,3 +780,293 @@ func TestRendererHeadingsToSiteHeadings_Nested(t *testing.T) {
 
 // Compile-time check: ensure output.SiteNavHeading is referenced.
 var _ output.SiteNavHeading
+
+// ---------------------------------------------------------------------------
+// pdfHeaderFooterTemplates / expandPDFTemplateTokens
+// ---------------------------------------------------------------------------
+
+func TestPDFHeaderFooterTemplatesDefaults(t *testing.T) {
+	cfg := config.DefaultConfig()
+	header, footer := pdfHeaderFooterTemplates(cfg)
+	if header != "" {
+		t.Errorf("default header should be empty, got %q", header)
+	}
+	if footer != defaultPDFFooterTemplate {
+		t.Errorf("default footer = %q, want the centered page-number template", footer)
+	}
+	if !strings.Contains(footer, "pageNumber") {
+		t.Error("default footer must contain the pageNumber span")
+	}
+	if strings.Contains(footer, "mdPress") {
+		t.Error("default footer must not carry branding")
+	}
+}
+
+func TestPDFHeaderFooterTemplatesDisabled(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Output.Header = false
+	cfg.Output.Footer = false
+	header, footer := pdfHeaderFooterTemplates(cfg)
+	if header != "" || footer != "" {
+		t.Errorf("output.header/footer=false should disable both, got header=%q footer=%q", header, footer)
+	}
+}
+
+func TestPDFHeaderFooterTemplatesCustom(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Book.Title = "My <Book> & Others"
+	cfg.Style.Footer = config.HeaderFooterStyle{Left: "{title}", Center: "{page}", Right: "v1"}
+	cfg.Style.Header = config.HeaderFooterStyle{Center: "{{.Book.Title}}"}
+	header, footer := pdfHeaderFooterTemplates(cfg)
+	if !strings.Contains(footer, "<span class='pageNumber'></span>") {
+		t.Errorf("custom footer should expand {page}: %q", footer)
+	}
+	if !strings.Contains(footer, "My &lt;Book&gt; &amp; Others") {
+		t.Errorf("custom footer should expand {title} HTML-escaped: %q", footer)
+	}
+	if !strings.Contains(footer, "v1") {
+		t.Errorf("custom footer should keep literal text: %q", footer)
+	}
+	if !strings.Contains(header, "My &lt;Book&gt; &amp; Others") {
+		t.Errorf("custom header should render the escaped book title: %q", header)
+	}
+}
+
+func TestExpandPDFTemplateTokens(t *testing.T) {
+	got := expandPDFTemplateTokens("<script>alert(1)</script> {page} of {pages}", "T")
+	if strings.Contains(got, "<script>") {
+		t.Errorf("user text must be HTML-escaped, got %q", got)
+	}
+	if !strings.Contains(got, "<span class='pageNumber'></span>") {
+		t.Errorf("{page} must expand to the pageNumber span, got %q", got)
+	}
+	if !strings.Contains(got, "<span class='totalPages'></span>") {
+		t.Errorf("{pages} must expand to the totalPages span, got %q", got)
+	}
+	if expandPDFTemplateTokens("{{.Chapter.Title}}", "T") != "" {
+		t.Error("{{.Chapter.Title}} has no Chrome equivalent and should expand to nothing")
+	}
+	if expandPDFTemplateTokens("", "T") != "" {
+		t.Error("empty input should stay empty")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// site output: safety check, atomic swap, and pruning of stale pages
+// ---------------------------------------------------------------------------
+
+func TestEnsureReplaceableSiteDir(t *testing.T) {
+	root := t.TempDir()
+
+	t.Run("missing directory is fine", func(t *testing.T) {
+		if err := ensureReplaceableSiteDir(filepath.Join(root, "missing")); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("empty directory is fine", func(t *testing.T) {
+		dir := filepath.Join(root, "empty")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ensureReplaceableSiteDir(dir); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("previously generated site is fine", func(t *testing.T) {
+		dir := filepath.Join(root, "generated")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ensureReplaceableSiteDir(dir); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("foreign content is refused", func(t *testing.T) {
+		dir := filepath.Join(root, "userdata")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("keep me"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ensureReplaceableSiteDir(dir); err == nil {
+			t.Error("expected refusal for a non-empty non-generated directory")
+		}
+	})
+
+	t.Run("existing file is refused", func(t *testing.T) {
+		path := filepath.Join(root, "afile")
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ensureReplaceableSiteDir(path); err == nil {
+			t.Error("expected refusal when the site output path is a file")
+		}
+	})
+}
+
+func TestSwapSiteDir(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "site")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "stale.html"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	temp, err := os.MkdirTemp(root, "mdpress-site-*.tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(temp, "index.html"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := swapSiteDir(temp, target, slog.Default()); err != nil {
+		t.Fatalf("swapSiteDir() error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "index.html")); err != nil {
+		t.Errorf("fresh build not swapped in: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "stale.html")); !os.IsNotExist(err) {
+		t.Error("stale page survived the swap")
+	}
+	if _, err := os.Stat(target + ".old"); !os.IsNotExist(err) {
+		t.Error("backup directory left behind after swap")
+	}
+	if _, err := os.Stat(temp); !os.IsNotExist(err) {
+		t.Error("temp directory left behind after swap")
+	}
+}
+
+// newSiteBuildContext builds a minimal one-chapter buildContext for site tests.
+func newSiteBuildContext(t *testing.T, siteDir string, logger *slog.Logger) *buildContext {
+	t.Helper()
+	cfg := config.DefaultConfig()
+	cfg.Book.Title = "Swap Test Book"
+	cfg.Chapters = []config.ChapterDef{{Title: "One", File: "ch1.md"}}
+	thm, err := theme.NewThemeManager().Get("technical")
+	if err != nil {
+		t.Fatalf("load builtin theme: %v", err)
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &buildContext{
+		Config:          cfg,
+		Theme:           thm,
+		ChaptersHTML:    []renderer.ChapterHTML{{Title: "One", ID: "one", Content: "<p>hello</p>"}},
+		ChapterFiles:    []string{"ch1.md"},
+		ChapterMarkdown: []string{"# One\n\nhello\n"},
+		SiteDir:         siteDir,
+		Logger:          logger,
+	}
+}
+
+func TestSiteBuilderSwapPrunesStalePages(t *testing.T) {
+	root := t.TempDir()
+	siteDir := filepath.Join(root, "_book")
+	ctx := newSiteBuildContext(t, siteDir, nil)
+	base := filepath.Join(root, "book")
+
+	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+		t.Fatalf("first site build failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(siteDir, "index.html")); err != nil {
+		t.Fatalf("index.html missing after build: %v", err)
+	}
+
+	// Plant a stale page (e.g. from a renamed chapter) and rebuild: the
+	// atomic swap must leave only the current build's files.
+	if err := os.WriteFile(filepath.Join(siteDir, "stale.html"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+		t.Fatalf("rebuild failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(siteDir, "stale.html")); !os.IsNotExist(err) {
+		t.Error("stale page survived the rebuild")
+	}
+	if _, err := os.Stat(filepath.Join(siteDir, "index.html")); err != nil {
+		t.Errorf("index.html missing after rebuild: %v", err)
+	}
+	if _, err := os.Stat(siteDir + ".old"); !os.IsNotExist(err) {
+		t.Error("backup directory left behind")
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "mdpress-site-") {
+			t.Errorf("temp build directory left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestSiteBuilderRefusesForeignDirectory(t *testing.T) {
+	root := t.TempDir()
+	siteDir := filepath.Join(root, "docs")
+	if err := os.MkdirAll(siteDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	userFile := filepath.Join(siteDir, "notes.txt")
+	if err := os.WriteFile(userFile, []byte("keep me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := newSiteBuildContext(t, siteDir, nil)
+	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err == nil {
+		t.Fatal("expected the site build to refuse replacing a directory with user data")
+	}
+	if data, err := os.ReadFile(userFile); err != nil || string(data) != "keep me" {
+		t.Errorf("user data was modified: %v %q", err, data)
+	}
+}
+
+func TestSiteBuilderInPlaceWhenSharingOutputDir(t *testing.T) {
+	// --output <dir> makes the site share its directory with the other
+	// formats' files; the builder must generate in place without deleting
+	// sibling outputs.
+	root := t.TempDir()
+	sibling := filepath.Join(root, "book.pdf")
+	if err := os.WriteFile(sibling, []byte("pdf"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := newSiteBuildContext(t, root, nil)
+	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err != nil {
+		t.Fatalf("in-place site build failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "index.html")); err != nil {
+		t.Errorf("index.html missing after in-place build: %v", err)
+	}
+	if data, err := os.ReadFile(sibling); err != nil || string(data) != "pdf" {
+		t.Errorf("sibling output was clobbered: %v %q", err, data)
+	}
+}
+
+func TestSiteBuilderLegacySiteDirHint(t *testing.T) {
+	root := t.TempDir()
+	siteDir := filepath.Join(root, "_book")
+	base := filepath.Join(root, "book")
+	if err := os.MkdirAll(base+"_site", 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var buf strings.Builder
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	ctx := newSiteBuildContext(t, siteDir, logger)
+	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+		t.Fatalf("site build failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "moved to _book/") {
+		t.Errorf("expected a legacy <name>_site migration hint in the logs, got:\n%s", buf.String())
+	}
+}

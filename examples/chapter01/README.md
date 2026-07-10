@@ -1,6 +1,6 @@
 # Chapter 1: Quick Start
 
-This chapter helps you get started with mdpress, from installation to generating your first PDF book.
+This chapter helps you get started with mdpress, from installation to building your first book.
 
 ## 1.1 Installation
 
@@ -41,6 +41,7 @@ This creates the following file structure:
 ```
 my-book/
 ├── book.yaml          # Config file
+├── .gitignore         # Ignores build artifacts
 ├── preface.md         # Preface
 └── chapter01/
     └── README.md      # Chapter 1
@@ -82,14 +83,21 @@ def hello():
 - [x] Install mdpress
 - [x] Create project structure
 - [ ] Write content
-- [ ] Generate PDF
+- [ ] Build the book
 
-## 1.4 Generate PDF
+## 1.4 Build the Book
 
 When everything is ready, run:
 
 ```bash
 mdpress build
+```
+
+This builds a PDF by default; the file is saved to the path specified in `output.filename` in the config file. Use `--format` to build other formats from the same sources:
+
+```bash
+mdpress build --format site       # static website in _book/
+mdpress build --format html,epub  # standalone HTML and EPUB
 ```
 
 Or specify a config file:
@@ -98,8 +106,6 @@ Or specify a config file:
 mdpress build --config path/to/book.yaml
 ```
 
-The generated PDF will be saved to the path specified in `output.filename` in the config file.
-
 ## 1.5 Summary
 
-Congratulations! You have successfully generated your first PDF book. Read Chapter 2 for more advanced features.
+Congratulations! You have successfully built your first book. Read Chapter 2 for more advanced features.

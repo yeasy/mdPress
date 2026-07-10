@@ -7,27 +7,24 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/theme"
 )
+
+// testThemeInfo returns a themeInfo backed by a live built-in theme.
+func testThemeInfo(t *testing.T, name string) themeInfo {
+	t.Helper()
+	tm := theme.NewThemeManager()
+	thm, err := tm.Get(name)
+	if err != nil {
+		t.Fatalf("failed to get theme %q: %v", name, err)
+	}
+	return newThemeInfo(thm)
+}
 
 // TestGeneratePreviewHTML_Basic tests basic HTML generation for themes preview
 func TestGeneratePreviewHTML_Basic(t *testing.T) {
-	themes := []themeInfo{
-		{
-			name:        "test",
-			displayName: "Test Theme",
-			description: "A test theme",
-			author:      "Test Author",
-			version:     "1.0.0",
-			colors: themeColors{
-				primary:    "#FF0000",
-				secondary:  "#00FF00",
-				accent:     "#0000FF",
-				text:       "#000000",
-				background: "#FFFFFF",
-				codeBg:     "#F0F0F0",
-			},
-		},
-	}
+	themes := []themeInfo{testThemeInfo(t, "technical")}
 
 	result := generatePreviewHTML(themes)
 
@@ -73,36 +70,8 @@ func TestGeneratePreviewHTML_EmptyThemes(t *testing.T) {
 // TestGeneratePreviewHTML_MultipleThemes tests with multiple themes
 func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
 	themes := []themeInfo{
-		{
-			name:        "tech",
-			displayName: "Technical",
-			description: "Technical theme",
-			author:      "Author1",
-			version:     "1.0.0",
-			colors: themeColors{
-				primary:    "#1A5490",
-				secondary:  "#0066CC",
-				accent:     "#0066CC",
-				text:       "#2C3E50",
-				background: "#FFFFFF",
-				codeBg:     "#F5F7F9",
-			},
-		},
-		{
-			name:        "elegant",
-			displayName: "Elegant",
-			description: "Elegant theme",
-			author:      "Author2",
-			version:     "1.0.0",
-			colors: themeColors{
-				primary:    "#34495e",
-				secondary:  "#16a085",
-				accent:     "#d35400",
-				text:       "#2c3e50",
-				background: "#ecf0f1",
-				codeBg:     "#e8e8e8",
-			},
-		},
+		testThemeInfo(t, "technical"),
+		testThemeInfo(t, "elegant"),
 	}
 
 	result := generatePreviewHTML(themes)
@@ -113,6 +82,40 @@ func TestGeneratePreviewHTML_MultipleThemes(t *testing.T) {
 	}
 	if !strings.Contains(result, "Elegant") {
 		t.Error("generatePreviewHTML() should contain second theme name")
+	}
+}
+
+// TestGeneratePreviewHTML_RendersLivePalette is the anti-desync regression
+// guard for the preview: the generated page must embed the current builtin
+// palette values from internal/theme, not a stale hardcoded copy.
+func TestGeneratePreviewHTML_RendersLivePalette(t *testing.T) {
+	tm := theme.NewThemeManager()
+
+	result := generatePreviewHTML(getAvailableThemes())
+
+	for _, name := range tm.List() {
+		live, err := tm.Get(name)
+		if err != nil {
+			t.Fatalf("failed to get theme %q: %v", name, err)
+		}
+		for field, value := range map[string]string{
+			"heading":    live.Colors.Heading,
+			"link":       live.Colors.Link,
+			"accent":     live.Colors.Accent,
+			"background": live.Colors.Background,
+			"code bg":    live.Colors.CodeBg,
+		} {
+			if !strings.Contains(result, value) {
+				t.Errorf("preview should contain theme %q live %s color %q", name, field, value)
+			}
+		}
+	}
+
+	// Stale pre-v0.7.13 palette values must not resurface.
+	for _, stale := range []string{"#1A5490", "#0066CC", "#2C3E50", "#ecf0f1", "#d35400"} {
+		if strings.Contains(result, stale) {
+			t.Errorf("preview contains stale pre-v0.7.13 palette value %q", stale)
+		}
 	}
 }
 
@@ -142,27 +145,12 @@ func TestGeneratePreviewHTML_ContainsStyles(t *testing.T) {
 
 // TestGeneratePreviewHTML_ValidHTML tests that generated HTML is well-formed
 func TestGeneratePreviewHTML_ValidHTML(t *testing.T) {
-	themes := []themeInfo{
-		{
-			name:        "test",
-			displayName: "Test",
-			description: "Desc",
-			author:      "Auth",
-			version:     "1.0",
-			colors: themeColors{
-				primary:    "#111111",
-				secondary:  "#222222",
-				accent:     "#333333",
-				text:       "#000000",
-				background: "#FFFFFF",
-				codeBg:     "#F0F0F0",
-			},
-		},
-	}
+	themes := []themeInfo{testThemeInfo(t, "minimal")}
 
 	result := generatePreviewHTML(themes)
 
-	// Check opening and closing tags match
+	// Check opening and closing tags match. The samples are embedded via
+	// escaped srcdoc attributes, so raw tag counts only cover the outer page.
 	htmlOpen := strings.Count(result, "<html")
 	htmlClose := strings.Count(result, "</html>")
 	if htmlOpen != htmlClose {
@@ -184,68 +172,46 @@ func TestGeneratePreviewHTML_ValidHTML(t *testing.T) {
 
 // TestGenerateThemePreviewSection_Basic tests single theme section generation
 func TestGenerateThemePreviewSection_Basic(t *testing.T) {
-	theme := themeInfo{
-		name:        "test",
-		displayName: "Test Theme",
-		description: "Test Description",
-		author:      "Test Author",
-		version:     "1.0.0",
-		colors: themeColors{
-			primary:    "#FF0000",
-			secondary:  "#00FF00",
-			accent:     "#0000FF",
-			text:       "#000000",
-			background: "#FFFFFF",
-			codeBg:     "#F0F0F0",
-		},
-	}
+	info := testThemeInfo(t, "technical")
 
-	result := generateThemePreviewSection(theme)
+	result := generateThemePreviewSection(info)
 
 	// Verify structure
 	if !strings.Contains(result, "theme-section") {
 		t.Error("generateThemePreviewSection() should contain theme-section class")
 	}
-	if !strings.Contains(result, "Test Theme") {
+	if !strings.Contains(result, "Technical") {
 		t.Error("generateThemePreviewSection() should contain display name")
 	}
-	if !strings.Contains(result, "test") {
+	if !strings.Contains(result, "technical") {
 		t.Error("generateThemePreviewSection() should contain theme name")
+	}
+	if !strings.Contains(result, "(default)") {
+		t.Error("generateThemePreviewSection() should mark the default theme")
 	}
 }
 
-// TestGenerateThemePreviewSection_ContainsColors tests color display
+// TestGenerateThemePreviewSection_ContainsColors tests color swatch display
 func TestGenerateThemePreviewSection_ContainsColors(t *testing.T) {
-	theme := themeInfo{
-		name:        "colortest",
-		displayName: "Color Test",
-		description: "Testing colors",
-		author:      "Tester",
-		version:     "1.0.0",
-		colors: themeColors{
-			primary:    "#123456",
-			secondary:  "#ABCDEF",
-			accent:     "#FEDCBA",
-			text:       "#111111",
-			background: "#EEEEEE",
-			codeBg:     "#DDDDDD",
-		},
-	}
+	info := testThemeInfo(t, "elegant")
 
-	result := generateThemePreviewSection(theme)
+	result := generateThemePreviewSection(info)
 
-	// Verify all colors are included
+	// Verify all live palette values and swatch labels are included
 	colorChecks := []string{
-		"#123456", // Primary
-		"#ABCDEF", // Secondary
-		"#FEDCBA", // Accent
-		"#111111", // Text
-		"#EEEEEE", // Background
-		"#DDDDDD", // CodeBg
+		info.colors.primary,
+		info.colors.secondary,
+		info.colors.accent,
+		info.colors.text,
+		info.colors.background,
+		info.colors.codeBg,
+		info.colors.codeText,
+		info.colors.border,
 		"color-swatch",
-		"Primary",
-		"Secondary",
+		"Heading",
+		"Link",
 		"Accent",
+		"Background",
 	}
 
 	for _, check := range colorChecks {
@@ -255,82 +221,85 @@ func TestGenerateThemePreviewSection_ContainsColors(t *testing.T) {
 	}
 }
 
-// TestGenerateThemePreviewSection_ContainsSampleContent tests sample content sections
-func TestGenerateThemePreviewSection_ContainsSampleContent(t *testing.T) {
-	theme := themeInfo{
-		name:        "content",
-		displayName: "Content Test",
-		description: "Testing content",
-		author:      "Tester",
-		version:     "1.0.0",
-		colors: themeColors{
-			primary:    "#000000",
-			secondary:  "#111111",
-			accent:     "#222222",
-			text:       "#333333",
-			background: "#FFFFFF",
-			codeBg:     "#F0F0F0",
-		},
+// TestGenerateThemePreviewSection_EmbedsSampleIframe tests that the sample is
+// embedded as a srcdoc iframe carrying the theme's real stylesheet.
+func TestGenerateThemePreviewSection_EmbedsSampleIframe(t *testing.T) {
+	info := testThemeInfo(t, "technical")
+
+	result := generateThemePreviewSection(info)
+
+	checks := []string{
+		`class="theme-sample"`,
+		`srcdoc="`,
+		// Escaped inner document markers.
+		"&lt;!DOCTYPE html&gt;",
+		// ToCSS variables survive escaping verbatim (no <>&" characters).
+		"--color-heading: " + info.theme.Colors.Heading,
+		"--color-link: " + info.theme.Colors.Link,
+		// v0.7.13 pipeline rules: zebra striping and header accent underline.
+		// Match the var() reference without its closing paren so an optional
+		// fallback value, e.g. var(--color-accent, #1C5A9E), also passes.
+		"table tbody tr:nth-child(even) td",
+		"border-bottom: 2px solid var(--color-accent",
 	}
-
-	result := generateThemePreviewSection(theme)
-
-	// Verify sample content
-	contentChecks := []string{
-		"Sample Heading",
-		"sample paragraph",
-		"inline code",
-		"Sample code block",
-		"func greet",
-		"<table",
-		"<thead",
-		"<tbody",
-		"Feature",
-		"Value",
-		"blockquote",
-	}
-
-	for _, check := range contentChecks {
+	for _, check := range checks {
 		if !strings.Contains(result, check) {
 			t.Errorf("generateThemePreviewSection() should contain %q", check)
 		}
 	}
 }
 
-// TestGenerateThemePreviewSection_MetadataDisplay tests theme metadata
-func TestGenerateThemePreviewSection_MetadataDisplay(t *testing.T) {
-	theme := themeInfo{
-		name:        "metadata",
-		displayName: "Metadata Test",
-		description: "For testing metadata",
-		author:      "John Doe",
-		version:     "2.5.3",
-		colors: themeColors{
-			primary:    "#000000",
-			secondary:  "#111111",
-			accent:     "#222222",
-			text:       "#333333",
-			background: "#FFFFFF",
-			codeBg:     "#F0F0F0",
-		},
+// TestThemeSampleDocument_UsesRealPipelineCSS verifies that the per-theme
+// sample document is styled by theme.ToCSS() and contains a representative
+// content sample (headings, table with header+zebra, code, blockquote, link).
+func TestThemeSampleDocument_UsesRealPipelineCSS(t *testing.T) {
+	info := testThemeInfo(t, "technical")
+
+	doc := themeSampleDocument(info)
+
+	// The full pipeline stylesheet must be embedded verbatim.
+	if !strings.Contains(doc, info.theme.ToCSS()) {
+		t.Fatal("sample document should embed the theme's ToCSS() output verbatim")
 	}
 
-	result := generateThemePreviewSection(theme)
+	contentChecks := []string{
+		"<h1>Sample Heading</h1>",
+		"<h2>Section Heading</h2>",
+		"sample paragraph",
+		`<a href="#">sample link</a>`,
+		"<code>inline code</code>",
+		"Sample code block",
+		"func greet",
+		"<table>",
+		"<thead>",
+		"<tbody>",
+		"<blockquote>",
+		"Feature",
+		"Value",
+	}
+	for _, check := range contentChecks {
+		if !strings.Contains(doc, check) {
+			t.Errorf("themeSampleDocument() should contain %q", check)
+		}
+	}
 
-	// Verify metadata is displayed
-	if !strings.Contains(result, "John Doe") {
-		t.Error("generateThemePreviewSection() should contain author")
+	// The table needs at least four body rows so zebra striping is visible.
+	if got := strings.Count(doc, "<tr><td>"); got < 4 {
+		t.Errorf("sample table should have at least 4 body rows for zebra striping, got %d", got)
 	}
-	if !strings.Contains(result, "2.5.3") {
-		t.Error("generateThemePreviewSection() should contain version")
-	}
-	if !strings.Contains(result, "For testing metadata") {
-		t.Error("generateThemePreviewSection() should contain description")
+}
+
+// TestThemeSampleDocument_NilTheme verifies a nil live theme does not panic.
+func TestThemeSampleDocument_NilTheme(t *testing.T) {
+	doc := themeSampleDocument(themeInfo{name: "broken"})
+	if !strings.Contains(doc, "<h1>Sample Heading</h1>") {
+		t.Error("sample document should render content even without a live theme")
 	}
 }
 
 // TestExecuteThemesPreview_DefaultPath tests preview generation with default path
 func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -347,6 +316,7 @@ func TestExecuteThemesPreview_DefaultPath(t *testing.T) {
 
 // TestExecuteThemesPreview_CustomPath tests preview generation with custom path
 func TestExecuteThemesPreview_CustomPath(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	customPath := filepath.Join(tmpDir, "custom-preview.html")
 
@@ -363,6 +333,7 @@ func TestExecuteThemesPreview_CustomPath(t *testing.T) {
 
 // TestExecuteThemesPreview_CreatesValidHTML tests that generated file contains valid HTML
 func TestExecuteThemesPreview_CreatesValidHTML(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "test-preview.html")
 
@@ -391,8 +362,44 @@ func TestExecuteThemesPreview_CreatesValidHTML(t *testing.T) {
 	}
 }
 
+// TestExecuteThemesPreview_QuietSuppressesStatus verifies --quiet silences
+// the status line while still writing the preview file.
+func TestExecuteThemesPreview_QuietSuppressesStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "quiet-preview.html")
+
+	prevQuiet := quiet
+	defer func() { quiet = prevQuiet }()
+
+	quiet = true
+	out, err := captureThemesStdout(t, func() error {
+		return executeThemesPreview(filePath)
+	})
+	if err != nil {
+		t.Fatalf("executeThemesPreview returned error: %v", err)
+	}
+	if strings.Contains(out, "Theme preview generated") {
+		t.Errorf("quiet mode should suppress the status line, got: %q", out)
+	}
+	if _, statErr := os.Stat(filePath); statErr != nil {
+		t.Errorf("preview file should still be written in quiet mode: %v", statErr)
+	}
+
+	quiet = false
+	out, err = captureThemesStdout(t, func() error {
+		return executeThemesPreview(filepath.Join(tmpDir, "loud-preview.html"))
+	})
+	if err != nil {
+		t.Fatalf("executeThemesPreview returned error: %v", err)
+	}
+	if !strings.Contains(out, "Theme preview generated") {
+		t.Errorf("non-quiet mode should print the status line, got: %q", out)
+	}
+}
+
 // TestExecuteThemesPreview_FilePermissions tests that generated file has correct permissions
 func TestExecuteThemesPreview_FilePermissions(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "perm-test.html")
 
@@ -420,6 +427,7 @@ func TestExecuteThemesPreview_FilePermissions(t *testing.T) {
 
 // TestExecuteThemesPreview_AbsolutePath tests with absolute path
 func TestExecuteThemesPreview_AbsolutePath(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	absPath := filepath.Join(tmpDir, "absolute-preview.html")
 
@@ -436,6 +444,7 @@ func TestExecuteThemesPreview_AbsolutePath(t *testing.T) {
 
 // TestExecuteThemesPreview_RelativePath tests with relative path
 func TestExecuteThemesPreview_RelativePath(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -453,6 +462,7 @@ func TestExecuteThemesPreview_RelativePath(t *testing.T) {
 
 // TestExecuteThemesPreview_FileSize tests that generated file has reasonable size
 func TestExecuteThemesPreview_FileSize(t *testing.T) {
+	defer suppressOutput(t)()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "size-test.html")
 
@@ -497,23 +507,9 @@ func TestGeneratePreviewHTML_MediaQueries(t *testing.T) {
 
 // TestGenerateThemePreviewSection_GradientHeader tests gradient header styling
 func TestGenerateThemePreviewSection_GradientHeader(t *testing.T) {
-	theme := themeInfo{
-		name:        "gradient",
-		displayName: "Gradient Test",
-		description: "Testing gradient",
-		author:      "Tester",
-		version:     "1.0.0",
-		colors: themeColors{
-			primary:    "#667eea",
-			secondary:  "#764ba2",
-			accent:     "#999999",
-			text:       "#000000",
-			background: "#FFFFFF",
-			codeBg:     "#F0F0F0",
-		},
-	}
+	info := testThemeInfo(t, "minimal")
 
-	result := generateThemePreviewSection(theme)
+	result := generateThemePreviewSection(info)
 
 	// Verify gradient background is applied
 	if !strings.Contains(result, "linear-gradient") {
@@ -523,31 +519,15 @@ func TestGenerateThemePreviewSection_GradientHeader(t *testing.T) {
 
 // TestGeneratePreviewHTML_ThemeInformation tests theme information section
 func TestGeneratePreviewHTML_ThemeInformation(t *testing.T) {
-	themes := []themeInfo{
-		{
-			name:        "info",
-			displayName: "Info Test",
-			description: "Description for info test",
-			author:      "Info Author",
-			version:     "1.2.3",
-			colors: themeColors{
-				primary:    "#000000",
-				secondary:  "#111111",
-				accent:     "#222222",
-				text:       "#333333",
-				background: "#FFFFFF",
-				codeBg:     "#F0F0F0",
-			},
-		},
-	}
+	info := testThemeInfo(t, "elegant")
 
-	result := generatePreviewHTML(themes)
+	result := generatePreviewHTML([]themeInfo{info})
 
 	// Verify theme information is included
 	if !strings.Contains(result, "theme-info") {
 		t.Error("generatePreviewHTML() should include theme-info section")
 	}
-	if !strings.Contains(result, "Description for info test") {
+	if !strings.Contains(result, info.description) {
 		t.Error("generatePreviewHTML() should display theme description")
 	}
 }

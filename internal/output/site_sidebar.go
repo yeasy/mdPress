@@ -36,7 +36,7 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 		}
 		href := filename
 		if href != "#" {
-			href = absoluteSiteHref(filename)
+			href = relativeSiteHref(activeFile, filename)
 		}
 		groupClass := "nav-group"
 		hasChildren := (maxSidebarHeadingDepth > 0 && len(ch.Headings) > 0) ||
@@ -143,7 +143,7 @@ func (g *SiteGenerator) renderSidebarHeadings(b *strings.Builder, activeFile str
 		return
 	}
 	for _, heading := range headings {
-		href := absoluteSiteHref(filename)
+		href := relativeSiteHref(activeFile, filename)
 		fmt.Fprintf(b,
 			`<a class="nav-item nav-heading nav-heading-depth-%d" href="%s#%s" data-file="%s" data-target="%s">%s</a>`,
 			depth+1,

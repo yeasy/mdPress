@@ -5,6 +5,7 @@ package cover
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,13 +18,23 @@ import (
 // light from dark colors (~73% brightness on a 0-255 scale, ITU-R BT.601).
 const luminanceThreshold = 186
 
-// defaultCoverBg is the deep navy used for the default cover background when the
-// book does not configure book.cover.background or book.cover.image. It gives
-// the out-of-the-box cover a premium, professionally-typeset look.
+// defaultCoverBg is the deep navy used for the default cover background when
+// the book does not configure book.cover.background or book.cover.image and
+// the active theme has no cover palette of its own (technical, custom, or nil
+// themes). It gives the out-of-the-box cover a premium, professionally-typeset
+// look.
 const defaultCoverBg = "#102a43"
+
+// defaultCoverFontFamily is the cover font stack used when no theme is set
+// (or the theme does not define a font family).
+const defaultCoverFontFamily = `-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif`
 
 // cssColorPattern matches safe CSS color values (hex, rgb, rgba, hsl, hsla, named colors).
 var cssColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([\d\s,%.]+\)|[a-z]{1,30})$`)
+
+// cssFontFamilySafe rejects font-family values containing characters that
+// could break out of a CSS property declaration (mirrors theme validation).
+var cssFontFamilySafe = regexp.MustCompile(`^[^;{}<>\\]*$`)
 
 // CoverGenerator builds the HTML cover page.
 type CoverGenerator struct {
@@ -40,6 +51,41 @@ func NewCoverGenerator(meta config.BookMeta, thm *theme.Theme) *CoverGenerator {
 		meta: meta,
 		thm:  thm,
 	}
+}
+
+// coverDefaults returns the theme-derived cover styling: the default
+// background color (used when neither cover.background nor cover.image is
+// configured), the text ink for dark backgrounds, and the ink for light
+// backgrounds. Each built-in theme gets a cover that harmonizes with its
+// interior pages; custom and nil themes fall back to the navy default.
+func (cg *CoverGenerator) coverDefaults() (defaultBg, darkInk, lightInk string) {
+	name := ""
+	if cg.thm != nil {
+		name = cg.thm.Name
+	}
+	switch name {
+	case "elegant":
+		// Deep warm brown-burgundy with cream ink, matching elegant's warm
+		// cream serif pages (#FFFBF0 / #3E2723).
+		return "#33261D", "#F5EDDF", "#3E2723"
+	case "minimal":
+		// Light neutral background with near-black ink for the clean,
+		// whitespace-heavy minimal look.
+		return "#FAFAFA", "#F6F8FC", "#111111"
+	default:
+		// technical, custom, or nil theme: the deep navy publication cover.
+		return defaultCoverBg, "#f6f8fc", "#14304a"
+	}
+}
+
+// coverFontFamily returns the font stack for the cover page. It prefers the
+// active theme's font family (so elegant covers are serif like their pages)
+// and falls back to the built-in sans stack.
+func (cg *CoverGenerator) coverFontFamily() string {
+	if cg.thm != nil && cg.thm.FontFamily != "" && cssFontFamilySafe.MatchString(cg.thm.FontFamily) {
+		return cg.thm.FontFamily
+	}
+	return defaultCoverFontFamily
 }
 
 // RenderHTML returns a self-contained HTML cover page.
@@ -67,6 +113,8 @@ func (cg *CoverGenerator) RenderHTML() string {
 func (cg *CoverGenerator) renderStyles() string {
 	var buf strings.Builder
 
+	defaultBg, darkInk, lightInk := cg.coverDefaults()
+
 	buf.WriteString(`  <style>` + "\n")
 
 	// Reset styles and page layout.
@@ -80,7 +128,7 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`    html, body {` + "\n")
 	buf.WriteString(`      width: 100%;` + "\n")
 	buf.WriteString(`      height: 100%;` + "\n")
-	buf.WriteString(`      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;` + "\n")
+	fmt.Fprintf(&buf, "      font-family: %s;\n", cg.coverFontFamily())
 	buf.WriteString(`      background-color: #ffffff;` + "\n")
 	buf.WriteString(`    }` + "\n\n")
 
@@ -94,8 +142,10 @@ func (cg *CoverGenerator) renderStyles() string {
 	buf.WriteString(`      padding: 60px 40px;` + "\n")
 
 	// Prefer a configured background color or image.
-	if cg.meta.Cover.Background != "" && cssColorPattern.MatchString(strings.TrimSpace(cg.meta.Cover.Background)) {
-		fmt.Fprintf(&buf, `      background-color: %s;`+"\n", strings.TrimSpace(cg.meta.Cover.Background))
+	customBg := strings.TrimSpace(cg.meta.Cover.Background)
+	hasCustomBgColor := customBg != "" && cssColorPattern.MatchString(customBg)
+	if hasCustomBgColor {
+		fmt.Fprintf(&buf, `      background-color: %s;`+"\n", customBg)
 		buf.WriteString(`      background-size: cover;` + "\n")
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
@@ -105,27 +155,30 @@ func (cg *CoverGenerator) renderStyles() string {
 		buf.WriteString(`      background-position: center;` + "\n")
 		buf.WriteString(`      background-attachment: fixed;` + "\n")
 	} else {
-		// Premium default: a deep navy publication cover. Users can still
-		// override via book.cover.background or book.cover.image.
-		fmt.Fprintf(&buf, "      background-color: %s;\n", defaultCoverBg)
+		// Premium theme-matched default cover. Users can still override via
+		// book.cover.background or book.cover.image.
+		fmt.Fprintf(&buf, "      background-color: %s;\n", defaultBg)
 	}
 
 	buf.WriteString(`    }` + "\n\n")
 
 	// Cover content layout.
-	// Text color adapts: dark text on light/no background, white text on dark backgrounds.
-	// For hex colors we compute luminance; images and non-hex colors assume dark.
-	// The default cover uses a dark navy background, so text is light unless the
-	// user explicitly configures a light background color.
-	hasDarkBg := true
-	if cg.meta.Cover.Image != "" {
+	// Text color adapts: dark ink on light backgrounds, light ink on dark
+	// backgrounds. Hex, named, and rgb()/rgba() colors are analyzed for
+	// luminance; images and unparseable colors assume dark so light text
+	// stays the safe default.
+	var hasDarkBg bool
+	switch {
+	case hasCustomBgColor:
+		hasDarkBg = !isLightColor(customBg)
+	case cg.meta.Cover.Image != "":
 		hasDarkBg = true
-	} else if cg.meta.Cover.Background != "" {
-		hasDarkBg = !isLightColor(cg.meta.Cover.Background)
+	default:
+		hasDarkBg = !isLightColor(defaultBg)
 	}
-	textColor := "#f6f8fc" // Near-white on the dark default background.
+	textColor := darkInk
 	if !hasDarkBg {
-		textColor = "#14304a" // Deep navy ink on a light background.
+		textColor = lightInk
 	}
 	buf.WriteString(`    .cover-content {` + "\n")
 	buf.WriteString(`      text-align: center;` + "\n")
@@ -306,16 +359,52 @@ func escapeURL(u string) string {
 	return urlReplacer.Replace(u)
 }
 
-// isLightColor returns true if the given CSS color is perceptually light.
-// Only hex colors (#rgb, #rgba, #rrggbb, #rrggbbaa) are analyzed; all other
-// formats (named, rgb(), hsl(), etc.) are assumed dark so that white text is
-// the safer default.  Alpha channels are ignored.
+// namedColorLight classifies common CSS named colors as perceptually light
+// (true) or dark (false). Names absent from the map are assumed dark, which
+// keeps light text as the safe default for unknown backgrounds.
+var namedColorLight = map[string]bool{
+	// Light backgrounds -> dark ink.
+	"white": true, "ivory": true, "snow": true, "beige": true,
+	"linen": true, "seashell": true, "floralwhite": true, "ghostwhite": true,
+	"whitesmoke": true, "lightyellow": true, "lightgray": true,
+	"lightgrey": true, "gainsboro": true, "aliceblue": true,
+	"antiquewhite": true, "azure": true, "cornsilk": true, "honeydew": true,
+	"lavenderblush": true, "lemonchiffon": true, "mintcream": true,
+	"oldlace": true, "papayawhip": true, "wheat": true,
+	// Dark anchors, documented for clarity (any unlisted name is also
+	// treated as dark).
+	"black": false, "navy": false, "maroon": false, "midnightblue": false,
+	"darkblue": false, "darkslategray": false, "darkslategrey": false,
+}
+
+// IsLightColor reports whether the given CSS color is perceptually light.
+// It understands hex colors (#rgb, #rgba, #rrggbb, #rrggbbaa), common named
+// CSS colors, and numeric rgb()/rgba() forms. Unknown or unparseable formats
+// are assumed dark so that light text remains the safer default. Alpha
+// channels are ignored.
+func IsLightColor(color string) bool {
+	return isLightColor(color)
+}
+
+// isLightColor is the internal implementation behind IsLightColor.
 func isLightColor(color string) bool {
 	color = strings.TrimSpace(color)
-	if !strings.HasPrefix(color, "#") {
-		return false
+	if strings.HasPrefix(color, "#") {
+		return isLightHex(color[1:])
 	}
-	hex := color[1:]
+	lower := strings.ToLower(color)
+	if light, ok := namedColorLight[lower]; ok {
+		return light
+	}
+	if r, g, b, ok := parseRGBFunc(lower); ok {
+		return luminance(r, g, b) > luminanceThreshold
+	}
+	return false
+}
+
+// isLightHex reports whether a hex color body (without the leading '#') is
+// perceptually light. Alpha channels are ignored.
+func isLightHex(hex string) bool {
 	// Expand shorthand (#rgb -> #rrggbb, #rgba -> #rrggbb).
 	if len(hex) == 3 || len(hex) == 4 {
 		hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
@@ -330,9 +419,49 @@ func isLightColor(color string) bool {
 	r := hexVal(hex[0])*16 + hexVal(hex[1])
 	g := hexVal(hex[2])*16 + hexVal(hex[3])
 	b := hexVal(hex[4])*16 + hexVal(hex[5])
-	// Perceived luminance (ITU-R BT.601): Y = 0.299R + 0.587G + 0.114B.
-	luminance := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
-	return luminance > luminanceThreshold
+	return luminance(float64(r), float64(g), float64(b)) > luminanceThreshold
+}
+
+// parseRGBFunc parses numeric rgb()/rgba() color functions. It accepts both
+// the legacy comma syntax (rgb(255, 250, 240)) and the modern space syntax
+// (rgb(255 250 240 / 0.5)); percentage components are scaled to the 0-255
+// range. The alpha channel is ignored. The input must already be lowercase.
+func parseRGBFunc(color string) (r, g, b float64, ok bool) {
+	var body string
+	switch {
+	case strings.HasPrefix(color, "rgba(") && strings.HasSuffix(color, ")"):
+		body = color[len("rgba(") : len(color)-1]
+	case strings.HasPrefix(color, "rgb(") && strings.HasSuffix(color, ")"):
+		body = color[len("rgb(") : len(color)-1]
+	default:
+		return 0, 0, 0, false
+	}
+	body = strings.NewReplacer(",", " ", "/", " ").Replace(body)
+	fields := strings.Fields(body)
+	if len(fields) < 3 {
+		return 0, 0, 0, false
+	}
+	var channels [3]float64
+	for i := 0; i < 3; i++ {
+		f := fields[i]
+		percent := strings.HasSuffix(f, "%")
+		f = strings.TrimSuffix(f, "%")
+		v, err := strconv.ParseFloat(f, 64)
+		if err != nil {
+			return 0, 0, 0, false
+		}
+		if percent {
+			v = v * 255 / 100
+		}
+		channels[i] = v
+	}
+	return channels[0], channels[1], channels[2], true
+}
+
+// luminance computes perceived luminance (ITU-R BT.601) on a 0-255 scale:
+// Y = 0.299R + 0.587G + 0.114B.
+func luminance(r, g, b float64) float64 {
+	return 0.299*r + 0.587*g + 0.114*b
 }
 
 func hexVal(c byte) int {

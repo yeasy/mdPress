@@ -791,6 +791,227 @@ func TestStandaloneRenderWithAllComponentsCombined(t *testing.T) {
 	}
 }
 
+// TestStandaloneDarkModeSpecificity verifies the dark-mode variable overrides
+// use a selector with higher specificity than the theme's :root palette, so the
+// theme CSS (appended later in the bundle) cannot clobber dark values.
+func TestStandaloneDarkModeSpecificity(t *testing.T) {
+	cfg := newTestConfig()
+	thm := newTestTheme(t)
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	parts := &RenderParts{
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<p>content</p>"},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if !strings.Contains(html, `:root[data-theme="dark"]`) {
+		t.Error(`dark overrides should use :root[data-theme="dark"] for higher specificity`)
+	}
+	// The theme :root palette must still be present (it wins the light-mode cascade).
+	if !strings.Contains(html, "/* Auto-generated theme CSS */") {
+		t.Error("theme CSS should be embedded")
+	}
+}
+
+// TestStandaloneWebResetOrdering verifies the web layout re-assertions come
+// after the theme CSS (so PDF-oriented rules are undone) but before custom CSS
+// (so users keep the final say).
+func TestStandaloneWebResetOrdering(t *testing.T) {
+	cfg := newTestConfig()
+	thm := newTestTheme(t)
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	parts := &RenderParts{
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<p>content</p>"},
+		},
+		CustomCSS: ".user-css-marker { color: red; }",
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	themeIdx := strings.Index(html, "/* Auto-generated theme CSS */")
+	resetIdx := strings.Index(html, "Standalone web layout re-assertions")
+	customIdx := strings.Index(html, ".user-css-marker")
+
+	if themeIdx < 0 {
+		t.Fatal("theme CSS missing from output")
+	}
+	if resetIdx < 0 {
+		t.Fatal("web reset missing from output")
+	}
+	if customIdx < 0 {
+		t.Fatal("custom CSS missing from output")
+	}
+	if resetIdx < themeIdx {
+		t.Error("web reset must come after theme CSS")
+	}
+	if customIdx < resetIdx {
+		t.Error("custom CSS must come after the web reset")
+	}
+
+	// The reset must undo the PDF-oriented code wrapping and table framing.
+	for _, marker := range []string{
+		"white-space: pre;",
+		".table-wrapper table {",
+		".code-block-wrapper pre {",
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("web reset should contain %q", marker)
+		}
+	}
+}
+
+// TestStandaloneWebResetWithoutTheme verifies the web reset is present even
+// with a nil theme so the layout stays deterministic.
+func TestStandaloneWebResetWithoutTheme(t *testing.T) {
+	cfg := newTestConfig()
+	r, err := NewStandaloneHTMLRenderer(cfg, nil)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	parts := &RenderParts{
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<p>content</p>"},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+	if !strings.Contains(html, "Standalone web layout re-assertions") {
+		t.Error("web reset should be present with a nil theme")
+	}
+}
+
+// TestStandaloneCoverHero verifies a cover hero section is synthesized from
+// book metadata when the build supplies cover HTML (output.cover enabled).
+func TestStandaloneCoverHero(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Book.Title = "Hero Title"
+	cfg.Book.Subtitle = "Hero Subtitle"
+	cfg.Book.Author = "Hero Author"
+	cfg.Book.Version = "2.0.0"
+	thm := newTestTheme(t)
+
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	parts := &RenderParts{
+		CoverHTML: "<!DOCTYPE html><html><body><div class=\"full-cover-doc\">cover</div></body></html>",
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<p>content</p>"},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	for _, marker := range []string{
+		`class="cover-hero"`,
+		`<div class="cover-hero-title">Hero Title</div>`,
+		`<div class="cover-hero-subtitle">Hero Subtitle</div>`,
+		"Hero Author",
+		"2.0.0",
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("cover hero should contain %q", marker)
+		}
+	}
+
+	// The hero is synthesized from metadata — the cover's own full HTML
+	// document must not be embedded.
+	if strings.Contains(html, "full-cover-doc") {
+		t.Error("the cover's full HTML document should not be embedded")
+	}
+}
+
+// TestStandaloneCoverHeroOmittedWhenDisabled verifies no hero is rendered when
+// the build supplies no cover HTML (output.cover disabled), and that the
+// book-TOC page is never embedded (the sidebar already provides navigation).
+func TestStandaloneCoverHeroOmittedWhenDisabled(t *testing.T) {
+	cfg := newTestConfig()
+	thm := newTestTheme(t)
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	parts := &RenderParts{
+		TOCHTML: `<nav class="toc-page-marker"><ul><li>Ch1</li></ul></nav>`,
+		ChaptersHTML: []ChapterHTML{
+			{Title: "Ch1", ID: "ch1", Content: "<p>content</p>"},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if strings.Contains(html, `<section class="cover-hero"`) {
+		t.Error("cover hero should be omitted when no cover HTML is supplied")
+	}
+	if strings.Contains(html, "toc-page-marker") {
+		t.Error("standalone output should not embed a separate TOC page")
+	}
+}
+
+// TestStandaloneAccentUnified verifies the shell no longer hardcodes
+// GitHub-blue accent tints: hover states, progress bar, and glows must derive
+// from --color-accent so a theme palette change re-skins them coherently.
+func TestStandaloneAccentUnified(t *testing.T) {
+	if strings.Contains(standaloneCSS, "rgba(9, 105, 218") {
+		t.Error("standalone CSS should not hardcode GitHub-blue rgba accent tints")
+	}
+	if strings.Contains(standaloneCSS, "rgba(88, 166, 255") {
+		t.Error("standalone dark CSS should not hardcode blue rgba accent tints")
+	}
+	if !strings.Contains(standaloneCSS, "color-mix(in srgb, var(--color-accent") {
+		t.Error("accent tints should be derived from var(--color-accent)")
+	}
+	if !strings.Contains(standaloneCSS, "--color-progress: var(--color-accent") {
+		t.Error("progress bar color should derive from var(--color-accent)")
+	}
+}
+
+// TestStandaloneCodeLangDetection verifies the code-block enhancement script
+// reads the renderer-emitted data-lang attribute and language-* classes, with
+// 'text' as the final fallback.
+func TestStandaloneCodeLangDetection(t *testing.T) {
+	for _, marker := range []string{
+		`pre.getAttribute('data-lang')`,
+		`code.getAttribute('data-lang')`,
+		`/^language-(.+)$/`,
+		`lang || 'text'`,
+	} {
+		if !strings.Contains(standaloneJS, marker) {
+			t.Errorf("standalone JS should contain %q", marker)
+		}
+	}
+}
+
 // TestStandaloneChapterIDsInContent tests chapter IDs are accessible in rendered HTML.
 func TestStandaloneChapterIDsInContent(t *testing.T) {
 	cfg := newTestConfig()

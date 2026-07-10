@@ -21,8 +21,8 @@ func TestBuildCommand_Creation(t *testing.T) {
 		t.Errorf("buildCmd.Use should be 'build [source]', got %q", buildCmd.Use)
 	}
 
-	if buildCmd.Short != "Build documents (PDF/HTML/ePub)" {
-		t.Errorf("buildCmd.Short should be 'Build documents (PDF/HTML/ePub)', got %q", buildCmd.Short)
+	if buildCmd.Short != "Build documents (PDF/HTML/site/ePub/Typst)" {
+		t.Errorf("buildCmd.Short should be 'Build documents (PDF/HTML/site/ePub/Typst)', got %q", buildCmd.Short)
 	}
 }
 
@@ -416,8 +416,14 @@ func TestBuildFlagTypes(t *testing.T) {
 }
 
 // TestResolveSiteOutputDir verifies the single-language "site" output directory:
-// default "_book" under the project, overridable via --output.
+// default "_book" under the project; an existing directory (or trailing
+// separator) is used verbatim; a file-ish base becomes "<base>_site" so the
+// other formats can share the same base path.
 func TestResolveSiteOutputDir(t *testing.T) {
+	existingDir := t.TempDir()
+	missing := filepath.Join(existingDir, "missing")
+	sep := string(os.PathSeparator)
+
 	tests := []struct {
 		name     string
 		baseDir  string
@@ -425,8 +431,11 @@ func TestResolveSiteOutputDir(t *testing.T) {
 		want     string
 	}{
 		{"default is _book under project", "/proj", "", filepath.Join("/proj", "_book")},
-		{"explicit relative output wins", "/proj", "public", "public"},
-		{"explicit absolute output wins", "/proj", "/out/site", "/out/site"},
+		{"existing directory used verbatim", "/proj", existingDir, existingDir},
+		{"trailing separator forces directory", "/proj", missing + sep, missing},
+		{"file path with extension becomes <base>_site", "/proj", filepath.Join(missing, "manual.html"), filepath.Join(missing, "manual_site")},
+		{"pdf file path becomes <base>_site", "/proj", filepath.Join(missing, "manual.pdf"), filepath.Join(missing, "manual_site")},
+		{"extension-less base becomes <base>_site", "/proj", filepath.Join(missing, "book"), filepath.Join(missing, "book_site")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

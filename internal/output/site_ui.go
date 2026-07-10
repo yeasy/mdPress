@@ -30,6 +30,9 @@ var uiStrings = map[string]map[string]string{
 		"search_match_text":  "正文",
 		"search_matched":     "已定位到：%s",
 		"on_this_page":       "本页目录",
+		"edit_page":          "编辑此页",
+		"not_found_title":    "页面未找到",
+		"not_found_home":     "返回首页",
 		"copy":               "复制",
 		"copied":             "已复制！",
 		"hide_sidebar":       "隐藏侧边栏",
@@ -59,6 +62,9 @@ var uiStrings = map[string]map[string]string{
 		"search_match_text":  "本文",
 		"search_matched":     "一致箇所：%s",
 		"on_this_page":       "このページの目次",
+		"edit_page":          "このページを編集",
+		"not_found_title":    "ページが見つかりません",
+		"not_found_home":     "ホームに戻る",
 		"copy":               "コピー",
 		"copied":             "コピー済み！",
 		"hide_sidebar":       "サイドバーを隠す",
@@ -89,6 +95,9 @@ var uiStrings = map[string]map[string]string{
 		"search_match_text":  "text",
 		"search_matched":     "Matched: %s",
 		"on_this_page":       "ON THIS PAGE",
+		"edit_page":          "Edit this page",
+		"not_found_title":    "Page not found",
+		"not_found_home":     "Back to home",
 		"copy":               "Copy",
 		"copied":             "Copied!",
 		"hide_sidebar":       "Hide sidebar",
@@ -150,6 +159,7 @@ func populateUIStrings(d *pageData) {
 	d.UIsearchMatchText = uiString(lang, "search_match_text")
 	d.UIsearchMatched = uiString(lang, "search_matched")
 	d.UIonThisPage = uiString(lang, "on_this_page")
+	d.UIeditPage = uiString(lang, "edit_page")
 	d.UIcopy = uiString(lang, "copy")
 	d.UIcopied = uiString(lang, "copied")
 	d.UIhideSidebar = uiString(lang, "hide_sidebar")

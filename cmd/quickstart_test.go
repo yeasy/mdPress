@@ -43,10 +43,16 @@ func TestQuickstartCreatesProject(t *testing.T) {
 		t.Errorf("chapter01/README.md should exist: %v", err)
 	}
 
-	// Verify images directory and cover were created
-	coverPath := filepath.Join(projectDir, "images", "cover.svg")
-	if _, err := os.Stat(coverPath); err != nil {
-		t.Errorf("images/cover.svg should exist: %v", err)
+	// Verify images directory notes were created
+	imagesReadmePath := filepath.Join(projectDir, "images", "README.md")
+	if _, err := os.Stat(imagesReadmePath); err != nil {
+		t.Errorf("images/README.md should exist: %v", err)
+	}
+
+	// Verify .gitignore was created
+	gitignorePath := filepath.Join(projectDir, ".gitignore")
+	if _, err := os.Stat(gitignorePath); err != nil {
+		t.Errorf(".gitignore should exist: %v", err)
 	}
 }
 
@@ -155,12 +161,6 @@ func TestQuickstartCreatesImageDirectory(t *testing.T) {
 	imagesReadme := filepath.Join(imagesDir, "README.md")
 	if _, err := os.Stat(imagesReadme); err != nil {
 		t.Errorf("images/README.md should exist: %v", err)
-	}
-
-	// Verify cover.svg exists
-	coverSVG := filepath.Join(imagesDir, "cover.svg")
-	if _, err := os.Stat(coverSVG); err != nil {
-		t.Errorf("cover.svg should exist: %v", err)
 	}
 }
 
@@ -517,8 +517,21 @@ func TestTemplateGeneration(t *testing.T) {
 				"Chapter 1: Getting Started",
 				"output:",
 				"filename: \"test-book.pdf\"",
+				// Cover overrides stay commented out so the built-in
+				// generated cover is used by default.
+				"# cover:",
+				"#   background: \"#102a43\"",
 			},
-			shouldNotContain: []string{},
+			shouldNotContain: []string{
+				// The style block stays slim so theme defaults apply;
+				// these keys previously fought or hid the default look.
+				"code_theme",
+				"font_size",
+				"font_family",
+				"line_height",
+				"images/cover.svg",
+				"#1a1a2e",
+			},
 		},
 		{
 			name:        "README.md generation",
@@ -639,71 +652,61 @@ func TestBookYAMLContent(t *testing.T) {
 	}
 }
 
-// Test SVG cover generation with special characters and truncation
-func TestPlaceholderCoverSVG(t *testing.T) {
-	tests := []struct {
-		name        string
-		title       string
-		expectedSVG string
-		shouldMatch bool
-	}{
-		{
-			name:        "simple title",
-			title:       "My Book",
-			expectedSVG: "My Book",
-			shouldMatch: true,
-		},
-		{
-			name:        "title with special chars",
-			title:       "Book & Guide",
-			expectedSVG: "Book &amp; Guide",
-			shouldMatch: true,
-		},
-		{
-			name:        "title with angle brackets",
-			title:       "Book <advanced>",
-			expectedSVG: "Book &lt;advanced&gt;",
-			shouldMatch: true,
-		},
-		{
-			name:        "long title truncation",
-			title:       "This is a very long book title that should be truncated",
-			expectedSVG: "This is a very long ...",
-			shouldMatch: true,
-		},
-		{
-			name:        "SVG structure",
-			title:       "Test",
-			expectedSVG: "<svg xmlns=",
-			shouldMatch: true,
-		},
-		{
-			name:        "gradient definition",
-			title:       "Test",
-			expectedSVG: "linearGradient",
-			shouldMatch: true,
-		},
-		{
-			name:        "mdpress attribution",
-			title:       "Test",
-			expectedSVG: "Built with mdpress",
-			shouldMatch: true,
-		},
+// TestQuickstartCreatesGitignore verifies the scaffolded .gitignore covers
+// every artifact a default multi-format build drops into the project.
+func TestQuickstartCreatesGitignore(t *testing.T) {
+	defer suppressOutput(t)()
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "gitignore-project")
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("executeQuickstart failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svg := generatePlaceholderCoverSVG(tt.title)
-			if tt.shouldMatch {
-				if !strings.Contains(svg, tt.expectedSVG) {
-					t.Errorf("expected SVG to contain %q, got:\n%s", tt.expectedSVG, svg[:min(len(svg), 300)])
-				}
-			} else {
-				if strings.Contains(svg, tt.expectedSVG) {
-					t.Errorf("expected SVG to NOT contain %q", tt.expectedSVG)
-				}
-			}
-		})
+	content, err := os.ReadFile(filepath.Join(projectDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+
+	contentStr := string(content)
+	expectedPatterns := []string{"_book/", "*_site/", "*.pdf", "*.html", "*.epub"}
+	for _, pattern := range expectedPatterns {
+		if !strings.Contains(contentStr, pattern) {
+			t.Errorf("expected .gitignore to contain %q, got:\n%s", pattern, contentStr)
+		}
+	}
+}
+
+// TestQuickstartPreservesExistingGitignore verifies quickstart --force does not
+// overwrite a user's .gitignore.
+func TestQuickstartPreservesExistingGitignore(t *testing.T) {
+	defer suppressOutput(t)()
+
+	prev := quickstartForce
+	quickstartForce = true
+	defer func() { quickstartForce = prev }()
+
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "existing-gitignore-project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+	existing := "# my rules\nnode_modules/\n"
+	gitignorePath := filepath.Join(projectDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte(existing), 0o644); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("executeQuickstart failed: %v", err)
+	}
+
+	content, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("failed to read .gitignore: %v", err)
+	}
+	if string(content) != existing {
+		t.Errorf("existing .gitignore should be preserved, got:\n%s", string(content))
 	}
 }
 
@@ -800,7 +803,6 @@ func TestImagesDirectoryStructure(t *testing.T) {
 	imagesDir := filepath.Join(projectDir, "images")
 	expectedFiles := []string{
 		filepath.Join(imagesDir, "README.md"),
-		filepath.Join(imagesDir, "cover.svg"),
 	}
 
 	for _, expectedFile := range expectedFiles {
@@ -900,46 +902,26 @@ func TestNestedDirectoryCreation(t *testing.T) {
 	}
 }
 
-// Test SVG XML special character handling
-func TestSVGSpecialCharacterHandling(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "ampersand",
-			input:    "Fish & Chips",
-			expected: "Fish &amp; Chips",
-		},
-		{
-			name:     "less than",
-			input:    "Value < 10",
-			expected: "Value &lt; 10",
-		},
-		{
-			name:     "greater than",
-			input:    "Value > 10",
-			expected: "Value &gt; 10",
-		},
-		{
-			name:     "multiple special chars",
-			input:    "A & B < C > D",
-			expected: "A &amp; B &lt; C &gt; D",
-		},
-		{
-			name:     "no special chars",
-			input:    "Normal Title",
-			expected: "Normal Title",
-		},
+// TestQuickstartBookYAMLUsesDefaultCover verifies the generated config does
+// not set a cover image or background, so the built-in generated cover shows.
+func TestQuickstartBookYAMLUsesDefaultCover(t *testing.T) {
+	defer suppressOutput(t)()
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "default-cover-project")
+
+	if err := executeQuickstart(projectDir); err != nil {
+		t.Fatalf("executeQuickstart failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svg := generatePlaceholderCoverSVG(tt.input)
-			if !strings.Contains(svg, tt.expected) {
-				t.Errorf("expected SVG to contain %q, got:\n%s", tt.expected, svg)
-			}
-		})
+	cfg, err := config.Load(filepath.Join(projectDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("config.Load should succeed: %v", err)
+	}
+
+	if cfg.Book.Cover.Image != "" {
+		t.Errorf("cover image should be unset so the default cover is used, got %q", cfg.Book.Cover.Image)
+	}
+	if cfg.Book.Cover.Background != "" {
+		t.Errorf("cover background should be unset so the default cover is used, got %q", cfg.Book.Cover.Background)
 	}
 }

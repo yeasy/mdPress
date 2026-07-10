@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestSiteGeneratorIndexPage verifies that index.html renders the first chapter
@@ -52,7 +53,7 @@ func TestSiteGeneratorIndexPage(t *testing.T) {
 		t.Error("index.html should contain the first chapter content")
 	}
 	// The SPA router should recognize ch1.html as the active file.
-	if !strings.Contains(indexHTML, `class="sidebar-home-link" href="/index.html"`) {
+	if !strings.Contains(indexHTML, `class="sidebar-home-link" href="index.html"`) {
 		t.Error("index.html should point the sidebar title to index.html")
 	}
 	if strings.Contains(indexHTML, `<span class="bc-sep">›</span>`) {
@@ -102,8 +103,8 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	if strings.Contains(ch1HTML, `href="ch0.html"`) {
 		t.Error("first page should not have a previous link")
 	}
-	// But should have a next link
-	if !strings.Contains(ch1HTML, `href="/ch2.html"`) {
+	// But should have a next link (relative, so subpath/file:// hosting works)
+	if !strings.Contains(ch1HTML, `class="next" href="ch2.html"`) {
 		t.Error("first page should link to next page (ch2.html)")
 	}
 	if !strings.Contains(ch1HTML, "Chapter 2") {
@@ -117,13 +118,13 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	}
 	ch2HTML := string(ch2Data)
 
-	if !strings.Contains(ch2HTML, `href="/ch1.html"`) {
+	if !strings.Contains(ch2HTML, `class="prev" href="ch1.html"`) {
 		t.Error("middle page should have a previous link to ch1.html")
 	}
 	if !strings.Contains(ch2HTML, "Chapter 1") {
 		t.Error("middle page should show previous page title (Chapter 1)")
 	}
-	if !strings.Contains(ch2HTML, `href="/ch3.html"`) {
+	if !strings.Contains(ch2HTML, `class="next" href="ch3.html"`) {
 		t.Error("middle page should have a next link to ch3.html")
 	}
 	if !strings.Contains(ch2HTML, "Chapter 3") {
@@ -137,7 +138,7 @@ func TestSiteGeneratorPrevNextNavigation(t *testing.T) {
 	}
 	ch3HTML := string(ch3Data)
 
-	if !strings.Contains(ch3HTML, `href="/ch2.html"`) {
+	if !strings.Contains(ch3HTML, `class="prev" href="ch2.html"`) {
 		t.Error("last page should have a previous link to ch2.html")
 	}
 	if !strings.Contains(ch3HTML, "Chapter 2") {
@@ -290,7 +291,7 @@ func TestSiteGeneratorAutoFilenames(t *testing.T) {
 	}
 	page0HTML := string(page0Data)
 
-	if !strings.Contains(page0HTML, `href="/page_1.html"`) {
+	if !strings.Contains(page0HTML, `class="next" href="page_1.html"`) {
 		t.Error("page_0.html should link to page_1.html")
 	}
 }
@@ -1018,6 +1019,7 @@ func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
 		Title:    "Test Book",
 		Author:   "Test Author",
 		Language: "en-US",
+		SiteURL:  "https://example.com/book/",
 	})
 
 	// Add multiple chapters for search index
@@ -1054,17 +1056,34 @@ func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
 	if !strings.Contains(sitemapContent, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`) {
 		t.Error("sitemap.xml should contain urlset element with correct namespace")
 	}
-	if !strings.Contains(sitemapContent, `<loc>index.html</loc>`) {
-		t.Error("sitemap.xml should contain index.html URL")
+	// The sitemap protocol requires fully-qualified URLs.
+	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/</loc>`) {
+		t.Error("sitemap.xml should contain the absolute site root URL")
 	}
-	if !strings.Contains(sitemapContent, `<loc>ch1.html</loc>`) {
-		t.Error("sitemap.xml should contain ch1.html URL")
+	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/ch1.html</loc>`) {
+		t.Error("sitemap.xml should contain the absolute ch1.html URL")
 	}
-	if !strings.Contains(sitemapContent, `<loc>ch2.html</loc>`) {
-		t.Error("sitemap.xml should contain ch2.html URL")
+	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/ch2.html</loc>`) {
+		t.Error("sitemap.xml should contain the absolute ch2.html URL")
+	}
+	if strings.Contains(sitemapContent, `<loc>ch1.html</loc>`) {
+		t.Error("sitemap.xml must not contain relative <loc> entries")
+	}
+	lastMod := fmt.Sprintf("<lastmod>%s</lastmod>", time.Now().Format("2006-01-02"))
+	if !strings.Contains(sitemapContent, lastMod) {
+		t.Errorf("sitemap.xml should contain %s", lastMod)
 	}
 	if !strings.Contains(sitemapContent, `</urlset>`) {
 		t.Error("sitemap.xml should close with </urlset>")
+	}
+
+	// Pages should reference the sitemap when it is generated.
+	pageHTML, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	if !strings.Contains(string(pageHTML), `<link rel="sitemap" type="application/xml" href="sitemap.xml">`) {
+		t.Error("pages should link to sitemap.xml when the sitemap is generated")
 	}
 
 	// Test search-index.json
@@ -1346,24 +1365,411 @@ func TestValidateFilenameSymlink(t *testing.T) {
 	}
 }
 
-func TestAbsoluteSiteHref(t *testing.T) {
+func TestRelativeSiteHref(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    string
+		fromFile string
+		target   string
 		expected string
 	}{
-		{"empty", "", ""},
-		{"simple path", "chapter1/index.html", "/chapter1/index.html"},
-		{"path with dot segments", "a/../b/index.html", "/b/index.html"},
-		{"trailing slash", "docs/guide/", "/docs/guide"},
+		{"empty target", "ch1.html", "", ""},
+		{"root to root", "ch1.html", "ch2.html", "ch2.html"},
+		{"root to nested", "index.html", "part1/ch1.html", "part1/ch1.html"},
+		{"nested to root", "part1/ch1.html", "index.html", "../index.html"},
+		{"nested to sibling", "part1/ch1.html", "part1/ch2.html", "ch2.html"},
+		{"nested to self", "part1/ch1.html", "part1/ch1.html", "ch1.html"},
+		{"nested to other dir", "part1/sub/ch1.html", "part2/ch2.html", "../../part2/ch2.html"},
+		{"shared prefix", "a/b/x.html", "a/c/y.html", "../c/y.html"},
+		{"dot segments cleaned", "ch1.html", "a/../b/index.html", "b/index.html"},
+		{"leading slash stripped", "part1/ch1.html", "/index.html", "../index.html"},
+		{"empty from", "", "ch1.html", "ch1.html"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := absoluteSiteHref(tt.input)
+			got := relativeSiteHref(tt.fromFile, tt.target)
 			if got != tt.expected {
-				t.Errorf("absoluteSiteHref(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("relativeSiteHref(%q, %q) = %q, want %q", tt.fromFile, tt.target, got, tt.expected)
 			}
 		})
+	}
+}
+
+// TestSiteGeneratorRelativeLinksFromNestedPage verifies that all navigation
+// links on a nested page are relative, so the site works when served from a
+// subdirectory (GitHub Pages project site) or opened via file://.
+func TestSiteGeneratorRelativeLinksFromNestedPage(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Author:   "Author",
+		Language: "en-US",
+	})
+	gen.AddChapter(SiteChapter{
+		Title:    "Intro",
+		ID:       "intro",
+		Filename: "intro.html",
+		Content:  "<h1>Intro</h1>",
+	})
+	gen.AddChapter(SiteChapter{
+		Title:    "Part 1",
+		ID:       "part1",
+		Filename: "part1/index.html",
+		Content:  "<h1>Part 1</h1>",
+		Children: []SiteChapter{
+			{
+				Title:    "Chapter 1",
+				ID:       "ch1",
+				Filename: "part1/ch1.html",
+				Content:  "<h1>Chapter 1</h1>",
+				Depth:    1,
+			},
+		},
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "part1", "ch1.html"))
+	if err != nil {
+		t.Fatalf("read nested page failed: %v", err)
+	}
+	html := string(data)
+
+	// Home link climbs out of the page's directory.
+	if !strings.Contains(html, `class="sidebar-home-link" href="../index.html"`) {
+		t.Error("nested page should link home via ../index.html")
+	}
+	// Sidebar links are computed relative to the nested page.
+	if !strings.Contains(html, `href="../intro.html"`) {
+		t.Error("nested page sidebar should link ../intro.html")
+	}
+	if !strings.Contains(html, `href="index.html" data-file="part1/index.html"`) {
+		t.Error("nested page sidebar should link the sibling index.html relatively")
+	}
+	if !strings.Contains(html, `href="ch1.html" data-file="part1/ch1.html"`) {
+		t.Error("nested page sidebar should link itself relatively")
+	}
+	// Prev/next navigation is relative too.
+	if !strings.Contains(html, `class="prev" href="index.html"`) {
+		t.Error("nested page should have a relative previous link")
+	}
+	// Breadcrumbs are relative.
+	if !strings.Contains(html, `<span class="bc-sep">›</span><a href="index.html">Part 1</a>`) {
+		t.Error("nested page breadcrumb should link Part 1 relatively")
+	}
+	// No root-absolute links anywhere: they break subpath and file:// hosting.
+	if strings.Contains(html, `href="/`) {
+		t.Error("nested page must not contain root-absolute hrefs")
+	}
+
+	// The root page links down into the directory without any prefix.
+	rootData, err := os.ReadFile(filepath.Join(dir, "intro.html"))
+	if err != nil {
+		t.Fatalf("read root page failed: %v", err)
+	}
+	rootHTML := string(rootData)
+	if !strings.Contains(rootHTML, `href="part1/ch1.html"`) {
+		t.Error("root page sidebar should link part1/ch1.html")
+	}
+	if strings.Contains(rootHTML, `href="/`) {
+		t.Error("root page must not contain root-absolute hrefs")
+	}
+
+	// The SPA router resolves relative links against a computed site root and
+	// rewrites the static sidebar links to absolute URLs at load time.
+	if !strings.Contains(html, "var siteRoot") {
+		t.Error("page script should compute the site root for the SPA router")
+	}
+	if !strings.Contains(html, "resolveSiteHref") {
+		t.Error("page script should resolve site-relative hrefs against the site root")
+	}
+}
+
+// TestSiteGeneratorSitemapSkippedWithoutSiteURL verifies that no sitemap (and
+// no sitemap link) is emitted when the public site URL is not configured,
+// since the sitemap protocol forbids relative <loc> URLs.
+func TestSiteGeneratorSitemapSkippedWithoutSiteURL(t *testing.T) {
+	dir := t.TempDir()
+
+	gen := NewSiteGenerator(SiteMeta{
+		Title:    "Test Book",
+		Language: "en-US",
+	})
+	gen.AddChapter(SiteChapter{
+		Title:    "Chapter 1",
+		ID:       "ch1",
+		Filename: "ch1.html",
+		Content:  "<h1>Chapter 1</h1>",
+	})
+
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "sitemap.xml")); !errors.Is(err, fs.ErrNotExist) {
+		t.Error("sitemap.xml should not be generated without SiteURL")
+	}
+
+	pageHTML, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	if strings.Contains(string(pageHTML), `rel="sitemap"`) {
+		t.Error("pages should not reference a sitemap that is not generated")
+	}
+}
+
+// TestSiteGenerator404Page verifies the generated 404 fallback page.
+func TestSiteGenerator404Page(t *testing.T) {
+	t.Run("english default", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{Title: "Test Book", Language: "en-US"})
+		gen.AddChapter(SiteChapter{Title: "Chapter 1", Filename: "ch1.html", Content: "<h1>Chapter 1</h1>"})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "404.html"))
+		if err != nil {
+			t.Fatalf("404.html not created: %v", err)
+		}
+		html := string(data)
+		if !strings.Contains(html, "Page not found") {
+			t.Error("404.html should contain the localized title")
+		}
+		if !strings.Contains(html, `href="index.html"`) {
+			t.Error("404.html should fall back to a relative home link without SiteURL")
+		}
+		if !strings.Contains(html, "Back to home") {
+			t.Error("404.html should contain the home link label")
+		}
+	})
+
+	t.Run("chinese", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{Title: "测试书", Language: "zh-CN"})
+		gen.AddChapter(SiteChapter{Title: "第一章", Filename: "ch1.html", Content: "<h1>第一章</h1>"})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "404.html"))
+		if err != nil {
+			t.Fatalf("404.html not created: %v", err)
+		}
+		html := string(data)
+		if !strings.Contains(html, "页面未找到") {
+			t.Error("404.html should contain the Chinese title")
+		}
+		if !strings.Contains(html, "返回首页") {
+			t.Error("404.html should contain the Chinese home label")
+		}
+	})
+
+	t.Run("site url home link", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{
+			Title:    "Test Book",
+			Language: "en-US",
+			SiteURL:  "https://example.com/book",
+		})
+		gen.AddChapter(SiteChapter{Title: "Chapter 1", Filename: "ch1.html", Content: "<h1>Chapter 1</h1>"})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "404.html"))
+		if err != nil {
+			t.Fatalf("404.html not created: %v", err)
+		}
+		// 404 pages can be served at any URL depth, so the home link must be
+		// absolute when the site URL is known.
+		if !strings.Contains(string(data), `href="https://example.com/book/"`) {
+			t.Error("404.html should use the absolute site URL for the home link")
+		}
+	})
+}
+
+// TestSiteGeneratorEditLink verifies "edit this page" link generation.
+func TestSiteGeneratorEditLink(t *testing.T) {
+	t.Run("explicit source path", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{
+			Title:    "Test Book",
+			Language: "en-US",
+			EditBase: "https://github.com/user/repo/edit/main/",
+		})
+		gen.AddChapter(SiteChapter{
+			Title:      "Chapter 1",
+			Filename:   "ch1.html",
+			SourcePath: "docs/chapter-one.md",
+			Content:    "<h1>Chapter 1</h1>",
+		})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+		if err != nil {
+			t.Fatalf("read ch1.html failed: %v", err)
+		}
+		html := string(data)
+		if !strings.Contains(html, `href="https://github.com/user/repo/edit/main/docs/chapter-one.md"`) {
+			t.Error("page should contain the edit link built from EditBase and SourcePath")
+		}
+		if !strings.Contains(html, "Edit this page") {
+			t.Error("page should contain the localized edit label")
+		}
+	})
+
+	t.Run("derived source path", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{
+			Title:    "Test Book",
+			Language: "zh-CN",
+			EditBase: "https://github.com/user/repo/edit/main",
+		})
+		gen.AddChapter(SiteChapter{
+			Title:    "第一章",
+			Filename: "part1/ch1.html",
+			Content:  "<h1>第一章</h1>",
+		})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "part1", "ch1.html"))
+		if err != nil {
+			t.Fatalf("read page failed: %v", err)
+		}
+		html := string(data)
+		if !strings.Contains(html, `href="https://github.com/user/repo/edit/main/part1/ch1.md"`) {
+			t.Error("page should derive the markdown source path from the filename")
+		}
+		if !strings.Contains(html, "编辑此页") {
+			t.Error("page should contain the Chinese edit label")
+		}
+	})
+
+	t.Run("disabled without edit base", func(t *testing.T) {
+		dir := t.TempDir()
+		gen := NewSiteGenerator(SiteMeta{Title: "Test Book", Language: "en-US"})
+		gen.AddChapter(SiteChapter{
+			Title:      "Chapter 1",
+			Filename:   "ch1.html",
+			SourcePath: "ch1.md",
+			Content:    "<h1>Chapter 1</h1>",
+		})
+		if err := gen.Generate(dir); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+		if err != nil {
+			t.Fatalf("read ch1.html failed: %v", err)
+		}
+		if strings.Contains(string(data), `class="edit-page-link"`) {
+			t.Error("page should not contain an edit link without EditBase")
+		}
+	})
+}
+
+// TestEditSourcePath verifies the markdown source path derivation.
+func TestEditSourcePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		chapter  SiteChapter
+		expected string
+	}{
+		{"explicit source path wins", SiteChapter{Filename: "ch1.html", SourcePath: "src/one.md"}, "src/one.md"},
+		{"root page", SiteChapter{Filename: "ch1.html"}, "ch1.md"},
+		{"nested page", SiteChapter{Filename: "part1/ch1.html"}, "part1/ch1.md"},
+		{"root index", SiteChapter{Filename: "index.html"}, "README.md"},
+		{"nested index", SiteChapter{Filename: "part1/index.html"}, "part1/README.md"},
+		{"empty filename", SiteChapter{}, ""},
+		{"non-html filename", SiteChapter{Filename: "asset.png"}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := editSourcePath(tt.chapter); got != tt.expected {
+				t.Errorf("editSourcePath(%+v) = %q, want %q", tt.chapter, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSiteGeneratorDarkModeTableOverrides verifies the dark-mode overrides
+// that keep tables readable when the theme CSS paints zebra rows and header
+// cells with the light --color-code-bg.
+func TestSiteGeneratorDarkModeTableOverrides(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Test Book", Language: "en-US"})
+	gen.AddChapter(SiteChapter{Title: "Chapter 1", Filename: "ch1.html", Content: "<h1>Chapter 1</h1>"})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	html := string(data)
+	if !strings.Contains(html, "html.dark .content table tbody tr:nth-child(even) td") {
+		t.Error("dark mode CSS should override zebra-row TD backgrounds set by theme CSS")
+	}
+	if !strings.Contains(html, "html.dark .content table th { background-color: #262637;") {
+		t.Error("dark mode CSS should override table header backgrounds")
+	}
+}
+
+// TestSiteGeneratorTocCollapse verifies the page-TOC rail collapse works
+// without depending on the dead :empty selector: the JS toggles a
+// .toc-collapsed class on .main-body, with :has() as progressive enhancement.
+func TestSiteGeneratorTocCollapse(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Test Book", Language: "en-US"})
+	gen.AddChapter(SiteChapter{Title: "Chapter 1", Filename: "ch1.html", Content: "<h1>Chapter 1</h1>"})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	html := string(data)
+	if !strings.Contains(html, ".main-body.toc-collapsed") {
+		t.Error("CSS should collapse the TOC rail via the JS-managed .toc-collapsed class")
+	}
+	if !strings.Contains(html, ".main-body:has(> .page-toc.toc-hidden)") {
+		t.Error("CSS should keep the :has() collapse as progressive enhancement")
+	}
+	if strings.Contains(html, ".page-toc:empty") {
+		t.Error("dead .page-toc:empty selector should be removed")
+	}
+	if !strings.Contains(html, "mainBody.classList.add('toc-collapsed')") {
+		t.Error("buildPageTOC should add .toc-collapsed when there are no TOC entries")
+	}
+	if !strings.Contains(html, "mainBody.classList.remove('toc-collapsed')") {
+		t.Error("buildPageTOC should remove .toc-collapsed when TOC entries exist")
+	}
+}
+
+// TestSiteGeneratorCaptionSelector verifies that only explicit caption-shaped
+// paragraphs after a standalone image get caption styling, so normal body
+// text following an image is never shrunk or grayed.
+func TestSiteGeneratorCaptionSelector(t *testing.T) {
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Test Book", Language: "en-US"})
+	gen.AddChapter(SiteChapter{Title: "Chapter 1", Filename: "ch1.html", Content: "<h1>Chapter 1</h1>"})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
+	if err != nil {
+		t.Fatalf("read ch1.html failed: %v", err)
+	}
+	html := string(data)
+	if strings.Contains(html, ".content p:has(> img) + p,") ||
+		strings.Contains(html, ".content p:has(> img) + p {") {
+		t.Error("broad image-caption selector should be removed")
+	}
+	if !strings.Contains(html, ".content p:has(> img:only-child) + p:has(> em:only-child)") {
+		t.Error("caption styling should be restricted to emphasized-only paragraphs after standalone images")
 	}
 }
 

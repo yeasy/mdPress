@@ -1,30 +1,21 @@
-# mdpress minimal theme
-# Suitable for notes, memos, and concise documentation
+# Example custom theme file mirroring the built-in "minimal" theme.
 name: minimal
 page_size: A4
-font_family: "system-ui, -apple-system, PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, sans-serif"
-font_size: 11
-code_theme: pygments
-line_height: 1.5
-
+font_family: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'San Francisco', 'Segoe UI', Roboto, sans-serif"
+font_size: 10
+code_theme: bw
+line_height: 1.7
 colors:
   text: "#000000"
-  background: "#ffffff"
+  background: "#FFFFFF"
   heading: "#000000"
-  link: "#0066cc"
-  code_bg: "#f8f8f8"
-  code_text: "#333333"
-  accent: "#666666"
-  border: "#eeeeee"
-
+  link: "#0000EE"
+  code_bg: "#F6F6F6"
+  code_text: "#000000"
+  accent: "#1A1A1A"
+  border: "#E0E0E0"
 margins:
-  top: 20
-  bottom: 20
-  left: 18
-  right: 18
-
-header_template: ""
-footer_template: |
-  <div style="font-size:8pt;color:#ccc;text-align:center;">
-    {{.PageNum}}
-  </div>
+  top: 30.0
+  bottom: 30.0
+  left: 30.0
+  right: 30.0
