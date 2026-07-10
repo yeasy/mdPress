@@ -11,7 +11,7 @@ import (
 // TestNewCoverGenerator verifies cover generator creation.
 func TestNewCoverGenerator(t *testing.T) {
 	meta := config.BookMeta{Title: "Test Book"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	if gen == nil {
 		t.Fatal("NewCoverGenerator returned nil")
 	}
@@ -24,7 +24,7 @@ func TestRenderHTMLBasic(t *testing.T) {
 		Author:  "Author",
 		Version: "1.0.0",
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "My Book") {
@@ -51,7 +51,7 @@ func TestRenderHTMLWithSubtitle(t *testing.T) {
 		Subtitle: "Subtitle Content",
 		Author:   "Author",
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "Subtitle Content") {
@@ -68,7 +68,7 @@ func TestRenderHTMLWithBackground(t *testing.T) {
 		Title: "Test",
 		Cover: config.CoverMeta{Background: "#1a1a2e"},
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "#1a1a2e") {
@@ -82,7 +82,7 @@ func TestRenderHTMLWithCoverImage(t *testing.T) {
 		Title: "Test",
 		Cover: config.CoverMeta{Image: "cover.png"},
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "cover.png") {
@@ -96,7 +96,7 @@ func TestRenderHTMLWithCoverImage(t *testing.T) {
 // TestRenderHTMLDefaultGradient verifies the default clean white background.
 func TestRenderHTMLDefaultGradient(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "background-color: #ffffff") {
@@ -107,7 +107,7 @@ func TestRenderHTMLDefaultGradient(t *testing.T) {
 // TestRenderHTMLEmptyTitle verifies empty-title handling.
 func TestRenderHTMLEmptyTitle(t *testing.T) {
 	meta := config.BookMeta{Title: "", Author: "Author"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	// Rendering should still succeed.
@@ -122,7 +122,7 @@ func TestRenderHTMLEscaping(t *testing.T) {
 		Title:  "<script>alert('xss')</script>",
 		Author: `"injected"`,
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if strings.Contains(html, "<script>") {
@@ -139,7 +139,7 @@ func TestRenderHTMLEscaping(t *testing.T) {
 // TestRenderHTMLContainsDate verifies date rendering.
 func TestRenderHTMLContainsDate(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "Date") {
@@ -153,7 +153,7 @@ func TestRenderHTMLContainsDate(t *testing.T) {
 // TestRenderHTMLStructure verifies the HTML structure.
 func TestRenderHTMLStructure(t *testing.T) {
 	meta := config.BookMeta{Title: "Test", Author: "Author", Version: "1.0"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	requiredTags := []string{
@@ -252,7 +252,7 @@ func TestRenderHTMLChineseLabels(t *testing.T) {
 		Version:  "1.0",
 		Language: "zh-CN",
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "作者") {
@@ -277,7 +277,7 @@ func TestRenderHTMLEnglishLabels(t *testing.T) {
 		Version:  "1.0",
 		Language: "en-US",
 	}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	if !strings.Contains(html, "Author") {
@@ -294,7 +294,7 @@ func TestRenderHTMLEnglishLabels(t *testing.T) {
 // TestRenderHTMLNoAuthor verifies rendering without an author.
 func TestRenderHTMLNoAuthor(t *testing.T) {
 	meta := config.BookMeta{Title: "Test"}
-	gen := NewCoverGenerator(meta)
+	gen := NewCoverGenerator(meta, nil)
 	html := gen.RenderHTML()
 
 	// Rendering should succeed without an author block.

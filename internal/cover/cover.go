@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -27,12 +28,17 @@ var cssColorPattern = regexp.MustCompile(`^(?i)(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl
 // CoverGenerator builds the HTML cover page.
 type CoverGenerator struct {
 	meta config.BookMeta
+	// thm is the active document theme; may be nil, in which case the
+	// generator falls back to its built-in defaults.
+	thm *theme.Theme
 }
 
-// NewCoverGenerator creates a new cover generator from book metadata.
-func NewCoverGenerator(meta config.BookMeta) *CoverGenerator {
+// NewCoverGenerator creates a new cover generator from book metadata and the
+// active theme (nil theme falls back to built-in defaults).
+func NewCoverGenerator(meta config.BookMeta, thm *theme.Theme) *CoverGenerator {
 	return &CoverGenerator{
 		meta: meta,
+		thm:  thm,
 	}
 }
 

@@ -240,7 +240,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	progress.Start("Generating cover and TOC")
 	var coverHTML string
 	if cfg.Output.Cover {
-		coverHTML = cover.NewCoverGenerator(cfg.Book).RenderHTML()
+		coverHTML = cover.NewCoverGenerator(cfg.Book, orchestrator.Theme).RenderHTML()
 	}
 
 	var tocHTML string
@@ -1250,7 +1250,10 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 		Theme:            thm.Name,
 		ThemeDescription: theme.GetThemeDescription(thm.Name),
 	})
-	siteGen.SetCSS(thm.ToCSS() + "\n" + customCSS)
+	siteGen.SetCSS(thm.ToCSS() + "\n" +
+		markdown.HighlightCSSLight(thm.CodeTheme) + "\n" +
+		markdown.HighlightCSSDark(thm.CodeTheme) + "\n" +
+		customCSS)
 
 	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, chapterFiles, pageFilenames, chapterMarkdown) {
 		siteGen.AddChapter(ch)

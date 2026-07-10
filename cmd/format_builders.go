@@ -235,6 +235,7 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 	// shared assets above their own directory (e.g. ../images/pic.png).
 	epubGen.SetBookRoot(ctx.Config.BaseDir())
 	epubGen.SetCSS(ctx.Theme.ToCSS() + "\n" + ctx.CustomCSS)
+	epubGen.SetTheme(ctx.Theme)
 	for i, ch := range ctx.ChaptersHTML {
 		sourceDir := ""
 		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {

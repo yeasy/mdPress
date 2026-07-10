@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -80,10 +81,14 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		return "", errors.New("render parts cannot be nil")
 	}
 
-	// Assemble CSS bundle (theme CSS + custom CSS).
+	// Assemble CSS bundle (theme CSS + syntax highlighting + custom CSS).
 	var cssBuilder strings.Builder
 	if r.theme != nil {
 		cssBuilder.WriteString(r.theme.ToCSS())
+		cssBuilder.WriteString("\n")
+		cssBuilder.WriteString(markdown.HighlightCSSLight(r.theme.CodeTheme))
+		cssBuilder.WriteString("\n")
+		cssBuilder.WriteString(markdown.HighlightCSSDark(r.theme.CodeTheme))
 		cssBuilder.WriteString("\n")
 	}
 	if parts.CustomCSS != "" {
