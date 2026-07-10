@@ -942,6 +942,18 @@ func (s *Server) isIgnoredPath(path string) bool {
 	if errPath != nil || errOut != nil {
 		return false
 	}
+	// If the output directory contains (or equals) the watch root, the prefix
+	// rule would ignore every watched file — e.g. an --output pointing at a
+	// parent of the project, or the OS temp root on systems where the project
+	// itself lives under it. Fall back to name-based filtering only.
+	if s.WatchDir != "" {
+		if absWatch, err := filepath.Abs(s.WatchDir); err == nil {
+			sep := string(filepath.Separator)
+			if absWatch == absOut || strings.HasPrefix(absWatch+sep, absOut+sep) {
+				return false
+			}
+		}
+	}
 	for _, ignored := range []string{absOut, absOut + ".old"} {
 		if absPath == ignored || strings.HasPrefix(absPath, ignored+string(filepath.Separator)) {
 			return true
