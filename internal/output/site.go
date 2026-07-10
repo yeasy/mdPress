@@ -51,6 +51,13 @@ type SiteMeta struct {
 	Language         string
 	Theme            string // CSS theme name.
 	ThemeDescription string
+	// SiteURL is the public base URL of the deployed site (e.g.
+	// https://user.github.io/repo). When set, an absolute-URL sitemap.xml is
+	// generated. Empty disables the sitemap.
+	SiteURL string
+	// EditBase is the base URL for "edit this page" links (e.g.
+	// https://github.com/user/repo/edit/main/). Empty disables the links.
+	EditBase string
 }
 
 // SiteGenerator generates the static site.

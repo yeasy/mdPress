@@ -222,19 +222,22 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 		coverImagePath = ctx.Config.ResolvePath(ctx.Config.Book.Cover.Image)
 	}
 	epubGen := output.NewEpubGenerator(output.EpubMeta{
-		Title:          ctx.Config.Book.Title,
-		Subtitle:       ctx.Config.Book.Subtitle,
-		Author:         ctx.Config.Book.Author,
-		Language:       ctx.Config.Book.Language,
-		Version:        ctx.Config.Book.Version,
-		Description:    ctx.Config.Book.Description,
-		IncludeCover:   ctx.Config.Output.Cover,
-		CoverImagePath: coverImagePath,
+		Title:           ctx.Config.Book.Title,
+		Subtitle:        ctx.Config.Book.Subtitle,
+		Author:          ctx.Config.Book.Author,
+		Language:        ctx.Config.Book.Language,
+		Version:         ctx.Config.Book.Version,
+		Description:     ctx.Config.Book.Description,
+		IncludeCover:    ctx.Config.Output.Cover,
+		CoverImagePath:  coverImagePath,
+		CoverBackground: ctx.Config.Book.Cover.Background,
 	})
 	// Use the book root as the image-containment base so chapters can reference
 	// shared assets above their own directory (e.g. ../images/pic.png).
 	epubGen.SetBookRoot(ctx.Config.BaseDir())
-	epubGen.SetCSS(ctx.Theme.ToCSS() + "\n" + ctx.CustomCSS)
+	// EPUB styling contract: SetCSS carries only the user's custom CSS; the
+	// generator derives its own reader-friendly stylesheet from the theme.
+	epubGen.SetCSS(ctx.CustomCSS)
 	epubGen.SetTheme(ctx.Theme)
 	for i, ch := range ctx.ChaptersHTML {
 		sourceDir := ""

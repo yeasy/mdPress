@@ -34,6 +34,8 @@ type EpubMeta struct {
 	Description    string
 	IncludeCover   bool
 	CoverImagePath string
+	// CoverBackground is the configured cover background color (may be empty).
+	CoverBackground string
 }
 
 // EpubChapter stores one EPUB chapter.

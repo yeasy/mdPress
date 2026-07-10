@@ -149,6 +149,9 @@ type OutputConfig struct {
 	MarginLeft        string   `yaml:"margin_left"`        // e.g., "25mm" (default "20mm")
 	MarginRight       string   `yaml:"margin_right"`       // e.g., "25mm" (default "20mm")
 	GenerateBookmarks bool     `yaml:"generate_bookmarks"` // Generate PDF bookmarks from headings (default true)
+	SiteURL           string   `yaml:"site_url"`           // Public base URL of the deployed site (e.g. https://user.github.io/repo); enables sitemap.xml
+	EditBase          string   `yaml:"edit_base"`          // Base URL for "edit this page" links (e.g. https://github.com/user/repo/edit/main/)
+	TaggedPDF         *bool    `yaml:"tagged_pdf"`         // Generate accessible tagged PDF (default true; false produces smaller files)
 }
 
 // DefaultConfig returns a config populated with reasonable defaults.
