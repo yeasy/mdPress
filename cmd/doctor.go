@@ -80,15 +80,16 @@ func init() {
 }
 
 type doctorReport struct {
-	Platform           string                   `json:"platform"`
-	GoVersion          string                   `json:"go_version"`
-	CacheDir           string                   `json:"cache_dir,omitempty"`
-	CacheDisabled      bool                     `json:"cache_disabled"`
-	ChromiumAvailable  bool                     `json:"chromium_available"`
-	TypstAvailable     bool                     `json:"typst_available"`
-	TypstVersion       string                   `json:"typst_version,omitempty"`
-	CJKFontsAvailable  bool                     `json:"cjk_fonts_available"`
-	PlantUMLAvailable  bool                     `json:"plantuml_available"`
+	Platform          string `json:"platform"`
+	GoVersion         string `json:"go_version"`
+	CacheDir          string `json:"cache_dir,omitempty"`
+	CacheDisabled     bool   `json:"cache_disabled"`
+	ChromiumAvailable bool   `json:"chromium_available"`
+	TypstAvailable    bool   `json:"typst_available"`
+	TypstVersion      string `json:"typst_version,omitempty"`
+	CJKFontsAvailable bool   `json:"cjk_fonts_available"`
+	// PlantUMLNeeded reports that the project contains plantuml blocks,
+	// which mdpress publishes as plain code rather than rendering.
 	PlantUMLNeeded     bool                     `json:"plantuml_needed"`
 	GoVersionCheck     string                   `json:"go_version_check,omitempty"`
 	GitAvailable       bool                     `json:"git_available"`
@@ -668,69 +669,24 @@ func isPluginExecutable(path string, mode os.FileMode) bool {
 	return isExecutable(mode)
 }
 
+// checkPlantUML reports that PlantUML blocks are published as plain code.
+//
+// mdpress ships a PlantUML renderer that no production path constructs — the
+// package is not linked into the binary — so a ```plantuml fence renders as a
+// code block. This check used to probe for Java, PLANTUML_JAR and the plantuml
+// command and tell the user to `brew install plantuml`, which meant they could
+// install the toolchain, write diagrams, and only discover from the finished
+// artifact that nothing had been drawn.
 func checkPlantUML(targetDir string, report *doctorReport) {
-	// Check if any markdown files contain plantuml blocks
-	hasPlantumlBlocks := hasPlantUMLBlocks(targetDir)
-	report.PlantUMLNeeded = hasPlantumlBlocks
-
-	if !hasPlantumlBlocks {
-		utils.Success("PlantUML not needed (no diagrams detected)")
+	if !hasPlantUMLBlocks(targetDir) {
 		return
 	}
-
-	// Check for Java (required for PlantUML)
-	_, javaErr := exec.LookPath("java")
-
-	// Check for PLANTUML_JAR environment variable
-	plantUMLJar := os.Getenv("PLANTUML_JAR")
-
-	// Check for plantuml command in PATH
-	_, plantUMLErr := exec.LookPath("plantuml")
-
-	// Determine status
-	if javaErr != nil && plantUMLJar == "" && plantUMLErr != nil {
-		// Java not found and no plantuml configuration
-		utils.Error("PlantUML not available")
-		msg := "PlantUML not configured — diagrams will be skipped"
-		report.Warnings = append(report.Warnings, msg)
-		if javaErr != nil {
-			fmt.Println("    Java not found — PlantUML diagrams will not render")
-		}
-		fmt.Println("    Install PlantUML: brew install plantuml")
-		fmt.Println("    Or set PLANTUML_JAR=/path/to/plantuml.jar environment variable")
-		return
-	}
-
-	if javaErr != nil {
-		// Java is required but not found
-		utils.Warning("Java not found — PlantUML diagrams will not render")
-		msg := "Java not found — PlantUML diagrams will not render"
-		report.Warnings = append(report.Warnings, msg)
-		return
-	}
-
-	// Java is available; check if we can use plantuml
-	if plantUMLJar != "" {
-		if _, err := os.Stat(plantUMLJar); err == nil {
-			// PLANTUML_JAR is set and points to a valid file
-			report.PlantUMLAvailable = true
-			utils.Success("PlantUML available (via PLANTUML_JAR)")
-		} else {
-			// PLANTUML_JAR is set but file doesn't exist
-			utils.Warning("PLANTUML_JAR is set but points to non-existent file: %s", plantUMLJar)
-			msg := fmt.Sprintf("PLANTUML_JAR is set but points to non-existent file: %s", plantUMLJar)
-			report.Warnings = append(report.Warnings, msg)
-		}
-	} else if plantUMLErr == nil {
-		// plantuml command found in PATH
-		report.PlantUMLAvailable = true
-		utils.Success("PlantUML available (via plantuml command)")
-	} else {
-		// No plantuml command found, but Java is available
-		utils.Warning("PlantUML command not found — install via: brew install plantuml")
-		msg := "PlantUML command not found (Java is available but plantuml is not installed)"
-		report.Warnings = append(report.Warnings, msg)
-	}
+	report.PlantUMLNeeded = true
+	utils.Warning("PlantUML blocks found — mdpress publishes them as plain code, not diagrams")
+	report.Warnings = append(report.Warnings,
+		"PlantUML blocks are published as plain code; mdpress does not render PlantUML")
+	fmt.Println("    Pre-render the diagrams and reference the images instead, or use ```mermaid,")
+	fmt.Println("    which mdpress does render.")
 }
 
 // hasPlantUMLBlocks checks if any markdown files in the directory contain plantuml code blocks.
@@ -876,8 +832,7 @@ func renderDoctorMarkdown(report doctorReport) string {
 		fmt.Fprintf(&b, "- Disk space available: %.2f GB\n", report.DiskSpaceGB)
 	}
 	fmt.Fprintf(&b, "- Disk space OK: %t\n", report.DiskSpaceOK)
-	fmt.Fprintf(&b, "- PlantUML needed: %t\n", report.PlantUMLNeeded)
-	fmt.Fprintf(&b, "- PlantUML available: %t\n", report.PlantUMLAvailable)
+	fmt.Fprintf(&b, "- PlantUML blocks present (published as plain code): %t\n", report.PlantUMLNeeded)
 	fmt.Fprintf(&b, "- Plugins valid: %t\n", report.PluginsValid)
 	if report.PluginCount > 0 {
 		fmt.Fprintf(&b, "- Plugin count: %d\n", report.PluginCount)
