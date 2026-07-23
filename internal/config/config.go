@@ -327,21 +327,26 @@ func (c *BookConfig) detectAuxFiles() {
 }
 
 // Validate checks the configuration for completeness and validity.
+//
+// It reports every independent problem it finds rather than stopping at the
+// first one: a book.yaml with five mistakes used to take five edit-and-rerun
+// cycles to clean up. The result is an [errors.Join] value, so callers that
+// want to render one line per problem can unwrap it with ValidationErrors.
 func (c *BookConfig) Validate() error {
+	var errs []error
+
 	if c.Book.Title == "" {
-		return errors.New("book title cannot be empty (set book.title in book.yaml)")
+		errs = append(errs, errors.New("book title cannot be empty (set book.title in book.yaml)"))
 	}
 
 	if len(c.Chapters) == 0 {
-		return errors.New("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)")
-	}
-
-	if err := c.validateChapters(c.Chapters, ""); err != nil {
-		return fmt.Errorf("chapter validation failed: %w", err)
+		errs = append(errs, errors.New("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)"))
+	} else {
+		errs = append(errs, c.validateChapters(c.Chapters, "")...)
 	}
 
 	if c.Style.PageSize != "" && !IsValidPageSize(c.Style.PageSize) {
-		return fmt.Errorf("unsupported page size: %q (supported: A4, A5, Letter, Legal, B5)", c.Style.PageSize)
+		errs = append(errs, fmt.Errorf("unsupported page size: %q (supported: A4, A5, Letter, Legal, B5)", c.Style.PageSize))
 	}
 
 	// Validate the theme name. Besides the built-ins, a theme may be a YAML
@@ -351,117 +356,149 @@ func (c *BookConfig) Validate() error {
 		"technical": true, "elegant": true, "minimal": true, "": true,
 	}
 	if !validThemes[c.Style.Theme] && !isThemeFileRef(c.Style.Theme) && !c.hasProjectThemeFile(c.Style.Theme) {
-		return fmt.Errorf("unknown theme: %q (built-ins: technical, elegant, minimal; or provide themes/%s.yaml; run mdpress themes list for details)", c.Style.Theme, c.Style.Theme)
+		errs = append(errs, fmt.Errorf("unknown theme: %q (built-ins: technical, elegant, minimal; or provide themes/%s.yaml; run mdpress themes list for details)", c.Style.Theme, c.Style.Theme))
 	}
 
 	// Validate output formats.
 	validFormats := map[string]bool{"pdf": true, "html": true, "epub": true, "site": true, "typst": true}
 	for _, f := range c.Output.Formats {
 		if !validFormats[f] {
-			return fmt.Errorf("unsupported output format: %q (supported: pdf, html, epub, site, typst)", f)
+			errs = append(errs, fmt.Errorf("unsupported output format: %q (supported: pdf, html, epub, site, typst)", f))
 		}
 	}
 
 	// Validate TOCMaxDepth range (1-6, or 0 for default).
 	if c.Output.TOCMaxDepth != 0 && (c.Output.TOCMaxDepth < 1 || c.Output.TOCMaxDepth > 6) {
-		return fmt.Errorf("toc_max_depth must be between 1 and 6 (got %d)", c.Output.TOCMaxDepth)
+		errs = append(errs, fmt.Errorf("toc_max_depth must be between 1 and 6 (got %d)", c.Output.TOCMaxDepth))
 	}
 
 	// Validate WatermarkOpacity range (0.0-1.0, or 0 for not set).
 	if c.Output.WatermarkOpacity != 0 && (c.Output.WatermarkOpacity < 0.0 || c.Output.WatermarkOpacity > 1.0) {
-		return fmt.Errorf("watermark_opacity must be between 0.0 and 1.0 (got %f)", c.Output.WatermarkOpacity)
+		errs = append(errs, fmt.Errorf("watermark_opacity must be between 0.0 and 1.0 (got %f)", c.Output.WatermarkOpacity))
 	}
 
 	// Validate Watermark text: reject template injection markers and enforce length.
 	if c.Output.Watermark != "" {
 		if len(c.Output.Watermark) > 200 {
-			return fmt.Errorf("watermark text is too long (%d characters; max 200)", len(c.Output.Watermark))
+			errs = append(errs, fmt.Errorf("watermark text is too long (%d characters; max 200)", len(c.Output.Watermark)))
 		}
 		if strings.Contains(c.Output.Watermark, "{{") || strings.Contains(c.Output.Watermark, "}}") {
-			return errors.New("watermark text must not contain template markers ({{ or }})")
+			errs = append(errs, errors.New("watermark text must not contain template markers ({{ or }})"))
 		}
 	}
 
 	// Validate PDFTimeout range (5-3600 seconds, or 0 for default).
 	if c.Output.PDFTimeout != 0 && (c.Output.PDFTimeout < 5 || c.Output.PDFTimeout > 3600) {
-		return fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout)
+		errs = append(errs, fmt.Errorf("pdf_timeout must be between 5 and 3600 seconds (got %d)", c.Output.PDFTimeout))
 	}
 
 	// Validate font_family: allow Unicode letters (including CJK), digits, spaces, commas, hyphens, single quotes, and periods.
 	if c.Style.FontFamily != "" {
 		if !fontFamilyPattern.MatchString(c.Style.FontFamily) {
-			return errors.New("font_family contains invalid characters (only letters, digits, spaces, commas, hyphens, periods, and single quotes are allowed)")
+			errs = append(errs, errors.New("font_family contains invalid characters (only letters, digits, spaces, commas, hyphens, periods, and single quotes are allowed)"))
 		}
 	}
 
 	// Validate font_size: must match a simple CSS size pattern (e.g. 14px, 1.2em, 16pt, 100%%).
 	if c.Style.FontSize != "" {
 		if !fontSizePattern.MatchString(c.Style.FontSize) {
-			return fmt.Errorf("font_size %q is not a valid CSS size (expected a number followed by px, pt, em, rem, or %%)", c.Style.FontSize)
+			errs = append(errs, fmt.Errorf("font_size %q is not a valid CSS size (expected a number followed by px, pt, em, rem, or %%)", c.Style.FontSize))
 		}
 	}
 
 	// Validate code_theme: only allow alphanumeric, hyphens, and underscores.
 	if c.Style.CodeTheme != "" {
 		if !codeThemePattern.MatchString(c.Style.CodeTheme) {
-			return fmt.Errorf("code_theme %q contains invalid characters (only alphanumeric, hyphens, and underscores are allowed)", c.Style.CodeTheme)
+			errs = append(errs, fmt.Errorf("code_theme %q contains invalid characters (only alphanumeric, hyphens, and underscores are allowed)", c.Style.CodeTheme))
 		}
 	}
 
 	// Validate line_height: must be a positive value in a reasonable range.
 	if c.Style.LineHeight != 0 && (c.Style.LineHeight < 0.5 || c.Style.LineHeight > 5.0) {
-		return fmt.Errorf("line_height must be between 0.5 and 5.0 (got %g)", c.Style.LineHeight)
+		errs = append(errs, fmt.Errorf("line_height must be between 0.5 and 5.0 (got %g)", c.Style.LineHeight))
 	}
 
 	// Validate output filename: strip directory components to prevent path traversal.
 	if c.Output.Filename != "" {
 		base := filepath.Base(c.Output.Filename)
 		if base != c.Output.Filename {
-			return fmt.Errorf("output filename %q must not contain directory components", c.Output.Filename)
+			errs = append(errs, fmt.Errorf("output filename %q must not contain directory components", c.Output.Filename))
 		}
 	}
 
 	// Validate that custom_css does not escape the project directory.
 	if c.Style.CustomCSS != "" {
 		if _, err := utils.SafeJoin(c.baseDir, c.Style.CustomCSS); err != nil {
-			return fmt.Errorf("custom_css: %w", err)
+			errs = append(errs, fmt.Errorf("custom_css: %w", err))
 		}
 	}
 
 	// Validate that cover image does not escape the project directory.
 	if c.Book.Cover.Image != "" {
 		if _, err := utils.SafeJoin(c.baseDir, c.Book.Cover.Image); err != nil {
-			return fmt.Errorf("cover.image: %w", err)
+			errs = append(errs, fmt.Errorf("cover.image: %w", err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
+}
+
+// ValidationErrors flattens an error returned by [BookConfig.Validate] (or a
+// wrapper around one) into the individual problems it reports, so a caller can
+// render one line per problem instead of a single blob of joined text.
+// A nil error yields nil; an error that is not a join yields a one-element slice.
+func ValidationErrors(err error) []error {
+	if err == nil {
+		return nil
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok { //nolint:errorlint // matching the join node itself, not a target
+		var out []error
+		for _, e := range joined.Unwrap() {
+			out = append(out, ValidationErrors(e)...)
+		}
+		return out
+	}
+	if wrapped := errors.Unwrap(err); wrapped != nil {
+		// A wrapper such as "config validation failed: %w" only adds a prefix;
+		// keep it when it wraps a single error, but look through it when it
+		// hides a join so each problem still gets its own line.
+		if inner := ValidationErrors(wrapped); len(inner) > 1 {
+			return inner
+		}
+	}
+	return []error{err}
 }
 
 const maxChapterNestingDepth = 20
 
-// validateChapters recursively validates chapter definitions and their nested sections.
-func (c *BookConfig) validateChapters(chapters []ChapterDef, prefix string) error {
+// validateChapters recursively validates chapter definitions and their nested
+// sections, returning every problem it finds. Four missing chapter files used
+// to mean four runs of `mdpress validate`, one per file.
+func (c *BookConfig) validateChapters(chapters []ChapterDef, prefix string) []error {
 	return c.validateChaptersDepth(chapters, prefix, 0)
 }
 
-func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string, depth int) error {
+func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string, depth int) []error {
 	if depth > maxChapterNestingDepth {
-		return fmt.Errorf("chapter nesting exceeds maximum depth of %d", maxChapterNestingDepth)
+		return []error{fmt.Errorf("chapter nesting exceeds maximum depth of %d", maxChapterNestingDepth)}
 	}
+	var errs []error
 	for i, ch := range chapters {
 		label := fmt.Sprintf("%s%d", prefix, i+1)
 		if ch.File == "" {
-			return fmt.Errorf("chapter %s is missing a file path", label)
+			errs = append(errs, fmt.Errorf("chapter %s is missing a file path", label))
+			continue
 		}
 		// Reject absolute paths and paths that escape the project directory.
 		if filepath.IsAbs(ch.File) {
-			return fmt.Errorf("chapter %s: absolute path not allowed: %s", label, ch.File)
+			errs = append(errs, fmt.Errorf("chapter %s: absolute path not allowed: %s", label, ch.File))
+			continue
 		}
 		resolvedPath := c.ResolvePath(ch.File)
 		absResolved, err := filepath.Abs(resolvedPath)
 		if err != nil {
-			return fmt.Errorf("chapter %s: invalid path: %w", label, err)
+			errs = append(errs, fmt.Errorf("chapter %s: invalid path: %w", label, err))
+			continue
 		}
 		// Resolve symlinks so that a symlink inside the project pointing
 		// outside cannot bypass the containment check. Only apply symlink
@@ -469,7 +506,8 @@ func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string,
 		// the same "resolution level".
 		absBase, err := filepath.Abs(c.baseDir)
 		if err != nil {
-			return fmt.Errorf("chapter %s: cannot resolve base dir: %w", label, err)
+			errs = append(errs, fmt.Errorf("chapter %s: cannot resolve base dir: %w", label, err))
+			continue
 		}
 		if evaledR, errR := filepath.EvalSymlinks(absResolved); errR == nil {
 			if evaledB, errB := filepath.EvalSymlinks(absBase); errB == nil {
@@ -478,20 +516,20 @@ func (c *BookConfig) validateChaptersDepth(chapters []ChapterDef, prefix string,
 			}
 		}
 		if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
-			return fmt.Errorf("chapter %s: path escapes project directory: %s", label, ch.File)
+			errs = append(errs, fmt.Errorf("chapter %s: path escapes project directory: %s", label, ch.File))
+			continue
 		}
 		// Check whether the referenced chapter file exists.
 		if _, err := os.Stat(resolvedPath); errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("chapter %s references a missing file: %s (paths are relative to book.yaml)", label, ch.File)
+			errs = append(errs, fmt.Errorf("chapter %s references a missing file: %s (paths are relative to book.yaml)", label, ch.File))
+			continue
 		}
 		// Recursively validate nested sections.
 		if len(ch.Sections) > 0 {
-			if err := c.validateChaptersDepth(ch.Sections, label+".", depth+1); err != nil {
-				return fmt.Errorf("nested section validation failed: %w", err)
-			}
+			errs = append(errs, c.validateChaptersDepth(ch.Sections, label+".", depth+1)...)
 		}
 	}
-	return nil
+	return errs
 }
 
 // FlattenChapters expands nested chapter definitions into a flat list.

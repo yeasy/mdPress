@@ -95,10 +95,15 @@ func executeValidate(ctx context.Context, targetDir string) error {
 
 		cfg, err = config.Load(configPath)
 		if err != nil {
-			results = append(results, validateResult{
-				OK:      false,
-				Message: fmt.Sprintf("Invalid config syntax: %v", err),
-			})
+			// Load reports every problem it found, not just the first, so give
+			// each one its own line: a book.yaml with five mistakes should take
+			// one run to diagnose, not five.
+			for _, problem := range config.ValidationErrors(err) {
+				results = append(results, validateResult{
+					OK:      false,
+					Message: fmt.Sprintf("Invalid config: %v", problem),
+				})
+			}
 			return finalizeValidate(results, true, 0)
 		}
 		results = append(results, validateResult{
