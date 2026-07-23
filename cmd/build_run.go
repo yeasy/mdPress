@@ -1323,6 +1323,11 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 		ThemeDescription: theme.GetThemeDescription(thm.Name),
 		SiteURL:          cfg.Output.SiteURL,
 		EditBase:         cfg.Output.EditBase,
+		Favicon:          cfg.Book.Favicon,
+		Logo:             cfg.Book.Logo,
+		Copyright:        cfg.Book.Copyright,
+		FooterHTML:       cfg.Output.FooterHTML,
+		ShowThemeBadge:   cfg.Output.ShowThemeBadge,
 	})
 	// Lets the generator find the project's optional static/ directory.
 	siteGen.BookRoot = cfg.BaseDir()
