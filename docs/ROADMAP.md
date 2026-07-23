@@ -50,6 +50,7 @@ v0.7.13 ████████████████████████
 v0.7.14 ██████████████████████████████████████████ released (2026-07-10)
 v0.7.15 ██████████████████████████████████████████ released (2026-07-22)
 v0.8.0 ██████████████████████████████████████████ released (2026-07-23)
+v0.8.1 ██████████████████████████████████████████ released (2026-07-23)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1170,6 +1171,21 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | CDN assets pinned and SRI-checked | A blocked or tampered CDN now shows an explanatory notice and the diagram source instead of a blank gap |
 | PlantUML documentation made honest | mdPress does not render it; the manual advertised automatic rendering and `doctor` told users to install it |
 | New commands | `config show`, `cache info`/`clear`, `validate --strict`, `version --json`, `static/` passthrough, site branding, `variables:`, `section:` |
+
+---
+
+## v0.8.1 — Release-Run Fallout
+
+**Release date**: 2026-07-23
+**Theme**: two defects that v0.8.0's own release run exposed
+
+### Changes
+
+| Change | Description |
+| --- | --- |
+| A released binary reports its own tag | `mdpress version` printed `0.8.0+dirty`, and `0.7.15+dirty` before it: the injected tag was discarded whenever it equalled the compiled-in default — which it does on every correctly prepared release — leaving Go's module version, stamped dirty by goreleaser's own pre-build hooks |
+| Windows chapter paths | Zero-config discovery wrote `guide\README.md` where `init` and every hand-written `book.yaml` write `guide/README.md` |
+| Windows test coverage | The CLI test binary was built without a `.exe` suffix, and an image-containment case named `/etc/passwd` as absolute — true on Unix, merely rooted on Windows |
 
 ---
 

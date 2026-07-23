@@ -125,7 +125,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
 每个 Release 都会发布 `checksums.txt`，其中包含每个产物的 SHA-256。运行之前请先校验下载到的文件——用 `curl` 安装 mdPress 的 CI 步骤同样应该加上这一步：
 
 ```bash
-VERSION=0.8.0
+VERSION=0.8.1
 BASE=https://github.com/yeasy/mdpress/releases/download/v${VERSION}
 
 curl -fsSLO "${BASE}/mdpress_${VERSION}_linux_amd64.tar.gz"

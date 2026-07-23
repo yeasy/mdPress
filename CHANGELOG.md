@@ -6,10 +6,17 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.8.1] - 2026-07-23
+
+Two defects that v0.8.0's own release run exposed: one in what a published binary calls itself, one only reachable on Windows.
+
 ### Fixed
 
 - **A released binary reports the tag it was built from**: `mdpress version` printed `0.8.0+dirty` (and `0.7.15+dirty` before it) because the injected tag was discarded whenever it matched the compiled-in default — which it does on every correctly prepared release — leaving Go's module version, stamped dirty by goreleaser's own `go mod tidy` and `go test` pre-build hooks
 - **Zero-config discovery spells chapter paths the same way on every platform**: `config.Discover` wrote `filepath.Rel`'s output straight into `ChapterDef.File`, so on Windows a subdirectory chapter became `guide\README.md` while `init` and every hand-written `book.yaml` spell it `guide/README.md`
+- **Three tests now test what they claim on Windows**: the CLI test binary was built without a `.exe` suffix, so every test driving the real CLI failed to exec it, and an image-containment case named `/etc/passwd` as "an absolute path" — true on Unix, merely rooted on Windows
 
 ---
 
@@ -1101,7 +1108,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/yeasy/mdpress/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/yeasy/mdpress/compare/v0.7.15...v0.8.0
 [0.7.15]: https://github.com/yeasy/mdpress/compare/v0.7.14...v0.7.15
 [0.7.14]: https://github.com/yeasy/mdpress/compare/v0.7.13...v0.7.14
