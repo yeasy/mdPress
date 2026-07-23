@@ -19,7 +19,7 @@ mdpress build --format pdf,html,epub
 mdpress build --format all
 ```
 
-`all` 会展开为 `pdf,html,site,epub,typst`，即构建全部 5 种格式。
+`all` 会展开为 `pdf,html,site,epub`，不包含 `typst`：它依赖可选的 Typst CLI，且产物与 `pdf` 相同，否则在未安装 Typst 的机器上 `--format all` 必然失败。需要时请用 `--format typst` 显式指定。
 
 ## 输出路径
 

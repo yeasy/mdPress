@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-07-10
+> Updated: 2026-07-23
 > Maintainer: mdPress product team
 
 ---
@@ -47,7 +47,8 @@ v0.7.10 ████████████████████████
 v0.7.11 ██████████████████████████████████████████ released (2026-06-17)
 v0.7.12 ██████████████████████████████████████████ released (2026-07-05)
 v0.7.13 ██████████████████████████████████████████ released (2026-07-05)
-v0.7.14 ████████████████████████████████░░░░░░░░░░ upcoming
+v0.7.14 ██████████████████████████████████████████ released (2026-07-10)
+v0.7.15 ██████████████████████████████████████████ released (2026-07-22)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1097,14 +1098,14 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 
 ---
 
-## v0.7.14 — Output Ergonomics, Custom Themes, And Format Quality (Upcoming)
+## v0.7.14 — Output Ergonomics, Custom Themes, And Format Quality
 
-**Target release**: 2026-07
+**Release date**: 2026-07-10
 **Theme**: predictable output paths, a real custom-theme mechanism, per-format rendering quality
 
-### Planned Features
+### Changes
 
-| Feature | Description |
+| Change | Description |
 | --- | --- |
 | Predictable `--output` semantics | Directory targets receive files and in-place site pages; file-base targets produce `<base>.pdf`/`<base>_site/`; default site output builds into a temp dir and atomically swaps `_book/` with pruning and a safety check for non-generated targets |
 | Remote build outputs | Remote GitHub builds without `--output` write to the current working directory instead of a temp dir |
@@ -1117,6 +1118,30 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | EPUB quality | Chapter titles as `<h1>`, theme-derived reader-friendly stylesheet, math chapters declared `scripted remote-resources` |
 | Serve watcher fix | The infinite rebuild loop after the first edit is fixed by ignoring generated output directories |
 | Scaffold cleanup | `quickstart`/`init` no longer hardcode a cover background or ship a placeholder cover.svg; a `.gitignore` is scaffolded; shell completion instructions corrected |
+
+---
+
+## v0.7.15 — Audit Follow-Up: Data Loss And Never-Worked Paths
+
+**Release date**: 2026-07-22
+**Theme**: fix the issues a second full audit confirmed, and add guardrail tests for the patterns that keep producing them
+
+### Changes
+
+| Change | Description |
+| --- | --- |
+| `serve --output <dir>` is no longer destructive | The rebuild swap deleted the contents of an existing directory; serve now refuses a non-generated target up front, the same check `build --format site` already had |
+| Site root permissions | The atomic swap published a 0700 directory as the site root — a 403 under nginx/httpd; it is now world-readable |
+| ePub correctness | Boolean-attribute expansion no longer rewrites prose, chapters sharing a title no longer overwrite each other, cross-chapter `.md` links are rewritten, and package/NCX/nav references are percent-encoded |
+| `--format typst` builds scaffolded projects | `book.language` was passed verbatim into Typst's `lang:`, so every generated project failed; it is now reduced to an ISO 639 code |
+| `--format epub -o <newdir>/book.epub` | ePub was the only backend that did not create its output directory |
+| Typography config is honored | `style.font_family` / `font_size` / `line_height` were read only by the Typst backend; PDF, HTML and site now honor them |
+| Site search ranking | Results were truncated to 20 hits *before* ranking, so a title match could be missing entirely; the reported total was the truncated one |
+| Watcher handles deletes and renames | A deleted chapter kept being served until an unrelated edit triggered a rebuild |
+| Zero-config language detection | `DefaultConfig` hardcoded `zh-CN`, so an English docs folder built a Chinese UI and cover |
+| `--format all` drops `typst` | `all` failed on any machine without the optional Typst CLI; pass `--format typst` explicitly |
+| Typography defaults moved into the themes | An unset `style.*` now means "inherit from the theme". **Breaking:** a `book.yaml` without `language:` resolves to `en-US` unless the content is predominantly CJK |
+| Guardrail tests | A cross-format matrix fixture, a style-wiring test driving the real CLI, and a test that resolves every `mdpress …` invocation in `docs/` against the real command tree |
 
 ---
 

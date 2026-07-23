@@ -59,7 +59,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - When `--format` is provided, the CLI value overrides `output.formats` in config.
 - When `--format` is omitted, `output.formats` is used first.
 - If neither is set, the default output is `pdf`.
-- `--format all` expands to `pdf,html,site,epub,typst`.
+- `--format all` expands to `pdf,html,site,epub`. `typst` is deliberately excluded: it needs the optional Typst CLI and produces the same artifact as `pdf`, so request it explicitly with `--format typst`.
 
 ### `--output`
 
@@ -90,16 +90,23 @@ A path that does not resolve to a directory is treated as a base path:
 
 ### Site output safety
 
-The site is built into a temporary directory and then atomically swapped into place, so stale pages from renamed or removed chapters are pruned. As a safeguard, a non-empty target directory that does not look generated (no `index.html`/`search-index.json`) is refused instead of being overwritten. If a legacy `<name>_site/` directory from an older mdPress version sits next to a default `_book/` build, a hint is logged.
+There are two site-writing paths, and only one of them prunes:
+
+- **Swap (the default `_book/`, and any `--output` that does not share a directory with the other formats)**: the site is built into a temporary directory and then atomically swapped into place, so the target never holds a half-written site and stale pages from renamed or removed chapters are pruned. As a safeguard, a non-empty target directory that does not look generated (no `index.html`/`search-index.json`) is refused instead of being overwritten.
+- **In place (`--output <dir>` when other formats are written into the same directory)**: pages are written directly into the directory, because the other format builders write there concurrently. **Nothing is pruned** — pages from chapters you have since removed or renamed stay on disk and will be deployed with the rest. Delete the directory before building if that matters.
+
+If a legacy `<name>_site/` directory from an older mdPress version sits next to a default `_book/` build, a hint is logged.
 
 ### Result summary
 
-After every successful build, the CLI prints one line per format, for example:
+After every successful build, the CLI prints one line per format with the absolute path of the artifact, for example:
 
 ```
-  ✓ Generated pdf   → my-book.pdf
-  ✓ Generated site  → _book/
+  ✓ Generated pdf   → /home/you/my-book/my-book.pdf
+  ✓ Generated site  → /home/you/my-book/_book/index.html
 ```
+
+The `site` line points at the generated `index.html` rather than the directory.
 
 These lines are a build result rather than progress output, so they are printed even with `--quiet`.
 
