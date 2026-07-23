@@ -186,19 +186,21 @@ mdPress supports the Typst typesetting system as an alternative PDF backend, off
 
 **Note**: If `typst` is not installed, the command will fail. For systems without Typst, continue using the default Chromium backend.
 
-## PlantUML Diagram Support
+## PlantUML Diagrams Are Not Rendered
 
-mdPress automatically detects and renders PlantUML diagrams in markdown code blocks:
+mdPress does **not** render PlantUML. A ```plantuml block is published as a
+plain code block in every format, so the diagram's source text appears where a
+picture would.
 
-    ```plantuml
-    @startuml
-    Alice -> Bob: Hello
-    @enduml
-    ```
+Use one of these instead:
 
-PlantUML diagrams are rendered as SVG or PNG in HTML-based outputs and embedded in PDF/ePub formats.
+- **```mermaid** — rendered by mdPress in site, standalone HTML and PDF output.
+- **Pre-rendered images** — run PlantUML yourself and reference the result:
 
-**Requirements**: For full support, ensure PlantUML is installed. If not available, diagrams will be rendered as code blocks.
+      ![Sequence](images/sequence.svg)
+
+`mdpress build` warns once per PlantUML block, and `mdpress doctor` reports
+their presence, so this does not go unnoticed.
 
 ## Parallel Builds and Build Cache
 

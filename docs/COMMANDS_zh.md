@@ -186,19 +186,20 @@ mdPress 支持使用 Typst 排版系统作为另一种 PDF 生成方案，可实
 
 **说明**：如果未安装 Typst，命令会失败。在不支持 Typst 的系统上，请继续使用默认的 Chromium 后端。
 
-## PlantUML 图表支持
+## PlantUML 图表不会被渲染
 
-mdPress 自动检测并渲染 Markdown 代码块中的 PlantUML 图表：
+mdPress **不**渲染 PlantUML。```plantuml 代码块在所有输出格式中都按普通代码块
+发布，本该是图的位置会显示图的源码。
 
-    ```plantuml
-    @startuml
-    Alice -> Bob: 你好
-    @enduml
-    ```
+请改用：
 
-PlantUML 图表在 HTML 输出中渲染为 SVG 或 PNG，在 PDF/ePub 中被嵌入。
+- **```mermaid** —— mdPress 会在 site、单页 HTML 和 PDF 输出中渲染它。
+- **预先渲染的图片** —— 自行运行 PlantUML，然后引用产物：
 
-**要求**：为获得完整支持，请确保安装了 PlantUML。如未安装，图表将作为代码块显示。
+      ![时序图](images/sequence.svg)
+
+`mdpress build` 会为每个 PlantUML 代码块发出一次警告，`mdpress doctor` 也会
+报告它们的存在，所以这一点不会被忽略。
 
 ## 并行构建和构建缓存
 

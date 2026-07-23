@@ -377,6 +377,14 @@ Advantages over Chromium: faster compilation, native PDF output, no browser depe
 
 ### 3.17 `internal/plantuml` - PlantUML Diagram Renderer
 
+> **Not wired in.** No production code path constructs this renderer, so the
+> package is not linked into the binary and a ```plantuml block is published as
+> a plain code block. `mdpress build` warns about each one. The description
+> below documents what the package would do if it were connected; enabling it
+> would first need a decision about the default server, since the renderer's
+> default endpoint is the public plantuml.com service and sending a user's
+> diagram source there must not happen without an explicit opt-in.
+
 Responsibility: detect and render PlantUML code blocks in HTML to SVG.
 
 The `Renderer` type:
