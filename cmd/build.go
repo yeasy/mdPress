@@ -194,7 +194,9 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	if buildFormat != "" {
 		formats = strings.Split(buildFormat, ",")
 		for i := range formats {
-			formats[i] = strings.TrimSpace(formats[i])
+			// Case-insensitive: "PDF" is what people type, and rejecting it
+			// taught nothing.
+			formats[i] = strings.ToLower(strings.TrimSpace(formats[i]))
 		}
 	}
 	// Expand the "all" alias to the full set of supported formats.

@@ -310,8 +310,15 @@ func TestPrintResults_QuietMode(t *testing.T) {
 	rOut.Close()
 	rErr.Close()
 
-	if bufOut.Len() != 0 || bufErr.Len() != 0 {
-		t.Errorf("printResults should produce no output in quiet mode, got stdout=%q stderr=%q", bufOut.String(), bufErr.String())
+	// Quiet means "errors only", not "silence": suppressing the failures too
+	// left CI users with a non-zero exit, the line "fix the issues above", and
+	// nothing above it.
+	combined := bufOut.String() + bufErr.String()
+	if strings.Contains(combined, "passed") {
+		t.Errorf("quiet mode should suppress passing checks, got %q", combined)
+	}
+	if !strings.Contains(combined, "failed") {
+		t.Errorf("quiet mode must still report failures, got %q", combined)
 	}
 }
 

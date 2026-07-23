@@ -147,22 +147,57 @@ func Execute() error {
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		// Usage mistakes are the one class where the next step is always the
+		// same, and a bare one-liner left the user guessing.
+		if isUsageError(err) {
+			fmt.Fprintln(os.Stderr, "\nRun 'mdpress --help' to see available commands and flags.")
+		}
 		return err
 	}
 	return nil
 }
 
+// usageErrorPhrases are the messages cobra produces for a malformed command
+// line, as opposed to a command that ran and failed.
+var usageErrorPhrases = []string{
+	"unknown flag",
+	"unknown shorthand flag",
+	"unknown command",
+	"accepts ",
+	"requires at least",
+	"invalid argument",
+	"flag needs an argument",
+}
+
+// isUsageError reports whether err is about how the command was invoked.
+func isUsageError(err error) bool {
+	msg := err.Error()
+	for _, phrase := range usageErrorPhrases {
+		if strings.Contains(msg, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 // initLogger creates a logger based on the global quiet/verbose flags.
 // Used by executeBuild and executeServe to avoid duplicating the setup.
 func initLogger() *slog.Logger {
-	logLevel := slog.LevelInfo
+	// Warn, not Info, by default. The INFO stream is a running commentary on
+	// internal stages; printed alongside the step progress it interleaved with
+	// it mid-line and buried the parts a user acts on. --verbose brings it back
+	// (and more).
+	logLevel := slog.LevelWarn
 	switch {
 	case quiet:
 		logLevel = slog.LevelError
 	case verbose:
 		logLevel = slog.LevelDebug
 	}
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
+	// Diagnostics belong on stderr. On stdout they were swallowed by
+	// `mdpress build > build.log` along with every warning, and they polluted
+	// any attempt to pipe the build's real output.
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 	return logger

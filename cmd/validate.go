@@ -348,6 +348,14 @@ func executeValidate(ctx context.Context, targetDir string) error {
 // printResults prints validation results, optionally skipping already-printed ones.
 func printResults(results []validateResult, skipFirst ...int) {
 	if quiet {
+		// Quiet means "errors only", not "silence". Suppressing the failures
+		// too left CI users with a non-zero exit, the line "fix the issues
+		// above", and nothing above.
+		for _, r := range results {
+			if !r.OK {
+				utils.Error("%s", r.Message)
+			}
+		}
 		return
 	}
 	skip := 0
