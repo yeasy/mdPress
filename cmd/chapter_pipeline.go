@@ -42,6 +42,7 @@ type parsedChapterData struct {
 	headings         []markdown.HeadingInfo
 	diagnostics      []markdown.Diagnostic
 	expandedContent  string
+	unknownVars      []string
 	depth            int
 	flatChapterIndex int
 	err              error
@@ -261,9 +262,13 @@ func (p *chapterPipeline) parseChapterWorker(
 		return
 	}
 
-	// Expand variables
-	content = variables.Expand(content, p.Config)
+	// Expand variables. Unrecognized ones are left as-is but reported: a typo
+	// that renders as a literal "{{ book.autor }}" reads as a mdpress bug to
+	// the reader, and gives the author nothing to search for.
+	expanded, unknownVars := variables.ExpandWithUnknown(content, p.Config)
+	content = expanded
 	job.expandedContent = string(content)
+	job.unknownVars = unknownVars
 
 	// Check cache
 	codeTheme := p.parserCodeTheme()
@@ -388,6 +393,14 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 				Line:    diag.Line,
 				Column:  diag.Column,
 				Message: diag.Message,
+			})
+		}
+
+		for _, name := range parsed.unknownVars {
+			issues = append(issues, projectIssue{
+				Rule:    "unknown-variable",
+				File:    chDef.File,
+				Message: fmt.Sprintf("unknown template variable {{ %s }} — left as literal text in the output", name),
 			})
 		}
 

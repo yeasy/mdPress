@@ -53,6 +53,9 @@ type BookConfig struct {
 	Output   OutputConfig `yaml:"output"`
 	// Plugins lists the plugins to run during the build, in declaration order.
 	Plugins []PluginConfig `yaml:"plugins"`
+	// Variables are user-defined template variables, usable in Markdown as
+	// {{ key }} alongside the built-in book.*/style.*/output.* values.
+	Variables map[string]string `yaml:"variables"`
 
 	// These fields are auto-detected by Load instead of being set directly in YAML.
 	GlossaryFile string `yaml:"-"` // Path to GLOSSARY.md, if present.
