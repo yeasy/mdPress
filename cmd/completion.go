@@ -5,6 +5,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -44,6 +45,9 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return executeCompletion(args[0])
 	},
+	// The shell names are also the sub-command names, which cobra already
+	// completes with their descriptions, so no ValidArgs here: listing them
+	// again only produced every candidate twice.
 }
 
 // bashCompletionCmd generates bash completion script.
@@ -137,6 +141,84 @@ func executeCompletion(shell string) error {
 	default:
 		return fmt.Errorf("unsupported shell: %s\nSupported shells: bash, zsh, fish, powershell", shell)
 	}
+}
+
+// Shell completion for flag values.
+//
+// Cobra only completes flag *names* by itself; a flag whose value comes from a
+// fixed set (--format, a theme name) falls back to file-name completion unless
+// a completion function is registered for it. That made every value of every
+// mdpress flag complete to the contents of the current directory, which is
+// never a valid answer for those flags.
+
+// registerFixedFlagCompletion makes flagName complete from a fixed value set.
+// Entries may carry a "value\tdescription" suffix, which shells that support
+// descriptions display alongside the candidate.
+func registerFixedFlagCompletion(cmd *cobra.Command, flagName string, values []string) {
+	// The error is only returned for a flag that does not exist, i.e. a typo
+	// in the call right below the flag definition.
+	_ = cmd.RegisterFlagCompletionFunc(flagName, func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return filterCompletions(values, toComplete), cobra.ShellCompDirectiveNoFileComp
+	})
+}
+
+// filterCompletions keeps the candidates that start with toComplete. Cobra
+// passes the function's results to the shell unfiltered, so completion
+// functions have to do this themselves.
+func filterCompletions(values []string, toComplete string) []string {
+	matches := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.HasPrefix(completionValue(value), toComplete) {
+			matches = append(matches, value)
+		}
+	}
+	return matches
+}
+
+// completionValue strips the optional description from a completion entry.
+func completionValue(entry string) string {
+	value, _, _ := strings.Cut(entry, "\t")
+	return value
+}
+
+// completeCommaSeparated completes one element of a comma-separated list,
+// keeping the already-typed elements as a prefix and dropping the ones that
+// have been chosen. Without this, completing --format stopped working the
+// moment a comma was typed.
+func completeCommaSeparated(values []string, toComplete string) []string {
+	prefix := ""
+	last := toComplete
+	if idx := strings.LastIndex(toComplete, ","); idx >= 0 {
+		prefix = toComplete[:idx+1]
+		last = toComplete[idx+1:]
+	}
+
+	chosen := make(map[string]bool)
+	for _, part := range strings.Split(prefix, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			chosen[part] = true
+		}
+	}
+
+	matches := make([]string, 0, len(values))
+	for _, value := range values {
+		name, desc, hasDesc := strings.Cut(value, "\t")
+		if chosen[name] || !strings.HasPrefix(name, last) {
+			continue
+		}
+		entry := prefix + name
+		if hasDesc {
+			entry += "\t" + desc
+		}
+		matches = append(matches, entry)
+	}
+	return matches
+}
+
+// completeDirectories restricts completion to directory names, for arguments
+// that name a project directory.
+func completeDirectories(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	return nil, cobra.ShellCompDirectiveFilterDirs
 }
 
 func init() {

@@ -74,6 +74,23 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return executeThemesShow(args[0])
 	},
+	ValidArgsFunction: completeThemeNames,
+}
+
+// completeThemeNames completes the built-in theme names. The list comes from
+// the live theme definitions, so a new built-in theme is completable the day
+// it is added.
+func completeThemeNames(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		// `themes show` takes exactly one theme.
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	themes := getAvailableThemes()
+	names := make([]string, 0, len(themes))
+	for _, thm := range themes {
+		names = append(names, thm.name+"\t"+thm.description)
+	}
+	return filterCompletions(names, toComplete), cobra.ShellCompDirectiveNoFileComp
 }
 
 var themesPreviewCmd = &cobra.Command{
@@ -115,6 +132,7 @@ func init() {
 
 	// Add flags for preview command
 	themesPreviewCmd.Flags().StringP("output", "o", "themes-preview.html", "Output file path for the HTML preview")
+	_ = themesPreviewCmd.MarkFlagFilename("output", "html")
 }
 
 // themeInfo describes a theme for CLI display. Every palette and property

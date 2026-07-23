@@ -87,9 +87,33 @@ Examples:
 	},
 }
 
+// buildFormatNames lists every value --format accepts, with the descriptions
+// shells display next to a candidate. It is the single source of truth for
+// what is valid: the validation below and the shell completions both read it,
+// so a new format cannot be completable but rejected, or vice versa.
+var buildFormatNames = []string{
+	"pdf\tPDF document",
+	"html\tSelf-contained single-page HTML",
+	"site\tMulti-page static site",
+	"epub\tePub ebook",
+	"typst\tPDF via the Typst CLI (Chromium-free)",
+	"all\tpdf, html, site and epub",
+}
+
+// supportedBuildFormats returns the accepted --format values without their
+// completion descriptions.
+func supportedBuildFormats() []string {
+	names := make([]string, 0, len(buildFormatNames))
+	for _, entry := range buildFormatNames {
+		names = append(names, completionValue(entry))
+	}
+	return names
+}
+
 // errEmptyFormatFlag is returned when --format is present but names nothing.
 func errEmptyFormatFlag() error {
-	return fmt.Errorf("--format was given but names no output format (supported: pdf, html, site, epub, typst, all)")
+	return fmt.Errorf("--format was given but names no output format (supported: %s)",
+		strings.Join(supportedBuildFormats(), ", "))
 }
 
 // parseFormatFlag splits a --format value into normalized format names.
@@ -121,6 +145,14 @@ func init() {
 	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or base name for pdf/html/epub/typst; with --format site alone this is the site directory; shared with other formats the site goes to \"<base>_site/\" (default: _book/)")
 	buildCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
 	buildCmd.Flags().BoolVar(&allowPlugins, "allow-plugins", false, "Execute plugins declared by a remote project's book.yaml (arbitrary code; local sources always run plugins)")
+
+	// --format takes a comma-separated list, so complete element by element.
+	_ = buildCmd.RegisterFlagCompletionFunc("format", func(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return completeCommaSeparated(buildFormatNames, toComplete), cobra.ShellCompDirectiveNoFileComp
+	})
+	// --summary names a Markdown file; --output can be either a file or a
+	// directory depending on the format, so it keeps plain file completion.
+	_ = buildCmd.MarkFlagFilename("summary", "md")
 }
 
 // executeBuild runs the full build flow.
@@ -258,12 +290,19 @@ func executeBuild(ctx context.Context, inputSource string) error {
 
 	// Validate format names when specified via CLI flag.
 	if buildFormat != "" {
-		validFormats := map[string]bool{
-			"pdf": true, "html": true, "site": true, "epub": true, "typst": true,
+		// "all" was expanded above, so it is not a valid element here.
+		validFormats := make(map[string]bool, len(buildFormatNames))
+		concrete := make([]string, 0, len(buildFormatNames))
+		for _, name := range supportedBuildFormats() {
+			if name == "all" {
+				continue
+			}
+			validFormats[name] = true
+			concrete = append(concrete, name)
 		}
 		for _, f := range formats {
 			if !validFormats[f] {
-				return fmt.Errorf("unsupported format %q (supported: pdf, html, site, epub, typst)", f)
+				return fmt.Errorf("unsupported format %q (supported: %s)", f, strings.Join(concrete, ", "))
 			}
 		}
 	}
