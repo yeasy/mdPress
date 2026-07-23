@@ -33,12 +33,18 @@ mdpress --version
 ### Docker
 
 ```bash
-# 精简镜像（~15 MB，不含 PDF 支持）
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
+# 精简镜像（~15 MB）——不含 Chromium，请选择不依赖它的格式
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress build --format site
 
-# 完整镜像（~300 MB，含 Chromium 用于 PDF 生成）
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
+# 完整镜像（~300 MB）——内置 Chromium，可生成 PDF
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
 ```
+
+`build` 默认输出 PDF，而精简镜像生成不了 PDF。在精简镜像里请使用 `site`、`html` 或 `epub`，或改用 `:full` 标签。
+
+两个镜像都以镜像内的 `mdpress` 用户运行，该 UID 在宿主机上并不存在。因此不加 `--user` 时，容器要么根本无法写入挂载目录，要么生成的文件属于一个无关的 UID。`--user "$(id -u):$(id -g)"` 可以让产物归你所有。macOS 与 Windows 上的 Docker Desktop 已代为处理该映射，可以省略 `--user`。
 
 ### 直接下载 Binary
 

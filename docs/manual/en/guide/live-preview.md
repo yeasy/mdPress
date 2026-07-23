@@ -24,6 +24,12 @@ Example:
 mdpress serve --host 0.0.0.0 --port 3000 --open
 ```
 
+When previewing a GitHub repository, `--branch` selects the branch:
+
+```bash
+mdpress serve https://github.com/yeasy/agentic_ai_guide --branch main
+```
+
 ## What Triggers A Rebuild
 
 - Markdown source files

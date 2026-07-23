@@ -21,12 +21,18 @@ The cask clears the macOS quarantine flag automatically, so Gatekeeper will not 
 ## Docker
 
 ```bash
-# Minimal image (~15 MB, no PDF support)
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
+# Minimal image (~15 MB) — no Chromium, so pick a format that does not need it
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress build --format site
 
-# Full image (~300 MB, with Chromium for PDF)
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
+# Full image (~300 MB) — bundles Chromium, so PDF works
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
 ```
+
+`build` defaults to PDF, which the minimal image cannot produce. Use `site`, `html`, or `epub` there, or switch to the `:full` tag.
+
+Both images run as an in-image `mdpress` user whose UID does not exist on your host, so without `--user` the container either cannot write into the mounted directory at all or leaves the generated files owned by an unrelated UID. `--user "$(id -u):$(id -g)"` makes the outputs yours. On Docker Desktop for macOS and Windows the mapping is handled for you and `--user` can be omitted.
 
 ## Download Binary
 

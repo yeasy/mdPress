@@ -57,11 +57,13 @@ mdpress doctor [directory] [flags]
 ```bash
 mdpress doctor
 mdpress doctor /path/to/book
-mdpress doctor ./examples/chapter01
+mdpress doctor --strict
+mdpress doctor --report doctor-report.json
 ```
 
 ## 注意事项
 
+- **不加 `--strict` 时，`doctor` 永远退出 0**，即使打印了 `✗` 行。只跑 `mdpress doctor` 的 CI 步骤没有任何门禁作用。
 - `--verbose` 提供详细输出，包括精确的磁盘空间、Go 版本解析详情和每项检查的详细错误信息。
 - PlantUML 可用性仅在项目中检测到 PlantUML 图表时才进行检查。
 - 插件检查验证路径存在性和可执行性。

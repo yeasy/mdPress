@@ -97,13 +97,15 @@ mdPress 主要支持两类输入源：
     export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
     mdpress build https://github.com/myorg/private-docs
 
-Token 会嵌入 clone URL 中，不会出现在日志里。任何具有 `contents:read` 权限的 GitHub 个人访问令牌或细粒度令牌均可使用。未设置 token 时 clone 失败，错误信息会提示设置此变量。
+Token 不会被嵌入 clone URL。mdPress 始终 clone 普通的 `https://github.com/<owner>/<repo>.git`，并通过 `http.<base>.extraheader` 这个 git config 环境变量注入凭据（与 `actions/checkout` 使用的机制相同）。因此 token 不会出现在进程表（`ps`、`/proc/<pid>/cmdline`）中，不会写入临时 clone 的 `.git/config`，也不会出现在日志里——git 输出中若含 token，mdPress 会先脱敏再记录。
+
+任何具有 `contents:read` 权限的 GitHub 个人访问令牌或细粒度令牌均可使用。未设置 token 时 clone 失败，错误信息会提示设置此变量。
 
 ## 输出与默认值
 
 - `build` 如果没有显式传 `--format`，会先读取 `output.formats`。
 - 如果配置里也没有 `output.formats`，默认构建 `pdf`。
-- 特殊值 `--format all` 会构建所有支持的格式（pdf、html、site、epub、typst）。
+- 特殊值 `--format all` 会构建 pdf、html、site、epub，不包含 `typst`：它依赖可选的 Typst CLI，且产物与 `pdf` 相同，需要时请用 `--format typst` 显式指定。
 - 默认输出文件名根据书籍标题自动生成（文件系统不安全字符会被替换）。如果标题为空或为 "Untitled Book"，则使用项目目录名。你可以通过 `output.filename` 手动覆盖。
 - `serve` 默认把预览产物写到项目目录下的 `_book/`。
 

@@ -202,6 +202,17 @@ Golden tests are snapshot-based regression tests that capture the expected outpu
 - New features must also update the feature list and CLI commands in both README files
 - Architecture changes must also update `docs/ARCHITECTURE.md` and `docs/ARCHITECTURE_zh.md`
 
+## Release Checklist
+
+Several files carry the version number or a release date and drift apart if they are not updated together. Before tagging a release, update all of them in one commit:
+
+| File | What to update |
+| --- | --- |
+| `cmd/root.go` | `defaultVersion` |
+| `CHANGELOG.md` | Move `[Unreleased]` entries under the new version heading with its date |
+| `docs/ROADMAP.md`, `docs/ROADMAP_zh.md` | Mark the version released in the version overview, turn its "upcoming/planned" section into a released one, and refresh the `Updated:` line |
+| `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE_zh.md` | The `Version:` and `Updated:` header lines |
+
 ## License
 
 By contributing to mdPress, you agree that your contributions will be licensed under the [MIT License](LICENSE).

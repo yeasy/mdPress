@@ -97,13 +97,15 @@ To build from private repositories, set the `GITHUB_TOKEN` environment variable 
     export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
     mdpress build https://github.com/myorg/private-docs
 
-The token is embedded in the clone URL and never logged. Any GitHub personal access token or fine-grained token with `contents:read` scope will work. When the token is not set and a clone fails, the error message will suggest setting it.
+The token is never embedded in the clone URL. mdPress clones the plain `https://github.com/<owner>/<repo>.git` URL and injects the credential through an `http.<base>.extraheader` git config environment variable (the same mechanism `actions/checkout` uses). That keeps the token out of the process table (`ps`, `/proc/<pid>/cmdline`), out of the temporary clone's `.git/config`, and out of the logs — any token that does appear in git output is redacted before mdPress logs it.
+
+Any GitHub personal access token or fine-grained token with `contents:read` scope will work. When the token is not set and a clone fails, the error message will suggest setting it.
 
 ## Outputs And Defaults
 
 - If `build` is called without `--format`, it first checks `output.formats`.
 - If `output.formats` is also absent, the default output is `pdf`.
-- The special value `--format all` builds all supported formats (PDF, HTML, site, ePub, and Typst).
+- The special value `--format all` builds PDF, HTML, site, and ePub. It does not include `typst`, which needs the optional Typst CLI and produces the same artifact as `pdf`; request it explicitly with `--format typst`.
 - The default output filename is derived from the book title (with filesystem-unsafe characters replaced). If the title is empty or "Untitled Book", the project directory name is used instead. You can override this with `output.filename`.
 - `serve` writes preview output to `_book/` under the project directory by default.
 

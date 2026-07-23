@@ -14,12 +14,18 @@
 
 ```
 $ mdpress build --format site,pdf,html,epub
-  ✓ Loaded book.yaml (12 chapters)
-  ✓ Parsed Markdown (technical theme)
-  ✓ Generated pdf   → my-book.pdf
-  ✓ Generated html  → my-book.html
-  ✓ Generated site  → _book/
-  ✓ Generated epub  → my-book.epub
+
+  [1/5] Initializing theme system ... ✓ technical
+  [2/5] Parsing chapters (4 top-level) ... ✓ 4 chapters
+  [3/5] Generating cover and TOC ... ✓
+  [4/5] Assembling HTML ... ✓
+  [5/5] Generating output (site, pdf, html, epub) ... ✓
+
+  ✅ Build completed (elapsed 845ms)
+  ✓ Generated pdf   → /home/you/my-book/my-book.pdf
+  ✓ Generated html  → /home/you/my-book/my-book.html
+  ✓ Generated site  → /home/you/my-book/_book/index.html
+  ✓ Generated epub  → /home/you/my-book/my-book.epub
 ```
 
 Use `book.yaml` for full control, `SUMMARY.md` for GitBook-style projects, or zero-config discovery for a focused docs folder. For large repositories, point mdPress at the specific docs/book directory instead of the repo root.
@@ -93,12 +99,18 @@ go install github.com/yeasy/mdpress@latest
 ### Docker
 
 ```bash
-# Minimal image (~15 MB, no PDF support)
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
+# Minimal image (~15 MB) — no Chromium, so pick a format that does not need it
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress build --format site
 
-# Full image (~300 MB, with Chromium for PDF)
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
+# Full image (~300 MB) — bundles Chromium, so PDF works
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
 ```
+
+`build` defaults to PDF, which the minimal image cannot produce. Use `site`, `html`, or `epub` there, or switch to the `:full` tag.
+
+Both images run as an in-image `mdpress` user whose UID does not exist on your host, so without `--user` the container either cannot write into the mounted directory at all or leaves the generated files owned by an unrelated UID. `--user "$(id -u):$(id -g)"` makes the outputs yours. On Docker Desktop for macOS and Windows the mapping is handled for you and `--user` can be omitted.
 
 ### Download Binary or Package
 
@@ -107,6 +119,27 @@ Download a pre-built binary for your platform from [GitHub Releases](https://git
 Supported platforms: macOS (amd64 / arm64), Linux (amd64 / arm64), Windows (amd64 / arm64).
 
 Since v0.7.12, releases also ship Linux packages (`.deb`, `.rpm`, `.apk`) and a checksummed source tarball.
+
+#### Verify Your Download
+
+Every release publishes a `checksums.txt` with a SHA-256 for each asset. Verify what you downloaded before running it — this is also the check to add to any CI step that installs mdPress with `curl`:
+
+```bash
+VERSION=0.7.15
+BASE=https://github.com/yeasy/mdpress/releases/download/v${VERSION}
+
+curl -fsSLO "${BASE}/mdpress_${VERSION}_linux_amd64.tar.gz"
+curl -fsSLO "${BASE}/checksums.txt"
+
+# Linux
+sha256sum --ignore-missing -c checksums.txt
+# macOS
+shasum -a 256 --ignore-missing -c checksums.txt
+```
+
+The command must print `OK` for the file you downloaded. `--ignore-missing` lets you verify a single asset against the full list.
+
+> Releases are not signed and the macOS binaries are not notarized yet, so `checksums.txt` protects against a corrupted or truncated download, not against a compromised release. Build from source if you need a stronger guarantee.
 
 > **macOS Gatekeeper note:** binaries are not notarized yet. The Homebrew cask clears the quarantine flag for you; if you download the binary directly and macOS blocks it, clear the flag once:
 >
@@ -252,9 +285,37 @@ mdPress ships with three themes. List them with `mdpress themes list`:
 
 ```
 $ mdpress themes list
-  technical   — Clean, professional style for technical documentation and IT books
-  elegant     — Elegant serif-based style for fiction, essays, and publishing
-  minimal     — Minimal style with generous whitespace and high readability
+Available themes:
+
+1. Technical (technical) [default]
+   Description: Clean, professional style for technical documentation and IT books
+   Colors: #12344D (heading) / #1C5A9E (link) / #1C5A9E (accent) / #FFFFFF (background)
+   Properties:
+     - Font: -apple-system
+     - Base size 11pt, line height 1.75
+     - Code highlighting: github
+     - Page A4, margins 20/20/20/20 mm (top/right/bottom/left)
+
+2. Elegant (elegant)
+   Description: Elegant serif-based style for fiction, essays, and publishing
+   Colors: #1B0000 (heading) / #8B6914 (link) / #A87B3B (accent) / #FFFBF0 (background)
+   Properties:
+     - Font: Songti SC
+     - Base size 12pt, line height 1.80
+     - Code highlighting: github
+     - Page A4, margins 25/25/25/25 mm (top/right/bottom/left)
+
+3. Minimal (minimal)
+   Description: Minimal style with generous whitespace and high readability
+   Colors: #000000 (heading) / #0000EE (link) / #1A1A1A (accent) / #FFFFFF (background)
+   Properties:
+     - Font: -apple-system
+     - Base size 10pt, line height 1.70
+     - Code highlighting: bw
+     - Page A4, margins 30/30/30/30 mm (top/right/bottom/left)
+
+Run 'mdpress themes show <theme-name>' to view theme details.
+Example: mdpress themes show elegant
 ```
 
 Set `style.theme` in `book.yaml` to switch themes. Custom themes are supported too: place a `themes/<name>.yaml` file in your project to define (or override) a theme, or point `style.theme` directly at a YAML theme file (e.g. `style.theme: mytheme.yaml`).

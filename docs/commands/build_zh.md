@@ -59,7 +59,7 @@ mdpress build --config ./docs/book.yaml ./docs --format pdf,html
 - 传入 `--format` 时，命令行值会覆盖配置文件中的 `output.formats`
 - 不传 `--format` 时，优先使用 `output.formats`
 - 如果两者都没有设置，默认构建 `pdf`
-- `--format all` 展开为 `pdf,html,site,epub,typst`。
+- `--format all` 展开为 `pdf,html,site,epub`。`typst` 被有意排除：它依赖可选的 Typst CLI，且产物与 `pdf` 相同，需要时请用 `--format typst` 显式指定。
 
 ### `--output` 的行为
 
@@ -90,16 +90,23 @@ mdpress build --format pdf,html,site --output ./release/manual.pdf
 
 ### 站点输出的安全机制
 
-站点会先构建到临时目录，然后原子地替换到目标位置，因此改名或删除章节留下的旧页面会被清理。作为保护措施，如果目标目录非空且看起来不是生成产物（没有 `index.html`/`search-index.json`），会拒绝覆盖。如果默认的 `_book/` 构建旁边还留有旧版 mdPress 生成的 `<name>_site/` 目录，会输出一条提示日志。
+站点有两条写入路径，只有其中一条会清理旧页面：
+
+- **替换式（默认的 `_book/`，以及不与其他格式共用目录的 `--output`）**：站点先构建到临时目录，再原子地替换到目标位置，因此目标目录不会出现半成品，改名或删除章节留下的旧页面会被清理。作为保护措施，如果目标目录非空且看起来不是生成产物（没有 `index.html`/`search-index.json`），会拒绝覆盖。
+- **就地式（`--output <dir>` 且其他格式也写入同一目录）**：页面直接写入该目录，因为其他格式构建器会并发写同一目录。**不会做任何清理**——你已删除或改名的章节所对应的页面仍留在磁盘上，并会随其他产物一起被部署。如果这一点重要，请在构建前先删除该目录。
+
+如果默认的 `_book/` 构建旁边还留有旧版 mdPress 生成的 `<name>_site/` 目录，会输出一条提示日志。
 
 ### 构建结果汇总
 
-每次构建成功后，CLI 会为每种格式打印一行结果，例如：
+每次构建成功后，CLI 会为每种格式打印一行结果，路径为绝对路径，例如：
 
 ```
-  ✓ Generated pdf   → my-book.pdf
-  ✓ Generated site  → _book/
+  ✓ Generated pdf   → /home/you/my-book/my-book.pdf
+  ✓ Generated site  → /home/you/my-book/_book/index.html
 ```
+
+`site` 那一行指向生成的 `index.html`，而不是目录本身。
 
 这些行属于构建结果而非进度输出，即使指定 `--quiet` 也会打印。
 

@@ -1,360 +1,232 @@
 # 使用 mdpress doctor
 
-`mdpress doctor` 命令检查你的系统环境和项目配置以识别潜在问题。使用它在问题出现前诊断构建问题。
-
-## 快速开始
+`mdpress doctor` 报告 mdPress 在你的环境中发现了什么，以及目标目录里的项目能否被加载。构建之前跑一次；在 CI 中请配合 `--strict` 作为门禁。
 
 ```bash
-mdpress doctor
-
-# 示例输出：
-# Checking environment...
-# ✓ Platform: Linux
-# ✓ Go: 1.26.0
-# ✓ Chrome/Chromium: /usr/bin/chromium
-# ✓ CJK fonts: Noto Sans CJK SC
-# ✓ PlantUML: not installed (optional)
-# ✓ Cache directory: /tmp/mdpress-cache
-# ✗ book.yaml: missing
-
-# Doctor completed: 1 warning
+mdpress doctor                 # 检查当前目录
+mdpress doctor /path/to/book   # 检查其他目录
 ```
 
-## Doctor 检查的内容
+## 真实输出
 
-### 环境检测
+以下是在环境完好的机器上、对一个脚手架项目运行的完整输出：
 
-**平台和操作系统：**
 ```
-✓ Platform: Linux (ubuntu-latest)
-✓ OS version: 6.8.0
-```
+  mdpress Environment Check
+  ──────────────────────────────────────────────────
 
-识别你的操作系统以提供系统特定的指导。
+  ✓ Platform: darwin/arm64
+  ✓ Go version: go1.26.5
+  ✓ Runtime cache: /private/tmp/mdpress-cache
+  ✓ Chromium/Chrome is available
+  ✓ Typst is available: typst 0.15.0 (unknown commit)
+  ✓ Go version 1.26.5 (>= 1.26)
+  ✓ Git is available
+  ✓ Network connectivity to github.com available
+  ✓ Disk space available
+  ✓ CJK fonts available: (system CJK fonts detected)
+  ✓ PlantUML not needed (no diagrams detected)
 
-**Go 安装：**
-```
-✓ Go: 1.26.0 installed
-✓ go binary: /usr/local/go/bin/go
-```
 
-mdPress 正常工作所需。如果缺失，doctor 建议安装。
-
-**Chrome/Chromium：**
-```
-✓ Chrome: /usr/bin/chromium (version 120.0)
-```
-
-PDF 渲染所需。Doctor 自动检测或使用 `MDPRESS_CHROME_PATH` 环境变量。
-
-**CJK 字体：**
-```
-✓ CJK fonts detected:
-  - Noto Sans CJK SC (Chinese Simplified)
-  - Noto Sans CJK JP (Japanese)
+  Project Check
+  ──────────────────────────────────────────────────
+  ✓ Detected book.yaml
+  ⚠ SUMMARY.md not found
+  ⚠ LANGS.md not found
+  ✓ Config loads successfully: my-book (4 top-level chapters)
+  ✓ Markdown chapter links resolve within the build graph
 ```
 
-对于包含中文、日文或韩文文本的书籍是可选但推荐的。
+`SUMMARY.md not found` 与 `LANGS.md not found` 只是提示：用 `book.yaml` 配置的项目并不需要这两个文件。
 
-**PlantUML：**
+## 各项检查的含义
+
+| 检查项 | 含义 |
+| --- | --- |
+| Platform | 当前二进制的 `GOOS/GOARCH` |
+| Go version | 编译 mdPress 所用的 Go 运行时版本（仅供参考） |
+| Runtime cache | 解析缓存所在目录；`--no-cache` 关闭缓存时会打印警告 |
+| Chromium/Chrome | 默认 PDF 后端。自动探测，或取自 `MDPRESS_CHROME_PATH` |
+| Typst | `--format typst` 使用的备用 PDF 后端 |
+| Go version >= 1.26 | 仅在通过 `go install` 安装时有意义 |
+| Git | 从 GitHub URL 构建时需要 |
+| Network connectivity | 针对 github.com 的可达性探测，用于远程源 |
+| Disk space | 输出目录所在分区的可用空间 |
+| CJK fonts | PDF 输出中的中日韩文字需要 |
+| PlantUML | 项目中没有 PlantUML 围栏时只报告 "not needed" |
+| Plugins | `book.yaml` 中 `plugins:` 的每一项都必须存在且可执行 |
+| book.yaml / SUMMARY.md / LANGS.md | 项目中存在哪些文件 |
+| Config loads | `config.Load`（或基于 `SUMMARY.md` 的自动发现）是否成功 |
+| Markdown chapter links | 相对 `.md` 链接是否指向构建图内的文件 |
+
+### PDF 后端检查
+
+PDF 只需要 Chromium/Chrome **或** Typst 之一，因此只有两者都缺失才算错误：
+
+- 缺 Chromium、有 Typst → 警告：`Chromium/Chrome is unavailable — use --format typst for PDF output instead`
+- 两者都缺 → 错误：`No PDF backend available: Chromium/Chrome and Typst are both missing (PDF output will fail)`
+
+### 构建图之外的链接
+
 ```
-✗ PlantUML: not installed
-  → Optional for diagram rendering
-  → Install from: http://plantuml.com/download
-```
-
-用于图表支持的可选依赖。
-
-### 项目配置
-
-**配置文件：**
-```
-✓ book.yaml found
-✓ Config valid (12 chapters, 24 images)
-```
-
-检查 `book.yaml` 并验证基本语法。
-
-**章节文件：**
-```
-✓ All 12 chapter files exist
-✓ Total chapters: 12 (4000 lines)
-```
-
-验证配置中引用的所有章节存在于磁盘上。
-
-**图像资源：**
-```
-✓ 24 images found
-  - PNG: 18 (5.2 MB total)
-  - SVG: 4 (150 KB total)
-  - JPEG: 2 (800 KB total)
-```
-
-列出所有嵌入的图像和总大小。
-
-**链接验证：**
-```
-✓ Internal links checked
-✓ No broken cross-references
+  ⚠ Detected 1 Markdown link(s) outside the build graph
+    - ../outside.md (from one.md)
 ```
 
-验证章节间的相对链接。
+链接目标不属于 mdPress 会构建的章节，因此在 site 和 HTML 产物里它会是一个死链。请把该文件加入章节，或修正链接。
 
-### 缓存和构建就绪
+## 退出码与 `--strict`
 
-**缓存目录：**
-```
-✓ Cache: /tmp/mdpress-cache (2.4 MB)
-  - 12 cached chapters
-  - Last updated: 2 hours ago
-```
-
-显示缓存位置、大小和新鲜度。
-
-**构建就绪：**
-```
-✓ Ready to build
-  Recommended format: pdf (Chrome available)
-```
-
-最终系统是否准备好构建的判断。
-
-## 运行 Doctor
-
-### 基础检查
+**不加 `--strict` 时，`mdpress doctor` 永远退出 0**，即使打印了 `✗` 行。只跑 `mdpress doctor` 的 CI 步骤实际上没有任何门禁作用。
 
 ```bash
-mdpress doctor
+mdpress doctor --strict
 ```
 
-检查当前目录的配置和环境。
+`--strict` 在任何 error 级检查失败时以非零状态退出，并打印：
 
-### 检查特定目录
-
-```bash
-mdpress doctor /path/to/book
+```
+Error: doctor found 1 error-level issue(s) (run without --strict to ignore)
 ```
 
-诊断不同目录中的项目。
+error 级问题包括：完全没有 PDF 后端、`book.yaml` 加载失败、自动发现失败、磁盘空间不足、插件条目损坏。警告（缺少 CJK 字体、没有 `SUMMARY.md`、构建图外的链接）不影响退出码。
 
-### 生成报告
+## 报告
 
 ```bash
-# JSON 格式（用于解析）
+mdpress doctor --report report.json
+mdpress doctor --report report.md
+```
+
+由扩展名决定格式。其他扩展名会在检查已经打印完之后报错：
+
+```
+Error: failed to write doctor report: unsupported report extension: .txt (use .json or .md)
+```
+
+### JSON 报告
+
+JSON 报告是一个扁平对象，键名为 `snake_case`。以下是上面那次健康运行的完整报告：
+
+```json
+{
+  "platform": "darwin/arm64",
+  "go_version": "go1.26.5",
+  "cache_dir": "/private/tmp/mdpress-cache",
+  "cache_disabled": false,
+  "chromium_available": true,
+  "typst_available": true,
+  "typst_version": "typst 0.15.0 (unknown commit)",
+  "cjk_fonts_available": true,
+  "plantuml_available": false,
+  "plantuml_needed": false,
+  "go_version_check": "go1.26.5",
+  "git_available": true,
+  "network_available": true,
+  "disk_space_gb": 62.70961380004883,
+  "disk_space_ok": true,
+  "plugins_valid": true,
+  "book_yaml_found": true,
+  "summary_found": false,
+  "langs_found": false,
+  "project_loadable": true,
+  "project_title": "my-book",
+  "top_level_chapters": 4
+}
+```
+
+另有三个键只在有内容时才出现：
+
+| 键 | 类型 | 出现条件 |
+| --- | --- | --- |
+| `plugin_count` | number | 项目声明了插件 |
+| `warnings` | string 数组 | 记录了任何警告或错误信息 |
+| `unresolved_markdown_links` | `{"Source", "Target"}` 数组 | 存在指向构建图之外的链接 |
+
+`book.yaml` 无法加载的项目：
+
+```json
+{
+  "book_yaml_found": true,
+  "project_loadable": false,
+  "warnings": [
+    "Failed to load book.yaml: config validation failed: chapter validation failed: chapter 1 references a missing file: nope.md (paths are relative to book.yaml)"
+  ]
+}
+```
+
+存在构建图之外链接的项目：
+
+```json
+{
+  "unresolved_markdown_links": [
+    {
+      "Source": "one.md",
+      "Target": "../outside.md"
+    }
+  ]
+}
+```
+
+注意 `warnings` 把警告和 error 级问题混在一起；要区分两者，唯一可靠的方式是看 `--strict` 的退出码。
+
+### 用 jq 解析
+
+```bash
 mdpress doctor --report report.json
 
-# Markdown 格式（用于文档）
-mdpress doctor --report report.md
-
-# 纯文本（默认，输出到终端）
-mdpress doctor
+jq '.chromium_available' report.json        # 这台机器能用默认后端出 PDF 吗？
+jq '.project_loadable' report.json          # book.yaml 能加载吗？
+jq -r '.warnings[]? // empty' report.json   # 列出所有警告（若有）
+jq -r '.unresolved_markdown_links[]? | "\(.Source) -> \(.Target)"' report.json
 ```
 
-### 示例：生成 Markdown 报告
+### Markdown 报告
 
-```bash
-mdpress doctor --report DOCTOR_REPORT.md
+`--report report.md` 把同样的字段写成一个列表，适合作为 CI 产物上传：
+
+```markdown
+# mdpress Doctor Report
+
+- Platform: darwin/arm64
+- Go version: go1.26.5
+- Go version check: go1.26.5
+- Cache disabled: false
+- Cache dir: /private/tmp/mdpress-cache
+- Chromium available: true
+- Typst available: true
+- Typst version: typst 0.15.0 (unknown commit)
+- CJK fonts available: true
+- Git available: true
+- Network connectivity: true
+- Disk space available: 62.71 GB
+- Disk space OK: true
+- PlantUML needed: false
+- PlantUML available: false
+- Plugins valid: true
+- book.yaml found: true
+- SUMMARY.md found: false
+- LANGS.md found: false
+- Project loadable: true
+- Project title: my-book
+- Top-level chapters: 4
 ```
 
-报告包括：
-- 系统信息
-- 已安装的工具和版本
-- 配置验证结果
-- 修复建议
+## 在 CI 中使用
 
-## 解释 Doctor 输出
-
-### 绿色复选标记（✓）
-
-一切工作正常：
-
-```
-✓ Platform: Linux
-✓ Go: 1.26.0
-✓ Chrome: /usr/bin/chromium
-```
-
-无需采取行动。
-
-### 黄色警告（!）
-
-可选依赖缺失，但不关键：
-
-```
-! PlantUML: not installed
-  → This is optional
-  → Diagram rendering will be skipped
-  → To enable: install PlantUML from http://plantuml.com
-```
-
-PlantUML 是可选的。书籍不需要它就能构建，但图表不会呈现。
-
-### 红色错误（✗）
-
-阻止构建的关键问题：
-
-```
-✗ Chrome: not found
-  → Required for PDF rendering
-  → To fix: Install Chrome or set MDPRESS_CHROME_PATH
-  → Install: https://www.google.com/chrome/
-```
-
-构建前必须修复错误。
-
-## 常见 Doctor 发现和修复
-
-### Chrome/Chromium 未找到
-
-**发现：**
-```
-✗ Chrome: not found
-  → Required for PDF rendering with --format pdf
-```
-
-**修复：**
-
-```bash
-# 安装 Chrome/Chromium
-# Linux
-sudo apt-get install chromium-browser
-
-# macOS
-brew install chromium
-
-# Windows
-# 从 https://www.google.com/chrome/ 下载
-
-# 然后设置路径（如果未自动检测）
-export MDPRESS_CHROME_PATH=/path/to/chrome
-mdpress build --format pdf
-```
-
-或使用 Typst 作为替代：
-
-```bash
-mdpress build --format typst
-```
-
-### 缺失 CJK 字体
-
-**发现：**
-```
-! CJK fonts: not detected
-  → Books with Chinese, Japanese, or Korean text need CJK fonts
-  → Optional if your book is English-only
-```
-
-**修复（如需要）：**
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install fonts-noto-cjk
-
-# macOS
-brew install font-noto-sans-cjk
-
-# Alpine
-apk add font-noto-cjk
-```
-
-然后重建：
-
-```bash
-mdpress build --format pdf --no-cache
-```
-
-### 缺失 book.yaml
-
-**发现：**
-```
-✗ book.yaml: not found
-  → Configuration file required
-  → Create one with: mdpress init
-```
-
-**修复：**
-
-```bash
-# 生成模板
-mdpress init
-
-# 或手动创建
-cat > book.yaml << 'EOF'
-book:
-  title: "My Book"
-  author: "Your Name"
-
-chapters:
-  - title: "Chapter 1"
-    file: "ch01.md"
-EOF
-
-# 然后构建
-mdpress build
-```
-
-### 破损的章节引用
-
-**发现：**
-```
-✗ Config validation failed
-  Chapter 1 references missing file: chapters/ch01.md
-```
-
-**修复：**
-
-```bash
-# 检查存在的文件
-ls -la
-
-# 更新 book.yaml 为正确路径
-vim book.yaml
-
-# 验证修复
-mdpress validate
-```
-
-### 破损的图像引用
-
-**发现：**
-```
-! Image not found: ../assets/diagram.png
-  → Referenced in: chapters/ch02.md
-```
-
-**修复：**
-
-```bash
-# 检查图像是否存在
-ls -la assets/
-
-# 如果缺失，添加图像：
-cp /path/to/diagram.png assets/
-
-# 如果路径错误，更新 Markdown：
-# 更改：![Diagram](diagram.png)
-# 为：![Diagram](../assets/diagram.png)
-
-# 验证
-mdpress validate
-```
-
-## 在 CI/CD 中使用 Doctor
+务必加上 `--strict`——否则这个步骤永远不会失败。
 
 ### GitHub Actions
 
 ```yaml
-- name: Run doctor check
-  run: mdpress doctor
+- name: Environment and project readiness
+  run: mdpress doctor --strict
 
-- name: Generate doctor report
+- name: Upload doctor report
   if: always()
   run: mdpress doctor --report doctor-report.md
-
-- name: Upload report as artifact
-  uses: actions/upload-artifact@v4
+- uses: actions/upload-artifact@v4
+  if: always()
   with:
     name: doctor-report
     path: doctor-report.md
@@ -366,160 +238,91 @@ mdpress validate
 doctor:
   stage: validate
   script:
-    - mdpress doctor
+    - mdpress doctor --strict
     - mdpress doctor --report doctor-report.md
   artifacts:
     paths:
       - doctor-report.md
     expire_in: 30 days
-  allow_failure: true  # 警告不会导致构建失败
 ```
 
-### 构建前验证
+### 构建前脚本
 
 ```bash
 #!/bin/bash
 set -e
 
-echo "Running doctor check..."
-mdpress doctor
-
-# 如果 doctor 失败，停止构建
-if [ $? -ne 0 ]; then
-  echo "Doctor check failed. Please fix issues above."
-  exit 1
-fi
-
-echo "Doctor check passed. Building..."
+mdpress doctor --strict   # 出现 error 级问题时，set -e 会在这里终止
+mdpress validate
 mdpress build --format pdf
 ```
 
-## Doctor 报告字段
+## 常见结果与修复
 
-使用 `--report report.json` 时：
+### 没有可用的 PDF 后端
 
-```json
-{
-  "platform": "Linux",
-  "osVersion": "6.8.0",
-  "go": {
-    "installed": true,
-    "version": "1.26.0",
-    "path": "/usr/local/go/bin/go"
-  },
-  "chrome": {
-    "found": true,
-    "path": "/usr/bin/chromium",
-    "version": "120.0.0.0"
-  },
-  "cjkFonts": ["Noto Sans CJK SC", "Noto Sans CJK JP"],
-  "plantUml": {
-    "installed": false,
-    "recommended": false
-  },
-  "project": {
-    "configValid": true,
-    "chaptersCount": 12,
-    "imagesCount": 24,
-    "totalImageSize": "6.2 MB"
-  },
-  "recommendations": [
-    "Install PlantUML for diagram support (optional)"
-  ]
-}
+```
+✗ No PDF backend available: Chromium/Chrome and Typst are both missing (PDF output will fail)
 ```
 
-以编程方式解析：
+安装其中之一，或改用不需要它们的格式：
 
 ```bash
-# 获取 Chrome 版本
-mdpress doctor --report report.json && jq '.chrome.version' report.json
+# macOS
+brew install chromium        # 或：brew install typst
+# Ubuntu/Debian
+sudo apt-get install chromium-browser
 
-# 检查项目是否就绪
-mdpress doctor --report report.json && jq '.project.configValid' report.json
+# Chromium 装在非标准路径时
+export MDPRESS_CHROME_PATH=/path/to/chrome
 
-# 列出建议
-mdpress doctor --report report.json && jq '.recommendations[]' report.json
+# 或者干脆不用 PDF 后端
+mdpress build --format site,html,epub
 ```
 
-## 持续监控
+### 未检测到 CJK 字体
 
-### 健康检查脚本
+```
+⚠ No CJK fonts detected — PDF output for Chinese/Japanese/Korean text may show blank squares
+```
+
+纯英文书可以忽略。否则：
 
 ```bash
-#!/bin/bash
-
-echo "=== mdPress Health Check ==="
-echo ""
-
-echo "1. Running doctor..."
-mdpress doctor --report /tmp/doctor.json
-
-if ! jq empty /tmp/doctor.json 2>/dev/null; then
-  echo "✗ Doctor check failed"
-  exit 1
-fi
-
-echo ""
-echo "2. Validating configuration..."
-if ! mdpress validate; then
-  echo "✗ Validation failed"
-  exit 1
-fi
-
-echo ""
-echo "3. Test build (HTML format, fastest)..."
-if ! mdpress build --format html --output /tmp/test.html; then
-  echo "✗ Build failed"
-  exit 1
-fi
-
-echo ""
-echo "✓ All checks passed!"
-echo "Ready to build PDF: mdpress build --format pdf"
+sudo apt-get install fonts-noto-cjk   # Ubuntu/Debian
+apk add font-noto-cjk                 # Alpine
 ```
 
-定期运行：
+### book.yaml 加载失败
+
+```
+✗ Failed to load book.yaml: config validation failed: chapter validation failed: chapter 1 references a missing file: nope.md (paths are relative to book.yaml)
+```
+
+章节路径相对 `book.yaml` 解析，而不是相对 shell 的当前目录。`mdpress validate` 会给出更详细的报告。
+
+### 目标目录里没有可直接构建的 book.yaml 或 SUMMARY.md
+
+```
+⚠ No directly buildable book.yaml or SUMMARY.md found in the target directory
+```
+
+说明 doctor 指向的目录两者皆无。`mdpress init` 可以从目录里已有的 Markdown 文件生成一份 `book.yaml`。
+
+## doctor 不检查什么
+
+doctor 检查环境以及配置能否加载。它不会：
+
+- 深入校验 Markdown 与链接目标——那是 `mdpress validate` 的职责
+- 验证图片是否存在或尺寸是否合适
+- 真的跑一次构建
+
+完整的构建前检查是这三条：
 
 ```bash
-# 每周健康检查
-0 0 * * 0 /path/to/health-check.sh
+mdpress doctor --strict
+mdpress validate
+mdpress build --format html
 ```
 
-## Doctor 的局限性
-
-Doctor 检查**环境**和**配置**，但不进行：
-
-- Markdown 语法验证（使用 `mdpress validate`）
-- 检查语法或拼写错误
-- 验证图像质量或分辨率
-- 检测构建期间的性能问题
-
-为获得全面验证：
-
-```bash
-# 完整验证
-mdpress validate      # 配置和结构
-mdpress doctor        # 环境就绪
-mdpress build --format html  # 尝试实际构建
-```
-
-## Doctor 后的后续步骤
-
-如果 doctor 报告全部绿色：
-
-```bash
-# 尝试构建
-mdpress serve       # 实时重载预览
-mdpress build       # 构建 PDF
-
-# 如果构建失败，尽管 doctor 报告绿色：
-mdpress build --verbose  # 启用调试输出
-```
-
-如果 doctor 报告警告：
-
-- **可选功能**：构建有效，但某些功能不可用
-- **错误**：在尝试构建前修复
-
-参见 [common-issues.md](common-issues.md) 了解每种错误类型的详细修复说明。
+构建期错误的修复方法见 [common-issues.md](common-issues.md)。

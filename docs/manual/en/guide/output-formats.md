@@ -19,7 +19,7 @@ mdpress build --format pdf,html,epub
 mdpress build --format all
 ```
 
-`all` expands to `pdf,html,site,epub,typst`, building all 5 formats.
+`all` expands to `pdf,html,site,epub`. `typst` is not included: it needs the optional Typst CLI and produces the same artifact as `pdf`, so `--format all` would fail on any machine without Typst installed. Request it explicitly with `--format typst`.
 
 ## Output Path
 

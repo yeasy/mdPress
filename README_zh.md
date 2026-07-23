@@ -14,12 +14,18 @@
 
 ```
 $ mdpress build --format site,pdf,html,epub
-  ✓ Loaded book.yaml (12 chapters)
-  ✓ Parsed Markdown (technical theme)
-  ✓ Generated pdf   → my-book.pdf
-  ✓ Generated html  → my-book.html
-  ✓ Generated site  → _book/
-  ✓ Generated epub  → my-book.epub
+
+  [1/5] Initializing theme system ... ✓ technical
+  [2/5] Parsing chapters (4 top-level) ... ✓ 4 chapters
+  [3/5] Generating cover and TOC ... ✓
+  [4/5] Assembling HTML ... ✓
+  [5/5] Generating output (site, pdf, html, epub) ... ✓
+
+  ✅ Build completed (elapsed 845ms)
+  ✓ Generated pdf   → /home/you/my-book/my-book.pdf
+  ✓ Generated html  → /home/you/my-book/my-book.html
+  ✓ Generated site  → /home/you/my-book/_book/index.html
+  ✓ Generated epub  → /home/you/my-book/my-book.epub
 ```
 
 需要完全控制时用 `book.yaml`，迁移 GitBook 风格项目时用 `SUMMARY.md`，想快速开始时可对一个聚焦的文档目录启用零配置发现。对于大型仓库，请把 mdPress 指向具体文档目录，而不是仓库根目录。
@@ -93,12 +99,18 @@ go install github.com/yeasy/mdpress@latest
 ### Docker
 
 ```bash
-# 精简镜像（~15 MB，不含 PDF 支持）
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress build
+# 精简镜像（~15 MB）——不含 Chromium，请选择不依赖它的格式
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress build --format site
 
-# 完整镜像（~300 MB，含 Chromium 用于 PDF 生成）
-docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
+# 完整镜像（~300 MB）——内置 Chromium，可生成 PDF
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
 ```
+
+`build` 默认输出 PDF，而精简镜像生成不了 PDF。在精简镜像里请使用 `site`、`html` 或 `epub`，或改用 `:full` 标签。
+
+两个镜像都以镜像内的 `mdpress` 用户运行，该 UID 在宿主机上并不存在。因此不加 `--user` 时，容器要么根本无法写入挂载目录，要么生成的文件属于一个无关的 UID。`--user "$(id -u):$(id -g)"` 可以让产物归你所有。macOS 与 Windows 上的 Docker Desktop 已代为处理该映射，可以省略 `--user`。
 
 ### 直接下载 Binary 或安装包
 
@@ -107,6 +119,27 @@ docker run --rm -v "$(pwd):/book" ghcr.io/yeasy/mdpress:full build --format pdf
 支持平台：macOS (amd64 / arm64)、Linux (amd64 / arm64)、Windows (amd64 / arm64)。
 
 自 v0.7.12 起，Releases 还提供 Linux 安装包（`.deb`、`.rpm`、`.apk`）和带校验和的源码 tarball。
+
+#### 校验下载内容
+
+每个 Release 都会发布 `checksums.txt`，其中包含每个产物的 SHA-256。运行之前请先校验下载到的文件——用 `curl` 安装 mdPress 的 CI 步骤同样应该加上这一步：
+
+```bash
+VERSION=0.7.15
+BASE=https://github.com/yeasy/mdpress/releases/download/v${VERSION}
+
+curl -fsSLO "${BASE}/mdpress_${VERSION}_linux_amd64.tar.gz"
+curl -fsSLO "${BASE}/checksums.txt"
+
+# Linux
+sha256sum --ignore-missing -c checksums.txt
+# macOS
+shasum -a 256 --ignore-missing -c checksums.txt
+```
+
+对你下载的文件，命令必须输出 `OK`。`--ignore-missing` 让你只用清单中的一条记录校验单个产物。
+
+> Release 目前没有签名，macOS 二进制也尚未公证，因此 `checksums.txt` 只能防止下载损坏或被截断，无法防御被攻陷的发布。若需要更强的保证，请从源码构建。
 
 > **macOS Gatekeeper 提示：** 二进制目前尚未公证。通过 Homebrew cask 安装会自动移除隔离标记；如果你直接下载二进制且被 macOS 阻止，手动清除一次即可：
 >
@@ -252,10 +285,40 @@ mdPress 自带三款主题。用 `mdpress themes list` 查看：
 
 ```
 $ mdpress themes list
-  technical   — 清晰专业，适合技术文档和 IT 书籍
-  elegant     — 优雅衬线风格，适合图书、文集与出版物
-  minimal     — 极简风格，留白充分、可读性高
+Available themes:
+
+1. Technical (technical) [default]
+   Description: Clean, professional style for technical documentation and IT books
+   Colors: #12344D (heading) / #1C5A9E (link) / #1C5A9E (accent) / #FFFFFF (background)
+   Properties:
+     - Font: -apple-system
+     - Base size 11pt, line height 1.75
+     - Code highlighting: github
+     - Page A4, margins 20/20/20/20 mm (top/right/bottom/left)
+
+2. Elegant (elegant)
+   Description: Elegant serif-based style for fiction, essays, and publishing
+   Colors: #1B0000 (heading) / #8B6914 (link) / #A87B3B (accent) / #FFFBF0 (background)
+   Properties:
+     - Font: Songti SC
+     - Base size 12pt, line height 1.80
+     - Code highlighting: github
+     - Page A4, margins 25/25/25/25 mm (top/right/bottom/left)
+
+3. Minimal (minimal)
+   Description: Minimal style with generous whitespace and high readability
+   Colors: #000000 (heading) / #0000EE (link) / #1A1A1A (accent) / #FFFFFF (background)
+   Properties:
+     - Font: -apple-system
+     - Base size 10pt, line height 1.70
+     - Code highlighting: bw
+     - Page A4, margins 30/30/30/30 mm (top/right/bottom/left)
+
+Run 'mdpress themes show <theme-name>' to view theme details.
+Example: mdpress themes show elegant
 ```
+
+（`themes` 子命令的输出目前只有英文。）
 
 通过 `book.yaml` 中的 `style.theme` 切换主题。也支持自定义主题：在项目中放置 `themes/<name>.yaml` 文件即可定义（或覆盖）一个主题，或让 `style.theme` 直接指向一个 YAML 主题文件（如 `style.theme: mytheme.yaml`）。
 

@@ -36,21 +36,24 @@ mdpress build --format pdf
 
 **问：** 我如何在 Docker 容器中使用 mdPress？
 
-**答：** 使用官方 Docker 镜像或创建你自己的：
+**答：** 使用官方镜像。`ghcr.io/yeasy/mdpress:full` 内置 Chromium 与 Noto 字体，开箱即可生成 PDF；不带标签的 `ghcr.io/yeasy/mdpress` 是约 15 MB 的精简镜像，不含 Chromium，只能构建 `site`/`html`/`epub`。
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
+```
+
+`--user` 很重要：镜像以镜像内的 `mdpress` 用户运行，该 UID 在宿主机上并不存在，不加 `--user` 时生成的文件会属于一个无关的 UID（或者根本写不进去）。
+
+如果你要自建镜像，需要安装 Chromium 并告诉 mdPress 它的位置——Alpine 上的可执行文件名是 `chromium-browser`，这也是官方镜像设置 `MDPRESS_CHROME_PATH` 的原因：
 
 ```dockerfile
 FROM golang:1.26-alpine
 RUN apk add --no-cache chromium font-noto-cjk
 RUN go install github.com/yeasy/mdpress@latest
+ENV MDPRESS_CHROME_PATH=/usr/bin/chromium-browser
 WORKDIR /workspace
 ENTRYPOINT ["mdpress"]
-```
-
-构建和使用：
-
-```bash
-docker build -t mdpress:latest .
-docker run -v "$(pwd):/workspace" mdpress:latest build --format pdf
 ```
 
 ## 配置和样式

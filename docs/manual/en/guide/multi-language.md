@@ -1,506 +1,201 @@
 # Multi-Language Books
 
-mdPress supports creating documentation in multiple languages with automatic language switching and separate builds for each language version. This guide explains how to set up and manage multi-language documentation.
+A multi-language project is a directory containing a `LANGS.md` file plus one subdirectory per language. **Each language directory is an ordinary, self-contained mdPress project.** mdPress builds each one in turn and writes a small landing page next to them.
 
-## Multi-Language Structure
+There is no `multiLanguage`, `languages`, `defaultLanguage`, or `languageSwitcher` configuration. `LANGS.md` is the entire mechanism.
 
-Multi-language books use a specific directory structure and configuration files to organize content by language.
-
-### Directory Layout
-
-Organize your multi-language documentation like this:
+## Directory Layout
 
 ```
 book/
-├── LANGS.md
-├── book.yaml
+├── LANGS.md          <- the only thing that makes this a multi-language project
 ├── en/
 │   ├── book.yaml
-│   ├── SUMMARY.md
-│   ├── chapter-1.md
-│   ├── chapter-2.md
-│   └── assets/
-├── zh/
-│   ├── book.yaml
-│   ├── SUMMARY.md
-│   ├── chapter-1.md
-│   ├── chapter-2.md
-│   └── assets/
-└── ja/
+│   ├── README.md
+│   └── guide.md
+└── zh/
     ├── book.yaml
-    ├── SUMMARY.md
-    ├── chapter-1.md
-    ├── chapter-2.md
-    └── assets/
+    ├── README.md
+    └── guide.md
 ```
 
-Each language has its own directory with complete documentation content and configuration.
-
-## LANGS.md Configuration
-
-The `LANGS.md` file defines all available languages in your documentation.
-
-### LANGS.md Format
-
-Create `LANGS.md` in your root directory:
-
-```markdown
-# Languages
-
-- [English](en/README.md)
-- [中文](zh/README.md)
-- [日本語](ja/README.md)
-```
-
-Or with more detailed format:
-
-```markdown
-# Languages
-
-* [English - English Documentation](en/)
-* [中文（简体）- Simplified Chinese](zh/)
-* [繁體中文 - Traditional Chinese](zh-tw/)
-* [日本語 - Japanese](ja/)
-```
-
-### Language Structure
-
-The format is Markdown with:
-- A main heading (H1) "Languages"
-- A list of links to each language
-- Link text shown to users
-- Link target pointing to the language directory or README
-
-## Per-Language Configuration
-
-Each language needs its own `book.yaml` file with language-specific settings.
-
-### Language-Specific book.yaml
-
-In `en/book.yaml`:
-
-```yaml
-title: "My Project Documentation"
-description: "Complete guide to my project"
-language: "en"
-authors:
-  - "Your Name"
-
-# Language-specific metadata
-site:
-  baseUrl: "https://docs.example.com/en/"
-
-search:
-  languages: ["en"]
-```
-
-In `zh/book.yaml`:
-
-```yaml
-title: "我的项目文档"
-description: "我的项目的完整指南"
-language: "zh"
-authors:
-  - "你的名字"
-
-site:
-  baseUrl: "https://docs.example.com/zh/"
-
-search:
-  languages: ["zh"]
-```
-
-In `ja/book.yaml`:
-
-```yaml
-title: "マイプロジェクトドキュメント"
-description: "マイプロジェクトの完全ガイド"
-language: "ja"
-authors:
-  - "あなたの名前"
-
-site:
-  baseUrl: "https://docs.example.com/ja/"
-
-search:
-  languages: ["ja"]
-```
-
-### Required Language Settings
-
-Each language's `book.yaml` should have:
-
-- `language`: ISO 639-1 language code (en, zh, ja, fr, de, etc.)
-- `title`: Title in the target language
-- `description`: Description in the target language
-- `search.languages`: Match the language code
-
-## Root book.yaml Configuration
-
-The root `book.yaml` defines global settings for the entire multi-language project.
-
-### Root Configuration
-
-In your root `book.yaml`:
-
-```yaml
-title: "Multi-Language Documentation"
-description: "Documentation in multiple languages"
-
-# Multi-language configuration
-multiLanguage: true
-languages:
-  - code: "en"
-    name: "English"
-    region: "US"
-  - code: "zh"
-    name: "中文"
-    region: "CN"
-  - code: "ja"
-    name: "日本語"
-    region: "JP"
-
-# Default language for the root
-defaultLanguage: "en"
-
-# Language switcher configuration
-languageSwitcher:
-  enabled: true
-  position: "top-right"
-```
-
-### Language Codes
-
-Use standard ISO 639-1 language codes:
-
-- `en`: English
-- `zh`: Chinese (Simplified)
-- `zh-tw`: Chinese (Traditional)
-- `ja`: Japanese
-- `ko`: Korean
-- `fr`: French
-- `de`: German
-- `es`: Spanish
-- `ru`: Russian
-- `ar`: Arabic
-- `pt`: Portuguese
-- `it`: Italian
-
-## Building Multi-Language Documentation
-
-Build all languages or specific languages with command-line flags.
-
-### Build All Languages
-
-```bash
-mdpress build
-```
-
-Builds all languages specified in `LANGS.md` and creates:
+Do **not** put a `book.yaml` at the root. mdPress loads the root config before it looks at `LANGS.md`, and a root `book.yaml` with no chapters of its own fails the build:
 
 ```
-dist/
-├── en/
-│   ├── index.html
-│   ├── chapter-1/
-│   └── ...
-├── zh/
-│   ├── index.html
-│   ├── chapter-1/
-│   └── ...
-└── ja/
-    ├── index.html
-    ├── chapter-1/
-    └── ...
+Error: failed to load config: config validation failed: at least one chapter is required
 ```
 
-### Build a Specific Language
-
-`build` has no `--lang` flag. To build a single language, point `build` at that
-language's subdirectory as the source and pick an output path:
-
-```bash
-mdpress build ./en --output ./dist/en
-```
-
-This builds only the English version.
-
-### Build with Output Directory
-
-```bash
-mdpress build --output ./dist
-```
-
-Outputs all language versions to the `./dist` directory with the structure above.
-
-## Per-Language Building
-
-Build individual languages separately if needed.
-
-### Building a Single Language
-
-```bash
-cd en
-mdpress build
-```
-
-Or from the root, pass the language subdirectory as the source:
-
-```bash
-mdpress build ./en --output ./dist/en
-```
-
-This is useful for deploying individual language versions to separate servers or domains.
-
-### Language-Specific Output
-
-When building a single language, the structure is simpler:
-
-```
-dist/
-├── index.html
-├── chapter-1/
-│   └── index.html
-├── chapter-2/
-│   └── index.html
-└── assets/
-```
-
-### Incremental Builds
-
-For large multi-language projects, rebuild only changed languages by building
-each language subdirectory on its own:
-
-```bash
-mdpress build ./zh --output ./dist/zh
-```
-
-Only rebuilds the Chinese version, leaving other languages untouched.
-
-## Language Switching
-
-Users can switch between languages in the documentation interface.
-
-### Language Switcher UI
-
-The language switcher appears in the site interface (position configurable in `book.yaml`):
-
-- Typically located in the header or sidebar
-- Shows all available languages with native names
-- Clicking switches to the selected language
-- Current language is highlighted
-
-### Navigation After Language Switch
-
-When switching languages:
-
-1. User clicks the language switcher
-2. Browser navigates to the same page in the new language
-3. If the page doesn't exist in the new language, navigates to the homepage
-4. Language preference is saved in browser local storage
-
-### Deep Linking Between Languages
-
-Link from one language to the corresponding page in another:
-
-In English documentation:
-```markdown
-[日本語版](../ja/chapter-1.md)
-```
-
-In Japanese documentation:
-```markdown
-[English Version](../en/chapter-1.md)
-```
-
-mdPress automatically rewrites these links based on the language context.
-
-## Managing Content Across Languages
-
-### Synchronizing Updates
-
-When you update English documentation, you need to update translations:
-
-1. Update source content in `en/chapter-1.md`
-2. Update the corresponding file in `zh/chapter-1.md`
-3. Update the corresponding file in `ja/chapter-1.md`
-4. Rebuild the documentation
-
-### Maintaining Consistency
-
-Use the same file names across all languages:
-
-```
-en/chapter-1.md
-zh/chapter-1.md
-ja/chapter-1.md
-```
-
-This makes it easy to identify corresponding sections.
-
-### Partial Language Support
-
-You can have incomplete language versions. For example:
-
-- English: 100% complete
-- Japanese: 80% complete
-- Chinese: 50% complete
-
-The language switcher still shows all languages. Users who click an unavailable language are directed to the homepage in that language.
-
-### Translation Workflow
-
-Recommended workflow for managing translations:
-
-1. Create English documentation
-2. Commit and publish English version
-3. Create language directories with structure copied from English
-4. Translate section by section
-5. Commit translated sections
-6. Rebuild to include all available languages
-
-## Example Multi-Language Setup
-
-### Complete Example
-
-Here's a complete example with three languages:
-
-Create the directory structure:
-
-```bash
-mkdir -p book/{en,zh,ja}
-```
-
-Create `book/LANGS.md`:
+## LANGS.md
 
 ```markdown
 # Languages
 
 - [English](en/)
 - [中文](zh/)
-- [日本語](ja/)
 ```
 
-Create `book/book.yaml`:
+Parsing rules, exactly as implemented:
+
+- Any line containing a Markdown link `[Name](dir)` becomes a language. Lines starting with `#` and blank lines are skipped, so the heading is decoration.
+- The link text is the display name shown in the language switcher.
+- **The link target must be the language directory.** A trailing slash is optional. Absolute paths and `..` are rejected.
+- Point an entry at a file (`[English](en/README.md)`) and the build fails with `stat …/en/README.md/<Title>_site: not a directory`.
+- Bullet style does not matter; `-` and `*` both work.
+
+## Per-Language Configuration
+
+Each language directory is discovered with the same rules as a standalone project: `book.yaml`, then `book.json`, then `SUMMARY.md`, then zero-config discovery of the `.md` files present.
+
+A language `book.yaml` uses the normal mdPress schema — a `book:` block, not top-level `title:`/`language:` keys:
+
+`en/book.yaml`:
 
 ```yaml
-title: "Multi-Language Docs"
-multiLanguage: true
-languages:
-  - code: "en"
-    name: "English"
-  - code: "zh"
-    name: "中文"
-  - code: "ja"
-    name: "日本語"
-defaultLanguage: "en"
+book:
+  title: "My Docs"
+  author: "Your Name"
+  description: "Complete guide to my project"
+  language: "en-US"
+
+chapters:
+  - title: "Intro"
+    file: "README.md"
+  - title: "Guide"
+    file: "guide.md"
 ```
 
-Create `book/en/book.yaml`:
+`zh/book.yaml`:
 
 ```yaml
-title: "Documentation"
-language: "en"
+book:
+  title: "我的文档"
+  author: "你的名字"
+  description: "我的项目的完整指南"
+  language: "zh-CN"
+
+chapters:
+  - title: "简介"
+    file: "README.md"
+  - title: "指南"
+    file: "guide.md"
 ```
 
-Create `book/en/SUMMARY.md`:
+Writing `title:` at the top level instead of under `book:` produces an "unknown key" warning and a book called "Untitled Book".
 
-```markdown
-# Summary
+`book.language` takes a full locale tag such as `en-US` or `zh-CN`; it drives the UI strings and cover. If you omit it, mdPress guesses from the directory name (`en/` → English, `zh/` → Chinese).
 
-- [Introduction](./README.md)
-- [Getting Started](./getting-started.md)
-- [Configuration](./configuration.md)
-```
+Everything else — `style:`, `output:`, `plugins:` — is per language and independent. Two languages can use different themes.
 
-Create `book/en/README.md`:
-
-```markdown
-# Welcome
-
-Welcome to the documentation.
-```
-
-Then copy the structure to `zh/` and `ja/` directories and translate the content.
-
-Build all languages:
+## Building
 
 ```bash
 cd book
-mdpress build --output ../dist
+mdpress build --format site
+```
+
+mdPress builds each language in turn. The outputs land **inside each language directory**:
+
+```
+book/
+├── _mdpress_langs.html          <- landing page listing the languages
+├── en/
+│   └── My Docs_site/            <- named after the book title, or output.filename
+│       └── index.html
+└── zh/
+    └── 我的文档_site/
+        └── index.html
+```
+
+File formats behave the same way — `mdpress build --format pdf` writes `en/My Docs.pdf` and `zh/我的文档.pdf`. Set `output.filename` in a language's `book.yaml` to control that name:
+
+```yaml
+output:
+  filename: "en-docs"     # -> en/en-docs.pdf and en/en-docs_site/
+```
+
+Each generated site page also gets a language-switcher bar injected at the top, linking to the other languages and to the landing page.
+
+### Known limitations of the whole-project build
+
+The whole-project build is convenient for local preview but is **not** a good source for deployment yet:
+
+- The landing page is called `_mdpress_langs.html`, not `index.html`, so it is not what a web server serves at the site root.
+- Site directory names come from the book **title**, so a title with spaces or CJK characters becomes part of the URL path (`en/My%20Docs_site/`).
+- Links in the landing page and switcher are not percent-encoded, so those same titles produce links that do not resolve.
+- `--output ./dist` does **not** create `dist/`. It produces sibling paths `dist-en_site/`, `dist-zh_site/` and `dist-index.html` next to the project, and each language's own `output.filename` is ignored.
+
+Use the per-language builds below to produce something deployable.
+
+### Building One Language (recommended for deployment)
+
+There is no `--lang` flag. Build each language directory as its own project and choose the output path yourself. **Give `--output` a trailing slash** so mdPress treats it as a directory rather than a filename base:
+
+```bash
+mdpress build ./en --format site --output ./dist/en/
+mdpress build ./zh --format site --output ./dist/zh/
+```
+
+This produces exactly the layout you want to deploy:
+
+```
+dist/
+├── en/
+│   ├── index.html
+│   ├── guide.html
+│   └── search-index.json
+└── zh/
+    ├── index.html
+    ├── guide.html
+    └── search-index.json
+```
+
+Without the trailing slash, `--output ./dist/en` is read as a filename base and the site lands in `dist/en_site/` instead.
+
+This is also how you rebuild a single language without touching the others.
+
+### Previewing One Language
+
+`mdpress serve` has no multi-language mode. Point it at one language directory:
+
+```bash
+mdpress serve ./en
+```
+
+## Linking Between Languages
+
+Cross-language links are ordinary relative links and are **not** rewritten by mdPress; a link from `en/guide.md` to `../zh/guide.md` points outside the English book's build graph, and `mdpress doctor` will report it:
+
+```
+⚠ Detected 1 Markdown link(s) outside the build graph
+    - ../zh/guide.md (from guide.md)
+```
+
+For a link that works in the deployed site, write the deployed URL instead:
+
+```markdown
+[中文版](/zh/guide.html)
 ```
 
 ## Deployment
 
-### Language-Based Routing
-
-Deploy all languages to the same domain with path-based routing:
+With the per-language build above, `dist/` is a normal static site tree:
 
 ```
 https://docs.example.com/en/
 https://docs.example.com/zh/
-https://docs.example.com/ja/
 ```
 
-Configure your web server or CDN to route requests appropriately.
+Add your own `dist/index.html` to redirect the root to a default language — mdPress does not generate a usable one yet.
 
-### Separate Domains
-
-Deploy each language to a separate domain:
-
-```
-https://en.docs.example.com/
-https://zh.docs.example.com/
-https://ja.docs.example.com/
-```
-
-Update the `baseUrl` in each language's `book.yaml` accordingly.
-
-### Redirects and Localization
-
-For the root domain, redirect users to their preferred language:
-
-```
-https://docs.example.com/ → https://docs.example.com/en/ (for English users)
-https://docs.example.com/ → https://docs.example.com/zh/ (for Chinese users)
-```
-
-Implement this using:
-- Web server configuration
-- Service worker redirect
-- JavaScript redirect based on browser language
+Each language can also be deployed separately, to its own domain or bucket, since each `dist/<lang>/` is self-contained.
 
 ## Troubleshooting
 
-### Language Not Building
-
-Verify:
-1. The language directory exists
-2. `book.yaml` exists in the language directory
-3. `SUMMARY.md` exists in the language directory
-4. Language code in `book.yaml` matches `LANGS.md`
-
-### Broken Links Between Languages
-
-Check:
-1. File names match across language directories
-2. Relative paths in links account for the language prefix
-3. All referenced files exist in the target language
-
-### Language Switcher Not Appearing
-
-Verify in `book.yaml`:
-- `multiLanguage: true` is set
-- `languageSwitcher.enabled: true` is set
-- Multiple languages are listed in `languages`
-
-### Inconsistent Content
-
-When content diverges between language versions, document the differences:
-
-```markdown
-> Note: This feature is only available in English documentation.
-> Please refer to the [English version](../en/chapter-1.md#feature-name).
-```
-
-Keep translation changes documented for reference.
+| Symptom | Cause |
+| --- | --- |
+| `at least one chapter is required` at the root | There is a `book.yaml` at the project root. Delete it; per-language config lives in the language directories. |
+| `stat …/en/README.md/…: not a directory` | A `LANGS.md` entry points at a file. Point it at the directory: `[English](en/)`. |
+| `no language definitions found in LANGS.md` | No line in `LANGS.md` contains a Markdown link. |
+| Book is titled "Untitled Book" | The language `book.yaml` uses top-level `title:` instead of `book: { title: … }`. |
+| Site UI is in the wrong language | Set `book.language` (`en-US`, `zh-CN`, …) in that language's `book.yaml`. |
+| `dist/` does not exist after `build --output ./dist` | Expected in whole-project mode. Build each language separately as shown above. |
