@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1187,7 +1188,15 @@ func TestResolveLocalImagePathContainmentRoot(t *testing.T) {
 	})
 
 	t.Run("absolute paths are still rejected", func(t *testing.T) {
-		if got := resolveLocalImagePath(chapterDir, root, "/etc/passwd"); got != "" {
+		// "/etc/passwd" is absolute on Unix but merely rooted on Windows, where
+		// it carries no volume and joins to <root>\etc\passwd — inside the book,
+		// so accepting it is correct there. Name a genuinely absolute path per
+		// platform, or this asserts nothing on Windows.
+		absolute := "/etc/passwd"
+		if runtime.GOOS == "windows" {
+			absolute = `C:\Windows\win.ini`
+		}
+		if got := resolveLocalImagePath(chapterDir, root, absolute); got != "" {
 			t.Errorf("absolute path accepted: %q", got)
 		}
 	})

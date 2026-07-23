@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -339,7 +340,13 @@ var mdpressBinary = sync.OnceValues(func() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bin := filepath.Join(os.TempDir(), "mdpress-testbin")
+	// Windows will not exec a file without the .exe suffix, so the extension
+	// is part of the name rather than cosmetic.
+	name := "mdpress-testbin"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bin := filepath.Join(os.TempDir(), name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", bin, ".")

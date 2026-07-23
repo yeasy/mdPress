@@ -156,6 +156,13 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 			slog.Warn("failed to compute relative path", slog.String("dir", dir), slog.String("file", f), slog.Any("error", err))
 			relPath = f // fallback to absolute path
 		}
+		// ChapterDef.File is a slash-separated path everywhere else: that is
+		// what a hand-written book.yaml holds and what `init` generates. Leaving
+		// the native separator here made zero-config discovery on Windows
+		// produce "guide\README.md" where every other producer yields
+		// "guide/README.md", so the same directory described the same book two
+		// different ways depending on how it was configured.
+		relPath = filepath.ToSlash(relPath)
 		baseName := strings.ToLower(filepath.Base(f))
 		if baseName == "readme.md" && filepath.Dir(relPath) == "." {
 			readmeFile = relPath
