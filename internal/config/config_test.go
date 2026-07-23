@@ -23,8 +23,18 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Style.Theme != "technical" {
 		t.Errorf("wrong default theme: got %q, want %q", cfg.Style.Theme, "technical")
 	}
-	if cfg.Style.LineHeight != 1.6 {
-		t.Errorf("wrong default line height: got %f, want %f", cfg.Style.LineHeight, 1.6)
+	// Typography defaults deliberately live in the theme, not here: an unset
+	// value means "inherit from the theme", which is what keeps `elegant`
+	// serif and `minimal` on its own scale. A non-zero value here would
+	// silently override every theme.
+	if cfg.Style.LineHeight != 0 {
+		t.Errorf("style.line_height should default to unset, got %f", cfg.Style.LineHeight)
+	}
+	if cfg.Style.FontFamily != "" {
+		t.Errorf("style.font_family should default to unset, got %q", cfg.Style.FontFamily)
+	}
+	if cfg.Style.FontSize != "" {
+		t.Errorf("style.font_size should default to unset, got %q", cfg.Style.FontSize)
 	}
 	if cfg.Output.Filename != "output.pdf" {
 		t.Errorf("wrong default output filename: got %q, want %q", cfg.Output.Filename, "output.pdf")

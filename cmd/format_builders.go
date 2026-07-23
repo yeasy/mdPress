@@ -566,9 +566,12 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		typst.WithAuthor(ctx.Config.Book.Author),
 		typst.WithVersion(ctx.Config.Book.Version),
 		typst.WithLanguage(ctx.Config.Book.Language),
-		typst.WithFontFamily(ctx.Config.Style.FontFamily),
-		typst.WithFontSize(ctx.Config.Style.FontSize),
-		typst.WithLineHeight(ctx.Config.Style.LineHeight),
+		// Read the resolved theme, not the raw config: the theme already
+		// carries the built-in values with the user's style overlaid, so all
+		// backends render the same typography.
+		typst.WithFontFamily(ctx.Theme.FontFamily),
+		typst.WithFontSize(ctx.Theme.ResolvedFontSize()),
+		typst.WithLineHeight(ctx.Theme.LineHeight),
 		typst.WithRootDir(typstRoot),
 		typst.WithMargins(
 			typst.ConvertMarginToTypst(ctx.Config.Output.MarginLeft, "20mm"),
