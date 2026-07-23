@@ -198,7 +198,11 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	expandedFormats := make([]string, 0, len(formats))
 	for _, f := range formats {
 		if f == "all" {
-			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub", "typst")
+			// "typst" is deliberately excluded: it is an opt-in alternative
+			// PDF backend that needs the optional Typst CLI and produces the
+			// same artifact as "pdf". Including it made `--format all` fail on
+			// any machine without Typst, including the project's own CI recipe.
+			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub")
 		} else {
 			expandedFormats = append(expandedFormats, f)
 		}
