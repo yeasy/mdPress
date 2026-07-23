@@ -88,6 +88,17 @@ mdpress build --format pdf,html,site --output ./release/manual.pdf
 - `html` 会得到 `./release/manual.html`
 - `site` 会得到 `./release/manual_site/`
 
+### 只构建 `--format site` 时
+
+当 `site` 是唯一请求的格式时，`--output` **就是**站点目录：
+
+```bash
+mdpress build --format site --output ./dist    # 生成 ./dist/index.html
+```
+
+这与 `./dist` 是否已存在无关。早期版本会给尚不存在的路径加上 `_site` 后缀，
+于是干净的 CI checkout 产出 `dist_site/`，而本地第二次运行产出 `dist/`。
+
 ### 站点输出的安全机制
 
 站点有两条写入路径，只有其中一条会清理旧页面：

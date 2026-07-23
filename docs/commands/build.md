@@ -88,6 +88,18 @@ A path that does not resolve to a directory is treated as a base path:
 - `html` becomes `./release/manual.html`
 - `site` becomes `./release/manual_site/`
 
+### `--format site` on its own
+
+When `site` is the only requested format, `--output` **is** the site directory:
+
+```bash
+mdpress build --format site --output ./dist    # writes ./dist/index.html
+```
+
+This does not depend on whether `./dist` already exists. Earlier versions
+appended `_site` to a path that did not exist yet, so a clean CI checkout
+produced `dist_site/` while a second local run produced `dist/`.
+
 ### Site output safety
 
 There are two site-writing paths, and only one of them prunes:

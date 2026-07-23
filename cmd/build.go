@@ -53,9 +53,9 @@ Output formats:
 Output paths (--output):
   pdf/html/epub/typst treat --output as a file path or base name; an existing
   directory (or a path ending with a separator) receives "<name>.<ext>" files.
-  site writes to the "_book/" directory by default; --output pointing at a
-  directory is used verbatim, while a file path or base name (e.g.
-  ./release/manual.pdf) puts the site in "<base>_site/" next to the files.
+  site writes to "_book/" by default. With --format site alone, --output is
+  the site directory. Combined with other formats it is a shared base, so the
+  site goes to a "<base>_site/" sibling and the build says so.
 
 Zero-config mode:
   If neither book.yaml nor SUMMARY.md exists, mdpress auto-discovers .md files.
@@ -63,7 +63,7 @@ Zero-config mode:
 Examples:
   mdpress build
   mdpress build --format html
-  mdpress build --format site --output ./dist/book
+  mdpress build --format site --output ./dist
   mdpress build --format pdf,html,epub
   mdpress build --format all
   mdpress build --config path/to/book.yaml
@@ -118,7 +118,7 @@ func init() {
 	buildCmd.Flags().StringVarP(&buildFormat, "format", "f", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
-	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or base name for pdf/html/epub/typst; site uses a directory verbatim or \"<base>_site/\" for a file base (default: _book/)")
+	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or base name for pdf/html/epub/typst; with --format site alone this is the site directory; shared with other formats the site goes to \"<base>_site/\" (default: _book/)")
 	buildCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")
 	buildCmd.Flags().BoolVar(&allowPlugins, "allow-plugins", false, "Execute plugins declared by a remote project's book.yaml (arbitrary code; local sources always run plugins)")
 }
@@ -299,7 +299,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 	}
 
-	siteDir := resolveSiteOutputDir(cfg.BaseDir(), outputOverride)
+	siteDir := resolveSiteOutputDir(cfg.BaseDir(), outputOverride, formats, logger)
 	if remoteOutputDir != "" {
 		// Keep the site in "<cwd>/_book" rather than spilling its pages into
 		// the working directory itself.
@@ -312,22 +312,46 @@ func executeBuild(ctx context.Context, inputSource string) error {
 // single-language build:
 //   - no --output: the GitBook-style "_book" directory under the project,
 //     matching `mdpress serve` and the CI deploy examples;
-//   - --output naming an existing directory (or ending with a path
-//     separator): used verbatim as the target directory;
-//   - --output naming a file path or base name (e.g. release/manual.pdf or
-//     release/manual): the site goes to a "<base>_site" sibling so the other
-//     formats can keep using the same base path for their files.
-func resolveSiteOutputDir(baseDir, outputOverride string) string {
+//   - --output with only "site" requested: used verbatim. The site is the
+//     whole output, so the path the user named is the directory they want.
+//     This used to depend on whether the path already existed — a clean CI
+//     checkout got "dist_site" while the developer's second local run got
+//     "dist", which is the worst possible way for a path to be decided;
+//   - --output alongside other formats: the site goes to a "<base>_site"
+//     sibling so pdf/html/epub can keep using the base path for their files,
+//     and a warning names the directory actually used.
+func resolveSiteOutputDir(baseDir, outputOverride string, formats []string, logger *slog.Logger) string {
 	if outputOverride == "" {
 		return filepath.Join(baseDir, "_book")
 	}
 	if hasTrailingPathSeparator(outputOverride) {
 		return filepath.Clean(outputOverride)
 	}
+	if onlySiteFormat(formats) {
+		return filepath.Clean(outputOverride)
+	}
 	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
 		return outputOverride
 	}
-	return strings.TrimSuffix(outputOverride, filepath.Ext(outputOverride)) + "_site"
+	siteDir := strings.TrimSuffix(outputOverride, filepath.Ext(outputOverride)) + "_site"
+	if logger != nil {
+		logger.Warn("--output is shared with other formats, so the site goes to a sibling directory",
+			slog.String("site_dir", siteDir),
+			slog.String("hint", "build the site on its own to write straight into --output"))
+	}
+	return siteDir
+}
+
+// onlySiteFormat reports whether "site" is the only requested format.
+func onlySiteFormat(formats []string) bool {
+	seen := false
+	for _, f := range formats {
+		if !strings.EqualFold(strings.TrimSpace(f), "site") {
+			return false
+		}
+		seen = true
+	}
+	return seen
 }
 
 func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
