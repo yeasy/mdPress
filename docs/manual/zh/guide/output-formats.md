@@ -7,7 +7,7 @@
 | 格式 | 你会得到什么 | 说明 |
 | --- | --- | --- |
 | `pdf` | `book.pdf` | 通过 Chromium 生成的默认 PDF 输出。遵循页面尺寸、页边距、目录、封面、页眉和页脚。 |
-| `html` | `book.html` | 单个自包含的 HTML 文件。 |
+| `html` | `book.html` | 单个 HTML 文件，图片、样式和脚本都已内联。公式和 Mermaid 图在阅读时从 CDN 加载。 |
 | `site` | `_book/` | 多页面静态站点，包含 `index.html`、章节页面、搜索和侧边栏导航。 |
 | `epub` | `book.epub` | 面向电子阅读器的 EPUB 3 包。 |
 | `typst` | `book-typst.pdf` | 备选 PDF 后端，需要 `PATH` 中存在 Typst。 |

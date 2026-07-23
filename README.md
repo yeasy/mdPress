@@ -173,7 +173,7 @@ When you are ready to publish:
 mdpress build --format pdf,html
 ```
 
-That's it. You now have a printable PDF and a self-contained HTML file.
+That's it. You now have a printable PDF and a single-file HTML document.
 
 ## Existing Projects
 
@@ -200,7 +200,7 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. Zero-co
 | Format | Command | Result |
 | --- | --- | --- |
 | PDF | `mdpress build --format pdf` | A printable book with cover, TOC, page numbers, margins, and optional watermarks |
-| HTML | `mdpress build --format html` | A single self-contained `.html` file you can email or upload |
+| HTML | `mdpress build --format html` | A single `.html` file you can email or upload (math and diagrams load from a CDN — see below) |
 | Site | `mdpress build --format site` | A multi-page website ready for GitHub Pages or Netlify |
 | ePub | `mdpress build --format epub` | An ebook for Kindle, Apple Books, etc. |
 | Typst | `mdpress build --format typst` | PDF backend via the Typst CLI as a Chromium-free alternative |
@@ -208,7 +208,9 @@ mdPress automatically detects `book.yaml`, `book.json`, or `SUMMARY.md`. Zero-co
 
 ### HTML vs Site: What's the difference?
 
-- **`html`** produces a single self-contained `.html` file with all chapters on one page. It includes a sidebar for navigation, embedded images, and everything needed to read offline. Great for sharing via email or uploading to a file host.
+- **`html`** produces a single `.html` file with all chapters on one page, a sidebar for navigation, and images, styles and scripts inlined. Great for sharing via email or uploading to a file host.
+
+  One caveat: a book containing math or Mermaid diagrams loads KaTeX and Mermaid from a public CDN when the reader opens it. Those requests are version-pinned and integrity-checked, and a reader who cannot reach the CDN sees an explanatory notice and the raw source rather than a blank space — but the page is not fully offline, and opening it tells the CDN the reader's IP. A book with neither math nor diagrams makes no network requests at all.
 
 - **`site`** produces a multi-page static website with one HTML file per chapter, an index page, and sidebar navigation. Designed for deployment to GitHub Pages, Netlify, or any static hosting platform.
 

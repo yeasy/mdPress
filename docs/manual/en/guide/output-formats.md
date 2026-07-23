@@ -7,7 +7,7 @@
 | Format | What You Get | Notes |
 | --- | --- | --- |
 | `pdf` | `book.pdf` | Default PDF output via Chromium. Honors page size, margins, TOC, cover, headers, and footers. |
-| `html` | `book.html` | Single self-contained HTML file. |
+| `html` | `book.html` | Single HTML file with images, styles and scripts inlined. Math and Mermaid load from a CDN at view time. |
 | `site` | `_book/` | Multi-page static site with `index.html`, chapter pages, search, and sidebar navigation. |
 | `epub` | `book.epub` | EPUB 3 package for e-readers. |
 | `typst` | `book-typst.pdf` | Alternate PDF backend that requires Typst in `PATH`. |
