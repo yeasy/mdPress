@@ -434,3 +434,31 @@ func TestCollectUnclosedFenceDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+// TestCollectPlantUMLDiagnostics covers a false promise: mdpress ships a
+// PlantUML renderer that no production path constructs, so a ```plantuml block
+// is published as plain code. The docs and `mdpress doctor` said otherwise, so
+// an author could install PlantUML, write diagrams, and only find out from the
+// finished artifact that none of them had been drawn.
+func TestCollectPlantUMLDiagnostics(t *testing.T) {
+	got := collectPlantUMLDiagnostics(strings.Split(
+		"# T\n\n```plantuml\n@startuml\nAlice -> Bob\n@enduml\n```\n\n```go\nfunc x() {}\n```\n", "\n"))
+	if len(got) != 1 {
+		t.Fatalf("expected exactly one diagnostic, got %+v", got)
+	}
+	if got[0].Rule != "plantuml-not-rendered" {
+		t.Errorf("rule = %q", got[0].Rule)
+	}
+	if got[0].Line != 3 {
+		t.Errorf("line = %d, want 3 (the opening fence)", got[0].Line)
+	}
+}
+
+// A plantuml word inside another block must not trip the check.
+func TestCollectPlantUMLDiagnosticsIgnoresContent(t *testing.T) {
+	got := collectPlantUMLDiagnostics(strings.Split(
+		"```text\nplantuml is not rendered\n```\n", "\n"))
+	if len(got) != 0 {
+		t.Errorf("unexpected diagnostics: %+v", got)
+	}
+}

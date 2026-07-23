@@ -101,6 +101,7 @@ func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	diagnostics := collectOrderedListDiagnostics(lines, index)
 	diagnostics = append(diagnostics, collectMermaidDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectUnclosedFenceDiagnostics(lines)...)
+	diagnostics = append(diagnostics, collectPlantUMLDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
 	slices.SortStableFunc(diagnostics, func(a, b Diagnostic) int {
 		if c := cmp.Compare(a.Line, b.Line); c != 0 {
@@ -158,6 +159,47 @@ type mermaidFence struct {
 	startLine   int
 	startColumn int
 	content     []string
+}
+
+// collectPlantUMLDiagnostics reports plantuml fences.
+//
+// mdpress ships a PlantUML renderer but never links it: no production path
+// constructs it, so a ```plantuml block renders as a plain code block. The
+// documentation and `mdpress doctor` claimed otherwise, which meant an author
+// could install PlantUML, write diagrams, and only discover from the finished
+// artifact that none of them had been drawn. Saying so at build time is the
+// least a user needs.
+func collectPlantUMLDiagnostics(lines []string) []Diagnostic {
+	var diagnostics []Diagnostic
+	inFence := false
+	var fenceChar byte
+	var fenceLen int
+
+	for i, rawLine := range lines {
+		line := strings.TrimRight(rawLine, "\r")
+		if !inFence {
+			info, ok := parseFenceOpen(line)
+			if !ok {
+				continue
+			}
+			inFence = true
+			fenceChar = info.marker[0]
+			fenceLen = len(info.marker)
+			if strings.EqualFold(firstFenceToken(info.rest), "plantuml") {
+				diagnostics = append(diagnostics, Diagnostic{
+					Rule:    "plantuml-not-rendered",
+					Line:    i + 1,
+					Column:  len(info.indent) + 1,
+					Message: "mdpress does not render PlantUML; this block is published as plain code",
+				})
+			}
+			continue
+		}
+		if isFenceClose(line, fenceChar, fenceLen) {
+			inFence = false
+		}
+	}
+	return diagnostics
 }
 
 // collectUnclosedFenceDiagnostics reports a code fence that is never closed.
