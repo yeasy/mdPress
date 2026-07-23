@@ -71,7 +71,8 @@ type HookContext struct {
 	Content string
 
 	// ChapterIndex is the zero-based index of the chapter being processed.
-	// Set to -1 in non-chapter contexts.
+	// It is meaningful only in AfterParse; other phases leave it at 0, so a
+	// plugin must key off Phase rather than treating 0 as "first chapter".
 	ChapterIndex int
 
 	// ChapterFile is the source file path of the chapter (AfterParse only).

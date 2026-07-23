@@ -39,7 +39,7 @@ Parsing rules, exactly as implemented:
 - Any line containing a Markdown link `[Name](dir)` becomes a language. Lines starting with `#` and blank lines are skipped, so the heading is decoration.
 - The link text is the display name shown in the language switcher.
 - **The link target must be the language directory.** A trailing slash is optional. Absolute paths and `..` are rejected.
-- Point an entry at a file (`[English](en/README.md)`) and the build fails with `stat …/en/README.md/<Title>_site: not a directory`.
+- An entry may point at the directory (`[English](en/)`) or at a file inside it (`[English](en/README.md)`); a file resolves to its directory.
 - Bullet style does not matter; `-` and `*` both work.
 
 ## Per-Language Configuration
@@ -93,73 +93,49 @@ cd book
 mdpress build --format site
 ```
 
-mdPress builds each language in turn. The outputs land **inside each language directory**:
+mdPress builds each language in turn into **one output tree**:
 
 ```
 book/
-├── _mdpress_langs.html          <- landing page listing the languages
-├── en/
-│   └── My Docs_site/            <- named after the book title, or output.filename
-│       └── index.html
-└── zh/
-    └── 我的文档_site/
+└── _book/                   <- the whole deployable site
+    ├── index.html           <- language switcher (the site root)
+    ├── en/
+    │   └── index.html
+    └── zh/
         └── index.html
 ```
 
-File formats behave the same way — `mdpress build --format pdf` writes `en/My Docs.pdf` and `zh/我的文档.pdf`. Set `output.filename` in a language's `book.yaml` to control that name:
+Pass `--output` to build somewhere else. It names the root of the whole tree, so `./dist` and `./dist/` are equivalent:
+
+```bash
+mdpress build --format site --output ./dist
+# -> dist/index.html, dist/en/index.html, dist/zh/index.html
+```
+
+A path that looks like a file names the directory it would have lived in — `--output ./dist/book.html` builds into `dist/book/` — because a multi-language build produces a tree, not a single file.
+
+File formats sit beside each language's site — `mdpress build --format pdf` writes `_book/en/<name>.pdf`. Set `output.filename` in a language's `book.yaml` to control that name:
 
 ```yaml
 output:
-  filename: "en-docs"     # -> en/en-docs.pdf and en/en-docs_site/
+  filename: "en-docs"     # -> _book/en/en-docs.pdf
 ```
 
-Each generated site page also gets a language-switcher bar injected at the top, linking to the other languages and to the landing page.
+Each generated site page also gets a language-switcher bar injected at the top, linking to the other languages and to the site root.
 
-### Known limitations of the whole-project build
+Directory names come from `LANGS.md`, not from the book title, so a title containing spaces or CJK characters never becomes part of a URL path. The switcher's links are percent-encoded.
 
-The whole-project build is convenient for local preview but is **not** a good source for deployment yet:
+A root `book.yaml` alongside `LANGS.md` is allowed and is the place for shared metadata; its chapters are not required, because each language directory has its own.
 
-- The landing page is called `_mdpress_langs.html`, not `index.html`, so it is not what a web server serves at the site root.
-- Site directory names come from the book **title**, so a title with spaces or CJK characters becomes part of the URL path (`en/My%20Docs_site/`).
-- Links in the landing page and switcher are not percent-encoded, so those same titles produce links that do not resolve.
-- `--output ./dist` does **not** create `dist/`. It produces sibling paths `dist-en_site/`, `dist-zh_site/` and `dist-index.html` next to the project, and each language's own `output.filename` is ignored.
+### Building one language on its own
 
-Use the per-language builds below to produce something deployable.
-
-### Building One Language (recommended for deployment)
-
-There is no `--lang` flag. Build each language directory as its own project and choose the output path yourself. **Give `--output` a trailing slash** so mdPress treats it as a directory rather than a filename base:
+There is no `--lang` flag, but a language directory is a complete project, so you can build one by pointing mdPress at it:
 
 ```bash
-mdpress build ./en --format site --output ./dist/en/
-mdpress build ./zh --format site --output ./dist/zh/
+mdpress build ./en --format site --output ./dist/en
 ```
 
-This produces exactly the layout you want to deploy:
-
-```
-dist/
-├── en/
-│   ├── index.html
-│   ├── guide.html
-│   └── search-index.json
-└── zh/
-    ├── index.html
-    ├── guide.html
-    └── search-index.json
-```
-
-Without the trailing slash, `--output ./dist/en` is read as a filename base and the site lands in `dist/en_site/` instead.
-
-This is also how you rebuild a single language without touching the others.
-
-### Previewing One Language
-
-`mdpress serve` has no multi-language mode. Point it at one language directory:
-
-```bash
-mdpress serve ./en
-```
+Use this when you deploy each language separately. For a single deployable tree covering every language, prefer the whole-project build above.
 
 ## Linking Between Languages
 
@@ -178,24 +154,22 @@ For a link that works in the deployed site, write the deployed URL instead:
 
 ## Deployment
 
-With the per-language build above, `dist/` is a normal static site tree:
+The output tree is a normal static site, ready to upload as-is:
 
 ```
+https://docs.example.com/          <- language switcher
 https://docs.example.com/en/
 https://docs.example.com/zh/
 ```
 
-Add your own `dist/index.html` to redirect the root to a default language — mdPress does not generate a usable one yet.
-
-Each language can also be deployed separately, to its own domain or bucket, since each `dist/<lang>/` is self-contained.
+The switcher at the root is a real `index.html`, so a web server serves it without extra configuration. Each `<lang>/` directory is also self-contained, so a language can be deployed on its own to a separate domain or bucket.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 | --- | --- |
-| `at least one chapter is required` at the root | There is a `book.yaml` at the project root. Delete it; per-language config lives in the language directories. |
-| `stat …/en/README.md/…: not a directory` | A `LANGS.md` entry points at a file. Point it at the directory: `[English](en/)`. |
+| `at least one chapter is required` at the root | A root `book.yaml` without `LANGS.md` beside it. With `LANGS.md` present a root `book.yaml` is allowed and holds shared metadata. |
 | `no language definitions found in LANGS.md` | No line in `LANGS.md` contains a Markdown link. |
 | Book is titled "Untitled Book" | The language `book.yaml` uses top-level `title:` instead of `book: { title: … }`. |
 | Site UI is in the wrong language | Set `book.language` (`en-US`, `zh-CN`, …) in that language's `book.yaml`. |
-| `dist/` does not exist after `build --output ./dist` | Expected in whole-project mode. Build each language separately as shown above. |
+| Output landed somewhere unexpected | `--output` names the root of the whole tree. `./dist` and `./dist/` build into `dist/`; a file-like path names its directory, so `./dist/book.html` builds into `dist/book/`. |
