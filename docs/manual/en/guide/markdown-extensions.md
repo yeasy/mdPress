@@ -159,41 +159,34 @@ pie title Browser Market Share
 
 Mermaid diagrams in mdPress support: flowchart, sequence, state, class, entity-relationship, git graph, user journey, and pie charts. Additional diagram types may be available depending on your mdPress version.
 
-## PlantUML Diagrams
+## PlantUML Is Not Supported
 
-Create complex diagrams using PlantUML syntax as an alternative to Mermaid:
+mdPress does not render PlantUML. A ```plantuml block is published as a plain
+code block in every output format, so readers see the diagram's source instead
+of a diagram.
+
+Reach for one of these:
+
+**Mermaid**, which mdPress does render:
 
 ```markdown
-​```plantuml
-@startuml
-actor User
-User -> WebApp: Click button
-WebApp -> Server: Send request
-Server -> Database: Query
-Database --> Server: Return data
-Server --> WebApp: Response
-WebApp --> User: Display
-@enduml
+​```mermaid
+sequenceDiagram
+    User->>WebApp: Click button
+    WebApp->>Server: Send request
+    Server-->>WebApp: Response
 ​```
 ```
 
-### PlantUML Diagram Types
+**A pre-rendered image**, if you need PlantUML's UML coverage — run it yourself
+as a build step and reference the output:
 
-Supported diagram types include: use case, sequence, class, state, activity, component, deployment, object, and timing diagrams.
+```markdown
+![Component diagram](images/components.svg)
+```
 
-### When to Use PlantUML vs Mermaid
-
-Use **Mermaid** for:
-- Quick flowcharts and decision trees
-- Simple sequence diagrams
-- Gantt project timelines
-- Data visualization
-
-Use **PlantUML** for:
-- Complex UML diagrams
-- Detailed class hierarchies
-- Component and deployment diagrams
-- When you need precise control
+`mdpress build` warns once per PlantUML block, and `mdpress doctor` reports
+their presence, so a book that still contains them is easy to find.
 
 ## Footnotes
 

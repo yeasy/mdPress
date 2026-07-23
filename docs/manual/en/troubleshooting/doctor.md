@@ -118,7 +118,6 @@ The JSON report is a flat object with `snake_case` keys. This is a complete repo
   "typst_available": true,
   "typst_version": "typst 0.15.0 (unknown commit)",
   "cjk_fonts_available": true,
-  "plantuml_available": false,
   "plantuml_needed": false,
   "go_version_check": "go1.26.5",
   "git_available": true,

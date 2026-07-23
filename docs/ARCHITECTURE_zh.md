@@ -358,6 +358,11 @@ type Generator struct {
 
 ### 3.17 internal/plantuml — PlantUML 处理
 
+> **未接入。** 生产代码里没有任何路径构造这个渲染器，因此该包并未链接进二进制，
+> ```plantuml 代码块会按普通代码块发布，`mdpress build` 会对每一处发出警告。
+> 下面描述的是这个包在接入后会做的事；真要启用，首先得决定默认服务端——渲染器
+> 的默认端点是公网的 plantuml.com，把用户的图表源码发过去必须经过明确的显式开关。
+
 **职责：** 处理 PlantUML 图表，支持本地 `plantuml` CLI 命令或通过 `PLANTUML_JAR` 环境变量指定本地 JAR 文件，以及远程 PlantUML 服务生成图像。
 
 `Renderer` 类型：

@@ -159,41 +159,33 @@ pie title 浏览器市场份额
 
 mdPress 中的 Mermaid 图表支持：流程图、序列图、状态图、类图、实体关系图、git 图、用户旅程和饼图。根据你的 mdPress 版本，可能还支持其他图表类型。
 
-## PlantUML 图表
+## 不支持 PlantUML
 
-使用 PlantUML 语法创建复杂图表，作为 Mermaid 的替代：
+mdPress 不渲染 PlantUML。```plantuml 代码块在所有输出格式中都按普通代码块发布，
+读者看到的是图的源码而不是图。
+
+请改用下面两种方式之一：
+
+**Mermaid** —— mdPress 会渲染它：
 
 ```markdown
-​```plantuml
-@startuml
-actor 用户
-用户 -> 网络应用: 点击按钮
-网络应用 -> 服务器: 发送请求
-服务器 -> 数据库: 查询
-数据库 --> 服务器: 返回数据
-服务器 --> 网络应用: 响应
-网络应用 --> 用户: 显示
-@enduml
+​```mermaid
+sequenceDiagram
+    User->>WebApp: 点击按钮
+    WebApp->>Server: 发送请求
+    Server-->>WebApp: 返回响应
 ​```
 ```
 
-### PlantUML 图表类型
+**预先渲染的图片** —— 如果确实需要 PlantUML 的 UML 覆盖面，把它作为构建步骤自行
+运行，然后引用产物：
 
-支持的图表类型包括：用例、序列、类、状态、活动、组件、部署、对象和定时图表。
+```markdown
+![组件图](images/components.svg)
+```
 
-### 何时使用 PlantUML vs Mermaid
-
-为以下情况使用 **Mermaid**：
-- 快速流程图和决策树
-- 简单序列图
-- 甘特项目时间线
-- 数据可视化
-
-为以下情况使用 **PlantUML**：
-- 复杂 UML 图表
-- 详细的类层次结构
-- 组件和部署图表
-- 需要精确控制时
+`mdpress build` 会为每个 PlantUML 代码块发出一次警告，`mdpress doctor` 也会报告
+它们的存在，所以书里还残留哪些块很容易找到。
 
 ## 脚注
 
