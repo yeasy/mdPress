@@ -368,30 +368,25 @@ plugins:
       warn_threshold: 500
 ```
 
-Create a plugin (simple example):
+A plugin is any executable. It answers two discovery flags, then reads one
+JSON request from stdin and writes one JSON response to stdout:
 
-```go
-// plugins/my-plugin/main.go
-package main
+```bash
+#!/bin/sh
+# plugins/shout — uppercase nothing, just prove the protocol works.
+case "$1" in
+  --mdpress-info)  echo '{"version":"1.0.0","description":"Demo plugin."}'; exit 0 ;;
+  --mdpress-hooks) echo '["after_parse"]'; exit 0 ;;
+esac
 
-import (
-  "fmt"
-  "os"
-)
-
-func main() {
-  // Read input
-  input, _ := os.ReadFile("/dev/stdin")
-
-  // Process
-  output := processMarkdown(input)
-
-  // Write output
-  fmt.Println(output)
-}
+cat > /dev/null      # the request arrives on stdin
+echo '{}'            # empty response = leave the chapter unchanged
 ```
 
-See plugin documentation for detailed API.
+`after_parse` is the only phase whose returned `content` is used, and the
+payload is chapter **HTML**, not Markdown. See
+[Building a Plugin](../plugins/building-a-plugin.md) for a working example and
+[Plugin API Reference](../plugins/api.md) for the full protocol.
 
 ### Can I use custom themes?
 

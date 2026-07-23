@@ -1,698 +1,252 @@
 # 生命周期钩子详解
 
-mdPress 提供六个生命周期钩子，允许插件拦截和修改构建过程。本指南说明了何时触发每个钩子、可用的数据以及每个钩子的实际用例。
+协议里有七个阶段名。**其中五个会在 `mdpress build` 期间触发，一个会在
+`mdpress serve` 期间触发，还有两个虽有定义但从不派发。** 而真正能改变输出的，只
+有一个阶段。
 
-## 钩子序列
+本页写清楚每个阶段到底给你什么，免得靠试错去发现答案。线上格式见
+[插件 API 参考](./api.md)。
 
-构建过程遵循此顺序，钩子在关键点触发：
+## 哪些会触发，各自能做什么
+
+| 阶段 | `build` 中触发 | `serve` 中触发 | `content` 负载 | 返回的 `content` 是否生效 |
+| --- | --- | --- | --- | --- |
+| `before_build` | 一次 | 否 | 空 | 否 |
+| `after_parse` | 每章一次 | 每次重建、每章一次 | 该章渲染后的 HTML | **是** |
+| `before_render` | 一次 | 否 | 封面 HTML | 否 |
+| `after_render` | 一次 | 否 | 目录 HTML | 否 |
+| `after_build` | 一次 | 否 | 空 | 否 |
+| `before_serve` | 从不 | 从不 | — | — |
+| `after_serve` | 从不 | 从不 | — | — |
+
+动手之前有两条结论值得先记住：
+
+1. **`after_parse` 是唯一能修改书籍内容的阶段。** 在其他任何阶段，你在 `content`
+   里返回的值会被读取然后丢弃。想改变读者看到的东西，就在 `after_parse` 里改。
+2. **`before_serve` 和 `after_serve` 从不运行。** 这两个名字在协议里有定义，
+   `--mdpress-hooks` 也接受它们，但没有任何代码路径会派发。只订阅这两个阶段的插
+   件会被正常加载，在 `mdpress doctor` 里显示为有效，然后永远不会被执行。
+
+其余阶段作为*副作用*钩子仍然有用：进程确实会跑起来，所以它可以写文件、调用 API
+或者大声报错。它只是没法把内容交回来。
+
+## 构建时序
 
 ```
-开始构建
-  ↓
-[before_build] - 插件可以初始化、验证设置
-  ↓
-解析内容
-  ↓
-[after_parse] - 插件可以修改解析的内容
-  ↓
-[before_render] - 插件可以为呈现做准备
-  ↓
-渲染到输出
-  ↓
-[after_render] - 插件可以后处理输出
-  ↓
-[after_build] - 构建完成，最终任务
-  ↓
-结束构建
+mdpress build
+  │
+  ├─ 加载 book.yaml、主题、插件      ← 插件在这里被探测（也就是被执行！）
+  │
+  ├─ [before_build]                 content: ""
+  │
+  ├─ 把每一章解析成 HTML
+  │    └─ [after_parse]  每章一次     content: 章节 HTML  → 可替换
+  │
+  ├─ 生成封面 + 目录
+  ├─ [before_render]                content: 封面 HTML
+  ├─ 组装单页 HTML
+  ├─ [after_render]                 content: 目录 HTML
+  │
+  ├─ 写出所有请求的格式（html、pdf、epub、site、typst…）
+  │
+  └─ [after_build]                  content: ""
 ```
 
-对于 serve 模式（实时开发）：
+注意 `before_render` / `after_render` / `after_build` 是**每次构建触发一次**，而
+不是每种输出格式一次——`--format html,pdf,epub` 也只会各派发一次，而且从请求里
+根本看不出这次请求了哪些格式。
+
+## 预览时序
 
 ```
-[before_serve] - 服务器初始化
-  ↓
-监视并重新构建
-  ├─ 文件更改触发重新构建
-  ├─ 所有构建钩子执行
-  └─ 重复
-  ↓
-[after_serve] - 服务器停止
-  ↓
-关闭
+mdpress serve
+  │
+  ├─ 加载 book.yaml、主题、插件      ← 插件在这里被探测（也就是被执行！）
+  ├─ 首次渲染
+  │    └─ [after_parse]  每章一次
+  │
+  └─ 每次文件变更
+       └─ [after_parse]  每章一次
 ```
 
-## before_build
+`mdpress serve` 只会重新跑章节流水线，所以 `after_parse` 是它唯一派发的钩子。在
+`after_build` 里干活的插件会表现为"开发模式下不生效"——原因就在这里。
 
-在构建过程的最开始触发，在任何内容被处理之前。
+## `before_build`
 
-### 用例
+一次性触发，发生在 `book.yaml` 与主题加载完成之后、任何章节被解析之前。
 
-- 验证配置和依赖项
-- 初始化外部资源（数据库、API）
-- 设置日志记录或监控
-- 清理之前的构建工件
-- 准备构建范围的状态
+请求：`phase` 是 `before_build`；`content`、`chapter_file`、`output_path` 和
+`output_format` 都为空；`config` 是你的设置。
 
-### 可用数据
+适合：前置检查（API key 在不在？转换器装了没？）、清理插件自己的临时目录、记录构
+建开始时间。
 
-钩子上下文包括：
-
-```json
-{
-  "context": {
-    "phase": "before_build",
-    "book": {
-      "title": "My Documentation",
-      "author": "Author Name",
-      "version": "1.0.0"
-    },
-    "config": {
-      "theme": "technical",
-      "output_format": "html"
-    },
-    "output_path": "build/",
-    "chapters": [
-      "chapters/01-intro.md",
-      "chapters/02-guide.md"
-    ]
-  }
-}
-```
-
-### 示例：验证外部 API
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import requests
-
-def validate_api(config):
-    try:
-        # 检查外部 API 是否可达
-        response = requests.get(config.get("api_url"), timeout=5)
-        if response.status_code != 200:
-            return {
-                "status": "error",
-                "action": "stop",
-                "errors": ["API returned status code {}".format(response.status_code)]
-            }
-
-        return {
-            "status": "success",
-            "action": "continue",
-            "data": {"api_validated": True}
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "action": "stop",
-            "errors": ["API validation failed: {}".format(str(e))]
-        }
-
-# 在 main() 中
-if request.get("action") == "execute_hook" and request.get("hook") == "before_build":
-    response = validate_api(request.get("config", {}))
-```
-
-### 示例：清理构建目录
+不适合：任何需要改变构建行为的事。没有配置写回通道——mdPress 早已加载完配置，而
+你返回的 `content` 会被忽略。
 
 ```bash
-#!/bin/bash
+#!/bin/sh
+# preflight —— 没有 API token 就拒绝构建。
+case "$1" in
+  --mdpress-info)  echo '{"version":"1.0.0","description":"Checks build prerequisites."}'; exit 0 ;;
+  --mdpress-hooks) echo '["before_build"]'; exit 0 ;;
+esac
 
-# 从 stdin 读取 JSON
-read -r request
+cat > /dev/null   # 把请求读空；这里用不上
 
-# 清理构建目录
-rm -rf build/html build/pdf build/epub
-
-# 以成功响应
-echo '{"status": "success", "action": "continue"}'
+if [ -z "$DOCS_API_TOKEN" ]; then
+  echo '{"error":"DOCS_API_TOKEN is not set"}'
+else
+  echo '{}'
+fi
 ```
 
-## after_parse
+上报 `error` 只会产生一条警告，**不会**中止构建——见
+[失败处理](./api.md#失败处理)。
 
-在每个章节的 markdown 被解析为 AST（抽象语法树）后触发，但在呈现前。
+## `after_parse`
 
-### 用例
+每章触发一次，就在该章的 Markdown 转成 HTML 之后、标题/图/表被登记进交叉引用之
+前。所以你注入的内容会像手写内容一样参与编号。
 
-- 修改或转换解析的内容
-- 提取和处理元数据
-- 验证内容结构
-- 生成补充内容
-- 扩展自定义语法
+请求：`content` 是该章的 HTML，`chapter_file` 是它的源文件路径，
+`chapter_index` 是它在扁平化章节列表中从 0 开始的序号。
 
-### 可用数据
-
-钩子上下文包括解析的内容：
-
-```json
-{
-  "context": {
-    "phase": "parse",
-    "content": "# Chapter Title\n\nContent here...",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html",
-    "metadata": {
-      "title": "Introduction",
-      "author": "John Doe"
-    }
-  }
-}
-```
-
-### 示例：扩展自定义宏
+内容类工作都在这个阶段做：注入横幅、改写元素、统计字数、校验结构。
 
 ```python
 #!/usr/bin/env python3
+"""reading-time —— 为每一章加上预计阅读时间。"""
 import json
-import sys
 import re
-from datetime import datetime
-
-def expand_macros(content):
-    # 扩展 {{date}} 宏
-    content = re.sub(
-        r'{{date}}',
-        datetime.now().strftime('%Y-%m-%d'),
-        content
-    )
-
-    # 扩展 {{updated}} 宏为当前时间戳
-    content = re.sub(
-        r'{{updated}}',
-        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        content
-    )
-
-    return content
-
-request = json.load(sys.stdin)
-if request.get("hook") == "after_parse":
-    context = request.get("context", {})
-    original = context.get("content", "")
-    modified = expand_macros(original)
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "modified_content": modified,
-        "content_type": "markdown"
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-### 示例：提取和验证链接
-
-```python
-#!/usr/bin/env python3
-import json
 import sys
-import re
 
-def extract_links(content):
-    pattern = r'\[([^\]]+)\]\(([^\)]+)\)'
-    matches = re.findall(pattern, content)
-    return matches
+TAGS = re.compile(r"<[^>]+>")
 
-request = json.load(sys.stdin)
-if request.get("hook") == "after_parse":
-    content = request.get("context", {}).get("content", "")
-    links = extract_links(content)
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--mdpress-info":
+        json.dump({"version": "1.0.0",
+                   "description": "Prepends an estimated reading time."}, sys.stdout)
+        sys.exit(0)
+    if sys.argv[1] == "--mdpress-hooks":
+        json.dump(["after_parse"], sys.stdout)
+        sys.exit(0)
 
-    response = {
-        "status": "success",
-        "action": "continue",
-        "metadata": {
-            "links": links,
-            "link_count": len(links)
-        }
-    }
+req = json.load(sys.stdin)
 
-    json.dump(response, sys.stdout)
+wpm = req.get("config", {}).get("words_per_minute", 200)
+words = len(TAGS.sub(" ", req.get("content", "")).split())
+minutes = max(1, round(words / wpm))
+
+banner = f'<p class="reading-time">{minutes} min read</p>\n'
+json.dump({"content": banner + req.get("content", "")}, sys.stdout)
 ```
 
-## before_render
+记住 `content` 是 **HTML，不是 Markdown**——转换早就完成了。去搜 `## ` 或者
+`[text](link)` 的插件什么也搜不到。
 
-在章节从解析的内容呈现到输出格式（HTML、PDF 等）之前触发。
+返回 `"content": ""`（或干脆省略该键）表示保持该章不变，只读型插件就该这么写。
 
-### 用例
+### 中断插件链
 
-- 为特定输出格式准备内容
-- 应用格式特定的转换
-- 注入呈现提示或元数据
-- 优化输出格式的内容
-
-### 可用数据
-
-与 `after_parse` 相同，加上呈现上下文：
+设置 `"stop": true` 可以跳过在你之后声明的、订阅了同一阶段的所有插件：
 
 ```json
-{
-  "context": {
-    "phase": "render",
-    "content": "# Chapter Title\n\nContent...",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html"
-  }
-}
+{"content": "<p>…</p>", "stop": true}
 ```
 
-### 示例：为 PDF 修改内容
+该章会保留你返回的内容，后续插件对这一章不再运行。`stop` 不影响其他阶段，也不影
+响其他章节。
 
-```python
-#!/usr/bin/env python3
-import json
-import sys
+## `before_render`
 
-request = json.load(sys.stdin)
+一次性触发，发生在所有章节解析完成之后、单页 HTML 文档组装之前。
 
-if request.get("hook") == "before_render":
-    context = request.get("context", {})
-    content = context.get("content", "")
-    output_format = context.get("output_format", "")
+请求：`content` 是**封面 HTML**——既不是某一章，也不是整篇文档。
+`chapter_file`、`output_path` 和 `output_format` 都为空。
 
-    # 对于 PDF 输出，在 H1 标题前添加分页符
-    if output_format == "pdf":
-        modified = content.replace(
-            "# ",
-            "\n---\n# "  # 标题前的分页符
-        )
-    else:
-        modified = content
+封面只是作为一个代表性负载供你查看。返回改过的封面没有任何效果，组装时用的仍是
+mdPress 自己生成的封面。
 
-    response = {
-        "status": "success",
-        "action": "continue",
-        "modified_content": modified,
-        "content_type": "markdown"
-    }
+适合：必须在全部内容就绪之后、输出文件写出之前发生的副作用。
 
-    json.dump(response, sys.stdout)
-```
+## `after_render`
 
-## after_render
+一次性触发，发生在单页 HTML 文档组装完成之后、各输出格式写出之前。
 
-在章节被渲染到最终输出格式（HTML、PDF 等）后触发。
+请求：`content` 是**目录 HTML**。和 `before_render` 一样，它只供查看，返回值会被
+丢弃。
 
-### 用例
+适合：提取文档大纲、检查每一章是否都进了目录。
 
-- 后处理生成的输出
-- 添加或修改输出文件
-- 生成替代格式
-- 缩小或优化输出
-- 从渲染的内容中提取信息
+## `after_build`
 
-### 可用数据
+一次性触发，发生在所有请求的格式都已写入磁盘之后。
 
-上下文包括渲染的输出：
-
-```json
-{
-  "context": {
-    "phase": "render",
-    "content": "<h1>Chapter Title</h1>\n<p>Content...</p>",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html",
-    "content_type": "html"
-  }
-}
-```
-
-### 示例：缩小 HTML
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import re
-
-def minify_html(html):
-    # 移除注释
-    html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
-
-    # 移除标签之间不必要的空白
-    html = re.sub(r'>\s+<', '><', html)
-
-    # 移除行的开头/结尾空白
-    html = '\n'.join(line.strip() for line in html.split('\n'))
-
-    return html
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_render":
-    context = request.get("context", {})
-
-    if context.get("output_format") == "html":
-        original = context.get("content", "")
-        minified = minify_html(original)
-
-        response = {
-            "status": "success",
-            "action": "continue",
-            "modified_content": minified,
-            "content_type": "html",
-            "metadata": {
-                "original_size": len(original),
-                "minified_size": len(minified),
-                "compression_ratio": f"{len(minified) / len(original) * 100:.1f}%"
-            }
-        }
-    else:
-        response = {
-            "status": "success",
-            "action": "continue"
-        }
-
-    json.dump(response, sys.stdout)
-```
-
-### 示例：生成 AMP 版本
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import re
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_render":
-    context = request.get("context", {})
-
-    if context.get("output_format") == "html":
-        html = context.get("content", "")
-        output_path = context.get("output_path", "")
-
-        # 转换为 AMP 友好的 HTML
-        amp_html = html
-        amp_html = re.sub(r'<img ', '<amp-img ', amp_html)
-        amp_html = re.sub(r'<iframe ', '<amp-iframe ', amp_html)
-
-        # 写入 AMP 版本
-        amp_path = output_path.replace('.html', '.amp.html')
-        os.makedirs(os.path.dirname(amp_path), exist_ok=True)
-        with open(amp_path, 'w') as f:
-            f.write(amp_html)
-
-        response = {
-            "status": "success",
-            "action": "continue",
-            "data": {
-                "amp_generated": True,
-                "amp_path": amp_path
-            }
-        }
-    else:
-        response = {"status": "success", "action": "continue"}
-
-    json.dump(response, sys.stdout)
-```
-
-## after_build
-
-在所有章节被处理且整个构建完成后触发一次。
-
-### 用例
-
-- 构建后验证和验证
-- 生成构建报告和统计信息
-- 将文档上传到服务器
-- 生成搜索索引
-- 创建存档或备份
-- 通知外部服务
-
-### 可用数据
-
-钩子上下文包括构建范围的信息：
-
-```json
-{
-  "context": {
-    "phase": "after_build",
-    "book": {
-      "title": "My Documentation",
-      "author": "Author Name",
-      "version": "1.0.0"
-    },
-    "output_path": "build/",
-    "output_format": "html",
-    "chapters_processed": 5,
-    "build_duration_ms": 2500
-  }
-}
-```
-
-### 示例：生成构建报告
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-from datetime import datetime
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_build":
-    context = request.get("context", {})
-
-    report = {
-        "timestamp": datetime.now().isoformat(),
-        "book": context.get("book", {}).get("title"),
-        "version": context.get("book", {}).get("version"),
-        "format": context.get("output_format"),
-        "chapters": context.get("chapters_processed", 0),
-        "duration_ms": context.get("build_duration_ms", 0),
-        "output_path": context.get("output_path")
-    }
-
-    with open("build/build-report.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "data": {
-            "report_generated": True,
-            "report_path": "build/build-report.json"
-        }
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-### 示例：上传到服务器
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import requests
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_build":
-    context = request.get("context", {})
-    config = request.get("config", {})
-    output_path = context.get("output_path")
-
-    upload_url = config.get("upload_url")
-    api_key = config.get("api_key")
-
-    # 创建存档
-    archive_path = "build/docs.tar.gz"
-    os.system(f"tar -czf {archive_path} {output_path}")
-
-    # 上传
-    try:
-        with open(archive_path, 'rb') as f:
-            files = {'file': f}
-            headers = {'Authorization': f'Bearer {api_key}'}
-            response = requests.post(upload_url, files=files, headers=headers)
-
-        if response.status_code == 200:
-            return {
-                "status": "success",
-                "action": "continue",
-                "data": {"uploaded": True}
-            }
-        else:
-            return {
-                "status": "error",
-                "action": "continue",
-                "warnings": [f"Upload failed: {response.status_code}"]
-            }
-    except Exception as e:
-        return {
-            "status": "warning",
-            "action": "continue",
-            "warnings": [f"Upload error: {str(e)}"]
-        }
-```
-
-## before_serve
-
-在开发服务器启动时触发一次，在监视文件更改之前。
-
-### 用例
-
-- 初始化开发模式功能
-- 启动本地服务或数据库
-- 设置实时重新加载配置
-- 验证开发环境
-
-### 可用数据
-
-```json
-{
-  "context": {
-    "phase": "serve",
-    "server_host": "localhost",
-    "server_port": 9000,
-    "watch_paths": ["chapters/", "docs/"]
-  }
-}
-```
-
-### 示例：启动开发服务
-
-```bash
-#!/bin/bash
-
-echo '{"status": "success", "action": "continue"}'
-
-# 可以启动 Docker 容器、本地服务等
-```
-
-## after_serve
-
-在开发服务器停止时触发一次。
-
-### 用例
-
-- 清理开发资源
-- 停止本地服务
-- 生成最终开发报告
-- 存档开发工件
-
-### 可用数据
-
-```json
-{
-  "context": {
-    "phase": "serve",
-    "uptime_ms": 3600000,
-    "files_watched": 45
-  }
-}
-```
-
-### 示例：清理开发服务
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_serve":
-    # 清理临时文件
-    if os.path.exists(".dev-cache"):
-        os.system("rm -rf .dev-cache")
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "data": {"cleanup_complete": True}
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-## 钩子过滤
-
-在 `book.yaml` 中指定插件应该接收哪些钩子：
+请求：`content`、`chapter_file`、`output_path`、`output_format` 全部为空。
+**这个阶段不会告诉你输出去了哪里。** 插件需要路径的话，要么自己读 `book.yaml` 的
+`output.filename`，要么通过自己的 `config:` 块传进来：
 
 ```yaml
 plugins:
-  - name: build-plugin
-    command: ./plugins/build.py
-    hooks:
-      - before_build
-      - after_build
+  - name: publish
+    path: ./plugins/publish
+    config:
+      artifact: dist/book.pdf
 ```
 
-只有指定的钩子将被发送到插件，改进了性能。
-
-## 完整生命周期示例
-
-这是实现所有生命周期钩子的插件：
+适合：上传产物、发送通知、在一个你本来就知道的路径旁生成报告。
 
 ```python
 #!/usr/bin/env python3
+"""notify —— 构建结束后把产物复制到某处。"""
 import json
+import shutil
 import sys
 
-class LifecyclePlugin:
-    def __init__(self):
-        self.stats = {
-            "chapters_processed": 0,
-            "links_found": 0,
-            "errors": 0
-        }
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--mdpress-info":
+        json.dump({"version": "1.0.0",
+                   "description": "Copies the built artifact to a drop directory."}, sys.stdout)
+        sys.exit(0)
+    if sys.argv[1] == "--mdpress-hooks":
+        json.dump(["after_build"], sys.stdout)
+        sys.exit(0)
 
-    def execute(self, hook, context):
-        if hook == "before_build":
-            print("Build starting...", file=sys.stderr)
-            return {"status": "success", "action": "continue"}
+req = json.load(sys.stdin)
+cfg = req.get("config", {})
 
-        elif hook == "after_parse":
-            self.stats["chapters_processed"] += 1
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "before_render":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_render":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_build":
-            print(f"Build complete: {self.stats}", file=sys.stderr)
-            return {
-                "status": "success",
-                "action": "continue",
-                "data": self.stats
-            }
-
-        elif hook == "before_serve":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_serve":
-            return {"status": "success", "action": "continue"}
-
-        return {"status": "success", "action": "continue"}
-
-plugin = LifecyclePlugin()
-request = json.load(sys.stdin)
-
-if request.get("action") == "execute_hook":
-    response = plugin.execute(
-        request.get("hook"),
-        request.get("context", {})
-    )
-    json.dump(response, sys.stdout)
+try:
+    shutil.copy(cfg["artifact"], cfg["drop_dir"])
+except Exception as exc:                       # 会显示为一条构建警告
+    json.dump({"error": f"publish failed: {exc}"}, sys.stdout)
+else:
+    json.dump({}, sys.stdout)
 ```
 
-参见 [插件 API](./api.md) 了解完整的 API 参考，参见 [构建插件](./building-a-plugin.md) 了解分步教程。
+## `before_serve` 与 `after_serve`
+
+协议中有定义，`--mdpress-hooks` 也接受，但**从不派发**。今天的 `mdpress serve`
+没有任何地方会调用它们。
+
+这里专门列出来，是为了让你不必花一个下午去调试一个本来就不会运行的插件。确实需要
+响应 serve 的话，用 `after_parse`——它在首次渲染和每次重建时都会触发；但要记得它
+是每章触发一次，"每次重建只做一次"的工作得自己加个判断。
+
+## 如何选择阶段
+
+| 你想…… | 用 |
+| --- | --- |
+| 改变读者看到的内容 | `after_parse` |
+| 校验内容并给出警告 | `after_parse` |
+| 在干活之前检查前置条件 | `before_build` |
+| 查看封面或目录 | `before_render` / `after_render` |
+| 构建完成后发布、通知或归档 | `after_build` |
+| 响应实时预览的重建 | `after_parse` |
+
+只订阅你真正会用的阶段。`--mdpress-hooks` 调用失败的插件会被订阅到全部七个阶段，
+意味着每章一次进程启动、外加每次构建多出四次，全是白跑。
+
+请求与响应的精确 schema 见[插件 API 参考](./api.md)，完整演练见
+[编写插件](./building-a-plugin.md)。

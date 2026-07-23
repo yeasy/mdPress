@@ -1,634 +1,286 @@
 # Building a Plugin: Step-by-Step Tutorial
 
-This tutorial walks through creating a complete mdPress plugin from scratch. We'll build a word-count plugin that analyzes documentation statistics and generates a report.
+We are going to build `reading-time`: a plugin that prepends
+*"3 min read"* to every chapter. It is small enough to read in one sitting and
+exercises every part of the protocol — the two discovery flags, per-chapter
+content rewriting, and plugin configuration from `book.yaml`.
 
-## Project Setup
+Python is used here because it is short. **Any executable works**: a shell
+script, a Go binary, a compiled Rust program. mdPress only cares that it runs
+and speaks JSON on stdin/stdout.
 
-### Create Plugin Directory
-
-```bash
-mkdir -p my-project/plugins
-cd my-project
-```
-
-### Directory Structure
-
-```
-my-project/
-├── book.yaml
-├── chapters/
-│   └── 01-intro.md
-└── plugins/
-    ├── word-count.py
-    └── word-count.json
-```
-
-## Step 1: Define Plugin Metadata
-
-Create a JSON file describing your plugin:
-
-**`plugins/word-count.json`:**
-
-```json
-{
-  "name": "word-count",
-  "version": "1.0.0",
-  "description": "Analyzes and reports word count statistics",
-  "author": "Your Name",
-  "license": "MIT",
-  "hooks": ["after_parse", "after_build"],
-  "configuration": {
-    "min_words": 100,
-    "warn_long_chapters": true,
-    "warn_threshold": 5000
-  }
-}
-```
-
-## Step 2: Create the Plugin Script
-
-Create the main plugin executable. We'll use Python, but you can use any language.
-
-**`plugins/word-count.py`:**
-
-```python
-#!/usr/bin/env python3
-"""
-Word Count Plugin for mdPress
-Analyzes word count and generates statistics report
-"""
-
-import json
-import sys
-import os
-from pathlib import Path
-
-class WordCountPlugin:
-    """Tracks and reports documentation statistics."""
-
-    def __init__(self):
-        self.name = "word-count"
-        self.version = "1.0.0"
-        self.config = {}
-        self.stats = {
-            "total_words": 0,
-            "total_characters": 0,
-            "chapter_stats": [],
-            "long_chapters": []
-        }
-
-    def init(self, config):
-        """Initialize the plugin with configuration."""
-        self.config = config
-        return {
-            "name": self.name,
-            "version": self.version,
-            "description": "Analyzes and reports word count statistics",
-            "status": "success",
-            "capabilities": ["after_parse", "after_build"]
-        }
-
-    def count_words(self, content):
-        """Count words in content."""
-        # Remove markdown syntax for more accurate count
-        words = content.split()
-        return len(words)
-
-    def count_characters(self, content):
-        """Count characters (excluding whitespace)."""
-        return len(content.replace(" ", "").replace("\n", ""))
-
-    def execute_after_parse(self, context):
-        """Process content after parsing."""
-        content = context.get("content", "")
-        chapter_file = context.get("chapter_file", "")
-        chapter_index = context.get("chapter_index", 0)
-
-        # Count words and characters
-        word_count = self.count_words(content)
-        char_count = self.count_characters(content)
-
-        # Update totals
-        self.stats["total_words"] += word_count
-        self.stats["total_characters"] += char_count
-
-        # Track per-chapter stats
-        chapter_stat = {
-            "file": chapter_file,
-            "index": chapter_index,
-            "words": word_count,
-            "characters": char_count
-        }
-        self.stats["chapter_stats"].append(chapter_stat)
-
-        # Check for long chapters
-        threshold = self.config.get("warn_threshold", 5000)
-        if self.config.get("warn_long_chapters") and word_count > threshold:
-            self.stats["long_chapters"].append({
-                "file": chapter_file,
-                "words": word_count
-            })
-
-        return {
-            "status": "success",
-            "action": "continue",
-            "metadata": {
-                "word_count": word_count,
-                "character_count": char_count
-            }
-        }
-
-    def execute_after_build(self, context):
-        """Generate report after build completes."""
-        output_path = context.get("output_path", "build")
-
-        # Calculate averages
-        num_chapters = len(self.stats["chapter_stats"])
-        avg_words = (self.stats["total_words"] // num_chapters
-                    if num_chapters > 0 else 0)
-
-        report = {
-            "timestamp": context.get("timestamp", ""),
-            "book": context.get("book", {}).get("title", "Unknown"),
-            "statistics": {
-                "total_words": self.stats["total_words"],
-                "total_characters": self.stats["total_characters"],
-                "chapters": num_chapters,
-                "average_words_per_chapter": avg_words
-            },
-            "chapters": self.stats["chapter_stats"]
-        }
-
-        # Add warnings for long chapters
-        if self.stats["long_chapters"]:
-            report["warnings"] = {
-                "long_chapters": self.stats["long_chapters"],
-                "message": f"Found {len(self.stats['long_chapters'])} "
-                          f"chapters exceeding {self.config.get('warn_threshold')} words"
-            }
-
-        # Write report to file
-        report_path = os.path.join(output_path, "word-count-report.json")
-        os.makedirs(output_path, exist_ok=True)
-
-        with open(report_path, "w") as f:
-            json.dump(report, f, indent=2)
-
-        return {
-            "status": "success",
-            "action": "continue",
-            "data": {
-                "report_generated": True,
-                "report_path": report_path,
-                "total_words": self.stats["total_words"],
-                "total_chapters": num_chapters
-            }
-        }
-
-    def execute_hook(self, hook, context):
-        """Route to appropriate hook handler."""
-        if hook == "after_parse":
-            return self.execute_after_parse(context)
-        elif hook == "after_build":
-            return self.execute_after_build(context)
-        else:
-            return {
-                "status": "success",
-                "action": "continue"
-            }
-
-    def cleanup(self):
-        """Cleanup on shutdown."""
-        return {
-            "status": "success"
-        }
-
-    def process_request(self, request):
-        """Process incoming request from mdPress."""
-        action = request.get("action")
-
-        try:
-            if action == "init":
-                return self.init(request.get("config", {}))
-            elif action == "execute_hook":
-                return self.execute_hook(
-                    request.get("hook"),
-                    request.get("context", {})
-                )
-            elif action == "cleanup":
-                return self.cleanup()
-            else:
-                return {
-                    "status": "error",
-                    "errors": [f"Unknown action: {action}"]
-                }
-        except Exception as e:
-            return {
-                "status": "error",
-                "action": "stop",
-                "errors": [f"Plugin error: {str(e)}"]
-            }
-
-def main():
-    """Entry point."""
-    plugin = WordCountPlugin()
-
-    # Read request from mdPress
-    request = json.load(sys.stdin)
-
-    # Process and respond
-    response = plugin.process_request(request)
-    json.dump(response, sys.stdout)
-
-if __name__ == "__main__":
-    main()
-```
-
-## Step 3: Make Script Executable
+## Step 1: A Project To Build
 
 ```bash
-chmod +x plugins/word-count.py
+mkdir -p demo/chapters demo/plugins
+cd demo
 ```
 
-## Step 4: Register Plugin in book.yaml
-
-Add the plugin to your `book.yaml`:
+`book.yaml`:
 
 ```yaml
 book:
-  title: "My Documentation"
-  author: "Your Name"
+  title: "Reading Time Demo"
+  author: "You"
 
 chapters:
-  - chapters/01-intro.md
-
-plugins:
-  - name: word-count
-    command: ./plugins/word-count.py
-    config:
-      min_words: 100
-      warn_long_chapters: true
-      warn_threshold: 5000
+  - title: "Introduction"
+    file: chapters/01-intro.md
 ```
 
-## Step 5: Create Sample Content
-
-Create a test chapter:
-
-**`chapters/01-intro.md`:**
+`chapters/01-intro.md`:
 
 ```markdown
 # Introduction
 
-This is a sample chapter for testing the word-count plugin.
-It contains enough text to demonstrate the plugin functionality.
-
-## Features
-
-The word-count plugin analyzes your documentation and provides:
-
-- Total word count across all chapters
-- Per-chapter statistics
-- Character count
-- Warnings for unusually long chapters
-- JSON report output
-
-This helps you understand the scope and complexity of your documentation.
+Some words to count in this chapter.
 ```
 
-## Step 6: Test the Plugin
-
-Build your documentation:
+Check that a plain build works before adding a plugin:
 
 ```bash
-mdpress build
+mdpress build --format html
 ```
 
-You should see the plugin execute and generate a report. Check the output:
+> Chapter entries are mappings with `title:` and `file:` keys. A bare string
+> (`- chapters/01-intro.md`) is a YAML type error, not a shortcut.
 
-```bash
-cat build/word-count-report.json
-```
+## Step 2: The Discovery Flags
 
-Output:
-
-```json
-{
-  "timestamp": "2026-03-23",
-  "book": "My Documentation",
-  "statistics": {
-    "total_words": 87,
-    "total_characters": 652,
-    "chapters": 1,
-    "average_words_per_chapter": 87
-  },
-  "chapters": [
-    {
-      "file": "chapters/01-intro.md",
-      "index": 0,
-      "words": 87,
-      "characters": 652
-    }
-  ],
-  "warnings": []
-}
-```
-
-## Step 7: Add More Features
-
-### Log Output During Build
-
-Enhance the plugin to provide console feedback:
-
-```python
-def execute_after_parse(self, context):
-    content = context.get("content", "")
-    chapter_file = context.get("chapter_file", "")
-    word_count = self.count_words(content)
-
-    # Log progress to stderr (visible during build)
-    print(f"[word-count] Processing {chapter_file}: {word_count} words",
-          file=sys.stderr)
-
-    # ... rest of implementation
-```
-
-### Add Reading Time Estimation
-
-```python
-def estimate_reading_time(self, word_count, words_per_minute=200):
-    """Estimate reading time in minutes."""
-    return max(1, round(word_count / words_per_minute))
-
-def execute_after_parse(self, context):
-    # ... existing code ...
-
-    reading_time = self.estimate_reading_time(word_count)
-
-    return {
-        "status": "success",
-        "action": "continue",
-        "metadata": {
-            "word_count": word_count,
-            "reading_time_minutes": reading_time
-        }
-    }
-```
-
-## Step 8: Debugging Tips
-
-### Enable Verbose Logging
-
-Modify your plugin to output debug information:
-
-```python
-import sys
-
-def log_debug(msg):
-    """Log debug message to stderr."""
-    print(f"[word-count DEBUG] {msg}", file=sys.stderr)
-
-# In hooks:
-log_debug(f"Processing: {context.get('chapter_file')}")
-log_debug(f"Word count: {word_count}")
-```
-
-Run with stderr visible:
-
-```bash
-mdpress build 2>&1 | tee build.log
-```
-
-### Test Plugin Independently
-
-Create a test script to verify plugin behavior:
-
-**`test-plugin.py`:**
+A plugin must answer two flags before it is asked to do anything. Create
+`plugins/reading-time` with just that much:
 
 ```python
 #!/usr/bin/env python3
+"""reading-time: prepends an estimated reading time to every chapter."""
 import json
-import subprocess
+import sys
 
-# Create test request
-request = {
-    "action": "init",
-    "config": {
-        "warn_threshold": 5000
-    }
-}
 
-# Run plugin
-result = subprocess.run(
-    ["./plugins/word-count.py"],
-    input=json.dumps(request),
-    capture_output=True,
-    text=True
-)
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--mdpress-info":
+            json.dump({"version": "1.0.0",
+                       "description": "Prepends an estimated reading time to each chapter."},
+                      sys.stdout)
+            return
+        if sys.argv[1] == "--mdpress-hooks":
+            json.dump(["after_parse"], sys.stdout)
+            return
 
-# Check response
-response = json.loads(result.stdout)
-print("Response:", json.dumps(response, indent=2))
 
-if result.stderr:
-    print("Errors:", result.stderr)
+main()
 ```
 
-Run the test:
+Make it executable — mdPress refuses a plugin without the execute bit:
 
 ```bash
-python3 test-plugin.py
+chmod +x plugins/reading-time
 ```
 
-### Print Request/Response
+Test the two flags by hand:
 
-In your plugin, save request/response for inspection:
+```console
+$ ./plugins/reading-time --mdpress-info
+{"version": "1.0.0", "description": "Prepends an estimated reading time to each chapter."}
+$ ./plugins/reading-time --mdpress-hooks
+["after_parse"]
+```
+
+`--mdpress-hooks` is how a plugin subscribes to phases. Answering
+`["after_parse"]` means mdPress runs this program once per chapter and never
+for the other phases. A plugin that does **not** answer this flag is subscribed
+to all seven phases, which is almost never what you want.
+
+## Step 3: Handle The Hook
+
+When a hook fires, mdPress runs the same program with **no arguments**, writes
+one JSON request to stdin, and reads one JSON response from stdout. Add the
+body:
 
 ```python
-def process_request(self, request):
-    # Save request for debugging
-    with open("/tmp/mdpress-plugin-request.json", "w") as f:
-        json.dump(request, f, indent=2)
+#!/usr/bin/env python3
+"""reading-time: prepends an estimated reading time to every chapter."""
+import json
+import re
+import sys
 
-    response = self._process(request)
+TAGS = re.compile(r"<[^>]+>")
 
-    # Save response
-    with open("/tmp/mdpress-plugin-response.json", "w") as f:
-        json.dump(response, f, indent=2)
 
-    return response
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--mdpress-info":
+            json.dump({"version": "1.0.0",
+                       "description": "Prepends an estimated reading time to each chapter."},
+                      sys.stdout)
+            return
+        if sys.argv[1] == "--mdpress-hooks":
+            json.dump(["after_parse"], sys.stdout)
+            return
+
+    req = json.load(sys.stdin)
+
+    wpm = req.get("config", {}).get("words_per_minute", 200)
+    words = len(TAGS.sub(" ", req.get("content", "")).split())
+    minutes = max(1, round(words / wpm))
+
+    banner = f'<p class="reading-time">{minutes} min read</p>\n'
+    json.dump({"content": banner + req.get("content", "")}, sys.stdout)
+
+
+main()
 ```
 
-Check the files:
+Three things to notice:
 
-```bash
-cat /tmp/mdpress-plugin-request.json
-cat /tmp/mdpress-plugin-response.json
+- **`content` is HTML.** By `after_parse` the Markdown has already been
+  converted, which is why the tag-stripping regex is there and why the banner
+  is a `<p>` element rather than a Markdown paragraph.
+- **`config` comes straight from `book.yaml`.** Numbers arrive as numbers;
+  always supply a default, because the key may be absent.
+- **The response replaces the chapter.** Returning `{"content": ""}` or `{}`
+  means "leave it alone" — that is how a read-only plugin reports success.
+
+## Step 4: Test The Plugin Without mdPress
+
+The protocol is plain JSON on stdin, so a plugin is testable from a shell:
+
+```console
+$ echo '{"phase":"after_parse","content":"<p>hello world</p>","chapter_index":0,
+  "chapter_file":"chapters/01-intro.md","config":{"words_per_minute":200},"metadata":{}}' \
+  | ./plugins/reading-time
+{"content": "<p class=\"reading-time\">1 min read</p>\n<p>hello world</p>"}
 ```
 
-## Step 9: Handling Errors
+Do this before wiring the plugin into a build. A plugin failure is only ever a
+warning in mdPress, so a broken plugin is easy to miss in build output.
 
-Make your plugin robust:
+## Step 5: Register It In `book.yaml`
 
-```python
-def execute_after_parse(self, context):
-    try:
-        content = context.get("content", "")
-        if not content:
-            return {
-                "status": "warning",
-                "action": "continue",
-                "warnings": ["Empty content in chapter"]
-            }
+```yaml
+book:
+  title: "Reading Time Demo"
+  author: "You"
 
-        word_count = self.count_words(content)
+chapters:
+  - title: "Introduction"
+    file: chapters/01-intro.md
 
-        if word_count == 0:
-            return {
-                "status": "warning",
-                "action": "continue",
-                "warnings": ["No words found in chapter"]
-            }
-
-        # ... normal processing ...
-
-    except Exception as e:
-        return {
-            "status": "error",
-            "action": "continue",  # Don't stop build
-            "errors": [f"Failed to process chapter: {str(e)}"]
-        }
-```
-
-## Step 10: Distribution
-
-### Package Your Plugin
-
-Create a standard structure for sharing:
-
-```
-word-count-plugin/
-├── README.md
-├── LICENSE
-├── word-count.py
-├── word-count.json
-├── examples/
-│   └── book.yaml
-└── tests/
-    └── test_word_count.py
-```
-
-### Document Installation
-
-**`README.md`:**
-
-```markdown
-# Word Count Plugin
-
-Analyzes word count statistics for mdPress documentation.
-
-## Installation
-
-1. Copy `word-count.py` to your `plugins/` directory
-2. Add to `book.yaml`:
-
-\`\`\`yaml
 plugins:
-  - name: word-count
-    command: ./plugins/word-count.py
+  - name: reading-time
+    path: ./plugins/reading-time
     config:
-      warn_threshold: 5000
-\`\`\`
-
-3. Run `mdpress build`
-
-## Output
-
-Generates `word-count-report.json` in build output directory.
+      words_per_minute: 200
 ```
 
-## Complete Working Example
+`path` must be relative to `book.yaml` and must stay inside the project
+directory. Absolute paths are rejected.
 
-Here's the full, tested implementation:
+## Step 6: Verify With `doctor`
 
-**`plugins/word-count.py`** (complete):
+```console
+$ mdpress doctor --verbose
+  ✓ Plugin "reading-time" responds (version 1.0.0, 1 hook(s))
+  ✓ All 1 plugin(s) are valid
+```
+
+`doctor` actually runs the discovery flags, so this line proves the handshake
+works. Without `--verbose` you only get the summary. A plugin that answers
+neither flag is reported as:
+
+```
+⚠ Plugin "reading-time" does not speak the mdpress plugin protocol
+  (no valid --mdpress-info or --mdpress-hooks response)
+```
+
+## Step 7: Build
+
+```console
+$ mdpress build --format html
+  ✅ Build completed (elapsed 123ms)
+  ✓ Generated html  → .../Reading-Time-Demo.html
+
+$ grep -o '<p class="reading-time">[^<]*</p>' Reading-Time-Demo.html
+<p class="reading-time">1 min read</p>
+```
+
+`mdpress serve` runs the same hook on the initial render and again after every
+file change, so the banner stays current while you edit.
+
+## Debugging
+
+### The build says nothing about my plugin
+
+That is the normal case — a successful plugin is silent. To confirm it ran at
+all, have it write a file:
 
 ```python
-#!/usr/bin/env python3
-"""Word Count Plugin for mdPress"""
-
-import json
-import sys
-import os
-
-class WordCountPlugin:
-    def __init__(self):
-        self.name = "word-count"
-        self.version = "1.0.0"
-        self.config = {}
-        self.stats = {
-            "total_words": 0,
-            "chapter_stats": []
-        }
-
-    def init(self, config):
-        self.config = config
-        return {
-            "name": self.name,
-            "version": self.version,
-            "description": "Analyzes word count statistics",
-            "status": "success"
-        }
-
-    def count_words(self, content):
-        return len(content.split())
-
-    def execute_hook(self, hook, context):
-        if hook == "after_parse":
-            content = context.get("content", "")
-            word_count = self.count_words(content)
-            self.stats["total_words"] += word_count
-            self.stats["chapter_stats"].append({
-                "file": context.get("chapter_file"),
-                "words": word_count
-            })
-            return {
-                "status": "success",
-                "action": "continue",
-                "metadata": {"word_count": word_count}
-            }
-
-        elif hook == "after_build":
-            report_path = os.path.join(
-                context.get("output_path", "build"),
-                "word-count-report.json"
-            )
-            os.makedirs(os.path.dirname(report_path) or ".", exist_ok=True)
-            with open(report_path, "w") as f:
-                json.dump(self.stats, f, indent=2)
-            return {
-                "status": "success",
-                "action": "continue",
-                "data": {"report_path": report_path}
-            }
-
-        return {"status": "success", "action": "continue"}
-
-    def process_request(self, request):
-        action = request.get("action")
-        if action == "init":
-            return self.init(request.get("config", {}))
-        elif action == "execute_hook":
-            return self.execute_hook(
-                request.get("hook"),
-                request.get("context", {})
-            )
-        return {"status": "success"}
-
-if __name__ == "__main__":
-    plugin = WordCountPlugin()
-    request = json.load(sys.stdin)
-    json.dump(plugin.process_request(request), sys.stdout)
+with open("/tmp/reading-time.log", "a") as fh:
+    fh.write(req.get("chapter_file", "?") + "\n")
 ```
 
-See [Plugin API Reference](./api.md) and [Lifecycle Hooks](./lifecycle-hooks.md) for more details on plugin development.
+**Do not use stderr for this.** mdPress only surfaces stderr when the plugin
+exits non-zero; on a successful run it is discarded.
+
+### My plugin runs but nothing changes
+
+Check three things in order:
+
+1. **The phase.** `after_parse` is the only phase whose returned `content` is
+   used. Anything returned from `before_build`, `before_render`, `after_render`
+   or `after_build` is discarded. See [Lifecycle Hooks](./lifecycle-hooks.md).
+2. **The field name.** The response key is `content`. `modified_content`,
+   `output`, `body` and so on are ignored, and an ignored response reads as
+   "no change".
+3. **Stray stdout.** The response must be the *only* thing on stdout. A stray
+   `print()` makes the response unparseable, which is reported as
+   `failed to parse plugin response`.
+
+### Only some of my plugins run
+
+Plugin loading is all-or-nothing. One bad entry disables every plugin for that
+build:
+
+```
+WARN plugin loading failed (continuing without plugins): failed to load
+     plugin "missing": plugin executable not found at ".../does-not-exist"
+```
+
+Also check for `"stop": true` in an earlier plugin — it skips every plugin
+declared after it for that phase.
+
+### My plugin needs to know the output path
+
+It cannot. `output_path` and `output_format` are present in the request but are
+always empty. Pass what you need through your own `config:` block instead.
+
+## Distributing A Plugin
+
+There is no plugin registry and no install command. Distribution is "ship the
+executable and the `book.yaml` snippet":
+
+```
+reading-time/
+├── README.md          # what it does, plus the book.yaml block to copy
+├── LICENSE
+└── reading-time       # the executable
+```
+
+If your plugin is compiled, ship the source and a build line — users on a
+different OS or architecture need to build it themselves:
+
+```bash
+go build -o plugins/word-count ./examples/plugins/word-count
+```
+
+Say plainly in your README that installing the plugin means letting mdPress
+execute it during every build and serve.
+
+## Next Steps
+
+- [Plugin API Reference](./api.md) — the exact request/response schema and the
+  trust model.
+- [Lifecycle Hooks](./lifecycle-hooks.md) — what each phase can and cannot do.
+- [`examples/plugins/word-count`](https://github.com/yeasy/mdpress/tree/main/examples/plugins/word-count)
+  — the same protocol in Go.

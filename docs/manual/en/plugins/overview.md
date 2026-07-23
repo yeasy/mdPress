@@ -33,33 +33,30 @@ plugins:
 
 Plugins run in declaration order.
 
+If any entry fails to load, mdPress warns once and builds with **no plugins at all**.
+
 ## Protocol
 
-mdPress probes each executable with `--mdpress-info` and `--mdpress-hooks` when those flags are available. During hook execution it sends JSON on stdin and reads JSON from stdout. Anything written to stderr is captured in the logs.
+mdPress probes each executable with `--mdpress-info` and `--mdpress-hooks`. For each hook it then starts a fresh process, sends one JSON object on stdin and reads one JSON object from stdout.
 
 If the helper flags are missing, mdPress falls back to version `0.1.0` and subscribes the plugin to all phases.
 
+stderr is only surfaced when a plugin exits non-zero. On a successful run it is discarded, so it is not a logging channel.
+
 ## Hook Phases
 
-| Phase | When It Runs |
-| --- | --- |
-| `before_build` | After config load, before chapter processing. |
-| `after_parse` | After a chapter has been rendered to HTML. |
-| `before_render` | Before final HTML assembly. |
-| `after_render` | After the HTML document has been assembled. |
-| `after_build` | After all output files are written. |
-| `before_serve` | Before the live preview server starts. |
-| `after_serve` | When the live preview server shuts down. |
+| Phase | When It Runs | Can Change Content |
+| --- | --- | --- |
+| `before_build` | Once, after config load, before chapter processing. | no |
+| `after_parse` | Once per chapter, after it is rendered to HTML. Also the only hook `mdpress serve` dispatches. | **yes** |
+| `before_render` | Once, before final HTML assembly. Payload is the cover HTML. | no |
+| `after_render` | Once, after the HTML document is assembled. Payload is the TOC HTML. | no |
+| `after_build` | Once, after all output files are written. | no |
+| `before_serve` | Declared in the protocol but **never dispatched**. | — |
+| `after_serve` | Declared in the protocol but **never dispatched**. | — |
 
 ## Hook Data
 
-Each hook receives a `HookContext` with:
+Each request carries the phase, the content payload, the chapter index and source file (`after_parse` only), and the plugin's own `config` block. `output_path`, `output_format` and `metadata` are part of the wire format but are always empty today.
 
-- the current config
-- the active phase
-- the current content payload
-- chapter index and source file
-- output path and format when relevant
-- a shared `Metadata` map for passing state between phases
-
-If a plugin returns non-empty `content`, mdPress replaces the current payload. If it returns `stop: true`, later plugins in the same phase are skipped.
+A plugin that returns non-empty `content` replaces the payload — but only in `after_parse`; every other phase discards it. Returning `stop: true` skips the later plugins for that phase. Returning a non-empty `error` produces a build warning and never fails the build.

@@ -1,698 +1,271 @@
 # Lifecycle Hooks in Detail
 
-mdPress provides six lifecycle hooks that allow plugins to intercept and modify the build process. This guide explains when each hook fires, what data is available, and practical use cases for each.
+Seven phase names exist in the protocol. **Five of them fire during
+`mdpress build`, one fires during `mdpress serve`, and two are declared but
+never dispatched.** Only one phase can actually change the output.
 
-## Hook Sequence
+This page says exactly what each phase gives you, so you can pick the right one
+instead of discovering the answer by trial and error. The wire format is in the
+[Plugin API Reference](./api.md).
 
-The build process follows this sequence, with hooks firing at key points:
+## What Fires, And What It Can Do
+
+| Phase | Fires in `build` | Fires in `serve` | `content` payload | Returned `content` used? |
+| --- | --- | --- | --- | --- |
+| `before_build` | once | no | empty | no |
+| `after_parse` | once per chapter | once per chapter, per rebuild | that chapter's rendered HTML | **yes** |
+| `before_render` | once | no | the cover HTML | no |
+| `after_render` | once | no | the table-of-contents HTML | no |
+| `after_build` | once | no | empty | no |
+| `before_serve` | never | never | — | — |
+| `after_serve` | never | never | — | — |
+
+Two consequences worth internalising before you write anything:
+
+1. **`after_parse` is the only phase that can modify the book.** In every other
+   phase the value you return in `content` is read and then thrown away. If you
+   want to change what a reader sees, do it in `after_parse`.
+2. **`before_serve` and `after_serve` never run.** The names are defined in the
+   protocol and accepted by `--mdpress-hooks`, but no code path dispatches
+   them. A plugin that only subscribes to those two will be loaded, will show
+   up as valid in `mdpress doctor`, and will never be executed.
+
+Everything else is still useful as a *side-effect* hook: the process runs, so it
+can write files, call an API, or fail loudly. It just cannot hand content back.
+
+## Build Sequence
 
 ```
-START BUILD
-  ↓
-[before_build] - Plugins can initialize, validate setup
-  ↓
-PARSE CONTENT
-  ↓
-[after_parse] - Plugins can modify parsed content
-  ↓
-[before_render] - Plugins can prepare for rendering
-  ↓
-RENDER TO OUTPUT
-  ↓
-[after_render] - Plugins can post-process output
-  ↓
-[after_build] - Build complete, final tasks
-  ↓
-END BUILD
+mdpress build
+  │
+  ├─ load book.yaml, theme, plugins   ← plugins are probed (executed!) here
+  │
+  ├─ [before_build]                   content: ""
+  │
+  ├─ parse every chapter to HTML
+  │    └─ [after_parse]  per chapter  content: chapter HTML  → replaceable
+  │
+  ├─ build cover + TOC
+  ├─ [before_render]                  content: cover HTML
+  ├─ assemble the single-page HTML
+  ├─ [after_render]                   content: TOC HTML
+  │
+  ├─ write every requested format (html, pdf, epub, site, typst…)
+  │
+  └─ [after_build]                    content: ""
 ```
 
-For serve mode (live development):
+Note that `before_render` / `after_render` / `after_build` fire **once per
+build**, not once per output format — a `--format html,pdf,epub` run still
+dispatches each of them exactly once, and there is no way to tell from the
+request which formats were requested.
+
+## Serve Sequence
 
 ```
-[before_serve] - Server initializing
-  ↓
-WATCH & REBUILD
-  ├─ File changes trigger rebuild
-  ├─ All build hooks execute
-  └─ Repeat
-  ↓
-[after_serve] - Server stopping
-  ↓
-SHUTDOWN
+mdpress serve
+  │
+  ├─ load book.yaml, theme, plugins   ← plugins are probed (executed!) here
+  ├─ initial render
+  │    └─ [after_parse]  per chapter
+  │
+  └─ on every file change
+       └─ [after_parse]  per chapter
 ```
 
-## before_build
+`mdpress serve` re-runs the chapter pipeline only, so `after_parse` is the sole
+hook it dispatches. A plugin that does its work in `after_build` will appear to
+"not run in dev mode" — that is why.
 
-Fires once at the very start of the build process, before any content is processed.
+## `before_build`
 
-### Use Cases
+Fires once, after `book.yaml` and the theme are loaded, before any chapter is
+parsed.
 
-- Validate configuration and dependencies
-- Initialize external resources (databases, APIs)
-- Set up logging or monitoring
-- Clean previous build artifacts
-- Prepare build-wide state
+Request: `phase` is `before_build`; `content`, `chapter_file`, `output_path` and
+`output_format` are empty; `config` holds your settings.
 
-### Data Available
+Good for: preflight checks (is an API key present? is a converter installed?),
+clearing a scratch directory your plugin owns, recording a build start time.
 
-The hook context includes:
-
-```json
-{
-  "context": {
-    "phase": "before_build",
-    "book": {
-      "title": "My Documentation",
-      "author": "Author Name",
-      "version": "1.0.0"
-    },
-    "config": {
-      "theme": "technical",
-      "output_format": "html"
-    },
-    "output_path": "build/",
-    "chapters": [
-      "chapters/01-intro.md",
-      "chapters/02-guide.md"
-    ]
-  }
-}
-```
-
-### Example: Validate External API
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import requests
-
-def validate_api(config):
-    try:
-        # Check if external API is reachable
-        response = requests.get(config.get("api_url"), timeout=5)
-        if response.status_code != 200:
-            return {
-                "status": "error",
-                "action": "stop",
-                "errors": ["API returned status code {}".format(response.status_code)]
-            }
-
-        return {
-            "status": "success",
-            "action": "continue",
-            "data": {"api_validated": True}
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "action": "stop",
-            "errors": ["API validation failed: {}".format(str(e))]
-        }
-
-# In main()
-if request.get("action") == "execute_hook" and request.get("hook") == "before_build":
-    response = validate_api(request.get("config", {}))
-```
-
-### Example: Clean Build Directory
+Not good for: anything that needs to change the build. There is no
+configuration write-back — mdPress has already loaded its config, and your
+`content` is ignored.
 
 ```bash
-#!/bin/bash
+#!/bin/sh
+# preflight — refuse to build without an API token.
+case "$1" in
+  --mdpress-info)  echo '{"version":"1.0.0","description":"Checks build prerequisites."}'; exit 0 ;;
+  --mdpress-hooks) echo '["before_build"]'; exit 0 ;;
+esac
 
-# Read JSON from stdin
-read -r request
+cat > /dev/null   # drain the request; we do not need it
 
-# Clean build directories
-rm -rf build/html build/pdf build/epub
-
-# Respond with success
-echo '{"status": "success", "action": "continue"}'
+if [ -z "$DOCS_API_TOKEN" ]; then
+  echo '{"error":"DOCS_API_TOKEN is not set"}'
+else
+  echo '{}'
+fi
 ```
 
-## after_parse
+Reporting an `error` produces a warning. It does **not** abort the build — see
+[Failure Handling](./api.md#failure-handling).
 
-Fires after each chapter's markdown is parsed into an AST (Abstract Syntax Tree), but before rendering.
+## `after_parse`
 
-### Use Cases
+Fires once per chapter, right after that chapter's Markdown has been converted
+to HTML and before headings, figures and tables are registered for
+cross-references. Anything you inject is numbered like hand-written content.
 
-- Modify or transform parsed content
-- Extract and process metadata
-- Validate content structure
-- Generate supplementary content
-- Expand custom syntax
+Request: `content` is the chapter's HTML, `chapter_file` is its source path, and
+`chapter_index` is its zero-based position in the flattened chapter list.
 
-### Data Available
-
-The hook context includes parsed content:
-
-```json
-{
-  "context": {
-    "phase": "parse",
-    "content": "# Chapter Title\n\nContent here...",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html",
-    "metadata": {
-      "title": "Introduction",
-      "author": "John Doe"
-    }
-  }
-}
-```
-
-### Example: Expand Custom Macros
+This is the phase for content work: injecting banners, rewriting elements,
+counting words, validating structure.
 
 ```python
 #!/usr/bin/env python3
+"""reading-time — prepend an estimated reading time to every chapter."""
 import json
-import sys
 import re
-from datetime import datetime
-
-def expand_macros(content):
-    # Expand {{date}} macro
-    content = re.sub(
-        r'{{date}}',
-        datetime.now().strftime('%Y-%m-%d'),
-        content
-    )
-
-    # Expand {{updated}} macro to current timestamp
-    content = re.sub(
-        r'{{updated}}',
-        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        content
-    )
-
-    return content
-
-request = json.load(sys.stdin)
-if request.get("hook") == "after_parse":
-    context = request.get("context", {})
-    original = context.get("content", "")
-    modified = expand_macros(original)
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "modified_content": modified,
-        "content_type": "markdown"
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-### Example: Extract and Validate Links
-
-```python
-#!/usr/bin/env python3
-import json
 import sys
-import re
 
-def extract_links(content):
-    pattern = r'\[([^\]]+)\]\(([^\)]+)\)'
-    matches = re.findall(pattern, content)
-    return matches
+TAGS = re.compile(r"<[^>]+>")
 
-request = json.load(sys.stdin)
-if request.get("hook") == "after_parse":
-    content = request.get("context", {}).get("content", "")
-    links = extract_links(content)
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--mdpress-info":
+        json.dump({"version": "1.0.0",
+                   "description": "Prepends an estimated reading time."}, sys.stdout)
+        sys.exit(0)
+    if sys.argv[1] == "--mdpress-hooks":
+        json.dump(["after_parse"], sys.stdout)
+        sys.exit(0)
 
-    response = {
-        "status": "success",
-        "action": "continue",
-        "metadata": {
-            "links": links,
-            "link_count": len(links)
-        }
-    }
+req = json.load(sys.stdin)
 
-    json.dump(response, sys.stdout)
+wpm = req.get("config", {}).get("words_per_minute", 200)
+words = len(TAGS.sub(" ", req.get("content", "")).split())
+minutes = max(1, round(words / wpm))
+
+banner = f'<p class="reading-time">{minutes} min read</p>\n'
+json.dump({"content": banner + req.get("content", "")}, sys.stdout)
 ```
 
-## before_render
+Remember that `content` is **HTML, not Markdown** — the conversion has already
+happened. A plugin that searches for `## ` or `[text](link)` will find nothing.
 
-Fires right before a chapter is rendered from parsed content to the output format (HTML, PDF, etc.).
+Returning `"content": ""` (or omitting the key) leaves the chapter untouched,
+which is what a read-only plugin should do.
 
-### Use Cases
+### Stopping the chain
 
-- Prepare content for specific output formats
-- Apply format-specific transformations
-- Inject rendering hints or metadata
-- Optimize content for output format
-
-### Data Available
-
-Same as `after_parse`, plus rendering context:
+Set `"stop": true` to skip every plugin declared after yours for this phase:
 
 ```json
-{
-  "context": {
-    "phase": "render",
-    "content": "# Chapter Title\n\nContent...",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html"
-  }
-}
+{"content": "<p>…</p>", "stop": true}
 ```
 
-### Example: Modify Content for PDF
+The chapter keeps whatever content you returned; later plugins simply do not
+run for it. `stop` has no effect on other phases or other chapters.
 
-```python
-#!/usr/bin/env python3
-import json
-import sys
+## `before_render`
 
-request = json.load(sys.stdin)
+Fires once, after all chapters are parsed, just before the single-page HTML
+document is assembled.
 
-if request.get("hook") == "before_render":
-    context = request.get("context", {})
-    content = context.get("content", "")
-    output_format = context.get("output_format", "")
+Request: `content` holds the **cover HTML** — not a chapter, and not the whole
+document. `chapter_file`, `output_path` and `output_format` are empty.
 
-    # For PDF output, add page breaks before H1 headings
-    if output_format == "pdf":
-        modified = content.replace(
-            "# ",
-            "\n---\n# "  # Page break before headings
-        )
-    else:
-        modified = content
+The cover is passed as a representative payload for inspection. Returning a
+modified cover has no effect; the assembled document uses the cover mdPress
+already built.
 
-    response = {
-        "status": "success",
-        "action": "continue",
-        "modified_content": modified,
-        "content_type": "markdown"
-    }
+Good for: side effects that must happen after all content exists but before
+output files are written.
 
-    json.dump(response, sys.stdout)
-```
+## `after_render`
 
-## after_render
+Fires once, after the single-page HTML document has been assembled and before
+the formats are written.
 
-Fires after a chapter has been rendered to the final output format (HTML, PDF, etc.).
+Request: `content` holds the **table-of-contents HTML**. Same story as
+`before_render`: it is there for inspection, and the return value is discarded.
 
-### Use Cases
+Good for: extracting the document outline, checking that every chapter made it
+into the TOC.
 
-- Post-process generated output
-- Add or modify output files
-- Generate alternate formats
-- Minify or optimize output
-- Extract information from rendered content
+## `after_build`
 
-### Data Available
+Fires once, after every requested format has been written to disk.
 
-The context includes the rendered output:
-
-```json
-{
-  "context": {
-    "phase": "render",
-    "content": "<h1>Chapter Title</h1>\n<p>Content...</p>",
-    "chapter_index": 0,
-    "chapter_file": "chapters/01-intro.md",
-    "output_path": "build/html/intro.html",
-    "output_format": "html",
-    "content_type": "html"
-  }
-}
-```
-
-### Example: Minify HTML
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import re
-
-def minify_html(html):
-    # Remove comments
-    html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
-
-    # Remove unnecessary whitespace between tags
-    html = re.sub(r'>\s+<', '><', html)
-
-    # Remove leading/trailing whitespace in lines
-    html = '\n'.join(line.strip() for line in html.split('\n'))
-
-    return html
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_render":
-    context = request.get("context", {})
-
-    if context.get("output_format") == "html":
-        original = context.get("content", "")
-        minified = minify_html(original)
-
-        response = {
-            "status": "success",
-            "action": "continue",
-            "modified_content": minified,
-            "content_type": "html",
-            "metadata": {
-                "original_size": len(original),
-                "minified_size": len(minified),
-                "compression_ratio": f"{len(minified) / len(original) * 100:.1f}%"
-            }
-        }
-    else:
-        response = {
-            "status": "success",
-            "action": "continue"
-        }
-
-    json.dump(response, sys.stdout)
-```
-
-### Example: Generate AMP Version
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import re
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_render":
-    context = request.get("context", {})
-
-    if context.get("output_format") == "html":
-        html = context.get("content", "")
-        output_path = context.get("output_path", "")
-
-        # Convert to AMP-friendly HTML
-        amp_html = html
-        amp_html = re.sub(r'<img ', '<amp-img ', amp_html)
-        amp_html = re.sub(r'<iframe ', '<amp-iframe ', amp_html)
-
-        # Write AMP version
-        amp_path = output_path.replace('.html', '.amp.html')
-        os.makedirs(os.path.dirname(amp_path), exist_ok=True)
-        with open(amp_path, 'w') as f:
-            f.write(amp_html)
-
-        response = {
-            "status": "success",
-            "action": "continue",
-            "data": {
-                "amp_generated": True,
-                "amp_path": amp_path
-            }
-        }
-    else:
-        response = {"status": "success", "action": "continue"}
-
-    json.dump(response, sys.stdout)
-```
-
-## after_build
-
-Fires once after all chapters are processed and the entire build is complete.
-
-### Use Cases
-
-- Post-build validation and verification
-- Generate build reports and statistics
-- Upload documentation to servers
-- Generate search indexes
-- Create archives or backups
-- Notify external services
-
-### Data Available
-
-The hook context includes build-wide information:
-
-```json
-{
-  "context": {
-    "phase": "after_build",
-    "book": {
-      "title": "My Documentation",
-      "author": "Author Name",
-      "version": "1.0.0"
-    },
-    "output_path": "build/",
-    "output_format": "html",
-    "chapters_processed": 5,
-    "build_duration_ms": 2500
-  }
-}
-```
-
-### Example: Generate Build Report
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-from datetime import datetime
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_build":
-    context = request.get("context", {})
-
-    report = {
-        "timestamp": datetime.now().isoformat(),
-        "book": context.get("book", {}).get("title"),
-        "version": context.get("book", {}).get("version"),
-        "format": context.get("output_format"),
-        "chapters": context.get("chapters_processed", 0),
-        "duration_ms": context.get("build_duration_ms", 0),
-        "output_path": context.get("output_path")
-    }
-
-    with open("build/build-report.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "data": {
-            "report_generated": True,
-            "report_path": "build/build-report.json"
-        }
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-### Example: Upload to Server
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import requests
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_build":
-    context = request.get("context", {})
-    config = request.get("config", {})
-    output_path = context.get("output_path")
-
-    upload_url = config.get("upload_url")
-    api_key = config.get("api_key")
-
-    # Create archive
-    archive_path = "build/docs.tar.gz"
-    os.system(f"tar -czf {archive_path} {output_path}")
-
-    # Upload
-    try:
-        with open(archive_path, 'rb') as f:
-            files = {'file': f}
-            headers = {'Authorization': f'Bearer {api_key}'}
-            response = requests.post(upload_url, files=files, headers=headers)
-
-        if response.status_code == 200:
-            return {
-                "status": "success",
-                "action": "continue",
-                "data": {"uploaded": True}
-            }
-        else:
-            return {
-                "status": "error",
-                "action": "continue",
-                "warnings": [f"Upload failed: {response.status_code}"]
-            }
-    except Exception as e:
-        return {
-            "status": "warning",
-            "action": "continue",
-            "warnings": [f"Upload error: {str(e)}"]
-        }
-```
-
-## before_serve
-
-Fires once when the development server starts, before watching for file changes.
-
-### Use Cases
-
-- Initialize development-mode features
-- Start local services or databases
-- Set up live reload configuration
-- Verify development environment
-
-### Data Available
-
-```json
-{
-  "context": {
-    "phase": "serve",
-    "server_host": "localhost",
-    "server_port": 9000,
-    "watch_paths": ["chapters/", "docs/"]
-  }
-}
-```
-
-### Example: Start Dev Services
-
-```bash
-#!/bin/bash
-
-echo '{"status": "success", "action": "continue"}'
-
-# Could start Docker containers, local services, etc.
-```
-
-## after_serve
-
-Fires once when the development server stops.
-
-### Use Cases
-
-- Clean up development resources
-- Stop local services
-- Generate final development reports
-- Archive development artifacts
-
-### Data Available
-
-```json
-{
-  "context": {
-    "phase": "serve",
-    "uptime_ms": 3600000,
-    "files_watched": 45
-  }
-}
-```
-
-### Example: Clean Up Dev Services
-
-```python
-#!/usr/bin/env python3
-import json
-import sys
-import os
-
-request = json.load(sys.stdin)
-
-if request.get("hook") == "after_serve":
-    # Clean up temporary files
-    if os.path.exists(".dev-cache"):
-        os.system("rm -rf .dev-cache")
-
-    response = {
-        "status": "success",
-        "action": "continue",
-        "data": {"cleanup_complete": True}
-    }
-
-    json.dump(response, sys.stdout)
-```
-
-## Hook Filtering
-
-Specify which hooks a plugin should receive in `book.yaml`:
+Request: `content`, `chapter_file`, `output_path` and `output_format` are all
+empty. **This phase does not tell you where the output went.** If your plugin
+needs the path, read `output.filename` from `book.yaml`, or pass the path
+through your own `config:` block:
 
 ```yaml
 plugins:
-  - name: build-plugin
-    command: ./plugins/build.py
-    hooks:
-      - before_build
-      - after_build
+  - name: publish
+    path: ./plugins/publish
+    config:
+      artifact: dist/book.pdf
 ```
 
-Only the specified hooks will be sent to the plugin, improving performance.
-
-## Complete Lifecycle Example
-
-Here's a plugin implementing all lifecycle hooks:
+Good for: uploading artifacts, sending a notification, generating a report next
+to a path you already know.
 
 ```python
 #!/usr/bin/env python3
+"""notify — copy the built artifact somewhere once the build is done."""
 import json
+import shutil
 import sys
 
-class LifecyclePlugin:
-    def __init__(self):
-        self.stats = {
-            "chapters_processed": 0,
-            "links_found": 0,
-            "errors": 0
-        }
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--mdpress-info":
+        json.dump({"version": "1.0.0",
+                   "description": "Copies the built artifact to a drop directory."}, sys.stdout)
+        sys.exit(0)
+    if sys.argv[1] == "--mdpress-hooks":
+        json.dump(["after_build"], sys.stdout)
+        sys.exit(0)
 
-    def execute(self, hook, context):
-        if hook == "before_build":
-            print("Build starting...", file=sys.stderr)
-            return {"status": "success", "action": "continue"}
+req = json.load(sys.stdin)
+cfg = req.get("config", {})
 
-        elif hook == "after_parse":
-            self.stats["chapters_processed"] += 1
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "before_render":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_render":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_build":
-            print(f"Build complete: {self.stats}", file=sys.stderr)
-            return {
-                "status": "success",
-                "action": "continue",
-                "data": self.stats
-            }
-
-        elif hook == "before_serve":
-            return {"status": "success", "action": "continue"}
-
-        elif hook == "after_serve":
-            return {"status": "success", "action": "continue"}
-
-        return {"status": "success", "action": "continue"}
-
-plugin = LifecyclePlugin()
-request = json.load(sys.stdin)
-
-if request.get("action") == "execute_hook":
-    response = plugin.execute(
-        request.get("hook"),
-        request.get("context", {})
-    )
-    json.dump(response, sys.stdout)
+try:
+    shutil.copy(cfg["artifact"], cfg["drop_dir"])
+except Exception as exc:                       # surfaced as a build warning
+    json.dump({"error": f"publish failed: {exc}"}, sys.stdout)
+else:
+    json.dump({}, sys.stdout)
 ```
 
-See [Plugin API](./api.md) for complete API reference and [Building a Plugin](./building-a-plugin.md) for step-by-step tutorials.
+## `before_serve` And `after_serve`
+
+Declared in the protocol, accepted by `--mdpress-hooks`, **never dispatched**.
+No part of `mdpress serve` calls them today.
+
+They are listed here so you do not spend an afternoon debugging a plugin that
+was never going to run. If you need to react to serve, use `after_parse` — it
+fires on the initial render and on every rebuild — and keep in mind that it
+fires per chapter, so "once per rebuild" work needs its own guard.
+
+## Choosing A Phase
+
+| You want to… | Use |
+| --- | --- |
+| Change what readers see | `after_parse` |
+| Validate content and warn | `after_parse` |
+| Check prerequisites before work starts | `before_build` |
+| Inspect the cover or TOC | `before_render` / `after_render` |
+| Publish, notify, or archive when the build is done | `after_build` |
+| React to a live-reload rebuild | `after_parse` |
+
+Subscribe only to the phases you use. A plugin whose `--mdpress-hooks` call
+fails is subscribed to all seven, which means one process spawn per chapter
+plus four more per build for no reason.
+
+See the [Plugin API Reference](./api.md) for the exact request and response
+schema, and [Building a Plugin](./building-a-plugin.md) for a full walkthrough.

@@ -20,33 +20,30 @@ plugins:
 
 插件按声明顺序运行。
 
+只要有任意一项加载失败，mdPress 会警告一次，然后在**完全不加载任何插件**的情况下继续构建。
+
 ## 协议
 
-当可执行文件支持相应标志时，mdPress 会用 `--mdpress-info` 和 `--mdpress-hooks` 探测它。在钩子执行期间，通过 stdin 发送 JSON，从 stdout 读取 JSON。写入 stderr 的任何内容都会被记录到日志中。
+mdPress 会用 `--mdpress-info` 和 `--mdpress-hooks` 探测每个可执行文件。每次触发钩子时，都会重新启动一个进程：通过 stdin 发送一个 JSON 对象，从 stdout 读取一个 JSON 对象。
 
 如果缺少这些辅助标志，mdPress 会回退到版本 `0.1.0`，并将该插件订阅到所有阶段。
 
+stderr 只有在插件以非零状态退出时才会被展示出来。运行成功时 stderr 会被丢弃，因此它不是日志通道。
+
 ## 钩子阶段
 
-| 阶段 | 何时运行 |
-| --- | --- |
-| `before_build` | 配置加载之后、章节处理之前。 |
-| `after_parse` | 某个章节被渲染为 HTML 之后。 |
-| `before_render` | 最终 HTML 组装之前。 |
-| `after_render` | HTML 文档组装完成之后。 |
-| `after_build` | 所有输出文件写入之后。 |
-| `before_serve` | 实时预览服务器启动之前。 |
-| `after_serve` | 实时预览服务器关闭时。 |
+| 阶段 | 何时运行 | 能否修改内容 |
+| --- | --- | --- |
+| `before_build` | 一次，配置加载之后、章节处理之前。 | 否 |
+| `after_parse` | 每章一次，该章渲染为 HTML 之后。也是 `mdpress serve` 唯一会派发的钩子。 | **能** |
+| `before_render` | 一次，最终 HTML 组装之前。负载是封面 HTML。 | 否 |
+| `after_render` | 一次，HTML 文档组装完成之后。负载是目录 HTML。 | 否 |
+| `after_build` | 一次，所有输出文件写入之后。 | 否 |
+| `before_serve` | 协议中有定义，但**从不派发**。 | — |
+| `after_serve` | 协议中有定义，但**从不派发**。 | — |
 
 ## 钩子数据
 
-每个钩子会收到一个 `HookContext`，其中包含：
+每个请求会带上阶段名、内容负载、章节索引与源文件（仅 `after_parse`），以及该插件自己的 `config` 块。`output_path`、`output_format` 和 `metadata` 虽然属于线上格式的一部分，但目前始终为空。
 
-- 当前配置
-- 活动阶段
-- 当前内容负载
-- 章节索引和源文件
-- 相关时的输出路径和格式
-- 一个共享的 `Metadata` 映射，用于在各阶段之间传递状态
-
-如果插件返回非空的 `content`，mdPress 会替换当前的内容负载。如果它返回 `stop: true`，同一阶段中后续的插件会被跳过。
+插件返回非空的 `content` 会替换内容负载——但**只在 `after_parse` 生效**，其余阶段一律丢弃。返回 `stop: true` 会跳过该阶段中后续的插件。返回非空的 `error` 只会产生一条构建警告，绝不会让构建失败。
