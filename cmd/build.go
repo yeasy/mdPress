@@ -77,8 +77,41 @@ Examples:
 		if len(args) > 0 {
 			inputSource = args[0]
 		}
+		// An empty --format is indistinguishable from an unset one by the time
+		// executeBuild runs, so `--format ""` used to quietly build a PDF
+		// instead of reporting the typo (usually an unset shell variable).
+		if cmd.Flags().Changed("format") && strings.TrimSpace(buildFormat) == "" {
+			return errEmptyFormatFlag()
+		}
 		return executeBuild(cmd.Context(), inputSource)
 	},
+}
+
+// errEmptyFormatFlag is returned when --format is present but names nothing.
+func errEmptyFormatFlag() error {
+	return fmt.Errorf("--format was given but names no output format (supported: pdf, html, site, epub, typst, all)")
+}
+
+// parseFormatFlag splits a --format value into normalized format names.
+//
+// Values are lower-cased and trimmed because "PDF" and " html " are what
+// people type, and empty elements are dropped: a stray comma ("pdf,,html", or
+// a trailing one produced by a shell loop) used to abort the build with
+// `unsupported format ""`, which named nothing the user had written.
+func parseFormatFlag(raw string) ([]string, error) {
+	requested := strings.Split(raw, ",")
+	formats := make([]string, 0, len(requested))
+	for _, f := range requested {
+		f = strings.ToLower(strings.TrimSpace(f))
+		if f == "" {
+			continue
+		}
+		formats = append(formats, f)
+	}
+	if len(formats) == 0 {
+		return nil, errEmptyFormatFlag()
+	}
+	return formats, nil
 }
 
 func init() {
@@ -133,6 +166,12 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		if buildSubDir != "" {
 			workDir = buildSubDir
 		}
+		if buildBranch != "" {
+			// --branch only means something for a cloned source. Accepting it
+			// silently made a mistyped invocation look like it had built the
+			// requested branch.
+			return fmt.Errorf("--branch applies to Git sources only; no source URL was given")
+		}
 	}
 
 	// ========== 2. Load config (supports zero-config mode) ==========
@@ -140,8 +179,12 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	var err error
 
 	// An explicit --config wins over the source directory's own book.yaml.
+	// workDir is also the right base for a local `--subdir`: it used to be
+	// dropped here, so `mdpress build --subdir mybook` ignored mybook/book.yaml,
+	// fell into zero-config discovery of the parent, and wrote its output
+	// beside the wrong directory while still exiting 0.
 	sourceDir := ""
-	if inputSource != "" {
+	if inputSource != "" || buildSubDir != "" {
 		sourceDir = workDir
 	}
 	configPath, allowDiscovery := resolveConfigPath(sourceDir)
@@ -157,14 +200,12 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 		logger.Info("loaded configuration from file", slog.String("config", configPath))
 	} else {
-		// Zero-config mode: auto-discover Markdown files.
-		targetDir := workDir
-		if inputSource == "" && configPath == defaultConfigName {
-			// In the default case, discover from the current directory.
-			targetDir, err = filepath.Abs(".")
-			if err != nil {
-				return fmt.Errorf("failed to resolve current directory: %w", err)
-			}
+		// Zero-config mode: auto-discover Markdown files. Discovery always
+		// starts at the directory the build was pointed at — "." by default,
+		// but the --subdir when one was given.
+		targetDir, err := filepath.Abs(workDir)
+		if err != nil {
+			return fmt.Errorf("failed to resolve source directory: %w", err)
 		}
 		logger.Info("zero-config mode: auto-discovering Markdown files", slog.String("dir", targetDir))
 		cfg, err = config.Discover(ctx, targetDir)
@@ -192,11 +233,9 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	// Special value "all" expands to all supported formats.
 	formats := cfg.Output.Formats
 	if buildFormat != "" {
-		formats = strings.Split(buildFormat, ",")
-		for i := range formats {
-			// Case-insensitive: "PDF" is what people type, and rejecting it
-			// taught nothing.
-			formats[i] = strings.ToLower(strings.TrimSpace(formats[i]))
+		formats, err = parseFormatFlag(buildFormat)
+		if err != nil {
+			return err
 		}
 	}
 	// Expand the "all" alias to the full set of supported formats.

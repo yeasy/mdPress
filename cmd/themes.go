@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -35,7 +37,11 @@ Examples:
 		// cobra routes an unmatched sub-command here. Returning nil made a
 		// typo look like success: `mdpress themes lst` printed nothing and
 		// exited 0.
-		return fmt.Errorf("unknown themes sub-command %q\n\nRun 'mdpress themes --help' to see the available sub-commands", args[0])
+		hint := ""
+		if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+			hint = fmt.Sprintf("\n\nDid you mean this?\n\t%s", strings.Join(suggestions, "\n\t"))
+		}
+		return fmt.Errorf("unknown themes sub-command %q%s\n\nRun 'mdpress themes --help' to see the available sub-commands", args[0], hint)
 	},
 }
 
@@ -50,7 +56,6 @@ Example:
   mdpress themes list`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
-		initLogger()
 		return executeThemesList()
 	},
 }
@@ -67,7 +72,6 @@ Examples:
 
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		initLogger()
 		return executeThemesShow(args[0])
 	},
 }
@@ -85,14 +89,25 @@ Examples:
   mdpress themes preview
   mdpress themes preview --output custom-preview.html`,
 
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		initLogger()
 		output, _ := cmd.Flags().GetString("output")
+		// The documented example writes into ./artifacts/, which did not exist
+		// and made the command fail with a bare ENOENT from os.WriteFile.
+		if dir := filepath.Dir(output); dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return fmt.Errorf("failed to create preview output directory %s: %w", dir, err)
+			}
+		}
 		return executeThemesPreview(output)
 	},
 }
 
 func init() {
+	// cobra only defaults this inside its own suggestion path; SuggestionsFor
+	// compares against the raw value, and 0 means "never suggest".
+	themesCmd.SuggestionsMinimumDistance = 2
+
 	// Register theme subcommands.
 	themesCmd.AddCommand(themesListCmd)
 	themesCmd.AddCommand(themesShowCmd)
