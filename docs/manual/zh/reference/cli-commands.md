@@ -29,7 +29,7 @@ mdpress build [source] [flags]
 
 - `-f, --format` 接受逗号分隔的格式，例如 `pdf,html,epub`，或 `all`。
 - `--branch` 和 `--subdir` 适用于 GitHub 源。
-- `-o, --output` 设置输出目标：已存在的目录（或以斜杠结尾的路径）会接收各格式文件，站点页面直接写入该目录；其他路径作为文件名基名（`manual.pdf`、`manual.html`、`manual_site/`）。不传 `--output` 时，站点格式输出到项目目录下的 `_book/`。
+- `-o, --output` 设置输出目标：已存在的目录（或以斜杠结尾的路径）会接收各格式文件，站点页面直接写入该目录；其他路径作为文件名基名（`manual.pdf`、`manual.html`、`manual_site/`）。当 `site` 是唯一请求的格式时，该路径会被原样当作站点目录（`--format site -o ./dist` 生成 `dist/index.html`）。不传 `--output` 时，站点格式输出到项目目录下的 `_book/`。
 - `--summary` 从指定的 `SUMMARY.md` 加载章节。
 - `--allow-plugins` 执行远程项目 `book.yaml` 中声明的插件（插件是任意可执行程序，默认跳过；本地项目始终执行插件）。
 
@@ -104,7 +104,7 @@ mdpress doctor --strict
 mdpress doctor ./docs
 ```
 
-检查项：平台/OS、Go 安装、Chrome/Chromium 可用性、CJK 字体、PlantUML、缓存目录、配置有效性、章节和图像引用。
+检查项：平台/OS、Go 安装、Chrome/Chromium 与 Typst 可用性、CJK 字体、git、网络、磁盘空间、缓存目录、已声明的插件、配置有效性、章节和图像引用。
 
 详见 [doctor.md](../troubleshooting/doctor.md)。
 

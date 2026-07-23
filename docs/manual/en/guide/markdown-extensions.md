@@ -347,7 +347,7 @@ Test: $x + y = z$
 
 ### Diagrams Not Displaying
 
-- Verify the code block language identifier is correct (`mermaid` or `plantuml`)
+- Verify the code block language identifier is `mermaid` (`plantuml` is not rendered)
 - Check the syntax against official documentation
 - Test with simpler diagrams first
 - Check browser console for error messages

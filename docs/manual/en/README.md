@@ -17,7 +17,7 @@ mdPress works out of the box with zero configuration. Point it at a directory of
 - **Live preview** — Hot-reloading development server
 - **Full-text search** — Built-in client-side search for site output
 - **Dark mode** — Automatic light/dark theme with system detection
-- **Math & diagrams** — KaTeX math, Mermaid and PlantUML diagrams
+- **Math & diagrams** — KaTeX math and Mermaid diagrams
 - **CJK support** — First-class Chinese, Japanese, and Korean typography
 - **Plugin system** — Extend the build pipeline with custom hooks
 - **GitBook migration** — One-command migration from GitBook/HonKit

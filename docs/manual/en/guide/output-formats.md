@@ -32,6 +32,14 @@ For file formats, `--output` sets the base path and mdPress adds the format suff
 
 If you pass a directory — an existing one, or any path with a trailing slash — the files are written inside that directory, and site pages are written directly into it (in place, without pruning existing files there). Any other path is treated as a filename base: `--output release/manual.html` produces `release/manual.html`, `release/manual.pdf`, and the site at `release/manual_site/`.
 
+When `site` is the **only** requested format, `--output <path>` is the site directory itself — no `_site` suffix and no guessing about whether the path exists yet:
+
+```bash
+mdpress build --format site --output ./dist   # -> dist/index.html
+```
+
+The `_site` suffix only appears when `site` is requested alongside a file format, because then the two share one base name.
+
 The `site` format produces a directory rather than a single file. By default it is
 written to `_book/` under the project directory — the same location `mdpress serve`
 uses, and the directory the deployment examples assume. The default site build is
@@ -39,8 +47,9 @@ staged in a temporary directory and atomically swapped into `_book/`, so pages l
 over from renamed or removed chapters are pruned; a non-empty target that does not
 look generated (no `index.html`/`search-index.json`) is refused as a safety measure.
 
-**Multi-language exception:** projects with a `LANGS.md` keep their per-language
-`<lang>_site/` directories (plus a language landing page) instead of a single `_book/`.
+**Multi-language exception:** projects with a `LANGS.md` build one tree per language
+under the output root — `<output>/en/`, `<output>/zh/` — with the language switcher at
+`<output>/index.html`. Without `--output` the root is `_book/`.
 
 Remote GitHub builds (e.g. `mdpress build https://github.com/user/repo`) without
 `--output` write their outputs to the current working directory: files as
