@@ -1010,6 +1010,30 @@ func TestSiteBuilderSwapPrunesStalePages(t *testing.T) {
 	}
 }
 
+// TestSiteBuilderOutputIsWorldReadable guards the published site root's mode.
+// The atomic swap renames a staging directory into place, and os.MkdirTemp
+// creates those at 0700 — a site root nobody but the owner can traverse means
+// a 403 from nginx/httpd and a broken deploy via rsync -a / docker COPY.
+func TestSiteBuilderOutputIsWorldReadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not meaningful on Windows")
+	}
+	root := t.TempDir()
+	siteDir := filepath.Join(root, "_book")
+	ctx := newSiteBuildContext(t, siteDir, nil)
+
+	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err != nil {
+		t.Fatalf("site build failed: %v", err)
+	}
+	info, err := os.Stat(siteDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o755 {
+		t.Errorf("site root mode = %04o, want 0755 (a 0700 site root breaks deploys)", perm)
+	}
+}
+
 func TestSiteBuilderRefusesForeignDirectory(t *testing.T) {
 	root := t.TempDir()
 	siteDir := filepath.Join(root, "docs")

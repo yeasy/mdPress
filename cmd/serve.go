@@ -225,7 +225,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 			return fmt.Errorf("reload config: %w", err)
 		}
 		// Build to a temporary directory first, then swap on success.
-		tempOutput, err := os.MkdirTemp(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
+		tempOutput, err := newSiteStagingDir(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
 		if err != nil {
 			return fmt.Errorf("create temp output dir: %w", err)
 		}
