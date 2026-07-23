@@ -74,6 +74,10 @@ type SiteGenerator struct {
 	Meta     SiteMeta
 	Chapters []SiteChapter
 	CSS      string // Theme CSS plus custom CSS.
+	// BookRoot is the project directory. It is used to locate the optional
+	// static/ directory whose contents are copied into the site root. Empty
+	// disables that copy.
+	BookRoot string
 }
 
 // NewSiteGenerator creates a site generator.
@@ -173,8 +177,23 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	// so pages only reference it in that case.
 	hasSitemap := strings.TrimSpace(g.Meta.SiteURL) != ""
 
+	// Deployed pages reference image files; the pipeline hands us data URIs.
+	assets := newAssetExtractor(outputDir)
+
+	// A project's static/ directory is copied verbatim into the site root, so
+	// CNAME, .nojekyll and friends survive the build's atomic swap.
+	if copied, err := copyStaticDir(g.BookRoot, outputDir); err != nil {
+		return err
+	} else if copied > 0 {
+		slog.Debug("copied static files into the site", slog.Int("files", copied))
+	}
+
 	// Render every page.
 	for i, page := range flatPages {
+		pageContent, err := assets.Extract(page.Content, page.Filename)
+		if err != nil {
+			return err
+		}
 		var prevLink, nextLink, prevTitle, nextTitle string
 		if i > 0 {
 			prevLink = flatPages[i-1].Filename
@@ -199,9 +218,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ThemeName:        g.Meta.Theme,
 			ThemeDescription: g.Meta.ThemeDescription,
 			PageTitle:        page.Title,
-			Description:      extractDescription(page.Content),
+			Description:      extractDescription(pageContent),
 			Breadcrumbs:      resolveBreadcrumbs(g.buildBreadcrumbs(g.Chapters, page.Filename), page.Filename),
-			Content:          page.Content,
+			Content:          pageContent,
 			CSS:              g.CSS,
 			SidebarHTML:      sidebarHTML,
 			HomeLink:         relativeSiteHref(page.Filename, "index.html"),
@@ -214,7 +233,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ActiveFile:       page.Filename,
 			TotalPages:       len(flatPages),
 			CurrentPage:      i + 1,
-			ShowTitle:        !contentStartsWithTitle(page.Content, page.Title),
+			ShowTitle:        !contentStartsWithTitle(pageContent, page.Title),
 		}
 		populateUIStrings(&data)
 
@@ -239,6 +258,13 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	var indexHTML string
 	if len(flatPages) > 0 {
 		firstPage := flatPages[0]
+		// index.html repeats the first chapter, so its images need extracting
+		// relative to the site root as well (the assets are already written;
+		// this only rewrites the references).
+		firstContent, err := assets.Extract(firstPage.Content, "index.html")
+		if err != nil {
+			return err
+		}
 		// index.html shows the first chapter content with the sidebar active on
 		// that chapter.  The "previous" nav link is omitted; "next" points to
 		// the second page when it exists.
@@ -260,9 +286,9 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ThemeName:        g.Meta.Theme,
 			ThemeDescription: g.Meta.ThemeDescription,
 			PageTitle:        firstPage.Title,
-			Description:      firstNonEmpty(g.Meta.Description, extractDescription(firstPage.Content)),
+			Description:      firstNonEmpty(g.Meta.Description, extractDescription(firstContent)),
 			Breadcrumbs:      nil,
-			Content:          firstPage.Content,
+			Content:          firstContent,
 			CSS:              g.CSS,
 			SidebarHTML:      g.buildSidebar(g.Chapters, "index.html"),
 			HomeLink:         "index.html",
@@ -273,7 +299,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			ActiveFile:       "index.html",
 			TotalPages:       len(flatPages),
 			CurrentPage:      1,
-			ShowTitle:        !contentStartsWithTitle(firstPage.Content, firstPage.Title),
+			ShowTitle:        !contentStartsWithTitle(firstContent, firstPage.Title),
 		}
 		populateUIStrings(&idxData)
 		var buf strings.Builder

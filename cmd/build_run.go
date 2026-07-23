@@ -1270,6 +1270,8 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 		SiteURL:          cfg.Output.SiteURL,
 		EditBase:         cfg.Output.EditBase,
 	})
+	// Lets the generator find the project's optional static/ directory.
+	siteGen.BookRoot = cfg.BaseDir()
 	siteGen.SetCSS(thm.ToCSS() + "\n" +
 		markdown.HighlightCSSLight(thm.CodeTheme) + "\n" +
 		markdown.HighlightCSSDark(thm.CodeTheme) + "\n" +
