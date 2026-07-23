@@ -173,7 +173,23 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	// ========== 4. Check referenced Markdown files ==========
 	flatChapters := config.FlattenChapters(cfg.Chapters)
 	missingFiles := 0
+	// A file listed twice does not produce two pages: the generators key their
+	// output on the source path, so the duplicate silently overwrites the first
+	// entry — its title disappears and the page can end up renamed. The list
+	// still looks right in book.yaml, which is why this needs saying out loud.
+	firstListing := make(map[string]string, len(flatChapters))
 	for _, ch := range flatChapters {
+		key := linkrewrite.NormalizePath(ch.File)
+		if previous, seen := firstListing[key]; seen {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("Duplicate chapter entry: %s is listed more than once (as %q and %q) — only one of them will be built", ch.File, previous, ch.Title),
+			})
+		} else {
+			firstListing[key] = ch.Title
+		}
+
 		filePath := cfg.ResolvePath(ch.File)
 		if utils.FileExists(filePath) {
 			results = append(results, validateResult{
