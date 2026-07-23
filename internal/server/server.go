@@ -1054,8 +1054,11 @@ func (s *Server) watchFilesWithFsnotify(ctx context.Context) {
 				continue
 			}
 
-			// Only react to write and create events.
-			if event.Op&(fsnotify.Write|fsnotify.Create) == 0 {
+			// React to removals and renames too: deleting or moving a chapter
+			// must rebuild, otherwise the deleted page keeps being served and
+			// the sidebar keeps listing it. (The polling fallback already
+			// detects deletions.)
+			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove|fsnotify.Rename) == 0 {
 				continue
 			}
 

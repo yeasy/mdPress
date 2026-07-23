@@ -412,3 +412,40 @@ func TestScanModTimes_SkipsGeneratedOutputDirs(t *testing.T) {
 		t.Errorf("scanModTimes should record only the real source file, got %d entries: %v", len(modTimes), modTimes)
 	}
 }
+
+// TestWatchFsnotify_DeletionTriggersRebuild covers chapter removal: the
+// fsnotify event mask used to accept only Write|Create, so deleting or
+// renaming a chapter produced no rebuild and the deleted page kept being
+// served until some unrelated edit happened to trigger one.
+func TestWatchFsnotify_DeletionTriggersRebuild(t *testing.T) {
+	t.Parallel()
+
+	watchDir := t.TempDir()
+	keepPath := filepath.Join(watchDir, "ch01.md")
+	dropPath := filepath.Join(watchDir, "ch02.md")
+	for _, p := range []string{keepPath, dropPath} {
+		if err := os.WriteFile(p, []byte("# Chapter\n"), 0o644); err != nil {
+			t.Fatalf("failed to create source file: %v", err)
+		}
+	}
+
+	srv := NewServer("127.0.0.1", 0, watchDir, filepath.Join(watchDir, "_book"), discardLogger())
+	var builds atomic.Int32
+	srv.BuildFunc = func() error {
+		builds.Add(1)
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go srv.watchFilesWithFsnotify(ctx)
+
+	editUntilRebuild(t, keepPath, &builds, 0)
+	time.Sleep(2 * debounceInterval)
+
+	prev := builds.Load()
+	if err := os.Remove(dropPath); err != nil {
+		t.Fatalf("failed to remove chapter: %v", err)
+	}
+	waitForCondition(t, 5*time.Second, func() bool { return builds.Load() > prev }, "rebuild after chapter deletion")
+}
