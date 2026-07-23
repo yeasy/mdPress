@@ -14,8 +14,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Book.Title != "Untitled Book" {
 		t.Errorf("wrong default title: got %q, want %q", cfg.Book.Title, "Untitled Book")
 	}
-	if cfg.Book.Language != "zh-CN" {
-		t.Errorf("wrong default language: got %q, want %q", cfg.Book.Language, "zh-CN")
+	if cfg.Book.Language != "en-US" {
+		t.Errorf("wrong default language: got %q, want %q", cfg.Book.Language, "en-US")
 	}
 	if cfg.Style.PageSize != "A4" {
 		t.Errorf("wrong default page size: got %q, want %q", cfg.Style.PageSize, "A4")

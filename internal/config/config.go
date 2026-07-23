@@ -158,10 +158,13 @@ type OutputConfig struct {
 func DefaultConfig() *BookConfig {
 	return &BookConfig{
 		Book: BookMeta{
-			Title:    "Untitled Book",
-			Author:   "",
+			Title:  "Untitled Book",
+			Author: "",
+			// Matches what `mdpress init` scaffolds. Zero-config discovery
+			// overrides this by sniffing the content, so a Chinese book still
+			// gets zh-CN without configuring anything.
 			Version:  "1.0.0",
-			Language: "zh-CN",
+			Language: "en-US",
 		},
 		Style: StyleConfig{
 			Theme:      "technical",

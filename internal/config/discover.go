@@ -209,12 +209,44 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 	}
 
+	// Zero-config projects have no `language:` to read, so classify the
+	// content instead of leaving every book on the built-in default.
+	cfg.Book.Language = detectContentLanguage(sampleChapterText(dir, cfg.Chapters))
+
 	cfg.detectAuxFiles()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("auto-discovered config validation failed: %w", err)
 	}
 	return cfg, nil
+}
+
+// Bounds for the language sniff: enough text to classify a book, cheap enough
+// to run on every zero-config discovery.
+const (
+	languageSampleChapters = 5
+	languageSampleBytes    = 4096
+)
+
+// sampleChapterText concatenates a bounded prefix of the first few chapters.
+// Truncation may split a UTF-8 sequence; the resulting RuneError is not a
+// letter, so it does not affect the CJK ratio detectContentLanguage computes.
+func sampleChapterText(dir string, chapters []ChapterDef) string {
+	var b strings.Builder
+	for i, ch := range chapters {
+		if i >= languageSampleChapters {
+			break
+		}
+		data, err := os.ReadFile(filepath.Join(dir, ch.File))
+		if err != nil {
+			continue
+		}
+		if len(data) > languageSampleBytes {
+			data = data[:languageSampleBytes]
+		}
+		b.Write(data)
+	}
+	return b.String()
 }
 
 // findMarkdownFiles recursively finds Markdown files.
