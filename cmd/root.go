@@ -124,6 +124,12 @@ Common commands:
 	// manually call configureRuntimeCacheEnv() — Cobra does not chain them.
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		configureRuntimeCacheEnv()
+		// --quiet/--verbose are advertised as global flags, but only build and
+		// serve used to install the logger they configure. Every other command
+		// kept slog's default handler, so `mdpress init -q` still printed INFO
+		// lines — in stdlib log format, on a different stream. Installing it
+		// here makes the flags mean the same thing for every subcommand.
+		initLogger()
 	}
 
 	// Register subcommands.
