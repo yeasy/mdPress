@@ -1573,6 +1573,168 @@ func TestEpubMermaidIsReadableAndWarns(t *testing.T) {
 	}
 }
 
+// TestEpubShipsCoverImageByDefault covers the blank-tile problem: a book with
+// no configured cover image declared no cover-image item and packaged no image
+// at all, so Apple Books, Kobo and Kindle showed it as an empty rectangle.
+func TestEpubShipsCoverImageByDefault(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "cover.epub")
+
+	gen := NewEpubGenerator(EpubMeta{
+		Title: "Default Cover", Subtitle: "A Subtitle", Author: "Author",
+		Language: "en", IncludeCover: true,
+	})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>hi</p>"})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	r, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close() //nolint:errcheck
+
+	opf := readZipEntry(t, r.File, "OEBPS/content.opf")
+	if !strings.Contains(opf, `properties="cover-image"`) {
+		t.Errorf("package should declare a cover image, got:\n%s", opf)
+	}
+	if !strings.Contains(opf, `<meta name="cover" content="cover-image"/>`) {
+		t.Errorf("package should carry the legacy cover meta for EPUB 2 readers, got:\n%s", opf)
+	}
+
+	svg := readZipEntry(t, r.File, "OEBPS/assets/cover.svg")
+	if !strings.Contains(svg, "Default Cover") || !strings.Contains(svg, "Author") {
+		t.Errorf("generated cover should show the book metadata, got:\n%s", svg)
+	}
+	var parsed any
+	if err := xml.Unmarshal([]byte(svg), &parsed); err != nil {
+		t.Errorf("generated cover is not well-formed SVG: %v", err)
+	}
+
+	// The title page renders the same text, so it must not also embed the image.
+	if page := readZipEntry(t, r.File, "OEBPS/cover.xhtml"); strings.Contains(page, "<img") {
+		t.Errorf("title page should not repeat the generated cover image, got:\n%s", page)
+	}
+}
+
+// TestEpubNCXHeadIsComplete verifies the NCX head block. dtb:uid used to be a
+// constant that never matched the package identifier (epubcheck NCX-001), and
+// the three other required fields were missing entirely.
+func TestEpubNCXHeadIsComplete(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "ncx.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "深入浅出", Author: "杨保华", Language: "zh-CN"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>a</p>"})
+	gen.AddChapter(EpubChapter{Title: "One.One", ID: "one-one", Filename: "one-one.xhtml", HTML: "<p>b</p>", Depth: 1})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	r, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close() //nolint:errcheck
+
+	ncx := readZipEntry(t, r.File, "OEBPS/toc.ncx")
+	opf := readZipEntry(t, r.File, "OEBPS/content.opf")
+
+	identifier := between(t, opf, `<dc:identifier id="bookid">`, "</dc:identifier>")
+	if uid := between(t, ncx, `<meta name="dtb:uid" content="`, `"`); uid != identifier {
+		t.Errorf("dtb:uid %q must match the package identifier %q", uid, identifier)
+	}
+	// A URN is ASCII-only; a CJK title used to produce one no reading system
+	// could compare.
+	for _, r := range identifier {
+		if r > 127 {
+			t.Errorf("identifier must be ASCII, got %q", identifier)
+			break
+		}
+	}
+	if depth := between(t, ncx, `<meta name="dtb:depth" content="`, `"`); depth != "2" {
+		t.Errorf("dtb:depth should reflect the two navigation levels, got %q", depth)
+	}
+	for _, want := range []string{`name="dtb:totalPageCount"`, `name="dtb:maxPageNumber"`, "<docAuthor><text>杨保华</text></docAuthor>"} {
+		if !strings.Contains(ncx, want) {
+			t.Errorf("toc.ncx should contain %q, got:\n%s", want, ncx)
+		}
+	}
+}
+
+// TestEpubPublishingMetadata verifies the Dublin Core elements catalogs index.
+func TestEpubPublishingMetadata(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{
+		Title: "Metadata", Author: "Author", Language: "en",
+		Publisher: "Example Press", ISBN: "978-3-16-148410-0",
+		Date: "2026-01-15", Rights: "CC BY 4.0",
+		Subjects: []string{"Computers", "Documentation"},
+	})
+	opf := gen.generateOPF([]EpubChapter{{Title: "One", ID: "one", Filename: "one.xhtml"}}, nil, nil)
+
+	for _, want := range []string{
+		"<dc:publisher>Example Press</dc:publisher>",
+		"<dc:date>2026-01-15</dc:date>",
+		"<dc:rights>CC BY 4.0</dc:rights>",
+		"<dc:subject>Computers</dc:subject>",
+		"<dc:subject>Documentation</dc:subject>",
+		// A real ISBN outranks the synthetic urn:mdpress identifier.
+		`<dc:identifier id="bookid">urn:isbn:9783161484100</dc:identifier>`,
+		`property="identifier-type"`,
+	} {
+		if !strings.Contains(opf, want) {
+			t.Errorf("content.opf should contain %q, got:\n%s", want, opf)
+		}
+	}
+}
+
+// TestNormalizeISBNRejectsTypos keeps a mistyped ISBN from becoming the book's
+// permanent identifier.
+func TestNormalizeISBNRejectsTypos(t *testing.T) {
+	cases := map[string]string{
+		"978-3-16-148410-0": "9783161484100",
+		"0 306 40615 2":     "0306406152",
+		"030640615X":        "030640615X",
+		"978-3-16":          "",
+		"not-an-isbn":       "",
+		"":                  "",
+	}
+	for in, want := range cases {
+		if got := normalizeISBN(in); got != want {
+			t.Errorf("normalizeISBN(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestWrapCoverText covers the line breaking the SVG cover has to do itself.
+func TestWrapCoverText(t *testing.T) {
+	got := wrapCoverText("The Extraordinarily Comprehensive Handbook", 15, 4)
+	want := []string{"The", "Extraordinarily", "Comprehensive", "Handbook"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("wrapCoverText() = %v, want %v", got, want)
+	}
+	// CJK has no spaces and renders twice as wide, so it breaks by width.
+	if got := wrapCoverText("深入浅出容器与编排", 8, 3); len(got) != 3 {
+		t.Errorf("expected three CJK lines, got %v", got)
+	}
+	if got := wrapCoverText("one two three four five six", 9, 2); !strings.HasSuffix(strings.Join(got, " "), "…") {
+		t.Errorf("overflowing text should be elided, got %v", got)
+	}
+}
+
+func between(t *testing.T, s, open, close string) string {
+	t.Helper()
+	start := strings.Index(s, open)
+	if start < 0 {
+		t.Fatalf("%q not found in:\n%s", open, s)
+	}
+	rest := s[start+len(open):]
+	end := strings.Index(rest, close)
+	if end < 0 {
+		t.Fatalf("%q not found after %q", close, open)
+	}
+	return rest[:end]
+}
+
 // TestValidateXHTMLRejectsMalformedDocument guards the safety net itself: if a
 // future change reintroduces broken markup, the build must fail loudly instead
 // of shipping an unopenable book.

@@ -41,6 +41,15 @@ type EpubMeta struct {
 	CoverImagePath string
 	// CoverBackground is the configured cover background color (may be empty).
 	CoverBackground string
+	// Publishing metadata. Reading systems and library software index these:
+	// without them a book shows up with no publisher, no publication date and
+	// no subjects in every catalog it lands in.
+	Publisher string
+	ISBN      string
+	// Date is the publication date, ideally ISO 8601 (YYYY or YYYY-MM-DD).
+	Date     string
+	Rights   string
+	Subjects []string
 }
 
 // EpubChapter stores one EPUB chapter.
@@ -77,6 +86,9 @@ type epubAsset struct {
 	Filename  string
 	MediaType string
 	Data      []byte
+	// Synthesized marks a cover image mdPress generated itself rather than one
+	// the book supplied.
+	Synthesized bool
 }
 
 type epubAssetCollector struct {
@@ -284,6 +296,25 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 	fmt.Fprintf(&b, "    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(g.meta.Author))
 	fmt.Fprintf(&b, "    <dc:language>%s</dc:language>\n", utils.EscapeXML(g.meta.Language))
 	fmt.Fprintf(&b, "    <dc:identifier id=\"bookid\">%s</dc:identifier>\n", utils.EscapeXML(g.uniqueIdentifier()))
+	if normalizeISBN(g.meta.ISBN) != "" {
+		// The identifier above is the ISBN URN; declaring its type lets retail
+		// and library systems recognize it instead of treating it as opaque.
+		b.WriteString("    <meta refines=\"#bookid\" property=\"identifier-type\" scheme=\"onix:codelist5\">15</meta>\n")
+	}
+	if publisher := strings.TrimSpace(g.meta.Publisher); publisher != "" {
+		fmt.Fprintf(&b, "    <dc:publisher>%s</dc:publisher>\n", utils.EscapeXML(publisher))
+	}
+	if date := strings.TrimSpace(g.meta.Date); date != "" {
+		fmt.Fprintf(&b, "    <dc:date>%s</dc:date>\n", utils.EscapeXML(date))
+	}
+	if rights := strings.TrimSpace(g.meta.Rights); rights != "" {
+		fmt.Fprintf(&b, "    <dc:rights>%s</dc:rights>\n", utils.EscapeXML(rights))
+	}
+	for _, subject := range g.meta.Subjects {
+		if subject = strings.TrimSpace(subject); subject != "" {
+			fmt.Fprintf(&b, "    <dc:subject>%s</dc:subject>\n", utils.EscapeXML(subject))
+		}
+	}
 	if g.meta.Version != "" {
 		fmt.Fprintf(&b, "    <meta name=\"mdpress:version\" content=\"%s\"/>\n", utils.EscapeXML(g.meta.Version))
 	}
@@ -343,12 +374,23 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
   <head>
-    <meta name="dtb:uid" content="` + utils.EscapeXML(g.uniqueIdentifier()) + `"/>
-  </head>
-  <docTitle><text>`)
+`)
+	// All four head fields are required by the NCX specification; epubcheck
+	// reports the missing ones, and some readers use dtb:depth to decide how
+	// many levels of the table of contents to show.
+	fmt.Fprintf(&b, "    <meta name=\"dtb:uid\" content=\"%s\"/>\n", utils.EscapeXML(g.uniqueIdentifier()))
+	fmt.Fprintf(&b, "    <meta name=\"dtb:depth\" content=\"%d\"/>\n", navDepth(chapters))
+	// This book is not paginated, so the page list is empty by definition.
+	b.WriteString("    <meta name=\"dtb:totalPageCount\" content=\"0\"/>\n")
+	b.WriteString("    <meta name=\"dtb:maxPageNumber\" content=\"0\"/>\n")
+	b.WriteString("  </head>\n")
+	b.WriteString("  <docTitle><text>")
 	b.WriteString(utils.EscapeXML(g.meta.Title))
-	b.WriteString(`</text></docTitle>
-  <navMap>
+	b.WriteString("</text></docTitle>\n")
+	if author := strings.TrimSpace(g.meta.Author); author != "" {
+		fmt.Fprintf(&b, "  <docAuthor><text>%s</text></docAuthor>\n", utils.EscapeXML(author))
+	}
+	b.WriteString(`  <navMap>
 `)
 	playOrder := 1
 	if g.meta.IncludeCover {
@@ -361,6 +403,19 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	writeNavPoints(&b, chapters, 0, &playOrder, "    ")
 	b.WriteString("  </navMap>\n</ncx>\n")
 	return b.String()
+}
+
+// navDepth returns the number of navigation levels in the NCX, which is what
+// dtb:depth declares. It is never below 1: even a book with no chapters has a
+// navMap level.
+func navDepth(chapters []EpubChapter) int {
+	deepest := 0
+	for _, ch := range chapters {
+		if ch.Depth > deepest {
+			deepest = ch.Depth
+		}
+	}
+	return deepest + 1
 }
 
 // writeNavPoints emits NCX navPoints for the chapters at the current depth,
@@ -590,7 +645,9 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 <body>
   <section class="cover" epub:type="cover">
 `)
-	if coverAsset != nil {
+	// A generated cover carries the same title, subtitle and author this page
+	// renders as text, so showing it here would print everything twice.
+	if coverAsset != nil && !coverAsset.Synthesized {
 		b.WriteString("    <div class=\"cover-image-wrap\">\n")
 		fmt.Fprintf(&b, "      <img class=\"cover-image\" src=\"%s\" alt=\"%s\" />\n",
 			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(g.meta.Title))
@@ -871,8 +928,15 @@ func languageOrDefault(lang string) string {
 }
 
 func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
-	if !g.meta.IncludeCover || strings.TrimSpace(g.meta.CoverImagePath) == "" {
+	if !g.meta.IncludeCover {
 		return nil, nil
+	}
+	if strings.TrimSpace(g.meta.CoverImagePath) == "" {
+		// Without a cover image the package declares no cover-image item, and
+		// every library shows the book as a blank tile. SVG is an EPUB 3 core
+		// media type, so one can be drawn from the metadata with no image
+		// toolchain involved.
+		return g.synthesizedCoverAsset(), nil
 	}
 
 	coverPath := g.meta.CoverImagePath
@@ -902,20 +966,83 @@ func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
 }
 
 func (g *EpubGenerator) uniqueIdentifier() string {
+	// A real ISBN is the identifier the rest of the publishing world uses; the
+	// synthetic urn:mdpress form only exists because most books have none.
+	if isbn := normalizeISBN(g.meta.ISBN); isbn != "" {
+		return "urn:isbn:" + isbn
+	}
+
 	parts := []string{"urn:mdpress"}
-	if title := slugify(g.meta.Title); title != "" {
+	if title := urnSegment(slugify(g.meta.Title)); title != "" {
 		parts = append(parts, title)
 	}
-	if author := slugify(g.meta.Author); author != "" {
+	if author := urnSegment(slugify(g.meta.Author)); author != "" {
 		parts = append(parts, author)
 	}
 	if g.meta.Version != "" {
-		parts = append(parts, slugify(g.meta.Version))
+		if version := urnSegment(slugify(g.meta.Version)); version != "" {
+			parts = append(parts, version)
+		}
 	}
 	if len(parts) == 1 {
 		parts = append(parts, "book")
 	}
 	return strings.Join(parts, ":")
+}
+
+// normalizeISBN strips the separators an ISBN is usually written with. It
+// returns "" when the remainder is not a plausible ISBN-10/13 so a typo never
+// becomes the book's permanent identifier.
+func normalizeISBN(isbn string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(isbn) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == 'x' || r == 'X': // ISBN-10 check digit
+			b.WriteRune('X')
+		case r == '-' || r == ' ':
+		default:
+			return ""
+		}
+	}
+	switch b.Len() {
+	case 10, 13:
+		return b.String()
+	default:
+		return ""
+	}
+}
+
+// urnSegment makes a slug safe to embed in a URN. Slugs keep Unicode so that
+// CJK titles stay readable in file names, but a URN is ASCII-only, so a book
+// titled in Chinese produced an identifier no reading system could match
+// against the NCX one.
+func urnSegment(slug string) string {
+	if slug == "" {
+		return ""
+	}
+	ascii := true
+	for _, r := range slug {
+		if r > 127 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return slug
+	}
+	var b strings.Builder
+	for _, r := range slug {
+		if r <= 127 {
+			b.WriteRune(r)
+			continue
+		}
+		for _, octet := range []byte(string(r)) {
+			fmt.Fprintf(&b, "%%%02X", octet)
+		}
+	}
+	return b.String()
 }
 
 // epubHref renders a packaged file name as an XML-safe, percent-encoded URI
