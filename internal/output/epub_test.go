@@ -2,11 +2,14 @@ package output
 
 import (
 	"archive/zip"
+	"encoding/xml"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/theme"
@@ -1441,5 +1444,143 @@ func TestEpubGeneratorCreatesOutputDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(outputPath); err != nil {
 		t.Errorf("epub not written: %v", err)
+	}
+}
+
+// rawHTMLChapter is markup of the kind Goldmark passes through untouched when
+// an author writes HTML directly in Markdown. Every construct here used to end
+// up verbatim in the packaged XHTML.
+const rawHTMLChapter = `<p>Intro</p>
+<img width=300 alt="x" src="a.png">
+<p>text<hr>
+<ul><li>one<li>two</ul>
+<p>caf&eacute; &nbsp; A&B <span class=note data-x='1'>note</span></p>
+<div class="mermaid">
+graph TD;
+  A--&gt;B;
+</div>`
+
+// TestEpubChaptersAreWellFormedXML is the guard for the whole EPUB: strict
+// reading systems parse chapter documents as XML and refuse the entire book
+// when one of them is malformed, so a build that "succeeded" on raw HTML used
+// to produce a file that would not open.
+func TestEpubChaptersAreWellFormedXML(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "raw-html.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Raw HTML", Author: "A", Language: "en"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: rawHTMLChapter})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	r, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close() //nolint:errcheck
+
+	checked := 0
+	for _, f := range r.File {
+		if !strings.HasSuffix(f.Name, ".xhtml") && !strings.HasSuffix(f.Name, ".opf") && !strings.HasSuffix(f.Name, ".ncx") {
+			continue
+		}
+		checked++
+		doc := readZipEntry(t, r.File, f.Name)
+		var parsed any
+		if err := xml.Unmarshal([]byte(doc), &parsed); err != nil {
+			t.Errorf("%s is not well-formed XML: %v\n%s", f.Name, err, doc)
+		}
+	}
+	if checked < 3 {
+		t.Fatalf("expected the epub to contain XML documents to check, got %d", checked)
+	}
+
+	chapter := readZipEntry(t, r.File, "OEBPS/one.xhtml")
+	if !strings.Contains(chapter, `width="300"`) {
+		t.Errorf("unquoted attribute value should be quoted, got:\n%s", chapter)
+	}
+	if strings.Contains(chapter, "&nbsp;") {
+		t.Errorf("XML defines no &nbsp; entity; it must be resolved, got:\n%s", chapter)
+	}
+	if !strings.Contains(chapter, "<p>text</p>") {
+		t.Errorf("unclosed <p> should be balanced, got:\n%s", chapter)
+	}
+}
+
+// TestEpubDropsScriptFromChapters documents that scripting is stripped: EPUB
+// readers are not required to run scripts, and an undeclared scripted document
+// is an epubcheck error.
+func TestEpubDropsScriptFromChapters(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "T", Language: "en"})
+	got := gen.wrapXHTML("One", `<p>a</p><script>if (1 < 2) alert("x")</script><p>b</p>`)
+
+	if strings.Contains(got, "alert(") {
+		t.Errorf("author script should be removed, got:\n%s", got)
+	}
+	if !strings.Contains(got, "<p>a</p>") || !strings.Contains(got, "<p>b</p>") {
+		t.Errorf("surrounding content must be kept, got:\n%s", got)
+	}
+	if err := validateXHTML("chapter", got); err != nil {
+		t.Errorf("chapter should stay well-formed: %v", err)
+	}
+}
+
+// TestEpubMermaidIsReadableAndWarns covers the Mermaid degradation: EPUB has no
+// Mermaid runtime, so the diagram source is all the reader gets. Inside the
+// <div> the site output uses, its line breaks collapse into a single unreadable
+// paragraph — and unlike math, nothing warned about it.
+func TestEpubMermaidIsReadableAndWarns(t *testing.T) {
+	var logged strings.Builder
+	restore := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	defer slog.SetDefault(restore)
+	epubMermaidWarningOnce = sync.Once{}
+	defer func() { epubMermaidWarningOnce = sync.Once{} }()
+
+	outputPath := filepath.Join(t.TempDir(), "mermaid.epub")
+	gen := NewEpubGenerator(EpubMeta{Title: "Diagrams", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title: "One", ID: "one", Filename: "one.xhtml",
+		HTML: "<p>See:</p>\n<div class=\"mermaid\">\ngraph TD;\n  A--&gt;B;\n</div>",
+	})
+	gen.AddChapter(EpubChapter{
+		Title: "Two", ID: "two", Filename: "two.xhtml",
+		HTML: "<div class=\"mermaid\">\nsequenceDiagram\n</div>",
+	})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	if n := strings.Count(logged.String(), "Mermaid"); n != 1 {
+		t.Errorf("expected exactly one Mermaid warning, got %d:\n%s", n, logged.String())
+	}
+
+	r, err := zip.OpenReader(outputPath)
+	if err != nil {
+		t.Fatalf("open epub: %v", err)
+	}
+	defer r.Close() //nolint:errcheck
+
+	chapter := readZipEntry(t, r.File, "OEBPS/one.xhtml")
+	if !strings.Contains(chapter, `<pre class="mermaid">`) {
+		t.Errorf("mermaid block should be preformatted so its line breaks survive, got:\n%s", chapter)
+	}
+	if strings.Contains(chapter, `<div class="mermaid">`) {
+		t.Errorf("mermaid <div> collapses whitespace in readers, got:\n%s", chapter)
+	}
+	if css := readZipEntry(t, r.File, "OEBPS/style.css"); !strings.Contains(css, ".mermaid") {
+		t.Errorf("style.css should style mermaid source blocks, got:\n%s", css)
+	}
+}
+
+// TestValidateXHTMLRejectsMalformedDocument guards the safety net itself: if a
+// future change reintroduces broken markup, the build must fail loudly instead
+// of shipping an unopenable book.
+func TestValidateXHTMLRejectsMalformedDocument(t *testing.T) {
+	if err := validateXHTML("OEBPS/bad.xhtml", `<p>text<hr></p>`); err == nil {
+		t.Error("expected malformed XHTML to be rejected")
+	}
+	if err := validateXHTML("OEBPS/ok.xhtml", `<p>text<hr /></p>`); err != nil {
+		t.Errorf("well-formed XHTML should be accepted: %v", err)
 	}
 }

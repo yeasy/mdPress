@@ -25,6 +25,10 @@ import (
 // epubKaTeXWarningOnce ensures the CDN dependency warning is logged only once.
 var epubKaTeXWarningOnce sync.Once
 
+// epubMermaidWarningOnce ensures the Mermaid degradation warning is logged
+// only once.
+var epubMermaidWarningOnce sync.Once
+
 // EpubMeta contains EPUB metadata.
 type EpubMeta struct {
 	Title          string
@@ -183,6 +187,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 4. EPUB 3 nav document.
 	nav := g.generateNavDocument(chapters)
+	if err := validateXHTML("OEBPS/nav.xhtml", nav); err != nil {
+		return err
+	}
 	if err := writeZipFile(w, "OEBPS/nav.xhtml", nav); err != nil {
 		return fmt.Errorf("failed to write nav.xhtml: %w", err)
 	}
@@ -195,7 +202,11 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 6. Optional generated title page.
 	if g.meta.IncludeCover {
-		if err := writeZipFile(w, "OEBPS/cover.xhtml", g.generateCoverPage(coverAsset)); err != nil {
+		coverPage := g.generateCoverPage(coverAsset)
+		if err := validateXHTML("OEBPS/cover.xhtml", coverPage); err != nil {
+			return err
+		}
+		if err := writeZipFile(w, "OEBPS/cover.xhtml", coverPage); err != nil {
 			return fmt.Errorf("failed to write cover.xhtml: %w", err)
 		}
 	}
@@ -233,6 +244,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 			return fmt.Errorf("invalid chapter filename: %s", ch.Filename)
 		}
 		xhtml := g.wrapXHTML(ch.Title, ch.HTML)
+		if err := validateXHTML("OEBPS/"+ch.Filename, xhtml); err != nil {
+			return err
+		}
 		if err := writeZipFile(w, "OEBPS/"+ch.Filename, xhtml); err != nil {
 			return fmt.Errorf("failed to write chapter %s: %w", ch.Filename, err)
 		}
@@ -443,6 +457,14 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 // formulas. Readers without JS support will display the raw LaTeX source.
 func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	var b strings.Builder
+	if epubChapterHasMermaid(body) {
+		// Math already warns about its CDN dependency; Mermaid degraded to raw
+		// diagram source with no warning at all, so a book looked fine until it
+		// was opened in a reader.
+		epubMermaidWarningOnce.Do(func() {
+			slog.Warn("ePub cannot render Mermaid diagrams; their source is shown as a preformatted code block.")
+		})
+	}
 	body = normalizeHTMLForXHTML(body)
 	hasMath := epubChapterHasMath(body)
 
@@ -596,6 +618,12 @@ func epubChapterHasMath(html string) bool {
 	return strings.Contains(html, `class="math `)
 }
 
+// epubChapterHasMermaid reports whether chapter HTML contains a Mermaid
+// diagram block, which EPUB readers cannot render.
+func epubChapterHasMermaid(html string) bool {
+	return strings.Contains(html, `class="mermaid"`)
+}
+
 // epubBodyStartsWithH1 reports whether the body content begins with a
 // top-level <h1> heading (ignoring leading whitespace).
 func epubBodyStartsWithH1(body string) bool {
@@ -689,10 +717,24 @@ table th, table td { border: 1px solid #cccccc; padding: 0.55em 0.85em; text-ali
 blockquote { border-left: 3px solid #cccccc; margin: 1.2em 0; padding: 0.2em 0 0.2em 1.1em; }
 `
 
+// epubMermaidCSS styles the Mermaid source blocks that EPUB ships instead of
+// rendered diagrams. Without it a reader's default <pre> styling still applies,
+// but the block is indistinguishable from prose in themes that reset <pre>.
+const epubMermaidCSS = `
+/* Mermaid diagrams are not rendered in ePub; their source is shown verbatim. */
+.mermaid {
+  font-family: ` + epubMonoFontFamily + `;
+  font-size: 0.82em;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+`
+
 // stylesheet returns the full content of OEBPS/style.css: the theme-derived
 // reader stylesheet followed by the user's custom CSS so custom rules win.
 func (g *EpubGenerator) stylesheet() string {
-	css := g.epubThemeCSS()
+	css := g.epubThemeCSS() + epubMermaidCSS
 	// Chapters carry chroma class markup, so without these rules every code
 	// block in the book renders as undifferentiated plain text. Only the light
 	// palette is packaged: reading systems apply their own night mode over it.
@@ -874,75 +916,6 @@ func (g *EpubGenerator) uniqueIdentifier() string {
 		parts = append(parts, "book")
 	}
 	return strings.Join(parts, ":")
-}
-
-var epubVoidTagPattern = regexp.MustCompile(`(?i)<(img|br|hr|input|meta|link|col|area|base|embed|source|track|wbr)(\s[^<>]*?)?>`)
-
-// ampAndEntityPattern matches an & optionally followed by a valid HTML entity
-// reference body (name + semicolon). Go's RE2 does not support negative
-// lookaheads, so we match both cases and disambiguate in the replacement
-// function: a match of length 1 is a bare & that must be escaped; a longer
-// match is an existing entity reference that must be preserved.
-var ampAndEntityPattern = regexp.MustCompile(`&([a-zA-Z0-9#][a-zA-Z0-9#]{0,31};)?`)
-
-// booleanAttrPattern matches HTML boolean attributes like checked, disabled,
-// selected, etc., which XHTML requires to have an explicit value.
-var booleanAttrPattern = regexp.MustCompile(`(?i)\s(checked|disabled|selected|readonly|multiple|autofocus|autoplay|controls|loop|muted|open|required|reversed|hidden|defer|async|novalidate)(\s|/?>)`)
-
-// epubStartTagPattern matches a start tag, so attribute rewriting can be
-// confined to markup instead of running across the document's text. Goldmark
-// escapes ">" inside attribute values, so a tag never contains a bare one.
-var epubStartTagPattern = regexp.MustCompile(`<[a-zA-Z][^<>]*>`)
-
-// normalizeHTMLForXHTML converts HTML produced by Goldmark into valid XHTML.
-//
-// It handles the following transformations:
-//  1. Self-closes void elements (e.g. <br> → <br />)
-//  2. Escapes bare ampersands (e.g. A&B → A&amp;B)
-//  3. Expands boolean attributes (e.g. checked → checked="checked")
-func normalizeHTMLForXHTML(html string) string {
-	// 1. Self-close void elements.
-	html = epubVoidTagPattern.ReplaceAllStringFunc(html, func(match string) string {
-		if strings.HasSuffix(match, "/>") {
-			return match
-		}
-		return strings.TrimSuffix(match, ">") + " />"
-	})
-
-	// 2. Escape bare ampersands that are not part of a valid entity reference.
-	// A match of length 1 is a bare &; longer matches are existing entity refs.
-	html = ampAndEntityPattern.ReplaceAllStringFunc(html, func(m string) string {
-		if len(m) > 1 {
-			return m // already a valid entity reference — keep it
-		}
-		return "&amp;"
-	})
-
-	// 3. Expand boolean attributes to attribute="attribute" form.
-	//
-	// This must run inside start tags only. The attribute names are ordinary
-	// English words ("multiple", "open", "required", "hidden", "controls"…),
-	// so applying the pattern to the whole document rewrote prose and code
-	// samples: "supports multiple output formats" became
-	// `supports multiple="multiple" output formats` in the reader.
-	expandBoolAttr := func(match string) string {
-		sub := booleanAttrPattern.FindStringSubmatch(match)
-		if len(sub) < 3 {
-			return match
-		}
-		attr := strings.ToLower(sub[1])
-		trailing := sub[2]
-		return " " + attr + `="` + attr + `"` + trailing
-	}
-	html = epubStartTagPattern.ReplaceAllStringFunc(html, func(tag string) string {
-		// The trailing group (\s|/?>) consumes the whitespace separating
-		// adjacent boolean attributes, so one pass misses the second of a
-		// pair like `disabled multiple`; run it twice.
-		tag = booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
-		return booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
-	})
-
-	return html
 }
 
 // epubHref renders a packaged file name as an XML-safe, percent-encoded URI
