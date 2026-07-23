@@ -24,7 +24,12 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-var validateReportPath string
+var (
+	validateReportPath string
+	// validateStrict makes warning-level findings fail the run, mirroring
+	// `mdpress doctor --strict`.
+	validateStrict bool
+)
 
 // validateCmd validates project configuration and references.
 var validateCmd = &cobra.Command{
@@ -37,10 +42,15 @@ var validateCmd = &cobra.Command{
   - Image paths referenced from Markdown
   - Cover image paths
 
+Pass --strict to exit with a non-zero status when any warning is reported
+(for example a duplicate chapter entry or an unknown config key), which makes
+mdpress validate usable as a CI gate. Without --strict only errors fail the run.
+
 Examples:
   mdpress validate
   mdpress validate /path/to/book
   mdpress validate /path/to/book --report validate-report.json
+  mdpress validate /path/to/book --strict
   mdpress validate --config path/to/book.yaml`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -54,6 +64,7 @@ Examples:
 
 func init() {
 	validateCmd.Flags().StringVar(&validateReportPath, "report", "", "Write validation report to .json or .md")
+	validateCmd.Flags().BoolVar(&validateStrict, "strict", false, "Exit with a non-zero status when any warning is reported (useful as a CI gate)")
 }
 
 // validateResult represents a single validation result.
@@ -173,7 +184,23 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	// ========== 4. Check referenced Markdown files ==========
 	flatChapters := config.FlattenChapters(cfg.Chapters)
 	missingFiles := 0
+	// A file listed twice does not produce two pages: the generators key their
+	// output on the source path, so the duplicate silently overwrites the first
+	// entry — its title disappears and the page can end up renamed. The list
+	// still looks right in book.yaml, which is why this needs saying out loud.
+	firstListing := make(map[string]string, len(flatChapters))
 	for _, ch := range flatChapters {
+		key := linkrewrite.NormalizePath(ch.File)
+		if previous, seen := firstListing[key]; seen {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("Duplicate chapter entry: %s is listed more than once (as %q and %q) — only one of them will be built", ch.File, previous, ch.Title),
+			})
+		} else {
+			firstListing[key] = ch.Title
+		}
+
 		filePath := cfg.ResolvePath(ch.File)
 		if utils.FileExists(filePath) {
 			results = append(results, validateResult{
@@ -269,7 +296,7 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	}
 
 	// ========== 8. Check chapter numbering and Mermaid diagnostics ==========
-	contentIssues, contentWarnings, contentErr := validateChapterContentAndSequence(cfg)
+	contentIssues, contentWarnings, chapterAnchors, contentErr := validateChapterContentAndSequence(cfg)
 	if contentErr != nil {
 		results = append(results, validateResult{
 			OK:      false,
@@ -307,29 +334,67 @@ func executeValidate(ctx context.Context, targetDir string) error {
 	}
 
 	// ========== 9. Check Markdown chapter links ==========
-	unresolvedLinks, linkErr := findUnresolvedMarkdownLinks(cfg)
-	if linkErr != nil {
+	unresolvedLinks, deadAnchors, linkErr := findMarkdownLinkIssues(cfg, chapterAnchors)
+	switch {
+	case linkErr != nil:
 		results = append(results, validateResult{
 			OK:      false,
 			Message: fmt.Sprintf("Markdown link check failed: %v", linkErr),
 		})
 		hasError = true
-	} else if len(unresolvedLinks) == 0 {
+	case len(unresolvedLinks) == 0 && len(deadAnchors) == 0:
 		results = append(results, validateResult{
 			OK:      true,
-			Message: "Markdown chapter link check passed",
+			Message: "Markdown chapter link and anchor check passed",
 		})
-	} else {
+	default:
 		for _, item := range unresolvedLinks {
 			results = append(results, validateResult{
 				OK:      false,
 				Message: fmt.Sprintf("Markdown link target is outside the build graph: %s (referenced from %s)", item.Target, item.Source),
 			})
 		}
-		hasError = true
+		if len(unresolvedLinks) > 0 {
+			hasError = true
+		}
+		// A dead #fragment still renders as a working-looking link; it just
+		// lands the reader at the top of the page. Report it, but as a
+		// warning: raw HTML and plugins can inject ids mdpress cannot see.
+		for _, item := range deadAnchors {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("Link anchor not found in %s: %s (referenced from %s)", item.Target, item.Link, item.Source),
+			})
+		}
 	}
 
-	// ========== 10. Detect special files ==========
+	// ========== 10. Check for Markdown files no chapter points at ==========
+	if orphans, orphanErr := findOrphanMarkdownFiles(cfg); orphanErr == nil && len(orphans) > 0 {
+		// A long list is almost always one mistake (a directory that was never
+		// registered), so show enough to recognize it and then summarize.
+		const orphanListLimit = 10
+		shown := orphans
+		if len(shown) > orphanListLimit {
+			shown = shown[:orphanListLimit]
+		}
+		for _, orphan := range shown {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("Markdown file is in no chapter list and will not be built: %s", orphan),
+			})
+		}
+		if len(orphans) > len(shown) {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("... and %d more Markdown file(s) in no chapter list", len(orphans)-len(shown)),
+			})
+		}
+	}
+
+	// ========== 11. Detect special files ==========
 	configDir := filepath.Dir(configPath)
 	if absDir, err := filepath.Abs(configDir); err == nil {
 		configDir = absDir
@@ -355,10 +420,14 @@ func printResults(results []validateResult, skipFirst ...int) {
 	if quiet {
 		// Quiet means "errors only", not "silence". Suppressing the failures
 		// too left CI users with a non-zero exit, the line "fix the issues
-		// above", and nothing above.
+		// above", and nothing above. Under --strict warnings are failures, so
+		// they have to be printed for the same reason.
 		for _, r := range results {
-			if !r.OK {
+			switch {
+			case !r.OK:
 				utils.Error("%s", r.Message)
+			case r.Warning && validateStrict:
+				utils.Warning("%s", r.Message)
 			}
 		}
 		return
@@ -444,51 +513,136 @@ type unresolvedMarkdownLink struct {
 	Target string
 }
 
+// deadAnchorLink is a link whose file resolves but whose #fragment does not
+// match any id the target page will actually publish.
+type deadAnchorLink struct {
+	Source string // chapter the link was written in
+	Link   string // the link exactly as written, e.g. "guide.md#setup" or "#setup"
+	Target string // chapter the fragment was looked up in
+}
+
+// findUnresolvedMarkdownLinks reports only the link-target half of the check.
+// Callers that have not parsed the chapters' headings (build, doctor) cannot
+// judge anchors, so passing no anchor map suppresses that half entirely.
 func findUnresolvedMarkdownLinks(cfg *config.BookConfig) ([]unresolvedMarkdownLink, error) {
+	unresolved, _, err := findMarkdownLinkIssues(cfg, nil)
+	return unresolved, err
+}
+
+// findMarkdownLinkIssues checks every intra-book link in the chapter files:
+// the path must name a chapter in the build graph, and a #fragment must match
+// an id that chapter's page will carry.
+//
+// anchorsByChapter maps a normalized chapter path to the heading ids the
+// renderer generates for it. Chapters missing from the map (because content
+// validation could not parse them) are skipped rather than reported, so one
+// unreadable file cannot manufacture a wall of dead-anchor warnings.
+func findMarkdownLinkIssues(cfg *config.BookConfig, anchorsByChapter map[string]map[string]struct{}) ([]unresolvedMarkdownLink, []deadAnchorLink, error) {
 	flatChapters := config.FlattenChapters(cfg.Chapters)
 	if len(flatChapters) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	targets := make(map[string]struct{}, len(flatChapters))
+	// Scan each distinct chapter once: a file listed twice must not be read,
+	// or reported on, twice.
+	scans := make(map[string]markdownRefs, len(flatChapters))
+	var order []config.ChapterDef
 	for _, ch := range flatChapters {
-		targets[linkrewrite.NormalizePath(ch.File)] = struct{}{}
+		key := linkrewrite.NormalizePath(ch.File)
+		if _, done := scans[key]; done {
+			continue
+		}
+		refs, err := scanMarkdownRefs(cfg.ResolvePath(ch.File))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract markdown links from %s: %w", ch.File, err)
+		}
+		scans[key] = refs
+		order = append(order, ch)
+	}
+
+	// An anchor can also come from raw HTML the author wrote by hand
+	// (<a id="x">, <h2 id="x">), which the heading scan knows nothing about.
+	anchors := make(map[string]map[string]struct{}, len(scans))
+	for key, refs := range scans {
+		set := make(map[string]struct{}, len(anchorsByChapter[key])+len(refs.AnchorIDs))
+		for id := range anchorsByChapter[key] {
+			set[id] = struct{}{}
+		}
+		for _, id := range refs.AnchorIDs {
+			set[id] = struct{}{}
+		}
+		anchors[key] = set
 	}
 
 	var unresolved []unresolvedMarkdownLink
-	for _, ch := range flatChapters {
-		filePath := cfg.ResolvePath(ch.File)
-		links, err := extractMarkdownLinks(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract markdown links from %s: %w", ch.File, err)
-		}
-		currentDir := filepath.Dir(linkrewrite.NormalizePath(ch.File))
-		for _, link := range links {
-			targetPath := linkrewrite.NormalizePath(filepath.Join(currentDir, link))
-			if _, ok := targets[targetPath]; ok {
+	var dead []deadAnchorLink
+	for _, ch := range order {
+		key := linkrewrite.NormalizePath(ch.File)
+		currentDir := filepath.Dir(key)
+		for _, link := range scans[key].Links {
+			targetPath := key
+			if link.Target != "" {
+				targetPath = linkrewrite.NormalizePath(filepath.Join(currentDir, link.Target))
+				if _, ok := scans[targetPath]; !ok {
+					unresolved = append(unresolved, unresolvedMarkdownLink{
+						Source: ch.File,
+						Target: link.Target,
+					})
+					continue
+				}
+			}
+			if link.Fragment == "" {
 				continue
 			}
-			unresolved = append(unresolved, unresolvedMarkdownLink{
+			// Only chapters whose headings were collected can be judged.
+			if _, known := anchorsByChapter[targetPath]; !known {
+				continue
+			}
+			if _, ok := anchors[targetPath][link.Fragment]; ok {
+				continue
+			}
+			dead = append(dead, deadAnchorLink{
 				Source: ch.File,
-				Target: link,
+				Link:   link.Raw,
+				Target: targetPath,
 			})
 		}
 	}
 
-	return unresolved, nil
+	return unresolved, dead, nil
 }
 
-func extractMarkdownLinks(filePath string) ([]string, error) {
+// markdownLinkRef is one link that points inside the book.
+type markdownLinkRef struct {
+	// Target is the chapter path as written, or "" when the link is a
+	// same-page anchor such as [see](#setup).
+	Target string
+	// Fragment is the anchor id without the leading "#", or "" when absent.
+	Fragment string
+	// Raw is the link as it appears in the source, for diagnostics.
+	Raw string
+}
+
+// markdownRefs is everything one pass over a chapter file collects: the links
+// it makes and the anchors it defines.
+type markdownRefs struct {
+	Links []markdownLinkRef
+	// AnchorIDs are ids declared in raw HTML (id=/name= attributes). Heading
+	// ids are generated by the renderer and come from the parser instead.
+	AnchorIDs []string
+}
+
+// scanMarkdownRefs reads a chapter file once and collects its intra-book links
+// and its hand-written HTML anchors, skipping fenced code and inline code so
+// examples in a book about Markdown are not mistaken for real references.
+func scanMarkdownRefs(filePath string) (markdownRefs, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open markdown link file: %w", err)
+		return markdownRefs{}, fmt.Errorf("failed to open markdown link file: %w", err)
 	}
 	defer f.Close() //nolint:errcheck
 
-	linkRegex := mdLinkPattern
-	htmlLinkRegex := htmlLinkHrefPattern
-
-	var links []string
+	var refs markdownRefs
 	var fences fenceTracker
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
@@ -498,7 +652,7 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 			continue
 		}
 
-		matches := linkRegex.FindAllStringSubmatchIndex(line, -1)
+		matches := mdLinkPattern.FindAllStringSubmatchIndex(line, -1)
 		for _, m := range matches {
 			if len(m) < 6 {
 				continue
@@ -506,62 +660,100 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 			if m[0] > 0 && line[m[0]-1] == '!' {
 				continue
 			}
-			target := normalizeMarkdownLinkTarget(line[m[4]:m[5]])
-			if target != "" {
-				links = append(links, target)
+			if ref, ok := parseMarkdownLinkRef(line[m[4]:m[5]]); ok {
+				refs.Links = append(refs.Links, ref)
 			}
 		}
 
-		htmlMatches := htmlLinkRegex.FindAllStringSubmatch(line, -1)
+		htmlMatches := htmlLinkHrefPattern.FindAllStringSubmatch(line, -1)
 		for _, m := range htmlMatches {
 			if len(m) < 2 {
 				continue
 			}
-			target := normalizeMarkdownLinkTarget(m[1])
-			if target != "" {
-				links = append(links, target)
+			if ref, ok := parseMarkdownLinkRef(m[1]); ok {
+				refs.Links = append(refs.Links, ref)
+			}
+		}
+
+		for _, m := range htmlAnchorIDPattern.FindAllStringSubmatch(line, -1) {
+			if len(m) >= 2 {
+				refs.AnchorIDs = append(refs.AnchorIDs, m[1])
 			}
 		}
 	}
 
-	return links, scanner.Err()
+	return refs, scanner.Err()
 }
 
-func normalizeMarkdownLinkTarget(raw string) string {
-	target := strings.TrimSpace(raw)
-	if idx := strings.Index(target, "#"); idx >= 0 {
-		target = target[:idx]
+// parseMarkdownLinkRef splits a link destination into the chapter path and the
+// anchor it points at, and reports whether the link is one mdpress can check.
+// Links that leave the book — remote URLs, mailto:, absolute paths, non-.md
+// files — are not.
+func parseMarkdownLinkRef(raw string) (markdownLinkRef, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return markdownLinkRef{}, false
 	}
-	if target == "" || strings.ToLower(filepath.Ext(target)) != ".md" {
-		return ""
-	}
-	lower := strings.ToLower(target)
+
+	lower := strings.ToLower(trimmed)
 	for _, prefix := range []string{"http://", "https://", "mailto:", "tel:", "javascript:", "data:"} {
 		if strings.HasPrefix(lower, prefix) {
-			return ""
+			return markdownLinkRef{}, false
 		}
 	}
-	if strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
-		return ""
+	if strings.HasPrefix(trimmed, "/") || strings.HasPrefix(trimmed, "//") {
+		return markdownLinkRef{}, false
 	}
-	return target
+
+	target, fragment, _ := strings.Cut(trimmed, "#")
+	// A fragment travels through the URL, so "#foo%20bar" and "#foo bar" name
+	// the same anchor.
+	if decoded, err := url.PathUnescape(fragment); err == nil {
+		fragment = decoded
+	}
+
+	if target == "" {
+		// A bare "#fragment" points at the current page; "#" alone (a
+		// placeholder link) points nowhere and is not worth reporting.
+		if fragment == "" {
+			return markdownLinkRef{}, false
+		}
+		return markdownLinkRef{Fragment: fragment, Raw: trimmed}, true
+	}
+	if strings.ToLower(filepath.Ext(target)) != ".md" {
+		return markdownLinkRef{}, false
+	}
+	return markdownLinkRef{Target: target, Fragment: fragment, Raw: trimmed}, true
 }
 
-func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string, warnings []string, err error) {
+// validateChapterContentAndSequence parses every chapter once. Besides the
+// issues and warnings it reports, it hands back the heading ids each chapter
+// will publish, keyed by normalized chapter path, so the link check can tell a
+// live #fragment from a dead one without parsing the book a second time.
+func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string, warnings []string, headingIDs map[string]map[string]struct{}, err error) {
 	issues = validateChapterSequence(cfg.Chapters)
 	parser := markdown.NewParser()
+	headingIDs = make(map[string]map[string]struct{})
 
 	for _, flat := range flattenChaptersWithDepth(cfg.Chapters) {
 		filePath := cfg.ResolvePath(flat.Def.File)
 		content, readErr := utils.ReadFile(filePath)
 		if readErr != nil {
-			return issues, warnings, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, readErr)
+			return issues, warnings, headingIDs, fmt.Errorf("failed to read chapter file %s: %w", flat.Def.File, readErr)
 		}
 
 		htmlContent, headings, diagnostics, parseErr := parser.ParseWithDiagnostics(content)
 		if parseErr != nil {
-			return issues, warnings, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, parseErr)
+			return issues, warnings, headingIDs, fmt.Errorf("failed to parse chapter %s: %w", flat.Def.File, parseErr)
 		}
+
+		ids := make(map[string]struct{}, len(headings))
+		for _, h := range headings {
+			if h.ID != "" {
+				ids[h.ID] = struct{}{}
+			}
+		}
+		headingIDs[linkrewrite.NormalizePath(flat.Def.File)] = ids
 
 		if diag := validateChapterTitleSequence(flat.Def.Title, headings); diag != nil {
 			issues = append(issues, fmt.Sprintf("Chapter title numbering mismatch: %s (rule=%s)", flat.Def.File, diag.Rule))
@@ -594,7 +786,7 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string,
 		}
 	}
 
-	return issues, warnings, nil
+	return issues, warnings, headingIDs, nil
 }
 
 func validateChapterSequence(chapters []config.ChapterDef) []string {
@@ -636,7 +828,10 @@ var (
 	mdImagePattern                     = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	htmlImgSrcPattern                  = regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
 	mdLinkPattern                      = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	htmlLinkHrefPattern                = regexp.MustCompile(`<a[^>]+href=["']([^"']+\.md(?:#[^"']*)?)["']`)
+	htmlLinkHrefPattern                = regexp.MustCompile(`<a[^>]+href=["']([^"']*)["']`)
+	// htmlAnchorIDPattern finds anchors an author declared by hand in raw
+	// HTML, which the renderer passes straight through to the page.
+	htmlAnchorIDPattern = regexp.MustCompile(`<[a-zA-Z][^>]*?\b(?:id|name)\s*=\s*["']([^"']+)["']`)
 )
 
 func parseSequenceParts(title string) ([]int, bool) {
@@ -685,6 +880,8 @@ type validationReport struct {
 	TotalChecks int              `json:"total_checks"`
 	Passed      int              `json:"passed"`
 	Failed      int              `json:"failed"`
+	Warnings    int              `json:"warnings"`
+	Strict      bool             `json:"strict"`
 	Results     []validateResult `json:"results"`
 }
 
@@ -697,12 +894,19 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 		}
 	}
 
+	// In strict mode warnings are failures, so the report has to say "failed"
+	// too — a report that reads "passed" next to a non-zero exit code is worse
+	// than no report at all.
+	strictFailure := validateStrict && warned > 0
+
 	if validateReportPath != "" {
 		if err := writeValidationReport(validateReportPath, validationReport{
-			Status:      validationStatus(hasError),
+			Status:      validationStatus(hasError || strictFailure),
 			TotalChecks: len(results),
 			Passed:      passed,
 			Failed:      failed,
+			Warnings:    warned,
+			Strict:      validateStrict,
 			Results:     results,
 		}); err != nil {
 			return fmt.Errorf("validation failed to write report: %w", err)
@@ -731,10 +935,17 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 			)
 			fmt.Println()
 		} else if warned > 0 {
-			fmt.Printf("  %s %d checks passed, %s warnings ✓\n",
-				utils.Green("Result:"),
+			label := utils.Green("Result:")
+			mark := " ✓"
+			if strictFailure {
+				label = utils.Red("Result:")
+				mark = " (failed: --strict)"
+			}
+			fmt.Printf("  %s %d checks passed, %s warnings%s\n",
+				label,
 				passed,
 				utils.Yellow(strconv.Itoa(warned)),
+				mark,
 			)
 			fmt.Println()
 		} else {
@@ -748,6 +959,9 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 
 	if hasError {
 		return errors.New("validation failed; fix the issues above and try again")
+	}
+	if strictFailure {
+		return fmt.Errorf("validation found %d warning(s) (run without --strict to ignore)", warned)
 	}
 	return nil
 }
