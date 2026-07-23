@@ -118,11 +118,15 @@ func TestExtractImagePaths_FileNotFound(t *testing.T) {
 
 // ========== normalizeMarkdownLinkTarget Tests ==========
 
-func TestNormalizeMarkdownLinkTarget(t *testing.T) {
+// parseMarkdownLinkRef replaced normalizeMarkdownLinkTarget when validate
+// learned to check anchors: the fragment is now kept instead of discarded, so
+// every case also states which anchor (if any) the link points at.
+func TestParseMarkdownLinkRef(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
 		expected string
+		fragment string
 	}{
 		{
 			name:     "simple markdown file",
@@ -138,6 +142,7 @@ func TestNormalizeMarkdownLinkTarget(t *testing.T) {
 			name:     "with fragment identifier",
 			input:    "chapter.md#section1",
 			expected: "chapter.md",
+			fragment: "section1",
 		},
 		{
 			name:     "whitespace trimming",
@@ -148,6 +153,7 @@ func TestNormalizeMarkdownLinkTarget(t *testing.T) {
 			name:     "whitespace with fragment",
 			input:    "  chapter.md#section  ",
 			expected: "chapter.md",
+			fragment: "section",
 		},
 		{
 			name:     "http url",
@@ -205,8 +211,20 @@ func TestNormalizeMarkdownLinkTarget(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "only fragment",
+			name:     "only fragment is a same-page anchor",
 			input:    "#section",
+			expected: "",
+			fragment: "section",
+		},
+		{
+			name:     "percent-encoded fragment is decoded",
+			input:    "chapter.md#a%20b",
+			expected: "chapter.md",
+			fragment: "a b",
+		},
+		{
+			name:     "bare hash is a placeholder, not an anchor",
+			input:    "#",
 			expected: "",
 		},
 		{
@@ -223,22 +241,29 @@ func TestNormalizeMarkdownLinkTarget(t *testing.T) {
 			name:     "url in fragment only",
 			input:    "file.md#https://example.com",
 			expected: "file.md",
+			fragment: "https://example.com",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := normalizeMarkdownLinkTarget(tt.input)
-			if got != tt.expected {
-				t.Errorf("normalizeMarkdownLinkTarget(%q) = %q, want %q", tt.input, got, tt.expected)
+			got, ok := parseMarkdownLinkRef(tt.input)
+			if !ok {
+				got = markdownLinkRef{}
+			}
+			if got.Target != tt.expected {
+				t.Errorf("parseMarkdownLinkRef(%q).Target = %q, want %q", tt.input, got.Target, tt.expected)
+			}
+			if got.Fragment != tt.fragment {
+				t.Errorf("parseMarkdownLinkRef(%q).Fragment = %q, want %q", tt.input, got.Fragment, tt.fragment)
 			}
 		})
 	}
 }
 
-// ========== extractMarkdownLinks Tests ==========
+// ========== scanMarkdownRefs Tests ==========
 
-func TestExtractMarkdownLinks(t *testing.T) {
+func TestScanMarkdownRefs(t *testing.T) {
 	tests := []struct {
 		name     string
 		content  string
@@ -327,20 +352,24 @@ Some text`,
 				t.Fatalf("failed to write test file: %v", err)
 			}
 
-			got, err := extractMarkdownLinks(filePath)
+			refs, err := scanMarkdownRefs(filePath)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("extractMarkdownLinks() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("scanMarkdownRefs() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			got := make([]string, 0, len(refs.Links))
+			for _, link := range refs.Links {
+				got = append(got, link.Target)
+			}
 			if !stringSlicesEqual(got, tt.expected) {
-				t.Errorf("extractMarkdownLinks() = %v, want %v", got, tt.expected)
+				t.Errorf("scanMarkdownRefs() targets = %v, want %v", got, tt.expected)
 			}
 		})
 	}
 }
 
-func TestExtractMarkdownLinks_FileNotFound(t *testing.T) {
-	_, err := extractMarkdownLinks("/nonexistent/file.md")
+func TestScanMarkdownRefs_FileNotFound(t *testing.T) {
+	_, err := scanMarkdownRefs("/nonexistent/file.md")
 	if err == nil {
 		t.Error("expected error for non-existent file")
 	}

@@ -189,3 +189,80 @@ func TestValidateCmd_HasStrictFlag(t *testing.T) {
 		t.Fatal("validate should expose a --strict flag, like doctor")
 	}
 }
+
+// A #fragment that matches no heading renders as a link that works but goes
+// nowhere: the reader lands at the top of the page instead of the section.
+func TestExecuteValidate_ReportsDeadAnchors(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Anchor Book"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+  - title: "Two"
+    file: "guide/ch2.md"
+`,
+		"ch1.md": "# One\n\n" +
+			"[live cross-file](guide/ch2.md#setup)\n" +
+			"[dead cross-file](guide/ch2.md#no-such-section)\n" +
+			"[live same-page](#one)\n" +
+			"[dead same-page](#nowhere)\n" +
+			"[live raw html anchor](guide/ch2.md#hand-written)\n" +
+			"\n```markdown\n[example](guide/ch2.md#not-real)\n```\n",
+		"guide/ch2.md": "# Two\n\n## Setup\n\n<a id=\"hand-written\"></a>\n\nText.\n",
+	})
+
+	report, err := validateReportFor(t, tmpDir)
+	if err != nil {
+		t.Fatalf("dead anchors are warnings, not errors: %v", err)
+	}
+
+	var anchorMsgs []string
+	for _, r := range report.Results {
+		if strings.Contains(r.Message, "Link anchor not found") {
+			if !r.Warning {
+				t.Errorf("dead anchor should be a warning, got %+v", r)
+			}
+			anchorMsgs = append(anchorMsgs, r.Message)
+		}
+	}
+	if len(anchorMsgs) != 2 {
+		t.Fatalf("expected exactly the 2 dead anchors, got %d: %v", len(anchorMsgs), anchorMsgs)
+	}
+	joined := strings.Join(anchorMsgs, "\n")
+	for _, want := range []string{"guide/ch2.md#no-such-section", "#nowhere"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("expected %q to be reported, got:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "not-real") {
+		t.Error("a link inside a fenced code block is an example, not a reference")
+	}
+}
+
+func TestExecuteValidate_CleanAnchorsReportPass(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Anchor Book"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+  - title: "Two"
+    file: "ch2.md"
+`,
+		"ch1.md": "# One\n\nSee [setup](ch2.md#setup) and [external](https://example.com/x.md#nope).\n",
+		"ch2.md": "# Two\n\n## Setup\n",
+	})
+
+	report, err := validateReportFor(t, tmpDir)
+	if err != nil {
+		t.Fatalf("validate should pass: %v", err)
+	}
+	if _, ok := findResult(report, "Markdown chapter link and anchor check passed"); !ok {
+		t.Errorf("expected the link/anchor check to report a pass, got %+v", report.Results)
+	}
+}
