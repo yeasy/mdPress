@@ -106,6 +106,45 @@ func TestProcessHTML(t *testing.T) {
 	}
 }
 
+// A tooltip needs a pointer, so the term has to be a link to the glossary
+// entry for readers on paper, e-ink, or a touch screen.
+func TestProcessHTMLLinksTermsToGlossaryEntries(t *testing.T) {
+	g := &Glossary{
+		Terms: []Term{{Name: "Cloud Native", Definition: "Built for the cloud"}},
+	}
+
+	result := g.ProcessHTML("<p>A Cloud Native app.</p>")
+
+	if !strings.Contains(result, `<a href="#glossary-cloud-native" class="glossary-term"`) {
+		t.Errorf("term should link to its glossary entry, got: %s", result)
+	}
+	if strings.Contains(result, `<span class="glossary-term"`) {
+		t.Errorf("term should no longer be a bare span, got: %s", result)
+	}
+
+	// The anchor must match the id RenderHTML emits for the same term.
+	if !strings.Contains(g.RenderHTML(), `id="glossary-cloud-native"`) {
+		t.Errorf("glossary page is missing the target id:\n%s", g.RenderHTML())
+	}
+}
+
+// Rewriting a term inside the author's own link would nest <a> in <a>.
+func TestProcessHTMLLeavesTermsInsideLinksAlone(t *testing.T) {
+	g := &Glossary{
+		Terms: []Term{{Name: "API", Definition: "Application Programming Interface"}},
+	}
+
+	html := `<p>See the <a href="/api">API reference</a> or the API itself.</p>`
+	result := g.ProcessHTML(html)
+
+	if !strings.Contains(result, `<a href="/api">API reference</a>`) {
+		t.Errorf("existing link text should be untouched, got: %s", result)
+	}
+	if strings.Count(result, `class="glossary-term"`) != 1 {
+		t.Errorf("only the occurrence outside the link should be linked, got: %s", result)
+	}
+}
+
 func TestProcessHTMLNoTerms(t *testing.T) {
 	g := &Glossary{}
 	html := "<p>Hello world</p>"
@@ -148,6 +187,16 @@ func TestRenderHTML(t *testing.T) {
 	zebraIdx := strings.Index(html, "Zebra")
 	if appleIdx > zebraIdx {
 		t.Error("terms should be sorted alphabetically")
+	}
+}
+
+// Every output format renders the chapter title itself, so the page body must
+// not carry a second "Glossary" heading.
+func TestRenderHTMLHasNoOwnHeading(t *testing.T) {
+	g := &Glossary{Terms: []Term{{Name: "Apple", Definition: "A fruit"}}}
+
+	if strings.Contains(g.RenderHTML(), "<h1") {
+		t.Errorf("glossary page should not render its own title:\n%s", g.RenderHTML())
 	}
 }
 

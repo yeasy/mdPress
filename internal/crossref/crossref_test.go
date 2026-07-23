@@ -106,7 +106,7 @@ func TestResolve(t *testing.T) {
 
 // TestProcessHTML tests reference replacement in HTML
 func TestProcessHTML(t *testing.T) {
-	r := NewResolver()
+	r := NewResolverForLanguage("zh-CN")
 	r.RegisterFigure("fig1", "示例图")
 	r.RegisterTable("tab1", "示例表")
 
@@ -153,7 +153,7 @@ func TestProcessHTMLNoRefs(t *testing.T) {
 
 // TestAddCaptions tests adding figure and table captions
 func TestAddCaptions(t *testing.T) {
-	r := NewResolver()
+	r := NewResolverForLanguage("zh-CN")
 	r.RegisterFigure("fig_demo", "演示图")
 	r.RegisterTable("tab_demo", "演示表")
 
@@ -428,7 +428,7 @@ func TestRegisterDuplicateSection(t *testing.T) {
 
 // TestAddCaptionsUnregistered tests adding captions for unregistered figure/table IDs
 func TestAddCaptionsUnregistered(t *testing.T) {
-	r := NewResolver()
+	r := NewResolverForLanguage("zh-CN")
 
 	// Only register fig1, not fig2 or tab1
 	r.RegisterFigure("fig1", "已注册的图")
@@ -511,7 +511,7 @@ func TestResolveSearchOrder(t *testing.T) {
 
 // TestProcessHTMLMultipleRefs tests processing multiple different reference types in a single HTML string
 func TestProcessHTMLMultipleRefs(t *testing.T) {
-	r := NewResolver()
+	r := NewResolverForLanguage("zh-CN")
 
 	// Register different reference types
 	r.RegisterFigure("fig1", "架构图")
@@ -573,5 +573,94 @@ func TestProcessHTMLMultipleRefs(t *testing.T) {
 
 	if !strings.Contains(result, `class="ref-section"`) {
 		t.Error("section references should contain ref-section class")
+	}
+}
+
+// An English book must not print Chinese labels under its figures.
+func TestLabelsFollowBookLanguage(t *testing.T) {
+	en := NewResolver() // defaults to the book.yaml default language, en-US
+	en.RegisterFigure("fig1", "Architecture")
+	en.RegisterTable("tab1", "Benchmarks")
+
+	result := en.ProcessHTML("See {{ref:fig1}} and {{ref:tab1}}.")
+	if !strings.Contains(result, ">Figure 1<") || !strings.Contains(result, ">Table 1<") {
+		t.Errorf("English book should use English labels, got: %s", result)
+	}
+	if strings.Contains(result, "图") || strings.Contains(result, "表") {
+		t.Errorf("English book should not contain Chinese labels, got: %s", result)
+	}
+
+	caption := en.AddCaptions(`<figure id="fig1"><img src="a.png"></figure>`)
+	if !strings.Contains(caption, "Figure 1: Architecture") {
+		t.Errorf("caption should be localized, got: %s", caption)
+	}
+
+	zh := NewResolverForLanguage("zh-CN")
+	zh.RegisterFigure("fig1", "架构")
+	if result := zh.ProcessHTML("见 {{ref:fig1}}。"); !strings.Contains(result, ">图1<") {
+		t.Errorf("Chinese book should use Chinese labels, got: %s", result)
+	}
+}
+
+// Figures and tables have to be discovered from the chapter HTML; nothing in
+// the build ever called RegisterFigure/RegisterTable, so figure
+// cross-references and auto-captions never worked.
+func TestRegisterFromHTML(t *testing.T) {
+	r := NewResolver()
+	chapter := `
+	<figure id="fig_arch"><img src="arch.png" alt="System architecture"></figure>
+	<figure id="fig_flow"><img src="flow.png"><figcaption>Request flow</figcaption></figure>
+	<table id="tab_bench"><tr><td>1</td></tr></table>
+	`
+	r.RegisterFromHTML(chapter)
+
+	fig, err := r.Resolve("fig_arch")
+	if err != nil {
+		t.Fatalf("figure should be registered: %v", err)
+	}
+	if fig.Number != 1 || fig.Title != "System architecture" {
+		t.Errorf("figure = %+v, want number 1 titled from the alt text", fig)
+	}
+	if second, err := r.Resolve("fig_flow"); err != nil || second.Number != 2 || second.Title != "Request flow" {
+		t.Errorf("second figure = %+v (err %v), want number 2 titled from its figcaption", second, err)
+	}
+	if tab, err := r.Resolve("tab_bench"); err != nil || tab.Number != 1 {
+		t.Errorf("table = %+v (err %v), want number 1", tab, err)
+	}
+
+	// Registering the same chapter twice must not renumber anything.
+	r.RegisterFromHTML(chapter)
+	if fig, _ := r.Resolve("fig_arch"); fig.Number != 1 {
+		t.Errorf("re-registering changed the figure number to %d", fig.Number)
+	}
+
+	result := r.ProcessHTML("As {{ref:fig_arch}} shows.")
+	if !strings.Contains(result, `<a href="#fig_arch" class="ref-figure">Figure 1</a>`) {
+		t.Errorf("figure reference should resolve, got: %s", result)
+	}
+}
+
+// A placeholder that cannot be resolved is printed verbatim to the reader, so
+// the caller has to be told about it.
+func TestProcessHTMLWithUnresolved(t *testing.T) {
+	r := NewResolver()
+	r.RegisterSection("intro", "Intro", 1)
+
+	out, unresolved := r.ProcessHTMLWithUnresolved("See {{ref:intro}}, {{ref:missing}} and {{ref:missing}}.")
+	if !strings.Contains(out, "{{ref:missing}}") {
+		t.Errorf("unknown placeholder should be left as-is, got: %s", out)
+	}
+	if len(unresolved) != 1 || unresolved[0] != "missing" {
+		t.Errorf("unresolved = %v, want exactly [missing]", unresolved)
+	}
+}
+
+func TestCaptionWithoutTitle(t *testing.T) {
+	r := NewResolver()
+	r.RegisterFromHTML(`<figure id="fig1"><img src="a.png"></figure>`)
+
+	result := r.AddCaptions(`<figure id="fig1"><img src="a.png"></figure>`)
+	if !strings.Contains(result, "<figcaption>Figure 1</figcaption>") {
+		t.Errorf("untitled figure should get a bare label, got: %s", result)
 	}
 }

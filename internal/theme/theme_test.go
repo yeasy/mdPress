@@ -289,6 +289,112 @@ margins:
 	}
 }
 
+// A theme file that lists only the fields `mdpress themes show` calls
+// required must still produce a usable stylesheet: the rest is inherited from
+// a built-in instead of being emitted as empty CSS values and 0mm margins.
+func TestLoadFromFileInheritsBuiltinDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	themePath := filepath.Join(tmpDir, "corporate.yaml")
+	content := `
+name: corporate
+page_size: A4
+font_size: 11
+line_height: 1.6
+colors:
+  text: "#222222"
+  background: "#FFFFFF"
+`
+	if err := os.WriteFile(themePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write theme file: %v", err)
+	}
+
+	tm := NewThemeManager()
+	thm, err := tm.LoadFromFile(themePath)
+	if err != nil {
+		t.Fatalf("failed to load theme: %v", err)
+	}
+
+	base := builtinTechnical()
+	if thm.Colors.Link != base.Colors.Link {
+		t.Errorf("link color = %q, want inherited %q", thm.Colors.Link, base.Colors.Link)
+	}
+	if thm.FontFamily != base.FontFamily {
+		t.Errorf("font family = %q, want inherited %q", thm.FontFamily, base.FontFamily)
+	}
+	if thm.Margins != base.Margins {
+		t.Errorf("margins = %+v, want inherited %+v", thm.Margins, base.Margins)
+	}
+	// Values the file does set must still win.
+	if thm.Colors.Text != "#222222" || thm.FontSize != 11 || thm.LineHeight != 1.6 {
+		t.Errorf("file values were not applied: %+v", thm)
+	}
+
+	css := thm.ToCSS()
+	if strings.Contains(css, ": ;") {
+		t.Errorf("CSS contains an empty custom property:\n%s", css)
+	}
+	if strings.Contains(css, ": 0.00mm") {
+		t.Errorf("CSS contains zero page margins:\n%s", css)
+	}
+}
+
+// A custom theme named after a built-in customizes that built-in rather than
+// the default one.
+func TestLoadFromFileInheritsSameNamedBuiltin(t *testing.T) {
+	tmpDir := t.TempDir()
+	themePath := filepath.Join(tmpDir, "elegant.yaml")
+	content := `
+page_size: A4
+font_size: 13
+line_height: 1.9
+colors:
+  text: "#111111"
+  background: "#FFFFFF"
+`
+	if err := os.WriteFile(themePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write theme file: %v", err)
+	}
+
+	tm := NewThemeManager()
+	thm, err := tm.LoadFromFile(themePath)
+	if err != nil {
+		t.Fatalf("failed to load theme: %v", err)
+	}
+
+	if thm.Name != "elegant" {
+		t.Errorf("theme name = %q, want %q", thm.Name, "elegant")
+	}
+	if want := builtinElegant().Colors.Accent; thm.Colors.Accent != want {
+		t.Errorf("accent = %q, want inherited %q", thm.Colors.Accent, want)
+	}
+	if thm.FontSize != 13 {
+		t.Errorf("font size = %d, want 13", thm.FontSize)
+	}
+}
+
+// ToCSS must never emit "--color-link: ;" for a theme assembled in code with
+// missing values — the declaration is a parse error and the property it feeds
+// then resolves to nothing.
+func TestThemeToCSSOmitsEmptyValues(t *testing.T) {
+	thm := &Theme{
+		Name:       "sparse",
+		PageSize:   "A4",
+		FontSize:   12,
+		LineHeight: 1.5,
+		Colors:     ColorScheme{Text: "#000", Background: "#fff"},
+	}
+
+	css := thm.ToCSS()
+	if strings.Contains(css, ": ;") || strings.Contains(css, ": );") {
+		t.Errorf("CSS contains an empty declaration:\n%s", css)
+	}
+	for _, unwanted := range []string{"--color-link", "--font-family:", "--margin-top"} {
+		if strings.Contains(css, unwanted) {
+			t.Errorf("CSS should omit %s when the theme has no value:\n%s", unwanted, css)
+		}
+	}
+}
+
 // TestLoadFromFileNonExistent tests loading a non-existent theme file
 func TestLoadFromFileNonExistent(t *testing.T) {
 	tm := NewThemeManager()
@@ -687,6 +793,7 @@ func TestThemeToCSS_RootVariables(t *testing.T) {
 			Accent:     "#ff6600",
 			Border:     "#ddd",
 		},
+		Margins: MarginSettings{Top: 20, Bottom: 20, Left: 20, Right: 20},
 	}
 
 	css := thm.ToCSS()

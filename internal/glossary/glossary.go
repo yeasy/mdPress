@@ -28,9 +28,13 @@ import (
 const maxGlossaryLineSize = 1024 * 1024
 
 // Package-level compiled regexps to avoid recompilation in hot paths.
+// The skip pattern covers every region a term must not be rewritten in: an
+// existing anchor (a term already linked, or a term appearing inside the
+// author's own link — nesting <a> there would be invalid HTML) and any tag,
+// so terms are never matched inside attribute values.
 var (
 	slugifyRegexp       = regexp.MustCompile(`[^a-z0-9\-\p{L}]`)
-	glossarySkipPattern = regexp.MustCompile(`<span class="glossary-term"[^>]*>.*?</span>|<[^>]+>`)
+	glossarySkipPattern = regexp.MustCompile(`(?s)<a\b[^>]*>.*?</a>|<[^>]+>`)
 )
 
 // Term represents a single glossary entry.
@@ -158,9 +162,12 @@ func (g *Glossary) RenderHTML() string {
 		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 	})
 
+	// No <h1> here: every consumer renders the chapter title itself (the
+	// PDF/HTML templates from ChapterHTML.Title, ePub and the site by
+	// re-adding one when the body has none), so emitting a heading printed
+	// "Glossary" twice on the page.
 	var b strings.Builder
 	b.WriteString("<div class=\"glossary-page\">\n")
-	b.WriteString("<h1>Glossary</h1>\n")
 	b.WriteString("<dl class=\"glossary-list\">\n")
 	for _, term := range sorted {
 		fmt.Fprintf(&b, "  <dt id=\"glossary-%s\"><strong>%s</strong></dt>\n",
@@ -173,11 +180,20 @@ func (g *Glossary) RenderHTML() string {
 	return b.String()
 }
 
+// linkTerm returns the replacement function for one term. The occurrence
+// becomes a link to the glossary entry, not just a title tooltip: a tooltip
+// needs a mouse, so on paper, on e-ink readers and on touch screens the
+// definition was unreachable even though the docs promised terms were linked.
+// The tooltip is kept for pointer users.
+func linkTerm(term Term) func(string) string {
+	return func(match string) string {
+		return fmt.Sprintf(`<a href="#glossary-%s" class="glossary-term" title="%s">%s</a>`,
+			slugify(term.Name), utils.EscapeAttr(term.Definition), match)
+	}
+}
+
 // highlightTerm highlights a single term while avoiding tag replacement.
 func highlightTerm(html string, term Term, pattern *regexp.Regexp) string {
-	// Build a combined pattern that matches either an HTML tag, a glossary
-	// span (including its text content), or other content. We skip anything
-	// that is inside a tag or inside an existing glossary-term span.
 	skipPattern := glossarySkipPattern
 	skipPositions := skipPattern.FindAllStringIndex(html, -1)
 
@@ -189,10 +205,7 @@ func highlightTerm(html string, term Term, pattern *regexp.Regexp) string {
 		// Replace terms in text before the skipped region.
 		if pos[0] > lastEnd {
 			textSegment := html[lastEnd:pos[0]]
-			textSegment = pattern.ReplaceAllStringFunc(textSegment, func(match string) string {
-				tooltip := utils.EscapeAttr(term.Definition)
-				return fmt.Sprintf(`<span class="glossary-term" title="%s">%s</span>`, tooltip, match)
-			})
+			textSegment = pattern.ReplaceAllStringFunc(textSegment, linkTerm(term))
 			result.WriteString(textSegment)
 		}
 		// Preserve the skipped region as-is.
@@ -203,10 +216,7 @@ func highlightTerm(html string, term Term, pattern *regexp.Regexp) string {
 	// Replace terms in the trailing text segment.
 	if lastEnd < len(html) {
 		textSegment := html[lastEnd:]
-		textSegment = pattern.ReplaceAllStringFunc(textSegment, func(match string) string {
-			tooltip := utils.EscapeAttr(term.Definition)
-			return fmt.Sprintf(`<span class="glossary-term" title="%s">%s</span>`, tooltip, match)
-		})
+		textSegment = pattern.ReplaceAllStringFunc(textSegment, linkTerm(term))
 		result.WriteString(textSegment)
 	}
 

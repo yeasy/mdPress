@@ -878,8 +878,10 @@ func TestNewBuildOrchestrator_CustomThemeErrors(t *testing.T) {
 
 	t.Run("explicit path that fails validation", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		// Missing required colors.text/background and line_height.
-		invalid := "name: broken\npage_size: A4\nfont_size: 11\n"
+		// Omitted fields are inherited from the built-in theme, so the file
+		// has to break a rule inheritance cannot repair: a color value that
+		// would escape its CSS declaration.
+		invalid := "name: broken\npage_size: A4\nfont_size: 11\ncolors:\n  text: \"red; } body {\"\n"
 		if err := os.WriteFile(filepath.Join(tmpDir, "broken.yaml"), []byte(invalid), 0o644); err != nil {
 			t.Fatalf("failed to write theme file: %v", err)
 		}
