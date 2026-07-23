@@ -57,11 +57,13 @@ Readiness checks:
 ```bash
 mdpress doctor
 mdpress doctor /path/to/book
-mdpress doctor ./examples/chapter01
+mdpress doctor --strict
+mdpress doctor --report doctor-report.json
 ```
 
 ## Notes
 
+- **Without `--strict`, `doctor` always exits 0**, even when it prints `✗` lines. A CI step that runs plain `mdpress doctor` gates on nothing.
 - `--verbose` provides detailed output including exact disk space measurements, Go version parse details, and verbose error messages for each check.
 - PlantUML availability is only checked if PlantUML diagrams are detected in the project.
 - Plugin checks validate both path existence and executability.
