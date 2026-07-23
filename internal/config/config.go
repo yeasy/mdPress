@@ -174,10 +174,10 @@ type OutputConfig struct {
 	PDFTimeout        int      `yaml:"pdf_timeout"`        // PDF generation timeout in seconds (default 120).
 	Watermark         string   `yaml:"watermark"`          // Watermark text (e.g., "DRAFT", "CONFIDENTIAL")
 	WatermarkOpacity  float64  `yaml:"watermark_opacity"`  // Opacity 0.0-1.0 (default 0.1)
-	MarginTop         string   `yaml:"margin_top"`         // e.g., "20mm" (default "15mm")
-	MarginBottom      string   `yaml:"margin_bottom"`      // e.g., "20mm" (default "15mm")
-	MarginLeft        string   `yaml:"margin_left"`        // e.g., "25mm" (default "20mm")
-	MarginRight       string   `yaml:"margin_right"`       // e.g., "25mm" (default "20mm")
+	MarginTop         string   `yaml:"margin_top"`         // e.g., "20mm"; unset means style.margin.top
+	MarginBottom      string   `yaml:"margin_bottom"`      // e.g., "20mm"; unset means style.margin.bottom
+	MarginLeft        string   `yaml:"margin_left"`        // e.g., "25mm"; unset means style.margin.left
+	MarginRight       string   `yaml:"margin_right"`       // e.g., "25mm"; unset means style.margin.right
 	GenerateBookmarks bool     `yaml:"generate_bookmarks"` // Generate PDF bookmarks from headings (default true)
 	SiteURL           string   `yaml:"site_url"`           // Public base URL of the deployed site (e.g. https://user.github.io/repo); enables sitemap.xml
 	EditBase          string   `yaml:"edit_base"`          // Base URL for "edit this page" links (e.g. https://github.com/user/repo/edit/main/)
@@ -231,19 +231,23 @@ func DefaultConfig() *BookConfig {
 			// default of "output.pdf" forced the build to special-case that
 			// exact string as "unset", which silently ignored users who really
 			// did write `filename: "output.pdf"` in book.yaml.
-			Filename:          "",
-			TOC:               true,
-			TOCMaxDepth:       2,
-			Cover:             true,
-			Header:            true,
-			Footer:            true,
-			PDFTimeout:        120,
-			Watermark:         "",
-			WatermarkOpacity:  0.1,
-			MarginTop:         "15mm",
-			MarginBottom:      "15mm",
-			MarginLeft:        "20mm",
-			MarginRight:       "20mm",
+			Filename:         "",
+			TOC:              true,
+			TOCMaxDepth:      2,
+			Cover:            true,
+			Header:           true,
+			Footer:           true,
+			PDFTimeout:       120,
+			Watermark:        "",
+			WatermarkOpacity: 0.1,
+			// Unset means "use style.margin". A literal default here is
+			// indistinguishable from a user's explicit choice, so it would
+			// override style.margin on every build — the same trap the
+			// typography defaults had.
+			MarginTop:         "",
+			MarginBottom:      "",
+			MarginLeft:        "",
+			MarginRight:       "",
 			GenerateBookmarks: true,
 		},
 		baseDir: ".",
