@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
@@ -34,6 +36,7 @@ type standaloneData struct {
 	Version     string
 	Language    string
 	HasCover    bool // Render the synthesized cover hero section
+	CoverImage  template.URL
 	CSS         template.CSS
 	Chapters    []standaloneChapter
 	SidebarHTML template.HTML
@@ -100,6 +103,11 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	}
 	cssBuilder.WriteString(standaloneWebReset)
 	cssBuilder.WriteString("\n")
+	// book.cover.background applies to every other format; honor it here too.
+	// It has to override the dark-mode palette as well, hence both selectors.
+	if bg := coverBackgroundColor(r.config); bg != "" {
+		fmt.Fprintf(&cssBuilder, ":root, :root[data-theme=\"dark\"] {\n  --color-cover-bg: %s;\n}\n", bg)
+	}
 	if parts.CustomCSS != "" {
 		cssBuilder.WriteString(utils.SanitizeCSS(parts.CustomCSS))
 		cssBuilder.WriteString("\n")
@@ -180,6 +188,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		Version:     r.config.Book.Version,
 		Language:    r.config.Book.Language,
 		HasCover:    parts.CoverHTML != "",
+		CoverImage:  r.coverImageDataURI(),
 		CSS:         template.CSS(cssBuilder.String()),
 		Chapters:    chapters,
 		SidebarHTML: template.HTML(r.buildSidebar(navChapters)),
@@ -190,6 +199,49 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		return "", fmt.Errorf("failed to render standalone HTML: %w", err)
 	}
 	return result.String(), nil
+}
+
+// cssColorPattern matches the color notations a cover background may use.
+// The standalone document embeds the value into a stylesheet, so anything
+// that could terminate the declaration and inject new rules is rejected.
+var cssColorPattern = regexp.MustCompile(`^(#[0-9A-Fa-f]{3,8}|[A-Za-z]+|(rgb|rgba|hsl|hsla)\([0-9A-Za-z.,%\s/+-]*\))$`)
+
+// coverBackgroundColor returns the configured cover background color, or ""
+// when it is unset or not a color literal we are willing to inline.
+func coverBackgroundColor(cfg *config.BookConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	bg := strings.TrimSpace(cfg.Book.Cover.Background)
+	if bg == "" || !cssColorPattern.MatchString(bg) {
+		return ""
+	}
+	return bg
+}
+
+// coverImageDataURI embeds book.cover.image into the cover hero. The document
+// has to stay self-contained, so an unreadable image is dropped with a warning
+// rather than left as a dangling reference.
+func (r *StandaloneHTMLRenderer) coverImageDataURI() template.URL {
+	if r.config == nil {
+		return ""
+	}
+	img := strings.TrimSpace(r.config.Book.Cover.Image)
+	if img == "" {
+		return ""
+	}
+	if _, err := utils.SafeJoin(r.config.BaseDir(), img); err != nil {
+		slog.Warn("Cover image is outside the project directory; skipping",
+			slog.String("image", img), slog.String("error", err.Error()))
+		return ""
+	}
+	dataURI, err := utils.ImageToBase64(r.config.ResolvePath(img))
+	if err != nil {
+		slog.Warn("Cover image could not be embedded; skipping",
+			slog.String("image", img), slog.String("error", err.Error()))
+		return ""
+	}
+	return template.URL(dataURI)
 }
 
 // buildSidebar generates the left-side global TOC sidebar HTML.

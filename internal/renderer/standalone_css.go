@@ -491,6 +491,15 @@ const standaloneCSS = `    /* ==================================================
       max-width: 800px;
     }
 
+    .cover-hero-image {
+      display: block;
+      max-width: 60%;
+      max-height: 45vh;
+      margin: 0 auto 28px auto;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    }
+
     .cover-hero-title {
       font-size: clamp(2rem, 5vw, 2.875rem);
       font-weight: 700;
@@ -1563,6 +1572,25 @@ const standaloneCSS = `    /* ==================================================
         border: none;
       }
 
+      /* One chapter per sheet, the way a printed book reads. The first
+         chapter must not force a break or the print starts with a blank
+         page; when a cover hero is present it owns the opening page. */
+      .chapter {
+        page-break-before: always;
+        break-before: page;
+      }
+
+      .chapter:first-of-type {
+        page-break-before: auto;
+        break-before: auto;
+      }
+
+      .cover-hero {
+        min-height: 0;
+        page-break-after: always;
+        break-after: page;
+      }
+
       h1, h2, h3, h4, h5, h6 {
         page-break-after: avoid;
         page-break-inside: avoid;
@@ -1579,11 +1607,31 @@ const standaloneCSS = `    /* ==================================================
         text-decoration: underline;
       }
 
-      a[href]::after {
+      /* Only external links are worth spelling out on paper. Same-document
+         anchors (footnote markers, cross-references) would otherwise print
+         as noise like "(#fn:1)" in the middle of a sentence. */
+      a[href^="http"]::after {
         content: " (" attr(href) ")";
         font-size: 0.75em;
         color: #656d76;
         word-break: break-all;
+      }
+
+      a[href^="#"]::after {
+        content: none;
+      }
+
+      /* Paper cannot scroll: the screen styles keep code on one line behind
+         a horizontal scrollbar, which silently clips long lines in print.
+         These win over the web re-assertions appended after this block. */
+      pre,
+      pre code,
+      .code-block,
+      .code-block-wrapper {
+        white-space: pre-wrap !important;
+        overflow-wrap: anywhere !important;
+        overflow: visible !important;
+        max-height: none !important;
       }
 
       .code-block,

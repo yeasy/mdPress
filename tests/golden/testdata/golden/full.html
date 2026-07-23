@@ -176,6 +176,9 @@
     p {
       margin: 0.8rem 0;
       text-align: justify;
+       
+      hyphens: auto;
+      -webkit-hyphens: auto;
     }
 
      
@@ -235,6 +238,7 @@
       table-layout: fixed;
     }
 
+     
     table th {
       background-color: #f5f5f5;
       border: 1px solid #ddd;
@@ -242,14 +246,12 @@
       text-align: left;
       font-weight: 600;
       overflow-wrap: anywhere;
-      word-break: break-word;
     }
 
     table td {
       border: 1px solid #ddd;
       padding: 0.8rem;
       overflow-wrap: anywhere;
-      word-break: break-word;
     }
 
     table tbody tr:nth-child(even) {
@@ -276,13 +278,7 @@
       page-break-inside: avoid;
     }
 
-    @media print {
-       
-      img {
-        max-height: 85vh;
-        object-fit: contain;
-      }
-    }
+     
 
      
     p > img:only-child,
@@ -617,6 +613,13 @@ table tbody tr:nth-child(even) td {
 
 .toc-page {
   page-break-after: always;
+}
+
+@media print {
+  img {
+    max-height: 237mm;
+    object-fit: contain;
+  }
 }
 
   </style>
