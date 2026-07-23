@@ -394,8 +394,10 @@ func TestScanMarkdownFilesSkipsDependencyDirs(t *testing.T) {
 	}
 }
 
-// TestScanMarkdownFilesSkipsTopLevelREADME tests that top-level README.md is skipped.
-func TestScanMarkdownFilesSkipsTopLevelREADME(t *testing.T) {
+// TestScanMarkdownFilesKeepsTopLevelREADME covers the top-level README.md.
+// It used to be dropped, which removed a chapter that zero-config discovery
+// includes: running init on a buildable project made content disappear.
+func TestScanMarkdownFilesKeepsTopLevelREADME(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Top Level"), 0o644)          //nolint:errcheck
@@ -407,11 +409,14 @@ func TestScanMarkdownFilesSkipsTopLevelREADME(t *testing.T) {
 		t.Fatalf("scanMarkdownFiles() failed: %v", err)
 	}
 
-	if len(files) != 1 {
-		t.Errorf("scanMarkdownFiles() found %d files, want 1", len(files))
+	if len(files) != 2 {
+		t.Fatalf("scanMarkdownFiles() found %d files, want 2", len(files))
 	}
-	if len(files) > 0 && files[0].RelPath != "chapter/README.md" {
-		t.Errorf("scanMarkdownFiles() = %q, want chapter/README.md", files[0].RelPath)
+	if files[0].RelPath != "README.md" {
+		t.Errorf("scanMarkdownFiles()[0] = %q, want README.md", files[0].RelPath)
+	}
+	if files[1].RelPath != "chapter/README.md" {
+		t.Errorf("scanMarkdownFiles()[1] = %q, want chapter/README.md", files[1].RelPath)
 	}
 }
 

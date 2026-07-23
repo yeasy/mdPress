@@ -170,8 +170,9 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 	}
 
-	// Sort files in lexical order.
-	slices.Sort(otherFiles)
+	// Natural order, so a book numbered past nine reads 2, 3, … 10, 11
+	// instead of 10, 11, 2, 3.
+	slices.SortFunc(otherFiles, NaturalCompare)
 
 	// Use top-level README.md as the first chapter when present.
 	if readmeFile != "" {
@@ -270,6 +271,13 @@ func findMarkdownFiles(dir string) ([]string, error) {
 
 		// Collect only .md files.
 		if strings.ToLower(filepath.Ext(path)) == ".md" {
+			// WalkDir does not follow symlinks, so a dangling one still looks
+			// like a Markdown file here. Listing it as a chapter would make
+			// the build fail on a file that was never readable.
+			if info, err := os.Stat(path); err != nil || info.IsDir() {
+				slog.Warn("skipping unreadable Markdown file", slog.String("path", path))
+				return nil
+			}
 			files = append(files, path)
 		}
 		return nil
