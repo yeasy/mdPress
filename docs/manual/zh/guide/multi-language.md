@@ -39,7 +39,7 @@ Error: failed to load config: config validation failed: at least one chapter is 
 - 任何包含 Markdown 链接 `[名称](目录)` 的行都会成为一种语言。以 `#` 开头的行和空行会被跳过，所以那个标题只是装饰。
 - 链接文本是语言切换器中显示的名称。
 - **链接目标必须是语言目录。** 结尾的斜杠可有可无。绝对路径和 `..` 会被拒绝。
-- 如果指向文件（`[English](en/README.md)`），构建会失败：`stat …/en/README.md/<Title>_site: not a directory`。
+- 条目可以指向目录（`[English](en/)`），也可以指向目录里的文件（`[English](en/README.md)`）；指向文件时会解析到它所在的目录。
 - 列表符号无所谓，`-` 和 `*` 都可以。
 
 ## 每种语言的配置
@@ -93,65 +93,49 @@ cd book
 mdpress build --format site
 ```
 
-mdPress 会逐个构建每种语言。产物落在**各自的语言目录内部**：
+mdPress 会逐个构建每种语言，产物汇入**同一棵输出树**：
 
 ```
 book/
-├── _mdpress_langs.html          <- 列出各语言的着陆页
-├── en/
-│   └── My Docs_site/            <- 名字取自书名，或 output.filename
-│       └── index.html
-└── zh/
-    └── 我的文档_site/
+└── _book/                   <- 整个可部署站点
+    ├── index.html           <- 语言切换页（站点根）
+    ├── en/
+    │   └── index.html
+    └── zh/
         └── index.html
 ```
 
-文件类格式同理——`mdpress build --format pdf` 会生成 `en/My Docs.pdf` 与 `zh/我的文档.pdf`。在某个语言的 `book.yaml` 里设置 `output.filename` 可以控制这个名字：
+用 `--output` 可以构建到别处。它指定的是整棵树的根，所以 `./dist` 和 `./dist/` 等价：
+
+```bash
+mdpress build --format site --output ./dist
+# -> dist/index.html、dist/en/index.html、dist/zh/index.html
+```
+
+看起来像文件的路径会解析成它本该所在的目录——`--output ./dist/book.html` 会构建到 `dist/book/`——因为多语言构建产出的是一棵树，不是单个文件。
+
+文件类格式与各语言站点并列——`mdpress build --format pdf` 会生成 `_book/en/<name>.pdf`。在某个语言的 `book.yaml` 里设置 `output.filename` 可以控制这个名字：
 
 ```yaml
 output:
-  filename: "en-docs"     # -> en/en-docs.pdf 和 en/en-docs_site/
+  filename: "en-docs"     # -> _book/en/en-docs.pdf
 ```
 
-生成的每个站点页面顶部还会注入一条语言切换栏，链接到其他语言和着陆页。
+生成的每个站点页面顶部还会注入一条语言切换栏，链接到其他语言和站点根。
 
-### 整项目构建的已知限制
+目录名取自 `LANGS.md` 而不是书名，所以标题里的空格或中文永远不会进入 URL 路径。切换栏里的链接都做了百分号编码。
 
-整项目构建适合本地预览，但**目前还不适合**直接拿去部署：
+`LANGS.md` 旁边可以有一个根 `book.yaml`，用来放共享元数据；它不需要 `chapters`，因为每个语言目录都有自己的。
 
-- 着陆页叫 `_mdpress_langs.html` 而不是 `index.html`，Web 服务器在站点根路径上并不会提供它。
-- 站点目录名取自书**标题**，因此标题里的空格或中文会进入 URL 路径（`en/My%20Docs_site/`）。
-- 着陆页与切换栏里的链接没有做百分号编码，所以上述标题会产生打不开的链接。
-- `--output ./dist` **不会**创建 `dist/`。它会在项目旁边生成 `dist-en_site/`、`dist-zh_site/` 和 `dist-index.html`，并且各语言自己的 `output.filename` 会被忽略。
+### 构建单一语言
 
-要得到可部署的产物，请用下面的按语言构建方式。
-
-### 构建单一语言（部署推荐做法）
-
-没有 `--lang` 参数。把每个语言目录当作独立项目构建，并自己指定输出路径。**给 `--output` 加上结尾斜杠**，这样 mdPress 才会把它当目录而不是文件基名：
+没有 `--lang` 参数，但语言目录本身就是一个完整项目，直接指向它即可：
 
 ```bash
-mdpress build ./en --format site --output ./dist/en/
-mdpress build ./zh --format site --output ./dist/zh/
+mdpress build ./en --format site --output ./dist/en
 ```
 
-这会得到正是你想部署的布局：
-
-```
-dist/
-├── en/
-│   ├── index.html
-│   ├── guide.html
-│   └── search-index.json
-└── zh/
-    ├── index.html
-    ├── guide.html
-    └── search-index.json
-```
-
-不加结尾斜杠时，`--output ./dist/en` 会被当作文件基名，站点会落到 `dist/en_site/`。
-
-这也是只重建某一种语言而不动其他语言的方式。
+需要各语言分开部署时用这种方式。想要一棵覆盖所有语言的可部署树，用上面的整项目构建。
 
 ### 预览单一语言
 
@@ -178,24 +162,22 @@ mdpress serve ./en
 
 ## 部署
 
-用上面的按语言构建方式，`dist/` 就是一棵普通的静态站点目录树：
+输出树就是一棵普通的静态站点，可以直接上传：
 
 ```
+https://docs.example.com/          <- 语言切换页
 https://docs.example.com/en/
 https://docs.example.com/zh/
 ```
 
-如果需要根路径跳转到默认语言，请自己加一个 `dist/index.html`——mdPress 目前还生成不了可用的那一个。
-
-每种语言也可以单独部署到各自的域名或存储桶，因为每个 `dist/<lang>/` 都是自包含的。
+根路径上的切换页是真正的 `index.html`，Web 服务器无需额外配置即可提供。每个 `<lang>/` 目录也是自包含的，可以单独部署到各自的域名或存储桶。
 
 ## 排查
 
 | 现象 | 原因 |
 | --- | --- |
-| 根目录报 `at least one chapter is required` | 项目根目录存在 `book.yaml`。删掉它；配置应放在各语言目录里。 |
-| `stat …/en/README.md/…: not a directory` | `LANGS.md` 的某一项指向了文件。请改为指向目录：`[English](en/)`。 |
+| 根目录报 `at least one chapter is required` | 根目录有 `book.yaml` 但旁边没有 `LANGS.md`。有 `LANGS.md` 时根 `book.yaml` 是允许的，用来放共享元数据。 |
 | `no language definitions found in LANGS.md` | `LANGS.md` 里没有任何一行包含 Markdown 链接。 |
 | 书名显示为 "Untitled Book" | 语言目录的 `book.yaml` 用了顶层 `title:` 而不是 `book: { title: … }`。 |
 | 站点界面语言不对 | 在该语言的 `book.yaml` 里设置 `book.language`（`en-US`、`zh-CN` 等）。 |
-| `build --output ./dist` 之后没有 `dist/` | 整项目模式下这是预期行为。请按上面的方式逐语言构建。 |
+| 产物落在了意料之外的位置 | `--output` 指定的是整棵树的根。`./dist` 和 `./dist/` 都构建到 `dist/`；像文件的路径会解析成它所在的目录，`./dist/book.html` 构建到 `dist/book/`。 |

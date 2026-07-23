@@ -295,7 +295,10 @@ func queryPluginMeta(execPath string) (version, description string) {
 	var stdout bytes.Buffer
 	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
 	if err := cmd.Run(); err != nil {
-		slog.Debug("Failed to query plugin metadata", slog.String("path", execPath), slog.Any("error", err))
+		// Warn, not Debug: a plugin whose metadata probe fails is usually one
+		// that will not run either, and at Debug the author saw nothing at all.
+		slog.Warn("Failed to query plugin metadata; using defaults",
+			slog.String("path", execPath), slog.Any("error", err))
 		return "0.1.0", ""
 	}
 

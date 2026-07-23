@@ -3,7 +3,8 @@
 // Protocol:
 //   - Reads a JSON request from stdin on each hook invocation.
 //   - Writes a JSON response to stdout with optional content modifications.
-//   - Logs statistics to stderr; mdpress captures stderr and emits it as debug logs.
+//   - Logs statistics to stderr. mdpress only surfaces stderr when the plugin
+//     exits non-zero, so these lines are for running the plugin by hand.
 //
 // Supported flags:
 //
