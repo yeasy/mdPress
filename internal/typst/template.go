@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -31,15 +32,24 @@ type TypstTemplateData struct {
 	FontFamily   string
 	FontSize     string
 	LineHeight   float64
+	// Description becomes the PDF /Subject entry.
+	Description string
+	// BuildTime is the timestamp recorded as the PDF creation date. The zero
+	// value leaves Typst to stamp the wall clock.
+	BuildTime time.Time
 	// FontLine is the fully-rendered Typst "font: (...)" line (including a
 	// trailing newline) or empty to omit it. It is computed from FontFamily
 	// by renderTypstDocument so the template never interpolates a raw CSS
 	// font stack (which is invalid Typst).
 	FontLine string
+	// DocumentLine is the fully-rendered Typst "#set document(...)" call
+	// (including a trailing newline), or empty when there is no metadata to
+	// record. Typst maps it onto the PDF document information dictionary.
+	DocumentLine string
 }
 
 // TypstTemplate defines the base Typst document template.
-const typstTemplateStr = `#set page(
+const typstTemplateStr = `{{ .DocumentLine }}#set page(
   width: {{ .PageWidth }},
   height: {{ .PageHeight }},
   margin: (
@@ -126,6 +136,52 @@ func sanitizeTypstText(s string) string {
 	return typstTextReplacer.Replace(s)
 }
 
+// typstStringLiteralReplacer escapes a value for use inside a Typst double-quoted
+// string. Markup escaping (sanitizeTypstText) must not be used there: inside a
+// string literal a "\#" would show up verbatim in the PDF metadata.
+var typstStringLiteralReplacer = strings.NewReplacer(
+	"\\", "\\\\",
+	`"`, `\"`,
+	"\n", " ",
+	"\r", " ",
+	"{{", "",
+	"}}", "",
+)
+
+// typstStringLiteral quotes s as a Typst string literal.
+func typstStringLiteral(s string) string {
+	return `"` + typstStringLiteralReplacer.Replace(s) + `"`
+}
+
+// buildDocumentLine renders the "#set document(...)" call that gives the PDF its
+// document information. Typst otherwise writes an empty title and an author-less
+// dictionary, so a generated book shows up untitled in library software.
+//
+// The build timestamp is passed explicitly rather than left to Typst's wall
+// clock so that rebuilding the same sources yields an identical PDF.
+func buildDocumentLine(data TypstTemplateData) string {
+	var fields []string
+	if data.Title != "" {
+		fields = append(fields, "title: "+typstStringLiteral(data.Title))
+	}
+	if data.Author != "" {
+		fields = append(fields, "author: ("+typstStringLiteral(data.Author)+",)")
+	}
+	if data.Description != "" {
+		fields = append(fields, "description: "+typstStringLiteral(data.Description))
+	}
+	if !data.BuildTime.IsZero() {
+		t := data.BuildTime.UTC()
+		fields = append(fields, fmt.Sprintf(
+			"date: datetime(year: %d, month: %d, day: %d, hour: %d, minute: %d, second: %d)",
+			t.Year(), int(t.Month()), t.Day(), t.Hour(), t.Minute(), t.Second()))
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	return "#set document(" + strings.Join(fields, ", ") + ")\n"
+}
+
 // sanitizeTemplateValue strips Go template delimiters from dimension/font values
 // that are interpolated into the text/template but don't need Typst escaping.
 func sanitizeTemplateValue(s string) string {
@@ -154,6 +210,10 @@ const contentPlaceholder = "__MDPRESS_CONTENT_PLACEHOLDER__"
 
 // renderTypstDocument renders the template with the provided data.
 func renderTypstDocument(data TypstTemplateData) (string, error) {
+	// Built from the raw values: the markup escaping below is for body text
+	// and would leak backslashes into the PDF metadata.
+	data.DocumentLine = buildDocumentLine(data)
+
 	// Sanitize user-supplied metadata to prevent Typst injection.
 	data.Title = sanitizeTypstText(data.Title)
 	data.Subtitle = sanitizeTypstText(data.Subtitle)
@@ -241,9 +301,22 @@ func sanitizeTypstValue(val string) string {
 	return result.String()
 }
 
-// currentDate returns the current date as a formatted string.
+// buildTime returns the timestamp to stamp into generated documents.
+//
+// SOURCE_DATE_EPOCH (https://reproducible-builds.org/specs/source-date-epoch/)
+// is honored so that rebuilding the same sources produces an identical PDF.
+func buildTime() time.Time {
+	if raw := strings.TrimSpace(os.Getenv("SOURCE_DATE_EPOCH")); raw != "" {
+		if secs, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return time.Unix(secs, 0).UTC()
+		}
+	}
+	return time.Now().UTC()
+}
+
+// currentDate returns the build date as a formatted string.
 func currentDate() string {
-	return time.Now().Format("2006-01-02")
+	return buildTime().Format("2006-01-02")
 }
 
 // prepareTypstContent prepares the Typst content by escaping special characters if needed.
