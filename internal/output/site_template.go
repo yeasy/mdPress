@@ -74,7 +74,7 @@ body.sidebar-resizing .main { transition: none; }
 }
 .sidebar-close:hover { background: #eee; color: #333; border-color: #d0d0d0; }
 .sidebar-subtitle {
-  font-size: 0.72rem; color: #7a7a7a; margin-bottom: 8px; line-height: 1.3;
+  font-size: 0.72rem; color: #5f5f5f; margin-bottom: 8px; line-height: 1.3;
   text-transform: uppercase; letter-spacing: 0.06em;
 }
 .sidebar-meta {
@@ -86,7 +86,7 @@ body.sidebar-resizing .main { transition: none; }
 }
 .sidebar-author {
   font-size: 0.78rem;
-  color: #8d8d8d;
+  color: #5f5f5f;
   font-weight: 600;
 }
 .sidebar-description {
@@ -201,7 +201,7 @@ body.sidebar-resizing .main { transition: none; }
   text-decoration: underline;
 }
 .bc-sep {
-  color: #999;
+  color: #6a6a6a;
   font-size: 0.8em;
 }
 .chapter-title {
@@ -246,7 +246,7 @@ body.sidebar-resizing .main { transition: none; }
 
 /* ===== Right-Side Page TOC ===== */
 .page-toc {
-  position: sticky; top: 64px; align-self: start;
+  position: sticky; top: var(--header-h, 64px); align-self: start;
   max-height: calc(100vh - 80px); overflow-y: auto;
   padding: 16px 16px 16px 0; font-size: 0.82rem; line-height: 1.5;
   border-left: 1px solid #e8e8e8;
@@ -293,7 +293,10 @@ body.sidebar-resizing .main { transition: none; }
   opacity: 1;
 }
 .content h1[id], .content h2[id], .content h3[id], .content h4[id], .content h5[id], .content h6[id] {
-  scroll-margin-top: 64px;
+  /* --header-h is measured at runtime: the sticky header is taller than 64px
+     whenever the breadcrumb or the search box wraps, and a fixed offset lands
+     the target heading underneath it. */
+  scroll-margin-top: var(--header-h, 64px);
 }
 .content h1 { font-size: 2em; margin: 0 0 0.8em; color: var(--color-heading, #1a1a2e); border-bottom: 2px solid var(--color-accent, #4285f4); padding-bottom: 0.3em; }
 .content h2 { font-size: 1.5em; margin: 1.5em 0 0.6em; color: #333; padding-bottom: 0.3em; border-bottom: 1px solid #eee; }
@@ -423,6 +426,15 @@ html.dark .content p:has(> a:only-child > img:only-child) + p:has(> em:only-chil
 
 /* ===== Code Block Copy Button ===== */
 .code-wrapper { position: relative; }
+/* The fence language, shown the way the standalone HTML build shows it. */
+.code-wrapper[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute; top: 8px; left: 12px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: #5f5f5f; pointer-events: none; z-index: 1;
+}
+html.dark .code-wrapper[data-lang]::before { color: #9399b2; }
+.code-wrapper[data-lang] > pre { padding-top: 28px; }
 .code-wrapper .copy-btn {
   position: absolute; top: 8px; right: 8px;
   background: rgba(255,255,255,.8); border: 1px solid #d0d7de; border-radius: 4px;
@@ -487,7 +499,7 @@ html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-sh
 }
 .page-nav .nav-label {
   font-size: 0.75rem;
-  color: #999;
+  color: #6a6a6a;
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -513,7 +525,7 @@ html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-sh
   margin-top: 3rem;
   padding-top: 2rem;
   border-top: 1px solid #e8e8e8;
-  color: #999;
+  color: #6a6a6a;
   font-size: 0.82rem;
   text-align: center;
 }
@@ -528,7 +540,7 @@ html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-sh
 .page-meta {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  color: #999;
+  color: #6a6a6a;
   font-size: 0.78rem;
   text-align: center;
   border-top: 1px solid #e8e8e8;
@@ -621,6 +633,14 @@ body.sidebar-open::before {
   .main-body { grid-template-columns: 1fr; }
   .content { padding: 24px 20px 80px; }
   .page-header { padding: 12px 16px 12px 56px; }
+  /* A long breadcrumb used to wrap onto three lines and push the sticky
+     header down over a quarter of a phone screen, which also swallowed every
+     anchor jump. Truncate the trail instead of growing the header. */
+  .page-breadcrumb { min-width: 0; flex-wrap: nowrap; overflow: hidden; }
+  .page-breadcrumb a {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+  .page-breadcrumb a:last-child { flex: 1 1 auto; }
   .header-search-btn span { display: none; }
   .header-search-btn kbd { display: none; }
   .page-nav {
@@ -701,7 +721,7 @@ select:focus-visible {
   border-bottom: 1px solid #e8e8e8;
   gap: 10px;
 }
-.search-header .search-icon { color: #999; font-size: 18px; flex-shrink: 0; }
+.search-header .search-icon { color: #6a6a6a; font-size: 18px; flex-shrink: 0; }
 .search-input {
   flex: 1;
   border: none;
@@ -713,7 +733,7 @@ select:focus-visible {
 .search-input::placeholder { color: #aaa; }
 .search-esc {
   font-size: 11px;
-  color: #999;
+  color: #6a6a6a;
   background: #f0f0f0;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -782,13 +802,13 @@ select:focus-visible {
 }
 .search-result-path {
   font-size: 0.7rem;
-  color: #999;
+  color: #6a6a6a;
   margin-bottom: 2px;
 }
 .search-empty {
   text-align: center;
   padding: 24px 16px;
-  color: #999;
+  color: #6a6a6a;
   font-size: 0.9rem;
 }
 .search-jump-notice {
@@ -804,7 +824,7 @@ select:focus-visible {
   padding: 8px 16px;
   border-top: 1px solid #e8e8e8;
   font-size: 0.75rem;
-  color: #999;
+  color: #6a6a6a;
   display: flex;
   gap: 16px;
 }
@@ -834,11 +854,11 @@ html.dark .nav-chapter { color: #bac2de; }
 html.dark .nav-heading { color: #a6adc8; }
 html.dark .nav-item:hover { background: #313244; color: #cdd6f4; }
 html.dark .nav-item.active { background: rgba(137,180,250,.15); color: #89b4fa; }
-html.dark .nav-toggle::before { border-color: #6c7086; }
+html.dark .nav-toggle::before { border-color: #9399b2; }
 html.dark .main { background: #1e1e2e; }
 html.dark .page-header { border-bottom-color: #313244; background: rgba(24,24,37,0.95); }
 html.dark .page-breadcrumb a { color: #89b4fa; }
-html.dark .bc-sep { color: #6c7086; }
+html.dark .bc-sep { color: #9399b2; }
 html.dark .chapter-title { color: #cdd6f4; border-bottom-color: #313244; }
 html.dark .content { color: #cdd6f4; }
 html.dark .content h1 { color: #cdd6f4; border-bottom-color: #89b4fa; }
@@ -863,7 +883,7 @@ html.dark .content p.caption { color: #a6adc8; }
 html.dark .content hr { background: #363849; }
 html.dark .page-nav a { background: #262637; border-color: #363849; color: #cdd6f4; }
 html.dark .page-nav a:hover { border-color: #89b4fa; background: #2a2a3e; }
-html.dark .page-meta, html.dark .build-meta { color: #6c7086; }
+html.dark .page-meta, html.dark .build-meta { color: #9399b2; }
 html.dark .build-meta a { color: #89b4fa; }
 html.dark .edit-page-link { color: #89b4fa; }
 html.dark .sidebar-toggle { background: #89b4fa; color: #1e1e2e; }
@@ -872,28 +892,28 @@ html.dark body.sidebar-open::before { background: rgba(0,0,0,.5); }
 html.dark .route-progress-bar { background: #89b4fa; }
 html.dark .page-toc { border-left-color: #313244; }
 html.dark .page-toc-header { color: #a6adc8; }
-html.dark .page-toc-nav a { color: #6c7086; }
+html.dark .page-toc-nav a { color: #9399b2; }
 html.dark .page-toc-nav a:hover { color: #cdd6f4; }
 html.dark .page-toc-nav a.toc-active { color: #89b4fa; border-left-color: #89b4fa; }
 html.dark .search-inline { background: #1e1e2e; border-left-color: #313244; box-shadow: -4px 0 24px rgba(0,0,0,.3); }
 html.dark .search-header { border-bottom-color: #313244; }
 html.dark .search-input { color: #cdd6f4; }
-html.dark .search-input::placeholder { color: #6c7086; }
+html.dark .search-input::placeholder { color: #9399b2; }
 html.dark .search-esc { background: #313244; border-color: #45475a; color: #a6adc8; }
 html.dark .search-result:hover, html.dark .search-result.search-active { background: #313244; }
 html.dark .search-result-title { color: #cdd6f4; }
 html.dark .search-badge { background: rgba(137,180,250,.18); color: #b9d8ff; }
 html.dark .search-result-snippet { color: #a6adc8; }
-html.dark .search-result-path { color: #6c7086; }
+html.dark .search-result-path { color: #9399b2; }
 html.dark .search-result-snippet mark { background: #45475a; color: #f9e2af; }
-html.dark .search-empty { color: #6c7086; }
+html.dark .search-empty { color: #9399b2; }
 html.dark .search-jump-notice { background: #262637; color: #bac2de; }
-html.dark .search-status { color: #6c7086; }
-html.dark .search-footer { border-top-color: #313244; color: #6c7086; }
+html.dark .search-status { color: #9399b2; }
+html.dark .search-footer { border-top-color: #313244; color: #9399b2; }
 html.dark .search-footer kbd { background: #313244; border-color: #45475a; }
-html.dark .header-search-btn { background: #313244; border-color: #45475a; color: #6c7086; }
+html.dark .header-search-btn { background: #313244; border-color: #45475a; color: #9399b2; }
 html.dark .header-search-btn:hover { border-color: #585b70; background: #3b3d52; color: #a6adc8; }
-html.dark .header-search-btn kbd { background: #45475a; border-color: #585b70; color: #6c7086; }
+html.dark .header-search-btn kbd { background: #45475a; border-color: #585b70; color: #9399b2; }
 html.dark .content .mermaid text,
 html.dark .content .mermaid tspan,
 html.dark .content .mermaid .nodeLabel,
@@ -959,7 +979,7 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
   border: 1px solid #d0d0d0;
   border-radius: 3px;
   padding: 1px 5px;
-  color: #999;
+  color: #6a6a6a;
   font-family: inherit;
   line-height: 1.4;
 }
@@ -995,9 +1015,14 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
   .content { padding: 0; margin: 0; max-width: 100%; }
   .page-header, .page-nav, .build-meta { display: none !important; }
   body { background: white; color: black; }
-  * { background: transparent !important; box-shadow: none !important; color: black !important; }
+  /* Code blocks keep their own colours: forcing everything to black would
+     flatten the syntax highlighting the reader is printing the page for. */
+  *:not(pre):not(pre *) { background: transparent !important; box-shadow: none !important; color: black !important; }
+  pre, pre * { box-shadow: none !important; }
   a { color: #0969da; text-decoration: underline; }
-  a::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #999; }
+  /* Only external links are worth spelling out on paper; printing the href of
+     every in-page and same-site link buries the text in relative paths. */
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #6a6a6a; }
   h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
   p, pre, blockquote { page-break-inside: avoid; }
   img { max-width: 100%; page-break-inside: avoid; }
@@ -2620,8 +2645,40 @@ body {
     });
   })();
 
+  /* ===== Sticky Header Height ===== */
+  (function() {
+    /* Anchor targets scroll to scroll-margin-top, which has to match the real
+       header height. On a phone the breadcrumb wraps and the header grows well
+       past its 64px design height, dropping every anchor jump behind it. */
+    var header = document.querySelector('.page-header');
+    if (!header) return;
+    function measure() {
+      var h = Math.round(header.getBoundingClientRect().height);
+      if (h > 0) {
+        document.documentElement.style.setProperty('--header-h', h + 'px');
+      }
+    }
+    measure();
+    if (window.ResizeObserver) {
+      new ResizeObserver(measure).observe(header);
+    } else {
+      window.addEventListener('resize', measure);
+    }
+    window.addEventListener('load', measure);
+  })();
+
   /* ===== Code Block Copy Buttons ===== */
   (function() {
+    function codeLanguage(pre) {
+      var code = pre.querySelector('code');
+      var lang = pre.getAttribute('data-lang') || (code && code.getAttribute('data-lang')) || '';
+      if (!lang && code) {
+        var match = /(?:^|\s)language-([^\s]+)/.exec(code.className || '');
+        if (match) lang = match[1];
+      }
+      return lang === 'text' ? '' : lang;
+    }
+
     function addCopyButtons(root) {
       var pres = (root || document).querySelectorAll('pre');
       for (var i = 0; i < pres.length; i++) {
@@ -2629,6 +2686,11 @@ body {
         if (pre.parentNode.classList.contains('code-wrapper')) continue;
         var wrapper = document.createElement('div');
         wrapper.className = 'code-wrapper';
+        /* Surface the fence language the renderer recorded, so a reader can
+           tell a shell transcript from its output the way they can in the
+           standalone HTML build. */
+        var lang = codeLanguage(pre);
+        if (lang) wrapper.setAttribute('data-lang', lang);
         pre.parentNode.insertBefore(wrapper, pre);
         wrapper.appendChild(pre);
         var btn = document.createElement('button');
