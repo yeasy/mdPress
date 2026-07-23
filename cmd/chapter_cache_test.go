@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/markdown"
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 func TestParsedChapterCacheRoundTrip(t *testing.T) {
@@ -174,16 +175,19 @@ func TestParsedChapterCacheCodeThemeDifference(t *testing.T) {
 // binary version in the key an unchanged chapter keeps whatever the previous
 // mdpress rendered, and rendering fixes never reach existing projects.
 func TestParsedChapterCacheKeyIncludesVersion(t *testing.T) {
-	prev := Version
-	t.Cleanup(func() { Version = prev })
+	// rendererFingerprint is memoized (it stats the executable once), so the
+	// key is checked through the hash inputs directly.
+	base := utils.StableHash(parsedChapterCacheVersion, "0.0.1", "/book/ch1.md", "github", "# Same content")
+	bumped := utils.StableHash(parsedChapterCacheVersion, "0.0.2", "/book/ch1.md", "github", "# Same content")
+	if base == bumped {
+		t.Error("cache key ignores the renderer fingerprint; an upgrade would reuse stale HTML")
+	}
 
-	Version = "0.0.1"
-	before := parsedChapterCachePath("/book/ch1.md", "# Same content", "github")
-
-	Version = "0.0.2"
-	after := parsedChapterCachePath("/book/ch1.md", "# Same content", "github")
-
-	if before == after {
-		t.Error("cache path is identical across versions; an upgrade would reuse stale HTML")
+	// And the live fingerprint must actually carry something binary-specific,
+	// not just the version — that is what made rendering fixes invisible in
+	// builds from source, where the version does not move.
+	fp := rendererFingerprint()
+	if fp == Version {
+		t.Errorf("fingerprint is only the version (%q); source rebuilds will reuse stale HTML", fp)
 	}
 }
