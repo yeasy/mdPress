@@ -17,7 +17,7 @@ var sitePageTemplate = `<!DOCTYPE html>
 {{if .Author}}<meta name="author" content="{{.Author}}">{{end}}
 <title>{{.HeadTitle}}</title>
 {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">
+{{if .FaviconHref}}<link rel="icon" href="{{.FaviconHref}}">{{else}}<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">{{end}}
 {{if .SitemapLink}}<link rel="sitemap" type="application/xml" href="{{.SitemapLink}}">{{end}}
 <style>
 /* ===== Reset & Base ===== */
@@ -52,6 +52,11 @@ body.sidebar-resizing .main { transition: none; }
 .sidebar-header {
   padding: 18px 20px 16px; border-bottom: 1px solid #e8e8e8;
   margin-bottom: 8px;
+}
+.sidebar-logo-link { display: block; margin-bottom: 12px; }
+.sidebar-logo {
+  display: block; max-width: 100%; max-height: 64px;
+  width: auto; height: auto; object-fit: contain;
 }
 .sidebar-title-row {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
@@ -556,6 +561,8 @@ html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-sh
   font-size: 0.82rem;
   text-align: center;
 }
+.build-meta .build-meta-copyright { display: block; }
+.build-meta .build-meta-copyright + .build-meta-text { display: block; margin-top: 4px; }
 .build-meta a {
   color: var(--color-link, #4285f4);
   text-decoration: none;
@@ -1107,14 +1114,16 @@ body {
   <nav class="sidebar">
     <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
     <div class="sidebar-header">
+      {{if .LogoHref}}<a class="sidebar-logo-link" href="{{.HomeLink}}"><img class="sidebar-logo" src="{{.LogoHref}}" alt="{{.SiteTitle}}"></a>{{end}}
       <div class="sidebar-title-row">
         <h1><a class="sidebar-home-link" href="{{.HomeLink}}">{{.SiteTitle}}</a></h1>
         <button class="sidebar-close" aria-label="{{.UIhideSidebar}}" title="{{.UIhideSidebar}}">✕</button>
       </div>
       {{if .SiteSubtitle}}<div class="sidebar-subtitle">{{.SiteSubtitle}}</div>{{end}}
-      {{if or .Author .ThemeName}}<div class="sidebar-meta">
+      {{$badge := and .ShowThemeBadge .ThemeName}}
+      {{if or .Author $badge}}<div class="sidebar-meta">
       {{if .Author}}<span class="sidebar-author">{{.Author}}</span>{{end}}
-      {{if .ThemeName}}<div class="theme-badge" title="{{.ThemeDescription}}">{{.ThemeName}}</div>{{end}}
+      {{if $badge}}<div class="theme-badge">{{.ThemeName}}</div>{{end}}
       </div>{{end}}
       {{if .SiteDescription}}<div class="sidebar-description">{{.SiteDescription}}</div>{{end}}
     </div>
@@ -1158,9 +1167,10 @@ body {
           <a class="edit-page-link" href="{{.EditLink}}" target="_blank" rel="noopener">{{.UIeditPage}}</a>{{end}}
         </div>
 
-        <div class="build-meta">
-          <span class="build-meta-text">{{printf .UIbuiltWith "mdPress"}}</span>
-        </div>
+        {{if or .Copyright .FooterHTML .ShowDefaultFooter}}<div class="build-meta">
+          {{if .Copyright}}<span class="build-meta-copyright">{{.Copyright}}</span>{{end}}
+          {{if .FooterHTML}}<span class="build-meta-text">{{safeHTML .FooterHTML}}</span>{{else if .ShowDefaultFooter}}<span class="build-meta-text">{{printf .UIbuiltWith "mdPress"}}</span>{{end}}
+        </div>{{end}}
       </div>
       <aside class="page-toc" id="page-toc" role="navigation" aria-label="{{.UIonThisPage}}">
         <div class="page-toc-header">{{.UIonThisPage}}</div>

@@ -16,7 +16,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -113,6 +115,87 @@ func (a *assetExtractor) write(name string, data []byte) error {
 		return fmt.Errorf("write asset %s: %w", name, err)
 	}
 	return nil
+}
+
+// maxBrandingAssetBytes caps the size of a favicon or logo copied into the
+// site. Anything larger is a mistake (a full-resolution photo, a video) and
+// would be downloaded by every reader on every page.
+const maxBrandingAssetBytes = 4 << 20 // 4 MiB
+
+// BrandingAsset resolves a configured favicon or logo to a site-root-relative
+// href, copying the file into the site's asset directory under a
+// content-hashed name so it is cacheable and survives the atomic swap.
+//
+// External references (https://…, //…, data:…) and site-root-absolute paths
+// are returned unchanged: they are the deployment's business, not the build's.
+// A project-relative path is looked up under bookRoot first, then in the
+// output directory (where a file shipped in static/ has already landed).
+//
+// A reference that resolves to nothing returns "" with a warning rather than
+// an error: a broken logo must not fail an otherwise good build, but it must
+// not be silently swallowed either.
+func (a *assetExtractor) BrandingAsset(bookRoot, ref, kind string) string {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return ""
+	}
+	if utils.IsExternalAssetRef(ref) {
+		return ref
+	}
+
+	ext := strings.ToLower(filepath.Ext(ref))
+	if ext == "" {
+		slog.Warn("ignoring branding image with no file extension",
+			slog.String("setting", kind), slog.String("value", ref))
+		return ""
+	}
+
+	source := ""
+	if bookRoot != "" {
+		if joined, err := utils.SafeJoin(bookRoot, ref); err == nil {
+			if info, statErr := os.Stat(joined); statErr == nil && info.Mode().IsRegular() {
+				source = joined
+			}
+		}
+	}
+	if source == "" {
+		// A file shipped in the project's static/ directory is already in the
+		// output by the time pages are rendered; referencing it by its
+		// published path is the natural thing for a user to write.
+		if joined, err := utils.SafeJoin(a.outputDir, ref); err == nil {
+			if info, statErr := os.Stat(joined); statErr == nil && info.Mode().IsRegular() {
+				return path.Clean(filepath.ToSlash(ref))
+			}
+		}
+		slog.Warn("branding image not found; ignoring it",
+			slog.String("setting", kind), slog.String("value", ref))
+		return ""
+	}
+
+	data, err := os.ReadFile(source) //nolint:gosec // G304: path is confined to the project by SafeJoin
+	if err != nil {
+		slog.Warn("cannot read branding image; ignoring it",
+			slog.String("setting", kind), slog.String("value", ref), slog.Any("error", err))
+		return ""
+	}
+	if len(data) > maxBrandingAssetBytes {
+		slog.Warn("branding image is too large; ignoring it",
+			slog.String("setting", kind), slog.String("value", ref),
+			slog.Int("bytes", len(data)), slog.Int("max_bytes", maxBrandingAssetBytes))
+		return ""
+	}
+
+	sum := sha256.Sum256(data)
+	name := kind + "-" + hex.EncodeToString(sum[:])[:16] + ext
+	if _, written := a.names[name]; !written {
+		if err := a.write(name, data); err != nil {
+			slog.Warn("cannot write branding image; ignoring it",
+				slog.String("setting", kind), slog.String("value", ref), slog.Any("error", err))
+			return ""
+		}
+		a.names[name] = name
+	}
+	return siteAssetDir + "/" + name
 }
 
 // copyStaticDir copies bookRoot/static into the site output, preserving

@@ -112,6 +112,15 @@ type BookMeta struct {
 	Language    string    `yaml:"language"`
 	Description string    `yaml:"description"`
 	Cover       CoverMeta `yaml:"cover"`
+	// Favicon is the site icon: a project-relative image path, or an absolute
+	// URL. Empty keeps mdpress's built-in book emoji.
+	Favicon string `yaml:"favicon"`
+	// Logo is an image shown above the title in the site sidebar: a
+	// project-relative image path, or an absolute URL. Empty shows no logo.
+	Logo string `yaml:"logo"`
+	// Copyright is a short notice rendered in each page's footer, e.g.
+	// "© 2026 Acme Inc.". Empty renders no notice.
+	Copyright string `yaml:"copyright"`
 }
 
 // CoverMeta stores cover configuration.
@@ -182,6 +191,17 @@ type OutputConfig struct {
 	SiteURL           string   `yaml:"site_url"`           // Public base URL of the deployed site (e.g. https://user.github.io/repo); enables sitemap.xml
 	EditBase          string   `yaml:"edit_base"`          // Base URL for "edit this page" links (e.g. https://github.com/user/repo/edit/main/)
 	TaggedPDF         *bool    `yaml:"tagged_pdf"`         // Generate accessible tagged PDF (default true; false produces smaller files)
+	// FooterHTML replaces the site's default "Built with mdPress" footer line.
+	// A nil pointer means "not configured" and keeps the default; an explicit
+	// empty string removes the line. It is a pointer for exactly that reason —
+	// a plain string cannot tell "unset" from "the user wants no footer".
+	// Its value is emitted as raw HTML, on the same trust footing as raw HTML
+	// in the Markdown sources (see BookConfig.AllowRawHTML).
+	FooterHTML *string `yaml:"footer_html"`
+	// ShowThemeBadge renders the theme name as a badge in the site sidebar.
+	// Off by default: it is mdpress advertising itself on someone else's
+	// published site, and removing it used to require a CSS hack.
+	ShowThemeBadge bool `yaml:"show_theme_badge"`
 }
 
 // DefaultBookTitle is the placeholder used when book.title is unset. It is
@@ -472,6 +492,20 @@ func (c *BookConfig) Validate() error {
 	if c.Book.Cover.Image != "" {
 		if _, err := utils.SafeJoin(c.baseDir, c.Book.Cover.Image); err != nil {
 			errs = append(errs, fmt.Errorf("cover.image: %w", err))
+		}
+	}
+
+	// Branding images are copied into the published site, so a project-relative
+	// path must stay inside the project. Absolute URLs are left to the browser.
+	for _, ref := range []struct{ key, value string }{
+		{"book.favicon", c.Book.Favicon},
+		{"book.logo", c.Book.Logo},
+	} {
+		if ref.value == "" || utils.IsExternalAssetRef(ref.value) {
+			continue
+		}
+		if _, err := utils.SafeJoin(c.baseDir, ref.value); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", ref.key, err))
 		}
 	}
 

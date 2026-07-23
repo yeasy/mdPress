@@ -53,12 +53,16 @@ type SiteNavHeading struct {
 
 // SiteMeta stores site-wide metadata.
 type SiteMeta struct {
-	Title            string
-	Subtitle         string
-	Description      string
-	Author           string
-	Language         string
-	Theme            string // CSS theme name.
+	Title       string
+	Subtitle    string
+	Description string
+	Author      string
+	Language    string
+	Theme       string // CSS theme name.
+	// ThemeDescription is no longer rendered. It used to be the theme badge's
+	// tooltip, which meant mdPress's own marketing copy about its themes sat
+	// on the sidebar of every published site. Kept so existing callers still
+	// compile; drop it together with the caller that sets it.
 	ThemeDescription string
 	// SiteURL is the public base URL of the deployed site (e.g.
 	// https://user.github.io/repo). When set, an absolute-URL sitemap.xml is
@@ -67,6 +71,22 @@ type SiteMeta struct {
 	// EditBase is the base URL for "edit this page" links (e.g.
 	// https://github.com/user/repo/edit/main/). Empty disables the links.
 	EditBase string
+
+	// Branding. Each of these was previously unconfigurable: the favicon was
+	// always mdPress's book emoji, there was no way to show a project logo,
+	// and the footer and theme badge could only be removed with a CSS hack.
+	//
+	// Favicon and Logo are either a path relative to BookRoot (copied into the
+	// site's asset directory) or an absolute URL / site-root path, used as-is.
+	Favicon string
+	Logo    string
+	// Copyright is rendered in each page's footer above the mdPress line.
+	Copyright string
+	// FooterHTML replaces the default "Built with mdPress" line. nil keeps the
+	// default; a non-nil empty string removes the line altogether.
+	FooterHTML *string
+	// ShowThemeBadge renders the theme name in the sidebar. Off by default.
+	ShowThemeBadge bool
 }
 
 // SiteGenerator generates the static site.
@@ -188,6 +208,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		slog.Debug("copied static files into the site", slog.Int("files", copied))
 	}
 
+	// Branding images are resolved once and referenced from every page. This
+	// must run after the static/ copy, which is where a favicon may live.
+	branding := g.resolveBranding(assets)
+
 	// Render every page.
 	for i, page := range flatPages {
 		pageContent, err := assets.Extract(page.Content, page.Filename)
@@ -244,6 +268,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			CurrentPage:      i + 1,
 			ShowTitle:        !contentStartsWithTitle(pageContent, page.Title),
 		}
+		g.applyBranding(&data, branding, page.Filename)
 		populateUIStrings(&data)
 
 		var buf strings.Builder
@@ -315,6 +340,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			CurrentPage:  1,
 			ShowTitle:    !contentStartsWithTitle(firstContent, firstPage.Title),
 		}
+		g.applyBranding(&idxData, branding, "index.html")
 		populateUIStrings(&idxData)
 		var buf strings.Builder
 		if err := tmpl.Execute(&buf, idxData); err != nil {
@@ -461,6 +487,16 @@ type pageData struct {
 	CurrentPage  int
 	ShowTitle    bool // true when Content lacks an <h1>, so the template should insert one.
 
+	// Branding, resolved to hrefs relative to this page.
+	FaviconHref string // empty falls back to the built-in emoji icon
+	LogoHref    string // empty renders no sidebar logo
+	Copyright   string
+	// FooterHTML is a custom footer line, emitted as raw HTML. When empty,
+	// ShowDefaultFooter decides whether the "Built with mdPress" line appears.
+	FooterHTML        string
+	ShowDefaultFooter bool
+	ShowThemeBadge    bool
+
 	// Localized UI strings.
 	UIprevious          string
 	UInext              string
@@ -571,6 +607,47 @@ func relativeSiteHref(fromFile, target string) string {
 		common++
 	}
 	return strings.Repeat("../", len(fromParts)-common) + strings.Join(targetParts[common:], "/")
+}
+
+// siteBranding holds the project's branding resolved once per build, before
+// any page is rendered. Hrefs are relative to the site root; applyBranding
+// re-bases them for each page.
+type siteBranding struct {
+	favicon string
+	logo    string
+}
+
+// resolveBranding copies the configured favicon and logo into the site's asset
+// directory, so pages can reference real files.
+func (g *SiteGenerator) resolveBranding(assets *assetExtractor) siteBranding {
+	return siteBranding{
+		favicon: assets.BrandingAsset(g.BookRoot, g.Meta.Favicon, "favicon"),
+		logo:    assets.BrandingAsset(g.BookRoot, g.Meta.Logo, "logo"),
+	}
+}
+
+// applyBranding fills the branding fields of one page's data.
+func (g *SiteGenerator) applyBranding(d *pageData, b siteBranding, pageFilename string) {
+	d.FaviconHref = brandingHref(b.favicon, pageFilename)
+	d.LogoHref = brandingHref(b.logo, pageFilename)
+	d.Copyright = strings.TrimSpace(g.Meta.Copyright)
+	d.ShowThemeBadge = g.Meta.ShowThemeBadge
+	if g.Meta.FooterHTML == nil {
+		// Not configured: keep the "Built with mdPress" line.
+		d.ShowDefaultFooter = true
+		return
+	}
+	// Configured, possibly to the empty string, which means "no footer line".
+	d.FooterHTML = strings.TrimSpace(*g.Meta.FooterHTML)
+}
+
+// brandingHref re-bases a site-root-relative branding href for the page at
+// pageFilename, leaving external and site-absolute references untouched.
+func brandingHref(ref, pageFilename string) string {
+	if ref == "" || utils.IsExternalAssetRef(ref) {
+		return ref
+	}
+	return relativeSiteHref(pageFilename, ref)
 }
 
 func resolveBreadcrumbs(crumbs []breadcrumb, fromFile string) []breadcrumb {
