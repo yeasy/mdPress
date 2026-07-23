@@ -383,9 +383,14 @@ func extractImagePaths(filePath string) ([]string, error) {
 	htmlImgRegex := htmlImgSrcPattern
 
 	var images []string
+	var fences fenceTracker
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
+		// Examples inside code fences are not real references.
+		line := scannableLine(scanner.Text(), &fences)
+		if line == "" {
+			continue
+		}
 
 		// Markdown images
 		matches := imgRegex.FindAllStringSubmatch(line, -1)
@@ -471,9 +476,14 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 	htmlLinkRegex := htmlLinkHrefPattern
 
 	var links []string
+	var fences fenceTracker
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
+		// Examples inside code fences are not real references.
+		line := scannableLine(scanner.Text(), &fences)
+		if line == "" {
+			continue
+		}
 
 		matches := linkRegex.FindAllStringSubmatchIndex(line, -1)
 		for _, m := range matches {

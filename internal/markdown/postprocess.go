@@ -151,8 +151,15 @@ func processMermaid(html string) string {
 		if len(parts) < 2 {
 			return match
 		}
-		// Unescape HTML entities that goldmark added (e.g. &lt; &gt; &amp; &#34;)
-		// so Mermaid JS can parse the diagram syntax correctly.
+		// Unescape to normalize and sanitize the diagram source, then escape it
+		// again on the way out.
+		//
+		// Mermaid reads the element's textContent, which the browser has
+		// already decoded from entities, so escaped markup parses correctly.
+		// Emitting the raw text instead corrupts the DOM: a class diagram's
+		// `<<interface>>` is parsed as an HTML tag and swallowed, taking the
+		// annotation — and the diagram's validity — with it.
+		//
 		// Primary XSS protection is Mermaid's securityLevel:'strict' mode.
 		// As defense-in-depth (e.g. if Mermaid CDN fails to load), strip
 		// <script> tags and event handler attributes from the unescaped content.
@@ -161,7 +168,7 @@ func processMermaid(html string) string {
 		code = strings.TrimSpace(code)
 		code = sanitizeMermaidCode(code)
 
-		return "<div class=\"mermaid\">\n" + code + "\n</div>"
+		return "<div class=\"mermaid\">\n" + htmlpkg.EscapeString(code) + "\n</div>"
 	})
 }
 

@@ -168,3 +168,22 @@ func TestParsedChapterCacheCodeThemeDifference(t *testing.T) {
 		t.Fatal("theme2 cache should be independent")
 	}
 }
+
+// TestParsedChapterCacheKeyIncludesVersion guards against upgrades silently
+// serving stale HTML: the cache is keyed on chapter content, so without the
+// binary version in the key an unchanged chapter keeps whatever the previous
+// mdpress rendered, and rendering fixes never reach existing projects.
+func TestParsedChapterCacheKeyIncludesVersion(t *testing.T) {
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+
+	Version = "0.0.1"
+	before := parsedChapterCachePath("/book/ch1.md", "# Same content", "github")
+
+	Version = "0.0.2"
+	after := parsedChapterCachePath("/book/ch1.md", "# Same content", "github")
+
+	if before == after {
+		t.Error("cache path is identical across versions; an upgrade would reuse stale HTML")
+	}
+}
