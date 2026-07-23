@@ -823,7 +823,7 @@ func hasTrailingPathSeparator(path string) bool {
 // deriveOutputFilename returns the base output filename for the book.
 // Priority: explicit config filename > title-based name > directory name > "output".
 func deriveOutputFilename(cfg *config.BookConfig) string {
-	if cfg.Output.Filename != "" && cfg.Output.Filename != "output.pdf" {
+	if cfg.Output.Filename != "" {
 		// Use only the base name to prevent path traversal via config.
 		return filepath.Base(cfg.Output.Filename)
 	}
@@ -841,9 +841,12 @@ var filenameReplacer = strings.NewReplacer(
 	"\x00", "",
 )
 
-// sanitizeBookFilename strips characters that are invalid in file system names.
+// sanitizeBookFilename strips characters that are invalid in file system names
+// and collapses whitespace runs into a single hyphen. Spaces used to survive
+// into the artifact name, which meant `mdpress build` produced "My Book.pdf" —
+// awkward to quote in a shell and, for site builds, a URL path with %20 in it.
 func sanitizeBookFilename(s string) string {
-	result := strings.TrimSpace(filenameReplacer.Replace(s))
+	result := strings.Join(strings.Fields(filenameReplacer.Replace(s)), "-")
 	if !strings.ContainsFunc(result, func(r rune) bool {
 		return unicode.IsLetter(r) || unicode.IsNumber(r)
 	}) {

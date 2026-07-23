@@ -915,9 +915,15 @@ func TestDiscoverErrorString(t *testing.T) {
 	}
 }
 
-// TestAutoDiscoverBookTitleFromFirstChapter tests fallback to first chapter title
-func TestAutoDiscoverBookTitleFromFirstChapter(t *testing.T) {
-	dir := t.TempDir()
+// TestAutoDiscoverBookTitleFromDirName covers a project with no README.md.
+// The book title comes from the directory name rather than the first
+// chapter's H1: that H1 names one chapter, and using it made the book title
+// (and therefore the artifact name) change whenever a file sorted ahead of it.
+func TestAutoDiscoverBookTitleFromDirName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "field-guide")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
 
 	// Create files without README.md
 	if err := os.WriteFile(filepath.Join(dir, "chapter1.md"), []byte("# First Chapter Title\nContent"), 0o644); err != nil {
@@ -933,9 +939,8 @@ func TestAutoDiscoverBookTitleFromFirstChapter(t *testing.T) {
 		t.Fatalf("Discover failed: %v", err)
 	}
 
-	// Should use first chapter's title as book title when README is absent
-	if cfg.Book.Title != "First Chapter Title" {
-		t.Errorf("expected book title from first chapter, got %q", cfg.Book.Title)
+	if cfg.Book.Title != "Field guide" {
+		t.Errorf("expected book title from directory name, got %q", cfg.Book.Title)
 	}
 }
 

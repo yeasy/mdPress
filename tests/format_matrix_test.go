@@ -206,12 +206,12 @@ func TestFormatMatrix(t *testing.T) {
 	dir := matrixBook(t)
 	buildFormat(t, dir, "site,html,epub")
 
-	epubPath := filepath.Join(dir, "Format Matrix.epub")
+	epubPath := filepath.Join(dir, "Format-Matrix.epub")
 	epubBody, epubNames := epubText(t, epubPath)
 	formats := map[string]string{
 		"site": siteText(t, filepath.Join(dir, "_book")),
 		"html": func() string {
-			data, err := os.ReadFile(filepath.Join(dir, "Format Matrix.html")) //nolint:gosec // G304: test-controlled path
+			data, err := os.ReadFile(filepath.Join(dir, "Format-Matrix.html")) //nolint:gosec // G304: test-controlled path
 			if err != nil {
 				t.Fatalf("read standalone html: %v", err)
 			}

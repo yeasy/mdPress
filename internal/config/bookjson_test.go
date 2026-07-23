@@ -280,8 +280,8 @@ func TestLoadBookJSON_DefaultsPreserved(t *testing.T) {
 	if cfg.Style.PageSize != "A4" {
 		t.Errorf("PageSize = %q, want default %q", cfg.Style.PageSize, "A4")
 	}
-	if cfg.Output.Filename != "output.pdf" {
-		t.Errorf("Filename = %q, want default %q", cfg.Output.Filename, "output.pdf")
+	if cfg.Output.Filename != "" {
+		t.Errorf("Filename = %q, want the unset default", cfg.Output.Filename)
 	}
 	if !cfg.Output.TOC {
 		t.Error("TOC should default to true")

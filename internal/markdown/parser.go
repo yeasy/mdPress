@@ -14,6 +14,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
@@ -41,12 +42,15 @@ type ParserOption func(*Parser)
 type Parser struct {
 	md        goldmark.Markdown
 	codeTheme string
+	allowHTML bool
 }
 
 // NewParser creates and returns a new Markdown parser instance.
 func NewParser(opts ...ParserOption) *Parser {
 	p := &Parser{
 		codeTheme: "github",
+		// Markdown sources are trusted input by default; see WithAllowHTML.
+		allowHTML: true,
 	}
 
 	for _, opt := range opts {
@@ -94,10 +98,19 @@ func (p *Parser) initGoldmark() {
 				util.Prioritized(newHeadingIDTransformer(), 100),
 			),
 		),
-		goldmark.WithRendererOptions(
-			html.WithUnsafe(), // Allow raw HTML.
-		),
+		goldmark.WithRendererOptions(p.rendererOptions()...),
 	)
+}
+
+// rendererOptions returns the goldmark renderer options for this parser.
+func (p *Parser) rendererOptions() []renderer.Option {
+	if !p.allowHTML {
+		// Without WithUnsafe, goldmark drops raw HTML blocks and escapes
+		// inline HTML, so <script>/<iframe>/onerror= in a Markdown source
+		// cannot reach the reader's browser.
+		return nil
+	}
+	return []renderer.Option{html.WithUnsafe()}
 }
 
 // Parse parses Markdown source and returns HTML and heading information.
@@ -225,6 +238,17 @@ func generateHeadingID(text string) string {
 func WithCodeTheme(theme string) ParserOption {
 	return func(p *Parser) {
 		p.codeTheme = theme
+	}
+}
+
+// WithAllowHTML controls whether raw HTML in the Markdown source is passed
+// through to the output. It defaults to true: mdpress treats Markdown sources
+// as trusted, and books rely on inline HTML for layout goldmark cannot express.
+// Pass false for content mdpress did not author — raw HTML is not sanitized,
+// so a <script> tag in a chapter runs in every reader's browser.
+func WithAllowHTML(allow bool) ParserOption {
+	return func(p *Parser) {
+		p.allowHTML = allow
 	}
 }
 

@@ -28,6 +28,12 @@ var initInteractive bool
 // scanSkipDirs lists directories that scanMarkdownFiles should skip.
 var scanSkipDirs = map[string]bool{"node_modules": true, "vendor": true, ".git": true}
 
+// skippedProjectDocs lists top-level files that describe the repository rather
+// than the book, so they never become chapters.
+var skippedProjectDocs = map[string]bool{
+	"changelog.md": true, "contributing.md": true, "license.md": true,
+}
+
 var initCmd = &cobra.Command{
 	Use:   "init [directory]",
 	Short: "Initialize a book project by scanning Markdown files",
@@ -204,6 +210,7 @@ func executeInit(ctx context.Context, dir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to scan directory: %w", err)
 	}
+	files = readableChapterFiles(dir, files)
 
 	if len(files) == 0 {
 		// Empty project: create starter files and a default config.
@@ -261,7 +268,10 @@ func executeInit(ctx context.Context, dir string) error {
 	// Try to extract metadata from README.md to provide better defaults.
 	readmePath := filepath.Join(dir, "README.md")
 	readmeMeta := config.ExtractReadmeMetadata(ctx, readmePath)
-	defaultTitle := projectName
+	// Same fallback title as zero-config discovery, so `mdpress init` and a
+	// build of the same directory without book.yaml agree on the book title
+	// and on the artifact name derived from it.
+	defaultTitle := config.TitleFromDirName(dir)
 	defaultAuthor := ""
 	defaultLanguage := "en-US"
 	if readmeMeta.Title != "" {
@@ -306,6 +316,13 @@ func executeInit(ctx context.Context, dir string) error {
 		return fmt.Errorf("failed to write book.yaml: %w", err)
 	}
 
+	// Build artifacts land next to the sources, so an existing project needs
+	// the same .gitignore the starter template has always written.
+	wroteGitignore, err := writeScaffoldGitignore(dir)
+	if err != nil {
+		return err
+	}
+
 	// Print the result summary.
 	fmt.Printf("\n✅ Initialized an mdpress project in %s\n\n", dir)
 	if hasSummary {
@@ -325,7 +342,15 @@ func executeInit(ctx context.Context, dir string) error {
 	if hasLangs {
 		fmt.Printf("  🌐 Detected LANGS.md (multi-language project)\n")
 	}
-	fmt.Printf("\n  Generated: book.yaml\n")
+	// Say what was left out and why; silently dropping files looked like a bug.
+	if skipped := skippedTopLevelDocs(dir); len(skipped) > 0 {
+		fmt.Printf("  Skipped: %s (project documentation, not book content)\n", strings.Join(skipped, ", "))
+	}
+	if wroteGitignore {
+		fmt.Printf("\n  Generated: book.yaml, .gitignore\n")
+	} else {
+		fmt.Printf("\n  Generated: book.yaml\n")
+	}
 	fmt.Printf("\n  Next steps:\n")
 	if absDir != "." {
 		fmt.Printf("    cd %s\n", dir)
@@ -378,14 +403,12 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 		// Normalize to forward slashes.
 		relPath = filepath.ToSlash(relPath)
 
-		// Skip top-level documentation files that are not book content.
-		// Keep README.md files inside subdirectories as chapter entry files.
-		if filepath.Dir(relPath) == "." {
-			baseLower := strings.ToLower(d.Name())
-			if baseLower == "readme.md" || baseLower == "changelog.md" ||
-				baseLower == "contributing.md" || baseLower == "license.md" {
-				return nil
-			}
+		// Skip top-level project documentation that is not book content.
+		// The top-level README.md is kept: zero-config discovery uses it as
+		// the first chapter, and dropping it here meant `mdpress init` removed
+		// content from a book that built fine before it ran.
+		if filepath.Dir(relPath) == "." && skippedProjectDocs[strings.ToLower(d.Name())] {
+			return nil
 		}
 
 		title := utils.ExtractTitleFromFile(path)
@@ -404,15 +427,48 @@ func scanMarkdownFiles(root string) ([]discoveredFile, error) {
 		return nil, fmt.Errorf("failed to scan markdown files in %s: %w", root, err)
 	}
 
-	// Sort by depth first, then path name.
+	// Sort by depth first, then by natural path order so that "2-install.md"
+	// precedes "10-deploy.md" instead of following it.
 	slices.SortFunc(files, func(a, b discoveredFile) int {
 		if n := cmp.Compare(a.Depth, b.Depth); n != 0 {
 			return n
 		}
-		return cmp.Compare(a.RelPath, b.RelPath)
+		return config.NaturalCompare(a.RelPath, b.RelPath)
 	})
 
 	return files, nil
+}
+
+// readableChapterFiles drops candidates that cannot be opened — a broken
+// symlink is the common case — and reports each one. Writing them into
+// book.yaml made the very next command `init` suggests fail.
+func readableChapterFiles(root string, files []discoveredFile) []discoveredFile {
+	kept := make([]discoveredFile, 0, len(files))
+	for _, f := range files {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(f.RelPath))); err != nil {
+			utils.Warning("Skipped unreadable file: %s", f.RelPath)
+			continue
+		}
+		kept = append(kept, f)
+	}
+	return kept
+}
+
+// skippedTopLevelDocs lists the project documentation files present at the
+// project root, so init can say why they are not chapters.
+func skippedTopLevelDocs(root string) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && skippedProjectDocs[strings.ToLower(entry.Name())] {
+			names = append(names, entry.Name())
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // detectCoverImage looks for common cover image file names.
@@ -482,14 +538,7 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 		b.WriteString("\n# Chapters are listed in reading order\n")
 		b.WriteString("# Paths are relative to this config file\n")
 		b.WriteString("chapters:\n")
-		for _, f := range files {
-			title := f.Title
-			if title == "" {
-				title = inferTitleFromPath(f.RelPath)
-			}
-			fmt.Fprintf(&b, "  - title: %q\n", title)
-			fmt.Fprintf(&b, "    file: %q\n", f.RelPath)
-		}
+		writeChapterNodes(&b, buildChapterTree(files), 0)
 	}
 
 	b.WriteString("\nstyle:\n")
@@ -510,13 +559,18 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 }
 
 // sanitizeFilename derives a safe output filename from a book title.
-// It replaces spaces with underscores, strips path separators and other
-// filesystem-unsafe characters, and applies filepath.Base to remove any
-// remaining directory components. If the result is empty or consists only
+// It collapses whitespace runs into a single hyphen, strips path separators
+// and other filesystem-unsafe characters, and applies filepath.Base to remove
+// any remaining directory components. If the result is empty or consists only
 // of dots it returns an empty string so that the caller can fall back to
 // a default name.
+//
+// Hyphens rather than underscores: `mdpress build` derives the same name when
+// book.yaml has no explicit output.filename, and the two used to disagree, so
+// `init` and a zero-config build of the same directory produced differently
+// named PDFs.
 func sanitizeFilename(title string) string {
-	name := strings.ReplaceAll(title, " ", "_")
+	name := strings.Join(strings.Fields(title), "-")
 
 	// Strip directory components first so that "../../evil" becomes "evil".
 	name = filepath.Base(name)
@@ -604,7 +658,7 @@ style:
   page_size: "A4"
 
 output:
-  filename: "output.pdf"
+  # filename: "book.pdf"   # defaults to a name derived from book.title
   toc: true
   cover: true
 `, answers.Title, answers.Author, answers.Language, answers.Theme)
@@ -632,14 +686,23 @@ func createStarterTemplate(dir string) error {
 		return fmt.Errorf("failed to create chapter01/README.md: %w", err)
 	}
 
-	// Create .gitignore so default build artifacts are not committed.
-	// Never overwrite an existing one.
-	gitignorePath := filepath.Join(dir, ".gitignore")
-	if !utils.FileExists(gitignorePath) {
-		if err := utils.WriteFile(gitignorePath, []byte(scaffoldGitignore)); err != nil {
-			return fmt.Errorf("failed to create .gitignore: %w", err)
-		}
+	if _, err := writeScaffoldGitignore(dir); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+// writeScaffoldGitignore creates .gitignore so default build artifacts are not
+// committed, and reports whether it wrote one. An existing file is never
+// overwritten — the project may already ignore more than mdpress knows about.
+func writeScaffoldGitignore(dir string) (bool, error) {
+	gitignorePath := filepath.Join(dir, ".gitignore")
+	if utils.FileExists(gitignorePath) {
+		return false, nil
+	}
+	if err := utils.WriteFile(gitignorePath, []byte(scaffoldGitignore)); err != nil {
+		return false, fmt.Errorf("failed to create .gitignore: %w", err)
+	}
+	return true, nil
 }

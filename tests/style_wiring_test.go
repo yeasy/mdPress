@@ -53,7 +53,7 @@ chapters:
 	outputs := map[string]string{
 		"site": siteText(t, filepath.Join(dir, "_book")),
 		"html": func() string {
-			data, err := os.ReadFile(filepath.Join(dir, "Style Wiring.html")) //nolint:gosec // G304: test-controlled path
+			data, err := os.ReadFile(filepath.Join(dir, "Style-Wiring.html")) //nolint:gosec // G304: test-controlled path
 			if err != nil {
 				t.Fatalf("read standalone html: %v", err)
 			}

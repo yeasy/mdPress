@@ -139,7 +139,7 @@ func (p *chapterPipeline) parseChaptersParallel(
 	var wg sync.WaitGroup
 	for i := 0; i < maxConcurrency; i++ {
 		wg.Add(1)
-		workerParser := markdown.NewParser(markdown.WithCodeTheme(p.parserCodeTheme()))
+		workerParser := markdown.NewParser(markdownParserOptions(p.Config, p.parserCodeTheme())...)
 		go func() {
 			defer wg.Done()
 			defer func() {
@@ -271,7 +271,7 @@ func (p *chapterPipeline) parseChapterWorker(
 	job.unknownVars = unknownVars
 
 	// Check cache
-	codeTheme := p.parserCodeTheme()
+	codeTheme := parserVariantKey(p.Config, p.parserCodeTheme())
 	cached, cacheHit, cacheErr := loadParsedChapterCache(chapterPath, job.expandedContent, codeTheme)
 
 	var htmlContent string

@@ -170,8 +170,9 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		}
 	}
 
-	// Sort files in lexical order.
-	slices.Sort(otherFiles)
+	// Natural order, so a book numbered past nine reads 2, 3, … 10, 11
+	// instead of 10, 11, 2, 3.
+	slices.SortFunc(otherFiles, NaturalCompare)
 
 	// Use top-level README.md as the first chapter when present.
 	if readmeFile != "" {
@@ -201,12 +202,13 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 		})
 	}
 
-	// If README.md did not define a title, fall back to the first chapter title.
-	if cfg.Book.Title == DefaultBookTitle && len(cfg.Chapters) > 0 {
-		firstTitle := utils.ExtractTitleFromFile(filepath.Join(dir, cfg.Chapters[0].File))
-		if firstTitle != "" {
-			cfg.Book.Title = firstTitle
-		}
+	// Without a top-level README.md there is no book-level title to read. The
+	// first chapter's H1 is not one: it names that chapter ("Installation"),
+	// and it silently changes the book title — and therefore the artifact name
+	// — as soon as a file sorts ahead of it. The directory name is stable and
+	// is what `mdpress init` picks for the same project.
+	if cfg.Book.Title == DefaultBookTitle {
+		cfg.Book.Title = TitleFromDirName(dir)
 	}
 
 	// Zero-config projects have no `language:` to read, so classify the
@@ -269,6 +271,13 @@ func findMarkdownFiles(dir string) ([]string, error) {
 
 		// Collect only .md files.
 		if strings.ToLower(filepath.Ext(path)) == ".md" {
+			// WalkDir does not follow symlinks, so a dangling one still looks
+			// like a Markdown file here. Listing it as a chapter would make
+			// the build fail on a file that was never readable.
+			if info, err := os.Stat(path); err != nil || info.IsDir() {
+				slog.Warn("skipping unreadable Markdown file", slog.String("path", path))
+				return nil
+			}
 			files = append(files, path)
 		}
 		return nil
@@ -526,15 +535,23 @@ func inferBookTitle(h1Title, content, dir string) string {
 	}
 
 	// 4. Fallback to project directory name (cleaned up).
-	dirName := filepath.Base(dir)
-	dirName = strings.ReplaceAll(dirName, "_", " ")
-	dirName = strings.ReplaceAll(dirName, "-", " ")
-	dr := []rune(dirName)
-	if len(dr) > 0 {
-		dr[0] = unicode.ToUpper(dr[0])
-		dirName = string(dr)
+	return TitleFromDirName(dir)
+}
+
+// TitleFromDirName turns a project directory path into a readable book title,
+// e.g. "/src/my-docs" → "My docs". It is exported so that `mdpress init` picks
+// the same title as zero-config discovery for the same directory — the two
+// used to disagree, and so did the artifact names derived from them.
+func TitleFromDirName(dir string) string {
+	name := filepath.Base(dir)
+	name = strings.ReplaceAll(name, "_", " ")
+	name = strings.ReplaceAll(name, "-", " ")
+	r := []rune(name)
+	if len(r) > 0 {
+		r[0] = unicode.ToUpper(r[0])
+		name = string(r)
 	}
-	return dirName
+	return name
 }
 
 // detectContentLanguage detects the primary language of content by CJK character ratio.
