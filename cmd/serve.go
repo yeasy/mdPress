@@ -185,6 +185,11 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		outputDir = filepath.Join(cfg.BaseDir(), "_book")
 	}
 
+	// A serve process killed mid-rebuild (Ctrl-C at the wrong moment, or
+	// SIGKILL) leaves the atomic-swap scratch behind. Sweep it now so the
+	// project does not accumulate _book.old and mdpress-serve-*.tmp copies.
+	cleanupServeLeftovers(outputDir, logger)
+
 	// Every rebuild replaces outputDir wholesale via an atomic swap, so a
 	// directory holding anything other than a previously generated site would
 	// lose its contents on the first save. Refuse it up front, exactly like
@@ -276,6 +281,27 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 
 	listenerOwned = false
 	return srv.StartWithListener(ctx, ln)
+}
+
+// cleanupServeLeftovers removes the scratch directories the serve rebuild swap
+// creates: the <outputDir>.old backup and any mdpress-serve-*.tmp staging dirs
+// next to it. They are only ever meaningful inside a single rebuild, so any
+// that survive belong to a previous run that did not exit cleanly.
+func cleanupServeLeftovers(outputDir string, logger *slog.Logger) {
+	backupDir := outputDir + ".old"
+	if err := os.RemoveAll(backupDir); err != nil {
+		logger.Debug("Failed to remove leftover backup directory", slog.String("dir", backupDir), slog.Any("error", err))
+	}
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(outputDir), "mdpress-serve-*.tmp"))
+	if err != nil {
+		logger.Debug("Failed to scan for leftover staging directories", slog.Any("error", err))
+		return
+	}
+	for _, dir := range matches {
+		if err := os.RemoveAll(dir); err != nil {
+			logger.Debug("Failed to remove leftover staging directory", slog.String("dir", dir), slog.Any("error", err))
+		}
+	}
 }
 
 // buildSiteForServe builds the preview HTML site.
