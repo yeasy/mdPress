@@ -144,17 +144,20 @@ output:
 		t.Fatalf("executeBuild() returned error: %v", err)
 	}
 
+	// Without --output the whole multi-language tree lands under _book/, the
+	// same place a single-language build and `mdpress serve` use, with the
+	// language switcher as its index.html.
 	for _, expected := range []string{
-		filepath.Join(projectDir, "_mdpress_langs.html"),
-		filepath.Join(projectDir, "en", "book.html"),
-		filepath.Join(projectDir, "zh", "book.html"),
+		filepath.Join(projectDir, "_book", "index.html"),
+		filepath.Join(projectDir, "_book", "en", "book.html"),
+		filepath.Join(projectDir, "_book", "zh", "book.html"),
 	} {
 		if _, err := os.Stat(expected); err != nil {
 			t.Fatalf("expected generated file %q: %v", expected, err)
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(workspaceDir, "_mdpress_langs.html")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(workspaceDir, "_book", "index.html")); !os.IsNotExist(err) {
 		t.Fatalf("landing page should not be written to workspace dir, stat err=%v", err)
 	}
 }

@@ -79,6 +79,14 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		logger.Info("  Language", slog.String("name", lang.Name), slog.String("dir", lang.Dir))
 	}
 
+	// One output root for the whole project: --output when given (in any of
+	// its spellings), otherwise _book/ beside the sources — the same place a
+	// single-language build and `mdpress serve` use.
+	outputRoot := filepath.Join(rootDir, "_book")
+	if outputOverride != "" {
+		outputRoot = multilingualOutputRoot(outputOverride)
+	}
+
 	summaries := make([]languageBuildSummary, 0, len(langs))
 	for _, lang := range langs {
 		langDir := filepath.Join(rootDir, lang.Dir)
@@ -98,33 +106,53 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 			}
 		}
 
-		langOutputOverride := deriveLanguageOutputOverride(outputOverride, lang.Dir)
+		// Every language lands in <root>/<langDir>/ under one output root, so
+		// the whole build is a single deployable tree whatever form --output
+		// took. It used to produce three different shapes — sibling
+		// "dist-en_site" directories, or "<lang>/<Book Title>_site/" named
+		// after the book (spaces and CJK in a URL path) — none of which
+		// matched the documented layout or could be deployed as-is.
+		langSiteDir := filepath.Join(outputRoot, lang.Dir)
+		langOutputOverride := filepath.Join(langSiteDir, deriveOutputFilename(langCfg))
 		baseOutput, err := resolveBuildBaseOutput(langCfg, langOutputOverride)
 		if err != nil {
 			return fmt.Errorf("resolve output for language %s: %w", lang.Dir, err)
 		}
-		// Multi-language builds keep the per-language "<name>_site" layout so
-		// each variant lands in a distinct directory; pass an empty siteDir to
-		// select that fallback.
-		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, "", logger); err != nil {
+		if err := executeBuildForConfig(ctx, langCfg, formats, langOutputOverride, langSiteDir, logger); err != nil {
 			return fmt.Errorf("failed to build language %s: %w", lang.Dir, err)
 		}
 		summaries = append(summaries, languageBuildSummary{
 			Name:    lang.Name,
 			Dir:     lang.Dir,
 			Title:   langCfg.Book.Title,
-			Outputs: predictedOutputLinks(baseOutput, "", formats),
+			Outputs: predictedOutputLinks(baseOutput, langSiteDir, formats),
 		})
 	}
 
-	if err := writeMultilingualLandingPage(rootDir, outputOverride, summaries); err != nil {
+	if err := writeMultilingualLandingPage(outputRoot, summaries); err != nil {
 		return fmt.Errorf("failed to write multilingual landing page: %w", err)
 	}
-	if err := injectMultilingualSwitchers(rootDir, outputOverride, summaries); err != nil {
+	if err := injectMultilingualSwitchers(outputRoot, summaries); err != nil {
 		return fmt.Errorf("failed to inject multilingual switchers: %w", err)
 	}
 
+	fmt.Printf("  ✓ Generated index → %s\n", filepath.Join(outputRoot, "index.html"))
 	return nil
+}
+
+// multilingualOutputRoot normalizes the many ways --output can be written into
+// the one directory the whole multi-language tree is built under. A file-ish
+// path names the directory it would have lived in, because there is no single
+// file to produce: the output is a tree.
+func multilingualOutputRoot(outputOverride string) string {
+	cleaned := filepath.Clean(outputOverride)
+	if hasTrailingPathSeparator(outputOverride) {
+		return cleaned
+	}
+	if ext := filepath.Ext(cleaned); ext != "" {
+		return strings.TrimSuffix(cleaned, ext)
+	}
+	return cleaned
 }
 
 func normalizeMultilingualRootDir(rootDir string) (string, error) {
@@ -880,31 +908,6 @@ func resolveBuildBaseOutput(cfg *config.BookConfig, outputOverride string) (stri
 	return outputOverride, nil
 }
 
-func deriveLanguageOutputOverride(outputOverride string, langDir string) string {
-	if outputOverride == "" {
-		return ""
-	}
-
-	if hasTrailingPathSeparator(outputOverride) {
-		return filepath.Join(outputOverride, langDir, "output")
-	}
-
-	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
-		return filepath.Join(outputOverride, langDir, "output")
-	}
-
-	ext := filepath.Ext(outputOverride)
-	if ext == "" {
-		return outputOverride + "-" + langDir
-	}
-
-	base := strings.TrimSuffix(outputOverride, ext)
-	if base == "" {
-		return outputOverride + "-" + langDir
-	}
-	return base + "-" + langDir + ext
-}
-
 // predictedOutputLinks maps each requested format to the path its builder
 // writes. siteDir is the resolved "site" output directory; when empty the
 // per-base "<base>_site" fallback used by multi-language builds applies,
@@ -933,30 +936,21 @@ func predictedOutputLinks(baseOutput, siteDir string, formats []string) map[stri
 	return links
 }
 
-func multilingualLandingPath(rootDir string, outputOverride string) string {
-	if outputOverride == "" {
-		return filepath.Join(rootDir, "_mdpress_langs.html")
-	}
-	if hasTrailingPathSeparator(outputOverride) {
-		return filepath.Join(outputOverride, "index.html")
-	}
-	if info, err := os.Stat(outputOverride); err == nil && info.IsDir() {
-		return filepath.Join(outputOverride, "index.html")
-	}
-	dir := filepath.Dir(outputOverride)
-	base := strings.TrimSuffix(filepath.Base(outputOverride), filepath.Ext(outputOverride))
-	if base == "" || base == "." {
-		base = "index"
-	}
-	return filepath.Join(dir, base+"-index.html")
+// multilingualLandingPath is the language switcher, which is the site root.
+//
+// It used to be named "_mdpress_langs.html" (or "<base>-index.html"), so a web
+// root served the directory listing instead of the switcher and the page never
+// appeared in the build summary.
+func multilingualLandingPath(outputRoot string) string {
+	return filepath.Join(outputRoot, "index.html")
 }
 
-func writeMultilingualLandingPage(rootDir string, outputOverride string, summaries []languageBuildSummary) error {
+func writeMultilingualLandingPage(outputRoot string, summaries []languageBuildSummary) error {
 	if len(summaries) == 0 {
 		return nil
 	}
 
-	landingPath := multilingualLandingPath(rootDir, outputOverride)
+	landingPath := multilingualLandingPath(outputRoot)
 	landingDir := filepath.Dir(landingPath)
 	if err := utils.EnsureDir(landingDir); err != nil {
 		return fmt.Errorf("create landing directory: %w", err)
@@ -1049,12 +1043,12 @@ func defaultLanguageTarget(landingDir string, summaries []languageBuildSummary) 
 	return ""
 }
 
-func injectMultilingualSwitchers(rootDir string, outputOverride string, summaries []languageBuildSummary) error {
+func injectMultilingualSwitchers(outputRoot string, summaries []languageBuildSummary) error {
 	if len(summaries) < 2 {
 		return nil
 	}
 
-	landingPath := multilingualLandingPath(rootDir, outputOverride)
+	landingPath := multilingualLandingPath(outputRoot)
 	for _, summary := range summaries {
 		currentTarget := preferredLanguageFile(summary)
 		if currentTarget == "" {

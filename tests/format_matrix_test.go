@@ -12,12 +12,14 @@ package tests
 import (
 	"archive/zip"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -325,4 +327,44 @@ func TestFormatMatrix(t *testing.T) {
 			}
 		}
 	})
+}
+
+// mdpressBinary builds the CLI once per test run and returns its path.
+//
+// Tests that need the working directory to be the book (so a relative --output
+// resolves against the project) cannot use "go run": it requires the module
+// directory as cwd.
+var mdpressBinary = sync.OnceValues(func() (string, error) {
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		return "", err
+	}
+	bin := filepath.Join(os.TempDir(), "mdpress-testbin")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", bin, ".")
+	cmd.Dir = repoRoot
+	if out, buildErr := cmd.CombinedOutput(); buildErr != nil {
+		return "", fmt.Errorf("build mdpress: %w\n%s", buildErr, out)
+	}
+	return bin, nil
+})
+
+// buildFormatIn runs the CLI from inside sourceDir, so a relative --output
+// resolves against the project rather than the repository.
+func buildFormatIn(t *testing.T, sourceDir, format string, extra ...string) {
+	t.Helper()
+	bin, err := mdpressBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	args := append([]string{"build", "--format", format, "--no-cache"}, extra...)
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Dir = sourceDir
+	if out, runErr := cmd.CombinedOutput(); runErr != nil {
+		t.Fatalf("build --format %s %v failed: %v\n%s", format, extra, runErr, out)
+	}
 }
