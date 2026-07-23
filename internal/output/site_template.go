@@ -2473,15 +2473,20 @@ body {
               pathMatch: pathMatch
             });
           }
-          if (matches.length >= 20) break;
         }
-        // Sort by title > breadcrumb path > body
+        // Sort by title > breadcrumb path > body, then cap what is rendered.
+        // The cap must come after the sort: truncating the scan first meant a
+        // page whose *title* matched was dropped in favour of the first 20
+        // body hits in document order, and the reported count was the
+        // truncated one.
         matches.sort(function(a, b) {
           var aScore = (a.titleMatch ? 2 : 0) + (a.pathMatch ? 1 : 0);
           var bScore = (b.titleMatch ? 2 : 0) + (b.pathMatch ? 1 : 0);
           return bScore - aScore;
         });
-        updateSearchStatus(matches.length);
+        var totalMatches = matches.length;
+        if (matches.length > 20) matches = matches.slice(0, 20);
+        updateSearchStatus(totalMatches);
 
         if (matches.length === 0) {
           resultsBox.innerHTML = '<div class="search-empty">' + __ui.noResults + ' \u201c' + escapeHTML(query) + '\u201d</div>';

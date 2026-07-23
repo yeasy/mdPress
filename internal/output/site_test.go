@@ -580,6 +580,18 @@ func TestSiteGeneratorMarkdownAndLLMSOutputs(t *testing.T) {
 	if !strings.Contains(html, "pathMatch") {
 		t.Error("search script should rank breadcrumb path matches")
 	}
+	// The 20-result cap must be applied after ranking, not as a scan cutoff:
+	// truncating the scan dropped title matches in favour of the first body
+	// hits in document order, and reported the truncated count as the total.
+	if strings.Contains(html, "if (matches.length >= 20) break;") {
+		t.Error("search script must not truncate the scan before ranking")
+	}
+	if !strings.Contains(html, "matches = matches.slice(0, 20)") {
+		t.Error("search script should cap the rendered results after sorting")
+	}
+	if !strings.Contains(html, "updateSearchStatus(totalMatches)") {
+		t.Error("search status should report the true match count, not the capped one")
+	}
 	if !strings.Contains(html, "Ctrl/⌘ K") {
 		t.Error("search shortcut label should show Ctrl/⌘ K")
 	}
