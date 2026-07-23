@@ -318,6 +318,7 @@ type Generator struct {
 	footerTemplate          string
 	generateDocumentOutline bool // Generate clickable PDF bookmarks from heading hierarchy.
 	generateTaggedPDF       bool // Generate tagged (accessible) PDF.
+	metadata                DocumentMetadata
 }
 
 type chromiumRuntimeDirs struct {
@@ -485,6 +486,13 @@ func WithHeaderTemplate(tmpl string) GeneratorOption {
 // Enabled by default. Requires Chrome 128+ for full support.
 func WithDocumentOutline(enable bool) GeneratorOption {
 	return func(g *Generator) { g.generateDocumentOutline = enable }
+}
+
+// WithMetadata sets the document information written into the PDF's /Info
+// dictionary. Without it the PDF keeps whatever Chrome produced, which names
+// headless Chrome as the creator and carries no author or subject.
+func WithMetadata(m DocumentMetadata) GeneratorOption {
+	return func(g *Generator) { g.metadata = m }
 }
 
 // WithTaggedPDF toggles tagged (accessible) PDF generation.
@@ -816,6 +824,7 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 		// the fallback for paths containing spaces or non-ASCII characters.
 		if u, parseErr := url.Parse(pageURL); parseErr == nil && u.Scheme == "file" {
 			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
+				g.stampMetadataFile(outputPath)
 				return nil
 			}
 		}
@@ -826,11 +835,42 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 		return fmt.Errorf("failed to generate PDF with Chrome at %q: %w", chromePath, err)
 	}
 
+	pdfBuf = g.stampMetadata(pdfBuf)
+
 	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
 		return fmt.Errorf("failed to write PDF file: %w", err)
 	}
 
 	return nil
+}
+
+// stampMetadata rewrites the /Info dictionary of a freshly printed PDF.
+// Metadata is a nicety, not a build requirement, so a document this rewriter
+// cannot parse is returned untouched with a debug note rather than failing the
+// build.
+func (g *Generator) stampMetadata(data []byte) []byte {
+	stamped, err := SetDocumentInfo(data, g.metadata, buildTime())
+	if err != nil {
+		slog.Debug("Skipped PDF metadata rewrite", slog.Any("error", err))
+		return data
+	}
+	return stamped
+}
+
+// stampMetadataFile applies stampMetadata to an already-written PDF.
+func (g *Generator) stampMetadataFile(path string) {
+	data, err := os.ReadFile(path) //nolint:gosec // path is the build's own output file
+	if err != nil {
+		slog.Debug("Skipped PDF metadata rewrite", slog.Any("error", err))
+		return
+	}
+	stamped := g.stampMetadata(data)
+	if len(stamped) == len(data) && bytes.Equal(stamped, data) {
+		return
+	}
+	if err := os.WriteFile(path, stamped, 0o644); err != nil {
+		slog.Debug("Failed to write PDF metadata", slog.Any("error", err))
+	}
 }
 
 // checkChromiumAvailable verifies that Chrome or Chromium is installed.

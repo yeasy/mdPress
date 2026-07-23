@@ -129,6 +129,7 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
 		pdf.WithPrintBackground(true),
+		pdf.WithMetadata(pdfDocumentMetadata(ctx.Config)),
 	}
 	if headerTmpl != "" {
 		marginOpts = append(marginOpts, pdf.WithHeaderTemplate(headerTmpl))
@@ -175,6 +176,23 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	}
 	ctx.Logger.Info("Output ready", slog.String("format", "PDF"), slog.String("path", outputPath))
 	return nil
+}
+
+// pdfDocumentMetadata maps book metadata onto the PDF /Info dictionary.
+// Chrome fills that dictionary in with the headless browser's user agent and
+// nothing else, so a PDF opened in a library or a document manager shows no
+// author and claims to have been written by HeadlessChrome.
+func pdfDocumentMetadata(cfg *config.BookConfig) pdf.DocumentMetadata {
+	title := cfg.Book.Title
+	if cfg.Book.Subtitle != "" && title != "" {
+		title += ": " + cfg.Book.Subtitle
+	}
+	return pdf.DocumentMetadata{
+		Title:   title,
+		Author:  cfg.Book.Author,
+		Subject: cfg.Book.Description,
+		Creator: "mdPress " + Version,
+	}
 }
 
 // defaultPDFFooterTemplate is the out-of-the-box PDF footer: a centered page
@@ -565,6 +583,7 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		typst.WithPageSize(ctx.Config.Style.PageSize),
 		typst.WithTitle(ctx.Config.Book.Title),
 		typst.WithAuthor(ctx.Config.Book.Author),
+		typst.WithDescription(ctx.Config.Book.Description),
 		typst.WithVersion(ctx.Config.Book.Version),
 		typst.WithLanguage(ctx.Config.Book.Language),
 		// Read the resolved theme, not the raw config: the theme already

@@ -28,6 +28,7 @@ type Generator struct {
 	language     string
 	author       string
 	title        string
+	description  string
 	version      string
 	date         string
 	rootDir      string
@@ -142,6 +143,12 @@ func WithTitle(title string) GeneratorOption {
 	return func(g *Generator) { g.title = title }
 }
 
+// WithDescription sets the document description, which Typst records as the
+// PDF /Subject entry.
+func WithDescription(description string) GeneratorOption {
+	return func(g *Generator) { g.description = description }
+}
+
 // WithVersion sets the document version.
 func WithVersion(version string) GeneratorOption {
 	return func(g *Generator) { g.version = version }
@@ -180,6 +187,8 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	templateData := TypstTemplateData{
 		Title:        g.title,
 		Author:       g.author,
+		Description:  g.description,
+		BuildTime:    buildTime(),
 		Date:         g.date,
 		Version:      g.version,
 		Language:     g.language,
