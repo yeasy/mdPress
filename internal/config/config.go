@@ -47,10 +47,11 @@ func validPageSizeNames() []string {
 
 // BookConfig is the top-level configuration for a book.
 type BookConfig struct {
-	Book     BookMeta     `yaml:"book"`
-	Chapters []ChapterDef `yaml:"chapters"`
-	Style    StyleConfig  `yaml:"style"`
-	Output   OutputConfig `yaml:"output"`
+	Book     BookMeta       `yaml:"book"`
+	Chapters []ChapterDef   `yaml:"chapters"`
+	Style    StyleConfig    `yaml:"style"`
+	Output   OutputConfig   `yaml:"output"`
+	Markdown MarkdownConfig `yaml:"markdown"`
 	// Plugins lists the plugins to run during the build, in declaration order.
 	Plugins []PluginConfig `yaml:"plugins"`
 	// Variables are user-defined template variables, usable in Markdown as
@@ -81,6 +82,25 @@ type PluginConfig struct {
 	Path string `yaml:"path"`
 	// Config contains arbitrary key-value pairs passed to the plugin.
 	Config map[string]any `yaml:"config"`
+}
+
+// MarkdownConfig controls how Markdown sources are parsed.
+type MarkdownConfig struct {
+	// AllowHTML controls whether raw HTML written in Markdown reaches the
+	// output. A nil pointer means "not configured" and keeps the default.
+	AllowHTML *bool `yaml:"allow_html"`
+}
+
+// AllowRawHTML reports whether raw HTML embedded in Markdown should be
+// rendered as HTML rather than escaped.
+//
+// mdpress treats Markdown sources as trusted input — they come from the same
+// repository as book.yaml — so this defaults to true and raw HTML passes
+// through unfiltered, including <script> and <iframe>. A project that renders
+// Markdown it did not write (community contributions, user submissions) should
+// set `markdown.allow_html: false`.
+func (c *BookConfig) AllowRawHTML() bool {
+	return c.Markdown.AllowHTML == nil || *c.Markdown.AllowHTML
 }
 
 // BookMeta contains book metadata.

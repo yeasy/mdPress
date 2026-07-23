@@ -112,7 +112,7 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 	if codeTheme == "" {
 		codeTheme = thm.CodeTheme
 	}
-	parser := markdown.NewParser(markdown.WithCodeTheme(codeTheme))
+	parser := markdown.NewParser(markdownParserOptions(cfg, codeTheme)...)
 
 	// Load the glossary when configured.
 	var gloss *glossary.Glossary
