@@ -199,6 +199,10 @@ const htmlTemplate = `<!DOCTYPE html>
     p {
       margin: 0.8rem 0;
       text-align: justify;
+      /* Justification without hyphenation stretches word spacing into rivers
+         on a narrow measure; let the browser hyphenate instead. */
+      hyphens: auto;
+      -webkit-hyphens: auto;
     }
 
     /* ============================================
@@ -264,6 +268,9 @@ const htmlTemplate = `<!DOCTYPE html>
       table-layout: fixed;
     }
 
+    /* overflow-wrap: anywhere already breaks a word that cannot fit the fixed
+       column width; word-break would additionally chop words that fit fine,
+       so cells full of ordinary prose came out hyphen-less and mid-word. */
     table th {
       background-color: #f5f5f5;
       border: 1px solid #ddd;
@@ -271,14 +278,12 @@ const htmlTemplate = `<!DOCTYPE html>
       text-align: left;
       font-weight: 600;
       overflow-wrap: anywhere;
-      word-break: break-word;
     }
 
     table td {
       border: 1px solid #ddd;
       padding: 0.8rem;
       overflow-wrap: anywhere;
-      word-break: break-word;
     }
 
     table tbody tr:nth-child(even) {
@@ -309,15 +314,8 @@ const htmlTemplate = `<!DOCTYPE html>
       page-break-inside: avoid;
     }
 
-    @media print {
-      /* Bound images to the printable area. Without a height cap a tall image
-         is sliced across pages (and leaves a blank one behind) instead of
-         being scaled to fit. */
-      img {
-        max-height: 85vh;
-        object-fit: contain;
-      }
-    }
+    /* The print height cap for images is emitted by buildPrintCSS, which
+       knows the page size and margins and can express it in millimeters. */
 
     /* Standalone images (sole child of a paragraph) render as centered blocks
        with a subtle frame. */

@@ -204,5 +204,32 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		r.config.Style.Margin.Bottom,
 		r.config.Style.Margin.Left)
 
+	fmt.Fprintf(&css, `
+@media print {
+  img {
+    max-height: %.0fmm;
+    object-fit: contain;
+  }
+}
+`, r.printableImageHeightMM(pageSize))
+
 	return css.String()
+}
+
+// printableImageHeightMM is the tallest an image may be before it gets sliced
+// across pages. A viewport-relative cap cannot express this: "vh" is the full
+// sheet, margins included, so a tall image overflows the content box and the
+// bottom of it is silently clipped. Measure the real content box instead and
+// leave a little headroom for the caption or paragraph an image usually
+// travels with.
+func (r *HTMLRenderer) printableImageHeightMM(pageSize string) float64 {
+	dims := utils.GetPageDimensions(pageSize)
+	const headroomMM = 10.0
+	h := dims.Height - r.config.Style.Margin.Top - r.config.Style.Margin.Bottom - headroomMM
+	// Absurd margins must not produce a zero or negative cap, which would make
+	// every image vanish.
+	if minH := dims.Height * 0.25; h < minH {
+		h = minH
+	}
+	return h
 }
