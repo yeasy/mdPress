@@ -36,21 +36,24 @@ mdpress build --format pdf
 
 **Q:** How do I use mdPress in a Docker container?
 
-**A:** Use the official Docker image or create your own:
+**A:** Use the official image. `ghcr.io/yeasy/mdpress:full` bundles Chromium and the Noto fonts, so PDF works out of the box; the untagged `ghcr.io/yeasy/mdpress` is a ~15 MB image without Chromium, for `site`/`html`/`epub` only.
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd):/book" \
+  ghcr.io/yeasy/mdpress:full build --format pdf
+```
+
+`--user` matters: the images run as an in-image `mdpress` user whose UID does not exist on your host, so without it the generated files end up owned by an unrelated UID (or cannot be written at all).
+
+If you build your own image, install Chromium and point mdPress at it — on Alpine the binary is `chromium-browser`, which is why the official image sets `MDPRESS_CHROME_PATH`:
 
 ```dockerfile
 FROM golang:1.26-alpine
 RUN apk add --no-cache chromium font-noto-cjk
 RUN go install github.com/yeasy/mdpress@latest
+ENV MDPRESS_CHROME_PATH=/usr/bin/chromium-browser
 WORKDIR /workspace
 ENTRYPOINT ["mdpress"]
-```
-
-Build and use:
-
-```bash
-docker build -t mdpress:latest .
-docker run -v "$(pwd):/workspace" mdpress:latest build --format pdf
 ```
 
 ## Configuration and Styling
