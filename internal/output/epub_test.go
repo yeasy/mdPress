@@ -181,7 +181,14 @@ func TestGenerateEmptyChapters(t *testing.T) {
 // TestGenerateInvalidOutputPath verifies that Generate fails and cleans up on invalid path.
 func TestGenerateInvalidOutputPath(t *testing.T) {
 	tmpDir := t.TempDir()
-	invalidPath := filepath.Join(tmpDir, "nonexistent", "deeply", "nested", "output.epub")
+	// A missing parent directory is no longer invalid — Generate creates it,
+	// like every other backend. Use a path whose parent is a regular file, so
+	// the directory genuinely cannot be created.
+	blocker := filepath.Join(tmpDir, "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	invalidPath := filepath.Join(blocker, "output.epub")
 
 	gen := NewEpubGenerator(EpubMeta{Title: "Test"})
 	gen.AddChapter(EpubChapter{
