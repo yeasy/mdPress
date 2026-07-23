@@ -218,13 +218,13 @@ func DefaultConfig() *BookConfig {
 				Left:   20,
 				Right:  20,
 			},
-			Header: HeaderFooterStyle{
-				Left:  "{{.Book.Title}}",
-				Right: "{{.Chapter.Title}}",
-			},
-			Footer: HeaderFooterStyle{
-				Center: "{{.PageNum}}",
-			},
+			// Unset means "not configured". These used to carry the same
+			// values the manual gives as its example, and the PDF builder
+			// decided "the user customized this" by comparing against them —
+			// so copying the documented example produced no header at all.
+			// The effective defaults live in the PDF builder.
+			Header: HeaderFooterStyle{},
+			Footer: HeaderFooterStyle{},
 		},
 		Output: OutputConfig{
 			// Empty means "derive the name from the book title". A literal
