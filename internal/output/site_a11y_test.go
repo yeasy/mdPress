@@ -57,9 +57,10 @@ func parseCSSRules(css string) []cssRule {
 			start := i + 1
 			j := start
 			for ; j < len(css) && depth > 0; j++ {
-				if css[j] == '{' {
+				switch css[j] {
+				case '{':
 					depth++
-				} else if css[j] == '}' {
+				case '}':
 					depth--
 				}
 			}
@@ -103,7 +104,7 @@ func ruleColor(rules []cssRule, selector string) (string, bool) {
 	return "", false
 }
 
-// relativeLuminance implements the WCAG 2.1 definition for an sRGB hex colour.
+// relativeLuminance implements the WCAG 2.1 definition for an sRGB hex color.
 func relativeLuminance(hex string) float64 {
 	hex = strings.TrimPrefix(hex, "#")
 	if len(hex) == 3 {
@@ -142,8 +143,8 @@ func TestContrastRatioMatchesWCAGReference(t *testing.T) {
 	}
 }
 
-// TestSiteMutedTextMeetsAA checks every de-emphasised body-size text token in
-// the generated site CSS against the WCAG AA 4.5:1 threshold, in both colour
+// TestSiteMutedTextMeetsAA checks every de-emphasized body-size text token in
+// the generated site CSS against the WCAG AA 4.5:1 threshold, in both color
 // schemes. These are breadcrumbs, page footers, the search panel and the
 // sidebar metadata: none of them is large text, so none of them qualifies for
 // the relaxed 3:1 bar.
@@ -207,7 +208,7 @@ func TestSitePrintStylesKeepSyntaxHighlighting(t *testing.T) {
 		t.Error("a blanket `* { color: black !important }` flattens every printed code block to monochrome")
 	}
 	if !strings.Contains(printCSS, "*:not(pre):not(pre *){") {
-		t.Error("the print colour reset should exempt code blocks")
+		t.Error("the print color reset should exempt code blocks")
 	}
 	if strings.Contains(printCSS, "a::after{") {
 		t.Error("printing the href of every relative link buries the text in paths; restrict it to external links")

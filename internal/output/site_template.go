@@ -1015,7 +1015,7 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
   .content { padding: 0; margin: 0; max-width: 100%; }
   .page-header, .page-nav, .build-meta { display: none !important; }
   body { background: white; color: black; }
-  /* Code blocks keep their own colours: forcing everything to black would
+  /* Code blocks keep their own colors: forcing everything to black would
      flatten the syntax highlighting the reader is printing the page for. */
   *:not(pre):not(pre *) { background: transparent !important; box-shadow: none !important; color: black !important; }
   pre, pre * { box-shadow: none !important; }

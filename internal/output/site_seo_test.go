@@ -154,10 +154,10 @@ func TestSite404UsesThemeAccentAndAbsoluteHome(t *testing.T) {
 	}
 	page := readSiteFile(t, dir, "404.html")
 	if !strings.Contains(page, "--color-accent: #b5651d;") {
-		t.Errorf("404.html should define the book's accent colour, not fall back to the default blue:\n%s", page)
+		t.Errorf("404.html should define the book's accent color, not fall back to the default blue:\n%s", page)
 	}
 	if !strings.Contains(page, "mdpress-theme") {
-		t.Error("404.html should honour the reader's stored theme choice")
+		t.Error("404.html should honor the reader's stored theme choice")
 	}
 	if !strings.Contains(page, `href="/"`) {
 		t.Error("404.html home link should be absolute so it works at any served depth")
