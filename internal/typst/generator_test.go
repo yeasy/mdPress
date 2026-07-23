@@ -895,6 +895,28 @@ func TestGeneratorWithMultipleOptions(t *testing.T) {
 			errMsg: "Generator with all options failed",
 		},
 		{
+			// Typst rejects BCP-47 tags, and every mdpress scaffold writes one
+			// ("en-US"/"zh-CN"), so they must be reduced to the primary subtag.
+			name: "BCP-47 language tag is reduced to its primary subtag",
+			opts: []GeneratorOption{
+				WithLanguage("en-US"),
+			},
+			checkFn: func(g *Generator) bool {
+				return g.language == "en"
+			},
+			errMsg: "BCP-47 language tag was not normalized",
+		},
+		{
+			name: "unusable language keeps the default",
+			opts: []GeneratorOption{
+				WithLanguage(""),
+			},
+			checkFn: func(g *Generator) bool {
+				return g.language == "en"
+			},
+			errMsg: "empty language clobbered the default",
+		},
+		{
 			name: "default timeout set",
 			opts: []GeneratorOption{
 				WithTimeout(30 * time.Second),
@@ -1066,5 +1088,29 @@ func TestGenerateValidation(t *testing.T) {
 				t.Errorf("error should contain %q, got: %v", tt.errMsg, err)
 			}
 		})
+	}
+}
+
+func TestNormalizeLanguage(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"en-US", "en"},
+		{"zh-CN", "zh"},
+		{"zh_TW", "zh"},
+		{"EN", "en"},
+		{" ja-JP ", "ja"},
+		{"en", "en"},
+		{"ceb", "ceb"},
+		{"", ""},
+		{"e", ""},
+		{"english", ""},
+		{"e1", ""},
+	}
+	for _, tt := range tests {
+		if got := normalizeLanguage(tt.in); got != tt.want {
+			t.Errorf("normalizeLanguage(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
