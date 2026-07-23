@@ -2476,7 +2476,7 @@ body {
         }
         // Sort by title > breadcrumb path > body, then cap what is rendered.
         // The cap must come after the sort: truncating the scan first meant a
-        // page whose *title* matched was dropped in favour of the first 20
+        // page whose *title* matched was dropped in favor of the first 20
         // body hits in document order, and the reported count was the
         // truncated one.
         matches.sort(function(a, b) {

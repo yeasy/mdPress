@@ -581,7 +581,7 @@ func TestSiteGeneratorMarkdownAndLLMSOutputs(t *testing.T) {
 		t.Error("search script should rank breadcrumb path matches")
 	}
 	// The 20-result cap must be applied after ranking, not as a scan cutoff:
-	// truncating the scan dropped title matches in favour of the first body
+	// truncating the scan dropped title matches in favor of the first body
 	// hits in document order, and reported the truncated count as the total.
 	if strings.Contains(html, "if (matches.length >= 20) break;") {
 		t.Error("search script must not truncate the scan before ranking")

@@ -31,7 +31,7 @@ func TestExecuteServe_RefusesNonSiteOutputDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A cancelled context keeps this test bounded: the guard runs before the
+	// A canceled context keeps this test bounded: the guard runs before the
 	// listener, so a regression returns promptly instead of blocking on serve.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
