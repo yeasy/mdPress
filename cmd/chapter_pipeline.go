@@ -333,6 +333,15 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 	if options.ImageOptions != nil {
 		imageOptions = *options.ImageOptions
 	}
+	// Relative images resolve against each chapter's directory but are bounded
+	// by the book root, so a shared ../assets/ works (matching what the ePub
+	// generator already did) while traversal outside the project does not.
+	if imageOptions.ContainmentRoot == "" {
+		imageOptions.ContainmentRoot = p.Config.BaseDir()
+	}
+	if imageOptions.Logger == nil {
+		imageOptions.Logger = p.Logger
+	}
 
 	resolver := crossref.NewResolver()
 

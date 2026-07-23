@@ -890,7 +890,7 @@ func TestResolveLocalImagePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := resolveLocalImagePath(tt.baseDir, tt.src)
+			result := resolveLocalImagePath(tt.baseDir, "", tt.src)
 			// For normal relative paths, result should be non-empty.
 			// Skip assertion for parent traversal ("..") since the function may
 			// legitimately return empty to block directory escapes.
@@ -1147,4 +1147,48 @@ func TestSSRFSafeTransport(t *testing.T) {
 	if t1.DialContext == nil {
 		t.Error("SSRFSafeTransport clone should have a non-nil DialContext")
 	}
+}
+
+// TestResolveLocalImagePathContainmentRoot covers shared asset directories.
+//
+// Images resolve against the chapter's own directory, but a book commonly
+// keeps them in one place and references them with `../assets/…`. Validating
+// containment against the chapter directory silently dropped every such
+// reference — no embed, no copy, no warning — while validating against the
+// book root keeps traversal outside the project blocked.
+func TestResolveLocalImagePathContainmentRoot(t *testing.T) {
+	root := t.TempDir()
+	chapterDir := filepath.Join(root, "chap")
+	assetDir := filepath.Join(root, "assets")
+	for _, d := range []string{chapterDir, assetDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shared := filepath.Join(assetDir, "shared.png")
+	if err := os.WriteFile(shared, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("parent-relative asset resolves within the book root", func(t *testing.T) {
+		got := resolveLocalImagePath(chapterDir, root, "../assets/shared.png")
+		if got == "" {
+			t.Fatal("shared asset was rejected; it would be silently dropped from the output")
+		}
+		if filepath.Clean(got) != filepath.Clean(shared) {
+			t.Errorf("resolved to %q, want %q", got, shared)
+		}
+	})
+
+	t.Run("traversal outside the root is still rejected", func(t *testing.T) {
+		if got := resolveLocalImagePath(chapterDir, root, "../../../../etc/passwd"); got != "" {
+			t.Errorf("traversal escaped containment: %q", got)
+		}
+	})
+
+	t.Run("absolute paths are still rejected", func(t *testing.T) {
+		if got := resolveLocalImagePath(chapterDir, root, "/etc/passwd"); got != "" {
+			t.Errorf("absolute path accepted: %q", got)
+		}
+	})
 }

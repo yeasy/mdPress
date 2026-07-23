@@ -478,19 +478,27 @@ func TestScanModTimes(t *testing.T) {
 	modTimes := make(map[string]time.Time)
 	srv.scanModTimes(modTimes)
 
-	// Should scan .md, .yaml, .css files
-	if len(modTimes) != 3 {
-		t.Errorf("expected 3 scanned files, got %d", len(modTimes))
+	// Scans .md, .yaml, .css and images. Images are content: replacing a
+	// screenshot while the preview is open should refresh it rather than
+	// require a restart.
+	if len(modTimes) != 4 {
+		t.Errorf("expected 4 scanned files, got %d", len(modTimes))
 		for k := range modTimes {
 			t.Logf("  file: %s", k)
 		}
 	}
 
-	// Verify .png files are excluded
+	var sawImage bool
 	for path := range modTimes {
 		if strings.HasSuffix(path, ".png") {
-			t.Errorf("should not include .png file: %s", path)
+			sawImage = true
 		}
+		if strings.Contains(path, string(filepath.Separator)+".git"+string(filepath.Separator)) {
+			t.Errorf("hidden directory should be skipped: %s", path)
+		}
+	}
+	if !sawImage {
+		t.Error("images should be watched; editing one must trigger a rebuild")
 	}
 }
 

@@ -171,6 +171,12 @@ type ImageProcessingOptions struct {
 	CacheDir               string
 	MaxConcurrentDownloads int
 	Logger                 *slog.Logger
+	// ContainmentRoot bounds where a relative image may resolve to. Paths are
+	// resolved against the chapter's own directory, but validated against this
+	// root, so a shared `../assets/logo.png` works while `../../etc/passwd`
+	// still does not. Empty falls back to the chapter directory, which silently
+	// dropped every parent-relative image.
+	ContainmentRoot string
 }
 
 // DownloadImage downloads an image from a URL and returns the local path.
@@ -620,8 +626,19 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 			}
 		}
 
-		targetPath := resolveLocalImagePath(baseDir, src)
+		targetPath := resolveLocalImagePath(baseDir, options.ContainmentRoot, src)
 		if !FileExists(targetPath) {
+			// Silence here is how a broken image reaches the reader: the <img>
+			// tag looks right in view-source and nothing in the build says
+			// otherwise.
+			if options.Logger != nil {
+				reason := "file not found"
+				if targetPath == "" {
+					reason = "path resolves outside the book directory"
+				}
+				options.Logger.Warn("Image reference could not be resolved; it will be broken in the output",
+					slog.String("src", src), slog.String("chapter_dir", baseDir), slog.String("reason", reason))
+			}
 			return match
 		}
 
@@ -703,14 +720,21 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 	return results
 }
 
-func resolveLocalImagePath(baseDir string, src string) string {
+// resolveLocalImagePath resolves src against baseDir (the chapter's directory)
+// and verifies the result stays inside containmentRoot. Passing a root above
+// baseDir is what allows a shared assets directory to be referenced with `../`
+// without opening up arbitrary filesystem reads. An empty root means baseDir.
+func resolveLocalImagePath(baseDir, containmentRoot, src string) string {
 	if filepath.IsAbs(src) {
 		return "" // reject absolute paths to prevent reading arbitrary files
 	}
+	if containmentRoot == "" {
+		containmentRoot = baseDir
+	}
 	resolved := filepath.Clean(filepath.Join(baseDir, src))
-	// Ensure the resolved path stays within baseDir.
+	// Ensure the resolved path stays within the containment root.
 	// Use EvalSymlinks to prevent symlink-based containment bypass.
-	absBase, err := filepath.Abs(baseDir)
+	absBase, err := filepath.Abs(containmentRoot)
 	if err != nil {
 		return "" // cannot verify containment; reject
 	}
@@ -727,7 +751,7 @@ func resolveLocalImagePath(baseDir string, src string) string {
 		absBase = evaledBase
 	}
 	if !strings.HasPrefix(absResolved, absBase+string(filepath.Separator)) && absResolved != absBase {
-		// Path escapes baseDir, return empty to prevent traversal
+		// Path escapes the containment root, return empty to prevent traversal
 		return ""
 	}
 	return resolved
