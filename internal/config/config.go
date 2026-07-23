@@ -158,18 +158,25 @@ type OutputConfig struct {
 func DefaultConfig() *BookConfig {
 	return &BookConfig{
 		Book: BookMeta{
-			Title:    "Untitled Book",
-			Author:   "",
+			Title:  "Untitled Book",
+			Author: "",
+			// Matches what `mdpress init` scaffolds. Zero-config discovery
+			// overrides this by sniffing the content, so a Chinese book still
+			// gets zh-CN without configuring anything.
 			Version:  "1.0.0",
-			Language: "zh-CN",
+			Language: "en-US",
 		},
 		Style: StyleConfig{
-			Theme:      "technical",
-			PageSize:   "A4",
-			FontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-			FontSize:   "12pt",
+			Theme:    "technical",
+			PageSize: "A4",
+			// Typography defaults live in the theme, not here: an empty value
+			// means "inherit from the theme", which is what lets `elegant`
+			// stay serif and `minimal` keep its own scale. A non-empty value
+			// is an explicit user override and wins (see ApplyTypography).
+			FontFamily: "",
+			FontSize:   "",
 			CodeTheme:  "", // empty inherits the theme's code_theme (e.g. github for technical, bw for minimal)
-			LineHeight: 1.6,
+			LineHeight: 0,
 			Margin: MarginConfig{
 				Top:    25,
 				Bottom: 25,

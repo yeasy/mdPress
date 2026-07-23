@@ -342,6 +342,7 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 	chapterMarkdown := make([]string, 0, len(p.Config.Chapters))
 	issues := make([]projectIssue, 0)
 	chapterHeadingRecords := make([]chapterHeadingRecord, 0, len(p.Config.Chapters))
+	seenChapterIDs := make(map[string]int, len(p.Config.Chapters))
 
 	flatChapters := flattenChaptersWithDepth(p.Config.Chapters)
 
@@ -412,6 +413,11 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 		if len(headings) > 0 {
 			chapterID = headings[0].ID
 		}
+		// Heading IDs are only unique within one parsed document, so chapters
+		// that share a title ("Overview", "Summary", …) mint the same ID. That
+		// ID becomes an ePub filename and a manifest key, where a collision
+		// silently drops a whole chapter, so de-duplicate across the book.
+		chapterID = uniqueChapterID(chapterID, seenChapterIDs)
 
 		// Invoke the AfterParse hook so plugins can modify this chapter's HTML.
 		hookCtx := &plugin.HookContext{
@@ -598,4 +604,27 @@ func stripDuplicateLeadingH1(htmlContent, summaryTitle string) string {
 		return strings.TrimSpace(htmlContent[:fullMatch[0]] + htmlContent[fullMatch[1]:])
 	}
 	return htmlContent
+}
+
+// uniqueChapterID returns id, or id with a numeric suffix when the book
+// already used it. seen tracks how many times each base ID has been handed
+// out, mirroring how Goldmark disambiguates repeated heading slugs within a
+// document — except this runs across the whole book, where chapter IDs become
+// ePub filenames and manifest keys.
+func uniqueChapterID(id string, seen map[string]int) string {
+	count := seen[id]
+	seen[id] = count + 1
+	if count == 0 {
+		return id
+	}
+	// Keep bumping in case the suffixed form was itself taken by a chapter
+	// whose own title already ended in a number.
+	for {
+		candidate := fmt.Sprintf("%s-%d", id, count+1)
+		if _, taken := seen[candidate]; !taken {
+			seen[candidate] = 1
+			return candidate
+		}
+		count++
+	}
 }

@@ -336,7 +336,7 @@ func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := utils.EnsureDir(filepath.Dir(outputDir)); err != nil {
 		return fmt.Errorf("failed to create site output parent directory: %w", err)
 	}
-	tempDir, err := os.MkdirTemp(filepath.Dir(outputDir), "mdpress-site-*.tmp")
+	tempDir, err := newSiteStagingDir(filepath.Dir(outputDir), "mdpress-site-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary site directory: %w", err)
 	}
@@ -383,6 +383,28 @@ func ensureReplaceableSiteDir(dir string) error {
 		return nil
 	}
 	return fmt.Errorf("refusing to replace %s: the directory is not empty and does not look like a generated site (no index.html or search-index.json); remove it or choose another --output", dir)
+}
+
+// newSiteStagingDir creates the staging directory that the atomic swap renames
+// into place as the published site root.
+//
+// os.MkdirTemp always creates 0700 directories. That is right for a scratch
+// directory but wrong here: after the rename it *is* the site root, and a
+// 0700 site root is unreadable to the web server user (nginx/httpd → 403) and
+// is preserved by rsync -a, docker COPY and CI artifact upload. Everything
+// generated inside it is already world-readable, so make the root match.
+func newSiteStagingDir(parent, pattern string) (string, error) {
+	dir, err := os.MkdirTemp(parent, pattern)
+	if err != nil {
+		return "", err
+	}
+	if err := os.Chmod(dir, 0o755); err != nil { //nolint:gosec // G302: a published site root must be world-readable
+		if rmErr := os.RemoveAll(dir); rmErr != nil {
+			return "", fmt.Errorf("chmod staging dir: %w (cleanup also failed: %v)", err, rmErr)
+		}
+		return "", fmt.Errorf("chmod staging dir: %w", err)
+	}
+	return dir, nil
 }
 
 // swapSiteDir atomically replaces outputDir with tempDir: the previous output
@@ -444,7 +466,10 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 	// generator derives its own reader-friendly stylesheet from the theme.
 	epubGen.SetCSS(ctx.CustomCSS)
 	epubGen.SetTheme(ctx.Theme)
-	for i, ch := range ctx.ChaptersHTML {
+	// Cross-chapter .md links must point at the packaged .xhtml documents;
+	// the raw chapter HTML still carries the Markdown hrefs.
+	epubChapters := rewriteChapterLinksForEpub(ctx.ChaptersHTML, ctx.ChapterFiles)
+	for i, ch := range epubChapters {
 		sourceDir := ""
 		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {
 			sourceDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
@@ -541,9 +566,12 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		typst.WithAuthor(ctx.Config.Book.Author),
 		typst.WithVersion(ctx.Config.Book.Version),
 		typst.WithLanguage(ctx.Config.Book.Language),
-		typst.WithFontFamily(ctx.Config.Style.FontFamily),
-		typst.WithFontSize(ctx.Config.Style.FontSize),
-		typst.WithLineHeight(ctx.Config.Style.LineHeight),
+		// Read the resolved theme, not the raw config: the theme already
+		// carries the built-in values with the user's style overlaid, so all
+		// backends render the same typography.
+		typst.WithFontFamily(ctx.Theme.FontFamily),
+		typst.WithFontSize(ctx.Theme.ResolvedFontSize()),
+		typst.WithLineHeight(ctx.Theme.LineHeight),
 		typst.WithRootDir(typstRoot),
 		typst.WithMargins(
 			typst.ConvertMarginToTypst(ctx.Config.Output.MarginLeft, "20mm"),

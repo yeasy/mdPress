@@ -31,6 +31,46 @@ type Theme struct {
 	Margins        MarginSettings `yaml:"margins"`
 	HeaderTemplate string         `yaml:"header_template"`
 	FooterTemplate string         `yaml:"footer_template"`
+
+	// FontSizeCSS overrides FontSize with a literal CSS length. book.yaml's
+	// style.font_size accepts any CSS unit (px, em, rem, %), which the integer
+	// point value above cannot represent, so the resolved config sets this
+	// when the user configured a size. Empty means "use FontSize".
+	FontSizeCSS string `yaml:"-"`
+}
+
+// TypographyOverride carries the typography settings from book.yaml's `style`
+// block. They win over the theme's own values, so a user can retune a built-in
+// theme without forking it.
+type TypographyOverride struct {
+	FontFamily string
+	FontSize   string
+	LineHeight float64
+}
+
+// ResolvedFontSize returns the theme's body font size as a CSS length, taking
+// a user override into account. Use it instead of formatting FontSize
+// directly, so every backend agrees on the effective size.
+func (t *Theme) ResolvedFontSize() string {
+	if t.FontSizeCSS != "" {
+		return t.FontSizeCSS
+	}
+	return fmt.Sprintf("%dpt", t.FontSize)
+}
+
+// ApplyTypography overlays non-empty user typography onto the theme. Without
+// it, style.font_family / font_size / line_height are parsed and validated but
+// never reach any renderer.
+func (t *Theme) ApplyTypography(o TypographyOverride) {
+	if o.FontFamily != "" {
+		t.FontFamily = o.FontFamily
+	}
+	if o.FontSize != "" {
+		t.FontSizeCSS = o.FontSize
+	}
+	if o.LineHeight > 0 {
+		t.LineHeight = o.LineHeight
+	}
 }
 
 // ColorScheme defines the color palette for a theme.
@@ -241,7 +281,7 @@ func (t *Theme) ToCSS() string {
 
 	fontFamily := quoteFontFamily(t.FontFamily)
 	monoFamily := quoteFontFamily(defaultCJKMonoFontFamily)
-	fontSize := fmt.Sprintf("%dpt", t.FontSize)
+	fontSize := t.ResolvedFontSize()
 	lineHeight := fmt.Sprintf("%.2f", t.LineHeight)
 	marginTop := fmt.Sprintf("%.2fmm", t.Margins.Top)
 	marginBottom := fmt.Sprintf("%.2fmm", t.Margins.Bottom)

@@ -198,7 +198,11 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	expandedFormats := make([]string, 0, len(formats))
 	for _, f := range formats {
 		if f == "all" {
-			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub", "typst")
+			// "typst" is deliberately excluded: it is an opt-in alternative
+			// PDF backend that needs the optional Typst CLI and produces the
+			// same artifact as "pdf". Including it made `--format all` fail on
+			// any machine without Typst, including the project's own CI recipe.
+			expandedFormats = append(expandedFormats, "pdf", "html", "site", "epub")
 		} else {
 			expandedFormats = append(expandedFormats, f)
 		}
@@ -299,6 +303,31 @@ func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string)
 	for i, ch := range chapters {
 		rewritten[i] = ch
 		rewritten[i].Content = linkrewrite.RewriteLinks(ch.Content, chapterFiles[i], targets, linkrewrite.ModeSingle)
+	}
+
+	return rewritten
+}
+
+// rewriteChapterLinksForEpub points cross-chapter Markdown links at the flat
+// <chapterID>.xhtml documents that make up an ePub, mirroring what the single
+// page and site paths already do for their own layouts.
+func rewriteChapterLinksForEpub(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
+	if len(chapters) == 0 || len(chapters) != len(chapterFiles) {
+		return chapters
+	}
+
+	targets := make(map[string]linkrewrite.Target, len(chapters))
+	for i, ch := range chapters {
+		if chapterFiles[i] == "" || ch.ID == "" {
+			continue
+		}
+		targets[linkrewrite.NormalizePath(chapterFiles[i])] = linkrewrite.Target{ChapterID: ch.ID}
+	}
+
+	rewritten := make([]renderer.ChapterHTML, len(chapters))
+	for i, ch := range chapters {
+		rewritten[i] = ch
+		rewritten[i].Content = linkrewrite.RewriteLinks(ch.Content, chapterFiles[i], targets, linkrewrite.ModeEpub)
 	}
 
 	return rewritten

@@ -1150,3 +1150,41 @@ func TestSafeDirArg(t *testing.T) {
 		}
 	}
 }
+
+// TestAutoDiscoverDetectsContentLanguage covers zero-config language
+// selection: an English folder must not inherit a Chinese UI (and vice
+// versa), since a zero-config project has no `language:` to read.
+func TestAutoDiscoverDetectsContentLanguage(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "english content",
+			content: "# Getting Started\n\nThis guide explains how to install and configure the tool.\n",
+			want:    "en-US",
+		},
+		{
+			name:    "chinese content",
+			content: "# 快速开始\n\n本指南介绍如何安装和配置该工具，并说明常见的使用方式。\n",
+			want:    "zh-CN",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte(tt.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := autoDiscover(context.Background(), dir)
+			if err != nil {
+				t.Fatalf("autoDiscover() error: %v", err)
+			}
+			if cfg.Book.Language != tt.want {
+				t.Errorf("Book.Language = %q, want %q", cfg.Book.Language, tt.want)
+			}
+		})
+	}
+}

@@ -12,6 +12,10 @@ func newTestConfig() *config.BookConfig {
 	cfg := config.DefaultConfig()
 	cfg.Book.Title = "测试图书"
 	cfg.Book.Author = "测试作者"
+	// Set explicitly rather than leaning on the package default, so the tests
+	// assert that book.language reaches the output instead of pinning whatever
+	// the default happens to be.
+	cfg.Book.Language = "zh-CN"
 	return cfg
 }
 

@@ -180,6 +180,14 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		outputDir = filepath.Join(cfg.BaseDir(), "_book")
 	}
 
+	// Every rebuild replaces outputDir wholesale via an atomic swap, so a
+	// directory holding anything other than a previously generated site would
+	// lose its contents on the first save. Refuse it up front, exactly like
+	// `mdpress build --format site` does.
+	if err := ensureReplaceableSiteDir(outputDir); err != nil {
+		return err
+	}
+
 	// Warn when binding to a non-loopback address as this exposes the
 	// preview server (including WebSocket and all generated content) to
 	// other machines on the network.
@@ -217,7 +225,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 			return fmt.Errorf("reload config: %w", err)
 		}
 		// Build to a temporary directory first, then swap on success.
-		tempOutput, err := os.MkdirTemp(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
+		tempOutput, err := newSiteStagingDir(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
 		if err != nil {
 			return fmt.Errorf("create temp output dir: %w", err)
 		}

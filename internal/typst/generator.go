@@ -101,8 +101,35 @@ func WithLineHeight(h float64) GeneratorOption {
 }
 
 // WithLanguage sets the document language.
+//
+// Typst's `text(lang: …)` accepts only an ISO 639 code (2-3 letters), so a
+// BCP-47 tag such as "en-US" or "zh-CN" — what book.yaml carries, and what
+// every mdpress scaffold writes — is reduced to its primary subtag. An
+// unusable value leaves the generator's default in place rather than
+// producing a document Typst refuses to compile.
 func WithLanguage(lang string) GeneratorOption {
-	return func(g *Generator) { g.language = lang }
+	return func(g *Generator) {
+		if normalized := normalizeLanguage(lang); normalized != "" {
+			g.language = normalized
+		}
+	}
+}
+
+// normalizeLanguage reduces a BCP-47 language tag to the ISO 639 primary
+// subtag, returning "" when there is no usable subtag.
+func normalizeLanguage(lang string) string {
+	primary, _, _ := strings.Cut(strings.TrimSpace(lang), "-")
+	primary, _, _ = strings.Cut(primary, "_")
+	primary = strings.ToLower(primary)
+	if len(primary) < 2 || len(primary) > 3 {
+		return ""
+	}
+	for _, r := range primary {
+		if r < 'a' || r > 'z' {
+			return ""
+		}
+	}
+	return primary
 }
 
 // WithAuthor sets the document author.

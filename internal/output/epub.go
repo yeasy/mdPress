@@ -119,6 +119,13 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		return fmt.Errorf("collect chapter assets: %w", err)
 	}
 
+	// Every other backend creates its output directory; the EPUB writer used
+	// to be the only one that did not, so `-o release/book.epub` failed with a
+	// bare "no such file or directory" on a fresh checkout or CI runner.
+	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
+		return fmt.Errorf("failed to create EPUB output directory: %w", err)
+	}
+
 	f, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create EPUB file: %w", err)
@@ -277,14 +284,14 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 	}
 	if coverAsset != nil {
 		fmt.Fprintf(&b, "    <item id=\"cover-image\" href=\"%s\" media-type=\"%s\" properties=\"cover-image\"/>\n",
-			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(coverAsset.MediaType))
+			epubHref(coverAsset.Filename), utils.EscapeXML(coverAsset.MediaType))
 	}
 
 	b.WriteString("    <item id=\"css\" href=\"style.css\" media-type=\"text/css\"/>\n")
 
 	for _, asset := range chapterAssets {
 		fmt.Fprintf(&b, "    <item id=\"%s\" href=\"%s\" media-type=\"%s\"/>\n",
-			utils.EscapeXML(asset.ID), utils.EscapeXML(asset.Filename), utils.EscapeXML(asset.MediaType))
+			utils.EscapeXML(asset.ID), epubHref(asset.Filename), utils.EscapeXML(asset.MediaType))
 	}
 
 	for i, ch := range chapters {
@@ -296,7 +303,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 			props = ` properties="scripted remote-resources"`
 		}
 		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"%s/>\n",
-			i, utils.EscapeXML(ch.Filename), props)
+			i, epubHref(ch.Filename), props)
 	}
 
 	b.WriteString("  </manifest>\n  <spine toc=\"ncx\">\n")
@@ -335,7 +342,7 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	for i, ch := range chapters {
 		fmt.Fprintf(&b, "    <navPoint id=\"nav%d\" playOrder=\"%d\">\n", i, playOrder)
 		fmt.Fprintf(&b, "      <navLabel><text>%s</text></navLabel>\n", utils.EscapeXML(ch.Title))
-		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", utils.EscapeXML(ch.Filename))
+		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", epubHref(ch.Filename))
 		b.WriteString("    </navPoint>\n")
 		playOrder++
 	}
@@ -364,7 +371,7 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 		b.WriteString(`      <li><a href="cover.xhtml">Cover</a></li>` + "\n")
 	}
 	for _, ch := range chapters {
-		fmt.Fprintf(&b, "      <li><a href=\"%s\">%s</a></li>\n", utils.EscapeXML(ch.Filename), utils.EscapeXML(ch.Title))
+		fmt.Fprintf(&b, "      <li><a href=\"%s\">%s</a></li>\n", epubHref(ch.Filename), utils.EscapeXML(ch.Title))
 	}
 	b.WriteString(`    </ol>
   </nav>
@@ -811,6 +818,11 @@ var ampAndEntityPattern = regexp.MustCompile(`&([a-zA-Z0-9#][a-zA-Z0-9#]{0,31};)
 // selected, etc., which XHTML requires to have an explicit value.
 var booleanAttrPattern = regexp.MustCompile(`(?i)\s(checked|disabled|selected|readonly|multiple|autofocus|autoplay|controls|loop|muted|open|required|reversed|hidden|defer|async|novalidate)(\s|/?>)`)
 
+// epubStartTagPattern matches a start tag, so attribute rewriting can be
+// confined to markup instead of running across the document's text. Goldmark
+// escapes ">" inside attribute values, so a tag never contains a bare one.
+var epubStartTagPattern = regexp.MustCompile(`<[a-zA-Z][^<>]*>`)
+
 // normalizeHTMLForXHTML converts HTML produced by Goldmark into valid XHTML.
 //
 // It handles the following transformations:
@@ -836,10 +848,12 @@ func normalizeHTMLForXHTML(html string) string {
 	})
 
 	// 3. Expand boolean attributes to attribute="attribute" form.
-	// The trailing group (\s|/?>) in booleanAttrPattern consumes the whitespace
-	// that separates adjacent boolean attributes, so a single pass misses the
-	// second attribute in sequences like `disabled multiple`. Running the
-	// replacement twice ensures all consecutive boolean attributes are expanded.
+	//
+	// This must run inside start tags only. The attribute names are ordinary
+	// English words ("multiple", "open", "required", "hidden", "controls"…),
+	// so applying the pattern to the whole document rewrote prose and code
+	// samples: "supports multiple output formats" became
+	// `supports multiple="multiple" output formats` in the reader.
 	expandBoolAttr := func(match string) string {
 		sub := booleanAttrPattern.FindStringSubmatch(match)
 		if len(sub) < 3 {
@@ -849,10 +863,24 @@ func normalizeHTMLForXHTML(html string) string {
 		trailing := sub[2]
 		return " " + attr + `="` + attr + `"` + trailing
 	}
-	html = booleanAttrPattern.ReplaceAllStringFunc(html, expandBoolAttr)
-	html = booleanAttrPattern.ReplaceAllStringFunc(html, expandBoolAttr)
+	html = epubStartTagPattern.ReplaceAllStringFunc(html, func(tag string) string {
+		// The trailing group (\s|/?>) consumes the whitespace separating
+		// adjacent boolean attributes, so one pass misses the second of a
+		// pair like `disabled multiple`; run it twice.
+		tag = booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
+		return booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
+	})
 
 	return html
+}
+
+// epubHref renders a packaged file name as an XML-safe, percent-encoded URI
+// reference. OCF requires every path in the package document, NCX and nav to
+// be a valid URI, so a chapter file named after a CJK heading must be
+// percent-encoded here even though the ZIP entry keeps its readable UTF-8
+// name (Go sets the archive's UTF-8 flag).
+func epubHref(filename string) string {
+	return utils.EscapeXML((&url.URL{Path: filename}).EscapedPath())
 }
 
 // epubImageSrcPattern reuses the shared img-src regex from pkg/utils.

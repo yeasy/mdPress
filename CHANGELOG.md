@@ -6,6 +6,35 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+A follow-up audit after the 0.7.14 sweep surfaced a further set of confirmed issues. This wave fixes the data-loss, data-corruption and never-worked-at-all ones, and adds guardrail tests for the three patterns that keep producing them.
+
+### Fixed
+
+- **`mdpress serve --output <dir>` no longer destroys that directory**: every rebuild swaps the output directory out wholesale, and the safety check added to `build --format site` in 0.7.14 was never applied to the serve path, so pointing `--output` at a real directory (`~/Sites`, `../public`, a shared web root) deleted its contents on the first file save. serve now refuses the directory up front
+- **Generated site root is no longer mode 0700**: the atomic swap stages the build in an `os.MkdirTemp` directory, which is always 0700, and renamed it into place as the published site root — a 403 for the whole site under nginx/httpd, preserved by `rsync -a`, `docker COPY` and CI artifact upload
+- **ePub no longer corrupts prose**: the XHTML boolean-attribute expansion ran over the whole document, and those attribute names are ordinary English words, so "supports multiple output formats" shipped as `supports multiple="multiple" output formats` (33 instances in mdPress's own manual). It now runs inside start tags only
+- **ePub no longer drops chapters that share a title**: chapter IDs come from the first heading's slug, unique only within one document, so two chapters titled "Overview" produced the same `.xhtml` filename and the second silently replaced the first (10 collisions in the bilingual manual). IDs are now de-duplicated across the book
+- **ePub cross-chapter links work**: the single-page and site paths rewrite `.md` hrefs; ePub received the raw chapter HTML, so every cross-reference shipped as a dead link (epubcheck RSC-007)
+- **ePub package references are valid URIs**: OCF requires percent-encoded paths in the package document, NCX and nav; a CJK chapter title produced raw non-ASCII references
+- **`--format typst` works at all**: `book.language` was passed verbatim into Typst's `lang:`, which takes only an ISO 639 code, so every mdpress-generated project (`quickstart`, `init`, `examples/`) failed with a raw compiler error. The Chromium-free backend had never built a scaffolded project
+- **`--format epub -o <newdir>/book.epub` works**: ePub was the only backend that did not create its output directory
+- **`style.font_family`, `style.font_size` and `style.line_height` are honored**: they were declared, defaulted, validated and documented, but only the Typst backend read them; PDF, HTML and site ignored them silently
+- **Site search returns the best matches, and an honest count**: the scan stopped at 20 hits *before* ranking, so a page whose title matched the query never appeared if it sorted late, and the reported total was the truncated one
+- **Deleting or renaming a chapter rebuilds the preview**: the fsnotify mask accepted only writes and creates, so a deleted chapter kept being served until an unrelated edit triggered a rebuild
+- **Zero-config mode detects the content language**: `DefaultConfig` hardcoded `zh-CN` while `init` scaffolds `en-US`, so an English docs folder built a Chinese site UI and a Chinese PDF cover. `detectContentLanguage` existed for this but was never called
+- **GitBook migration guide (EN + ZH)**: documented a `mdpress migrate --output` flag that has never existed, and described migrate as creating a new project when it rewrites your source files in place
+
+### Changed
+
+- **`--format all` no longer includes `typst`**: it made `all` fail on any machine without the optional Typst CLI, including the project's own example GitHub Actions workflow. Pass `--format typst` explicitly for the alternative PDF backend
+- **Typography defaults moved from `DefaultConfig` to the themes**: an unset `style.font_family` / `font_size` / `line_height` now means "inherit from the theme", so `elegant` stays serif and `minimal` keeps its own scale. **Breaking:** a hand-written `book.yaml` that omits `language:` for a Chinese book now resolves to `en-US` unless the content is predominantly CJK
+
+### Added
+
+- **Cross-format matrix test** (`tests/format_matrix_test.go`): one fixture book carrying the constructs that have historically diverged between backends — boolean-attribute words in prose, chapters sharing a title, a cross-chapter link, a CJK-titled chapter, math and mermaid — asserting the same invariants across site, standalone HTML and ePub
+- **Style wiring test** (`tests/style_wiring_test.go`): drives the real CLI and looks for configured typography in the output, catching config fields that are parsed but read by nothing on the path that matters
+- **Documented-flag test** (`cmd/docs_flags_test.go`): extracts every `mdpress …` invocation from `docs/` and resolves its flags against the real cobra command tree
+
 ---
 
 ## [0.7.14] - 2026-07-10

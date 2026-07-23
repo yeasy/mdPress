@@ -181,7 +181,14 @@ func TestGenerateEmptyChapters(t *testing.T) {
 // TestGenerateInvalidOutputPath verifies that Generate fails and cleans up on invalid path.
 func TestGenerateInvalidOutputPath(t *testing.T) {
 	tmpDir := t.TempDir()
-	invalidPath := filepath.Join(tmpDir, "nonexistent", "deeply", "nested", "output.epub")
+	// A missing parent directory is no longer invalid — Generate creates it,
+	// like every other backend. Use a path whose parent is a regular file, so
+	// the directory genuinely cannot be created.
+	blocker := filepath.Join(tmpDir, "not-a-dir")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	invalidPath := filepath.Join(blocker, "output.epub")
 
 	gen := NewEpubGenerator(EpubMeta{Title: "Test"})
 	gen.AddChapter(EpubChapter{
@@ -1417,5 +1424,22 @@ func TestEpubGeneratedChapterContainsTitleHeading(t *testing.T) {
 	chapter := readEpubFile(t, outputPath, "OEBPS/ch1.xhtml")
 	if !strings.Contains(chapter, "<h1>Chapter One</h1>") {
 		t.Errorf("generated chapter should contain its title heading: %s", chapter)
+	}
+}
+
+// TestEpubGeneratorCreatesOutputDirectory guards parity with the other
+// backends: `mdpress build --format epub -o release/book.epub` must create
+// release/ rather than failing with a bare "no such file or directory".
+func TestEpubGeneratorCreatesOutputDirectory(t *testing.T) {
+	root := t.TempDir()
+	gen := NewEpubGenerator(EpubMeta{Title: "Dir Test", Author: "Author"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>hello</p>"})
+
+	outputPath := filepath.Join(root, "release", "nested", "book.epub")
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() into a missing directory failed: %v", err)
+	}
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Errorf("epub not written: %v", err)
 	}
 }

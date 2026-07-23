@@ -98,6 +98,15 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 		}
 	}
 
+	// book.yaml's `style` typography wins over the theme's own values, so a
+	// user can retune a built-in theme without forking it. Applied here, once,
+	// so every renderer that reads the theme picks it up.
+	thm.ApplyTypography(theme.TypographyOverride{
+		FontFamily: cfg.Style.FontFamily,
+		FontSize:   cfg.Style.FontSize,
+		LineHeight: cfg.Style.LineHeight,
+	})
+
 	// Initialize the Markdown parser.
 	codeTheme := cfg.Style.CodeTheme
 	if codeTheme == "" {
