@@ -964,7 +964,16 @@ func (s *Server) isIgnoredPath(path string) bool {
 
 // isWatchedExtension reports whether ext is a file extension we monitor for changes.
 func isWatchedExtension(ext string) bool {
-	return ext == ".md" || ext == ".yaml" || ext == ".yml" || ext == ".css"
+	switch ext {
+	case ".md", ".yaml", ".yml", ".css":
+		return true
+	// Images are part of the content: replacing a screenshot while the preview
+	// is open should refresh it, not require a manual restart.
+	case ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif":
+		return true
+	default:
+		return false
+	}
 }
 
 // addWatchDirRecursive walks root and adds every non-skipped directory

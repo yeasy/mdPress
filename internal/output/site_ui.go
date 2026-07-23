@@ -205,13 +205,20 @@ var contentLeadingHeadingPattern = regexp.MustCompile(`(?i)^\s*<h[1-6]\b[^>]*>(.
 // a heading (any level h1–h6) whose text matches pageTitle.  This prevents the
 // template from inserting a duplicate title above the content.
 func contentStartsWithTitle(html, pageTitle string) bool {
-	// Fast path: if there is an <h1> anywhere, we never need a generated title.
-	if strings.Contains(strings.ToLower(html), "<h1") {
-		return true
-	}
+	// The check must be anchored to the *start* of the content. It used to
+	// return true for an <h1> anywhere in the document, so a chapter with a
+	// second <h1> further down (an appendix, say) had its page title
+	// suppressed entirely — leaving that inner heading as the page's only H1
+	// and the chapter's real title nowhere on the page.
 	m := contentLeadingHeadingPattern.FindStringSubmatch(html)
 	if m == nil {
 		return false
+	}
+	// A leading <h1> is the content's own title regardless of its wording, so
+	// the template must not add a second one above it. (The pipeline normally
+	// strips it first, but only when the chapter has a nav title.)
+	if leading := strings.ToLower(strings.TrimSpace(m[0])); strings.HasPrefix(leading, "<h1") {
+		return true
 	}
 	// Strip any inner tags (e.g. <a>, <code>) from the matched heading text
 	// and compare with pageTitle after normalising whitespace.

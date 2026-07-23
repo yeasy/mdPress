@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -23,12 +26,29 @@ type cachedParsedChapter struct {
 	Diagnostics []markdown.Diagnostic  `json:"diagnostics"`
 }
 
+// rendererFingerprint identifies the binary that produced a cached chapter.
+//
+// The cache is keyed on chapter content, so anything that changes how content
+// is rendered must also change the key — otherwise an unchanged chapter keeps
+// serving HTML from the previous binary and every rendering fix stays
+// invisible. The version alone is not enough: it does not move between builds
+// from source, which is exactly when the renderer changes most. The
+// executable's size and modification time cover that, and are stable for an
+// installed release, so caching still works across runs.
+var rendererFingerprint = sync.OnceValue(func() string {
+	parts := []string{Version}
+	if exe, err := os.Executable(); err == nil {
+		if info, statErr := os.Stat(exe); statErr == nil {
+			parts = append(parts,
+				strconv.FormatInt(info.Size(), 10),
+				strconv.FormatInt(info.ModTime().UnixNano(), 10))
+		}
+	}
+	return strings.Join(parts, ":")
+})
+
 func parsedChapterCachePath(chapterPath, expandedContent, codeTheme string) string {
-	// The mdpress version is part of the key so that upgrading invalidates the
-	// cache. Without it, a chapter whose source did not change keeps serving
-	// HTML produced by the previous binary, so every rendering fix stays
-	// invisible until the user edits the file or clears the cache by hand.
-	key := utils.StableHash(parsedChapterCacheVersion, Version, chapterPath, codeTheme, expandedContent)
+	key := utils.StableHash(parsedChapterCacheVersion, rendererFingerprint(), chapterPath, codeTheme, expandedContent)
 	return filepath.Join(utils.CacheRootDir(), "parsed-chapters", key[:2], key+".json")
 }
 

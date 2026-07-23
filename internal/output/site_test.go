@@ -1159,10 +1159,18 @@ func TestContentStartsWithTitle(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name:      "h1 present anywhere — always true regardless of title match",
+			name:      "leading h1 — the content owns the title regardless of wording",
 			html:      "<h1>Different</h1><p>body</p>",
 			pageTitle: "My Page",
 			expected:  true,
+		},
+		{
+			// A second h1 further down (an appendix) must not suppress the
+			// page title: doing so left the chapter's real title off the page.
+			name:      "non-leading h1 does not suppress the page title",
+			html:      "<p>intro</p><h1 id=\"appendix\">Appendix</h1>",
+			pageTitle: "My Page",
+			expected:  false,
 		},
 		{
 			name:      "leading h2 matches page title",

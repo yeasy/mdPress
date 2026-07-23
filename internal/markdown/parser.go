@@ -112,6 +112,14 @@ func (p *Parser) ParseWithDiagnostics(source []byte) (string, []HeadingInfo, []D
 		return "", []HeadingInfo{}, nil, nil
 	}
 
+	// A BOM or a front matter block is not prose. Left in place, the BOM stops
+	// the first "# Heading" from being a heading, and the front matter renders
+	// verbatim into the page, the search index and the PDF.
+	source, _ = StripLeadingMetadata(source)
+	if len(source) == 0 {
+		return "", []HeadingInfo{}, nil, nil
+	}
+
 	// Pre-process math formulas: replace $$...$$ and $...$ with safe placeholder
 	// tokens to prevent goldmark from treating _ inside formulas as emphasis.
 	mathProc := newMathPreprocessor()
