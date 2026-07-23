@@ -383,3 +383,41 @@ chapters:
 		t.Errorf("multi-language projects must not report orphans, got %v", orphans)
 	}
 }
+
+// TestScaffoldPassesStrictValidation is the end-to-end contract the orphan
+// check has to respect: `mdpress quickstart` followed by
+// `mdpress validate --strict` must pass. The scaffold writes images/README.md
+// to explain what belongs in that directory, and reporting it as a forgotten
+// chapter made the tool fail its own output.
+func TestOrphanScanSkipsAssetDirectories(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, body string) {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("book.yaml", "book:\n  title: T\nchapters:\n  - title: A\n    file: a.md\n")
+	write("a.md", "# A\n")
+	for _, assetDoc := range []string{"images/README.md", "assets/README.md", "static/NOTES.md"} {
+		write(assetDoc, "# How to use this directory\n")
+	}
+	// A genuine orphan must still be reported.
+	write("forgotten.md", "# Forgotten\n")
+
+	cfg, err := config.Load(filepath.Join(root, "book.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	orphans, err := findOrphanMarkdownFiles(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(orphans) != 1 || orphans[0] != "forgotten.md" {
+		t.Errorf("orphans = %v, want exactly [forgotten.md]", orphans)
+	}
+}
