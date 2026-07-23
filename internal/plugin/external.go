@@ -189,6 +189,96 @@ func windowsExecutableExtensions() []string {
 	return result
 }
 
+// ProbeResult reports what a metadata probe learned about a plugin executable.
+type ProbeResult struct {
+	// Path is the resolved absolute path to the executable.
+	Path string
+	// Version and Description come from --mdpress-info when it answers.
+	Version     string
+	Description string
+	// Hooks lists the phases reported by --mdpress-hooks.
+	Hooks []Phase
+	// SpeaksProtocol reports whether the executable answered at least one of
+	// the metadata queries with well-formed JSON. A program that answers
+	// neither is not an mdpress plugin, however executable it is.
+	SpeaksProtocol bool
+	// InfoErr and HooksErr record why a query did not produce usable output.
+	InfoErr  error
+	HooksErr error
+}
+
+// Probe runs the plugin metadata handshake against execPath without invoking
+// any hook. It exists so `mdpress doctor` can tell an actual plugin from any
+// other executable: checking the file mode alone reported "all plugins are
+// valid" for programs that could not answer a single mdpress query, and the
+// next build then warned about every one of them.
+//
+// A non-nil error means the path could not be resolved to an executable at all.
+func Probe(execPath string) (ProbeResult, error) {
+	resolvedPath, err := resolvePluginExecutablePath(execPath)
+	if err != nil {
+		return ProbeResult{}, err
+	}
+
+	result := ProbeResult{Path: resolvedPath}
+	result.Version, result.Description, result.InfoErr = probePluginMeta(resolvedPath)
+	result.Hooks, result.HooksErr = probePluginHooks(resolvedPath)
+	result.SpeaksProtocol = result.InfoErr == nil || result.HooksErr == nil
+	return result, nil
+}
+
+// probePluginMeta is queryPluginMeta without the "safe defaults" fallback, so
+// callers can distinguish "answered" from "did not answer".
+func probePluginMeta(execPath string) (version, description string, err error) {
+	stdout, err := runPluginQuery(execPath, "--mdpress-info", pluginMetaQueryTimeout)
+	if err != nil {
+		return "", "", err
+	}
+	var meta struct {
+		Version     string `json:"version"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(stdout, &meta); err != nil {
+		return "", "", fmt.Errorf("--mdpress-info did not return JSON metadata: %w", err)
+	}
+	return meta.Version, meta.Description, nil
+}
+
+// probePluginHooks is queryPluginHooks without the all-phases fallback.
+func probePluginHooks(execPath string) ([]Phase, error) {
+	stdout, err := runPluginQuery(execPath, "--mdpress-hooks", pluginHooksQueryTimeout)
+	if err != nil {
+		return nil, err
+	}
+	var hookNames []string
+	if err := json.Unmarshal(stdout, &hookNames); err != nil {
+		return nil, fmt.Errorf("--mdpress-hooks did not return a JSON array: %w", err)
+	}
+	phases := make([]Phase, 0, len(hookNames))
+	for _, n := range hookNames {
+		phases = append(phases, Phase(strings.TrimSpace(n)))
+	}
+	return phases, nil
+}
+
+// runPluginQuery runs execPath with a single metadata flag and returns its
+// trimmed stdout.
+func runPluginQuery(execPath, flag string, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, execPath, flag)
+	var stdout bytes.Buffer
+	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("%s timed out after %s", flag, timeout)
+		}
+		return nil, fmt.Errorf("%s failed: %w", flag, err)
+	}
+	return bytes.TrimSpace(stdout.Bytes()), nil
+}
+
 // maxPluginMetaOutput limits stdout captured from plugin metadata queries
 // (--mdpress-info, --mdpress-hooks) to prevent memory exhaustion from
 // malicious or buggy plugins that write excessive output.

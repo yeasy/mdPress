@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/pdf"
+	"github.com/yeasy/mdpress/internal/plugin"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -70,7 +72,10 @@ mdpress doctor usable as a CI gate. Without --strict the command always exits 0.
 }
 
 func init() {
-	doctorCmd.Flags().StringVarP(&doctorReportPath, "report", "o", "", "Write doctor report to .json or .md")
+	// Shorthand is -r, not -o: every other command spells output with -o, and
+	// `mdpress doctor -o ./out` silently meant "write the report there" —
+	// then failed at the very end because ./out has no .json/.md extension.
+	doctorCmd.Flags().StringVarP(&doctorReportPath, "report", "r", "", "Write doctor report to .json or .md")
 	doctorCmd.Flags().BoolVar(&doctorStrict, "strict", false, "Exit with a non-zero status when any error-level check fails (useful as a CI gate)")
 }
 
@@ -114,6 +119,12 @@ func (r *doctorReport) addDoctorError(msg string) {
 }
 
 func executeDoctor(ctx context.Context, targetDir string) error {
+	// Reject an unusable --report path before spending a minute on checks whose
+	// output is about to be thrown away.
+	if doctorReportPath != "" && !doctorReportPathSupported(doctorReportPath) {
+		return errUnsupportedDoctorReportExt(doctorReportPath)
+	}
+
 	absDir, err := filepath.Abs(targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to resolve directory path: %w", err)
@@ -176,7 +187,10 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	checkNetworkConnectivity(ctx, &report)
 
 	// Try to load project config once for reuse by multiple checks.
-	bookPath := filepath.Join(absDir, "book.yaml")
+	// --config is resolved the same way build and validate resolve it. doctor
+	// used to look only for <dir>/book.yaml, so a project whose config is named
+	// anything else was reported as unbuildable however healthy it was.
+	bookPath, configDiscoverable := resolveConfigPath(absDir)
 	var doctorCfg *config.BookConfig
 	if _, err := os.Stat(bookPath); err == nil {
 		if cfg, loadErr := config.Load(bookPath); loadErr == nil {
@@ -210,15 +224,27 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	summaryPath := filepath.Join(absDir, "SUMMARY.md")
 	langsPath := filepath.Join(absDir, "LANGS.md")
 
+	configLabel := filepath.Base(bookPath)
 	if _, err := os.Stat(bookPath); err == nil {
 		report.BookYAMLFound = true
-		utils.Success("Detected book.yaml")
+		utils.Success("Detected %s", configLabel)
+	} else if !configDiscoverable {
+		// An explicit --config that does not exist is a mistake, not a project
+		// without a config: discovering some other book instead would hide it.
+		utils.Error("Config file not found: %s (--config was given explicitly)", bookPath)
+		report.addDoctorError(fmt.Sprintf("Config file not found: %s (--config was given explicitly)", bookPath))
 	} else {
 		utils.Warning("book.yaml not found")
 	}
+
+	// SUMMARY.md and LANGS.md are optional. Reporting their absence as warnings
+	// meant a freshly scaffolded project — the one shape mdpress creates
+	// itself — greeted the user with two warnings about nothing being wrong.
 	if _, err := os.Stat(summaryPath); err == nil {
 		report.SummaryFound = true
 		utils.Success("Detected SUMMARY.md")
+	} else if report.BookYAMLFound && doctorCfg != nil && len(doctorCfg.Chapters) > 0 {
+		utils.Info("SUMMARY.md not found (chapters come from %s)", configLabel)
 	} else {
 		utils.Warning("SUMMARY.md not found")
 	}
@@ -227,8 +253,10 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		utils.Success("Detected LANGS.md")
 		utils.Warning("Multi-language projects are built per language directory; root-level mixed-book output is not generated")
 		report.Warnings = append(report.Warnings, "Multi-language projects are built per language directory; root-level mixed-book output is not generated")
-	} else {
-		utils.Warning("LANGS.md not found")
+	} else if hasLanguageSubdirs(absDir) {
+		// Only meaningful when the layout actually looks multi-language.
+		utils.Warning("LANGS.md not found, but language-like subdirectories exist — add LANGS.md to build them per language")
+		report.Warnings = append(report.Warnings, "LANGS.md not found, but language-like subdirectories exist")
 	}
 
 	if doctorCfg != nil {
@@ -238,26 +266,37 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 		utils.Success("Config loads successfully: %s (%d top-level chapters)", doctorCfg.Book.Title, len(doctorCfg.Chapters))
 		reportDoctorMarkdownLinks(doctorCfg, &report)
 	} else if _, err := os.Stat(bookPath); err == nil {
-		// book.yaml exists but failed to load — report the error.
+		// The config exists but failed to load — report the error.
 		if _, loadErr := config.Load(bookPath); loadErr != nil {
-			utils.Error("Failed to load book.yaml: %v", loadErr)
-			report.addDoctorError(fmt.Sprintf("Failed to load book.yaml: %v", loadErr))
+			utils.Error("Failed to load %s: %v", configLabel, loadErr)
+			report.addDoctorError(fmt.Sprintf("Failed to load %s: %v", configLabel, loadErr))
 		}
-	} else if _, err := os.Stat(summaryPath); err == nil {
+	} else if !configDiscoverable {
+		// The explicit --config is missing; it was already reported above.
+		// Falling back to discovery here would describe a different project
+		// than the one the user asked about, which is what build refuses to do.
+	} else {
+		// Zero-config discovery is a first-class way to build, so ask it rather
+		// than pattern-matching on SUMMARY.md: a directory of plain Markdown
+		// files was declared unbuildable while `mdpress build` built it fine.
 		cfg, discoverErr := config.Discover(ctx, absDir)
-		if discoverErr != nil {
+		switch {
+		case discoverErr != nil && report.SummaryFound:
 			utils.Error("Failed to auto-discover project from SUMMARY.md: %v", discoverErr)
 			report.addDoctorError(fmt.Sprintf("Failed to auto-discover project from SUMMARY.md: %v", discoverErr))
-		} else {
+		case discoverErr != nil:
+			utils.Warning("No buildable project found: no config, no SUMMARY.md, and no Markdown files to auto-discover")
+			report.Warnings = append(report.Warnings, "No buildable project found: no config, no SUMMARY.md, and no Markdown files to auto-discover")
+		default:
 			report.ProjectLoadable = true
 			report.ProjectTitle = cfg.Book.Title
 			report.TopLevelChapters = len(cfg.Chapters)
 			utils.Success("Project can be loaded by auto-discovery: %s (%d top-level chapters)", cfg.Book.Title, len(cfg.Chapters))
+			if !report.BookYAMLFound {
+				utils.Info("Run 'mdpress init' to write a book.yaml and take control of the chapter order")
+			}
 			reportDoctorMarkdownLinks(cfg, &report)
 		}
-	} else {
-		utils.Warning("No directly buildable book.yaml or SUMMARY.md found in the target directory")
-		report.Warnings = append(report.Warnings, "No directly buildable book.yaml or SUMMARY.md found in the target directory")
 	}
 
 	if doctorReportPath != "" {
@@ -276,6 +315,36 @@ func executeDoctor(ctx context.Context, targetDir string) error {
 	}
 
 	return nil
+}
+
+// langDirPattern matches directory names that look like BCP-47 language tags
+// ("en", "zh", "zh-CN", "pt_BR"), which is how mdpress lays out multi-language
+// books.
+var langDirPattern = regexp.MustCompile(`^[a-z]{2,3}([-_][A-Za-z0-9]{2,4})?$`)
+
+// hasLanguageSubdirs reports whether dir contains at least one language-tag
+// subdirectory holding Markdown, i.e. whether a missing LANGS.md is worth
+// mentioning at all.
+func hasLanguageSubdirs(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !langDirPattern.MatchString(entry.Name()) {
+			continue
+		}
+		sub, err := os.ReadDir(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		for _, f := range sub {
+			if !f.IsDir() && strings.EqualFold(filepath.Ext(f.Name()), ".md") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func reportDoctorMarkdownLinks(cfg *config.BookConfig, report *doctorReport) {
@@ -511,18 +580,18 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 	report.PluginCount = len(cfg.Plugins)
 	allValid := true
 
-	for _, plugin := range cfg.Plugins {
-		if plugin.Path == "" {
+	for _, pluginCfg := range cfg.Plugins {
+		if pluginCfg.Path == "" {
 			allValid = false
 			if verbose {
-				utils.Error("Plugin %q has empty path", plugin.Name)
+				utils.Error("Plugin %q has empty path", pluginCfg.Name)
 			} else {
-				utils.Warning("Plugin %q has empty path", plugin.Name)
+				utils.Warning("Plugin %q has empty path", pluginCfg.Name)
 			}
 			continue
 		}
 
-		pluginPath := plugin.Path
+		pluginPath := pluginCfg.Path
 		if !filepath.IsAbs(pluginPath) {
 			pluginPath = filepath.Join(targetDir, pluginPath)
 		}
@@ -532,9 +601,9 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 		if err != nil {
 			allValid = false
 			if verbose {
-				utils.Error("Plugin %q not found at %s", plugin.Name, pluginPath)
+				utils.Error("Plugin %q not found at %s", pluginCfg.Name, pluginPath)
 			} else {
-				utils.Warning("Plugin %q not found", plugin.Name)
+				utils.Warning("Plugin %q not found", pluginCfg.Name)
 			}
 			continue
 		}
@@ -542,9 +611,35 @@ func checkPlugins(targetDir string, cfg *config.BookConfig, report *doctorReport
 		// Check if it's executable
 		if !isPluginExecutable(pluginPath, info.Mode()) {
 			allValid = false
+			utils.Warning("Plugin %q is not executable: %s", pluginCfg.Name, pluginPath)
+			report.Warnings = append(report.Warnings, fmt.Sprintf("Plugin %q is not executable", pluginCfg.Name))
+			continue
+		}
+
+		// Existing + executable was the whole test, so doctor happily reported
+		// "all plugins are valid" for programs that cannot answer a single
+		// mdpress query — and the very next build warned about each of them.
+		// Ask the plugin itself.
+		probe, probeErr := plugin.Probe(pluginPath)
+		if probeErr != nil {
+			allValid = false
+			utils.Warning("Plugin %q could not be probed: %v", pluginCfg.Name, probeErr)
+			report.Warnings = append(report.Warnings, fmt.Sprintf("Plugin %q could not be probed: %v", pluginCfg.Name, probeErr))
+			continue
+		}
+		if !probe.SpeaksProtocol {
+			allValid = false
+			utils.Warning("Plugin %q does not speak the mdpress plugin protocol (no valid --mdpress-info or --mdpress-hooks response)", pluginCfg.Name)
 			if verbose {
-				utils.Warning("Plugin %q is not executable", plugin.Name)
+				fmt.Printf("    --mdpress-info: %v\n", probe.InfoErr)
+				fmt.Printf("    --mdpress-hooks: %v\n", probe.HooksErr)
 			}
+			report.Warnings = append(report.Warnings,
+				fmt.Sprintf("Plugin %q does not speak the mdpress plugin protocol", pluginCfg.Name))
+			continue
+		}
+		if verbose {
+			utils.Success("Plugin %q responds (version %s, %d hook(s))", pluginCfg.Name, probe.Version, len(probe.Hooks))
 		}
 	}
 
@@ -732,7 +827,28 @@ func writeDoctorReport(path string, report doctorReport) error {
 	case ".md":
 		return os.WriteFile(absPath, []byte(renderDoctorMarkdown(report)), 0o644)
 	default:
-		return fmt.Errorf("unsupported report extension: %s (use .json or .md)", filepath.Ext(absPath))
+		return errUnsupportedDoctorReportExt(path)
+	}
+}
+
+// errUnsupportedDoctorReportExt names the path the user typed. Reporting the
+// bare extension produced "unsupported report extension: " for an extensionless
+// path, which said nothing about what was wrong or what to type instead.
+func errUnsupportedDoctorReportExt(path string) error {
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return fmt.Errorf("report path %q has no file extension (use a path ending in .json or .md)", path)
+	}
+	return fmt.Errorf("unsupported report extension %q in %q (use .json or .md)", ext, path)
+}
+
+// doctorReportPathSupported reports whether writeDoctorReport can handle path.
+func doctorReportPathSupported(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".json", ".md":
+		return true
+	default:
+		return false
 	}
 }
 

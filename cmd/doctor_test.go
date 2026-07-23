@@ -776,11 +776,14 @@ func TestCheckPluginsWithValidPlugin(t *testing.T) {
 		t.Fatalf("failed to create plugins directory: %v", err)
 	}
 
+	// The fixture answers the mdpress metadata handshake. It used to just echo
+	// "test": doctor called that a valid plugin because it only checked the
+	// file mode, and the next build warned that the plugin could not be parsed.
 	pluginName := "test"
-	pluginContent := []byte("#!/bin/sh\necho test")
+	pluginContent := []byte("#!/bin/sh\ncase \"$1\" in\n  --mdpress-info) echo '{\"version\":\"1.0.0\"}' ;;\n  --mdpress-hooks) echo '[\"after_parse\"]' ;;\nesac\n")
 	if runtime.GOOS == "windows" {
 		pluginName = "test.bat"
-		pluginContent = []byte("@echo off\r\necho test\r\n")
+		pluginContent = []byte("@echo off\r\nif \"%1\"==\"--mdpress-info\" echo {\"version\":\"1.0.0\"}\r\nif \"%1\"==\"--mdpress-hooks\" echo [\"after_parse\"]\r\n")
 	}
 
 	// Create an executable file
@@ -821,6 +824,54 @@ plugins:
 	}
 	if report.PluginCount != 1 {
 		t.Errorf("PluginCount should be 1, got %d", report.PluginCount)
+	}
+}
+
+// TestCheckPluginsRejectsNonProtocolExecutable is the counterpart: being
+// executable is not the same as being a plugin.
+func TestCheckPluginsRejectsNonProtocolExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fixture plugin is a POSIX shell script")
+	}
+	defer suppressOutput(t)()
+
+	tmpDir := t.TempDir()
+	pluginDir := filepath.Join(tmpDir, "plugins")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("failed to create plugins directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "test"), []byte("#!/bin/sh\necho test\n"), 0o755); err != nil {
+		t.Fatalf("failed to create plugin: %v", err)
+	}
+	bookYAML := `book:
+  title: "Test"
+chapters:
+  - title: "Ch1"
+    file: "ch1.md"
+plugins:
+  - name: test-plugin
+    path: ./plugins/test
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "book.yaml"), []byte(bookYAML), 0o644); err != nil {
+		t.Fatalf("failed to create book.yaml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte("# Chapter 1"), 0o644); err != nil {
+		t.Fatalf("failed to create chapter file: %v", err)
+	}
+
+	cfg, err := config.Load(filepath.Join(tmpDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+
+	report := &doctorReport{}
+	checkPlugins(tmpDir, cfg, report)
+
+	if report.PluginsValid {
+		t.Error("an executable that answers no mdpress query must not be reported as a valid plugin")
+	}
+	if report.doctorErrors == 0 {
+		t.Error("a broken plugin should be an error-level finding so --strict can gate on it")
 	}
 }
 
