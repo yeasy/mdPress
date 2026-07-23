@@ -1419,3 +1419,20 @@ func TestEpubGeneratedChapterContainsTitleHeading(t *testing.T) {
 		t.Errorf("generated chapter should contain its title heading: %s", chapter)
 	}
 }
+
+// TestEpubGeneratorCreatesOutputDirectory guards parity with the other
+// backends: `mdpress build --format epub -o release/book.epub` must create
+// release/ rather than failing with a bare "no such file or directory".
+func TestEpubGeneratorCreatesOutputDirectory(t *testing.T) {
+	root := t.TempDir()
+	gen := NewEpubGenerator(EpubMeta{Title: "Dir Test", Author: "Author"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>hello</p>"})
+
+	outputPath := filepath.Join(root, "release", "nested", "book.epub")
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() into a missing directory failed: %v", err)
+	}
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Errorf("epub not written: %v", err)
+	}
+}

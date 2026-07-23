@@ -119,6 +119,13 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 		return fmt.Errorf("collect chapter assets: %w", err)
 	}
 
+	// Every other backend creates its output directory; the EPUB writer used
+	// to be the only one that did not, so `-o release/book.epub` failed with a
+	// bare "no such file or directory" on a fresh checkout or CI runner.
+	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
+		return fmt.Errorf("failed to create EPUB output directory: %w", err)
+	}
+
 	f, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create EPUB file: %w", err)
