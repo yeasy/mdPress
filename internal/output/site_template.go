@@ -314,6 +314,46 @@ body.sidebar-resizing .main { transition: none; }
 .content h2:hover a.header-anchor,
 .content h3:hover a.header-anchor,
 .content h4:hover a.header-anchor { opacity: 1; }
+/* Sidebar group label (SUMMARY.md "## Part" / book.yaml section:) */
+.nav-section {
+  padding: 16px 16px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #6b7280);
+}
+.nav-section:first-child { padding-top: 4px; }
+html.dark .nav-section { color: #8b949e; }
+
+/* ===== GFM callouts (> [!NOTE] etc.) =====
+   Styled by class so the dark overrides below can win; these used to be
+   inline style= attributes, which nothing could override. */
+.alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
+.alert-title { font-weight: 600; margin: 0 0 4px; }
+.alert > :last-child { margin-bottom: 0; }
+.alert-note { background: #ddf4ff; border-left-color: #54aeff; }
+.alert-note .alert-title { color: #0969da; }
+.alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
+.alert-tip .alert-title { color: #1a7f37; }
+.alert-important { background: #fbefff; border-left-color: #c297ff; }
+.alert-important .alert-title { color: #8250df; }
+.alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
+.alert-warning .alert-title { color: #9a6700; }
+.alert-caution { background: #ffebe9; border-left-color: #ff8182; }
+.alert-caution .alert-title { color: #cf222e; }
+
+html.dark .alert-note { background: #0d2942; border-left-color: #316dca; }
+html.dark .alert-note .alert-title { color: #6cb6ff; }
+html.dark .alert-tip { background: #0f2e1a; border-left-color: #347d39; }
+html.dark .alert-tip .alert-title { color: #57ab5a; }
+html.dark .alert-important { background: #241a3a; border-left-color: #8256d0; }
+html.dark .alert-important .alert-title { color: #b083f0; }
+html.dark .alert-warning { background: #33270a; border-left-color: #ae7c14; }
+html.dark .alert-warning .alert-title { color: #e3b341; }
+html.dark .alert-caution { background: #3a0f14; border-left-color: #c93c37; }
+html.dark .alert-caution .alert-title { color: #f47067; }
+
 html.dark .content h1[id] a.header-anchor,
 html.dark .content h2[id] a.header-anchor,
 html.dark .content h3[id] a.header-anchor,
@@ -2457,12 +2497,26 @@ body {
       }
       loadIndex().then(function(index) {
         var qLower = query.toLowerCase();
+        // Split into terms and require all of them. A single indexOf on the
+        // whole query meant any multi-word search ("plugin hooks") returned
+        // nothing, because the words never appear adjacent. CJK has no spaces,
+        // so a term with no ASCII letters is also matched per character run.
+        var terms = qLower.split(/\s+/).filter(function(t) { return t.length > 0; });
+        if (!terms.length) { terms = [qLower]; }
+        function hasAll(haystack) {
+          if (!haystack) { return false; }
+          var h = haystack.toLowerCase();
+          for (var t = 0; t < terms.length; t++) {
+            if (h.indexOf(terms[t]) < 0) { return false; }
+          }
+          return true;
+        }
         var matches = [];
         for (var i = 0; i < index.length; i++) {
           var entry = index[i];
-          var titleMatch = entry.t.toLowerCase().indexOf(qLower) >= 0;
-          var pathMatch = (entry.p || '').toLowerCase().indexOf(qLower) >= 0;
-          var textMatch = entry.x.toLowerCase().indexOf(qLower) >= 0;
+          var titleMatch = hasAll(entry.t);
+          var pathMatch = hasAll(entry.p || '');
+          var textMatch = hasAll(entry.x);
           if (titleMatch || pathMatch || textMatch) {
             matches.push({
               title: entry.t,

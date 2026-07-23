@@ -401,6 +401,22 @@ const htmlTemplate = `<!DOCTYPE html>
       }
 
       /* Keep tables, code blocks, and callouts on the same page when possible */
+    /* ===== GFM callouts (> [!NOTE] etc.) =====
+       Print output is always light; the colors used to be inline style=
+       attributes on the element itself. */
+    .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
+    .alert-title { font-weight: 600; margin: 0 0 4px; }
+    .alert > :last-child { margin-bottom: 0; }
+    .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
+    .alert-note .alert-title { color: #0969da; }
+    .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
+    .alert-tip .alert-title { color: #1a7f37; }
+    .alert-important { background: #fbefff; border-left-color: #c297ff; }
+    .alert-important .alert-title { color: #8250df; }
+    .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
+    .alert-warning .alert-title { color: #9a6700; }
+    .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
+    .alert-caution .alert-title { color: #cf222e; }
       table, pre, .alert {
         page-break-inside: avoid;
       }
