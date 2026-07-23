@@ -17,6 +17,11 @@ const (
 	ModeSingle Mode = "single"
 	// ModeSite rewrites .md links to separate page filenames.
 	ModeSite Mode = "site"
+	// ModeEpub rewrites .md links to the flat <chapterID>.xhtml documents an
+	// ePub's OEBPS directory is made of. Without it a cross-chapter link ships
+	// as a dead .md href, which epubcheck reports as RSC-007 and readers
+	// silently ignore.
+	ModeEpub Mode = "epub"
 )
 
 // Target describes the rewrite destination for a chapter.
@@ -115,6 +120,17 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 			return "", false, true
 		}
 		baseTarget := relativeSiteTarget(currentFile, target.PageFilename)
+		if fragment != "" {
+			return baseTarget + "#" + fragment, true, false
+		}
+		return baseTarget, true, false
+	case ModeEpub:
+		// ePub chapters are flat siblings in OEBPS/, so the target is just the
+		// chapter's own document name regardless of the source directory.
+		if target.ChapterID == "" {
+			return "", false, true
+		}
+		baseTarget := target.ChapterID + ".xhtml"
 		if fragment != "" {
 			return baseTarget + "#" + fragment, true, false
 		}

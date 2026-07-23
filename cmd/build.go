@@ -308,6 +308,31 @@ func rewriteChapterLinks(chapters []renderer.ChapterHTML, chapterFiles []string)
 	return rewritten
 }
 
+// rewriteChapterLinksForEpub points cross-chapter Markdown links at the flat
+// <chapterID>.xhtml documents that make up an ePub, mirroring what the single
+// page and site paths already do for their own layouts.
+func rewriteChapterLinksForEpub(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
+	if len(chapters) == 0 || len(chapters) != len(chapterFiles) {
+		return chapters
+	}
+
+	targets := make(map[string]linkrewrite.Target, len(chapters))
+	for i, ch := range chapters {
+		if chapterFiles[i] == "" || ch.ID == "" {
+			continue
+		}
+		targets[linkrewrite.NormalizePath(chapterFiles[i])] = linkrewrite.Target{ChapterID: ch.ID}
+	}
+
+	rewritten := make([]renderer.ChapterHTML, len(chapters))
+	for i, ch := range chapters {
+		rewritten[i] = ch
+		rewritten[i].Content = linkrewrite.RewriteLinks(ch.Content, chapterFiles[i], targets, linkrewrite.ModeEpub)
+	}
+
+	return rewritten
+}
+
 // rewriteMarkdownLinksInHTML is a backward-compatible wrapper around linkrewrite.RewriteLinks
 // that accepts the legacy map[string]string target format. Used by build_links_test.go.
 func rewriteMarkdownLinksInHTML(htmlContent string, currentFile string, targets map[string]string) string {

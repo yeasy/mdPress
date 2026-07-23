@@ -466,7 +466,10 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 	// generator derives its own reader-friendly stylesheet from the theme.
 	epubGen.SetCSS(ctx.CustomCSS)
 	epubGen.SetTheme(ctx.Theme)
-	for i, ch := range ctx.ChaptersHTML {
+	// Cross-chapter .md links must point at the packaged .xhtml documents;
+	// the raw chapter HTML still carries the Markdown hrefs.
+	epubChapters := rewriteChapterLinksForEpub(ctx.ChaptersHTML, ctx.ChapterFiles)
+	for i, ch := range epubChapters {
 		sourceDir := ""
 		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {
 			sourceDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
