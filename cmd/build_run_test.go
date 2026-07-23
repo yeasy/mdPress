@@ -486,46 +486,38 @@ func TestDescribeTitleStyleMismatch(t *testing.T) {
 }
 
 // Tests for multilingualLandingPath
+// TestMultilingualLandingPath pins the language switcher at the site root.
+//
+// It used to be named "_mdpress_langs.html" (or "<base>-index.html" under an
+// --output path), so serving the directory produced a listing instead of the
+// switcher, and the page never appeared in the build summary.
 func TestMultilingualLandingPath(t *testing.T) {
-	tests := []struct {
-		rootDir        string
-		outputOverride string
-		expected       string
-	}{
-		// No override
-		{"/root", "", "/root/_mdpress_langs.html"},
-		{"/path/to/project", "", "/path/to/project/_mdpress_langs.html"},
-		// Directory override
-		{"/root", "/output", "/output/index.html"},
-		{"/root", "/path/to/output", "/path/to/output/index.html"},
-		// File override with extension
-		{"/root", "/output/book.html", "/output/book-index.html"},
-		{"/root", "/out/mybook.pdf", "/out/mybook-index.html"},
-		// File override without extension
-		{"/root", "/output/book", "/output/book-index.html"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.rootDir+"_"+tt.outputOverride, func(t *testing.T) {
-			// Note: This test will only pass for non-directory cases since
-			// we can't mock os.Stat. The directory cases need special setup.
-			if tt.outputOverride == "" || (tt.outputOverride != "" && !isDirectoryPath(tt.outputOverride)) {
-				result := multilingualLandingPath(filepath.FromSlash(tt.rootDir), filepath.FromSlash(tt.outputOverride))
-				expected := filepath.FromSlash(tt.expected)
-				if result != expected {
-					t.Errorf("got %q, want %q", result, expected)
-				}
-			}
-		})
+	root := filepath.Join("out", "dist")
+	if got, want := multilingualLandingPath(root), filepath.Join(root, "index.html"); got != want {
+		t.Errorf("multilingualLandingPath(%q) = %q, want %q", root, got, want)
 	}
 }
 
-func TestMultilingualLandingPath_DirectoryOverride(t *testing.T) {
-	outputDir := t.TempDir()
-	got := multilingualLandingPath(filepath.Join(t.TempDir(), "book"), outputDir)
-	want := filepath.Join(outputDir, "index.html")
-	if got != want {
-		t.Fatalf("multilingualLandingPath() = %q, want %q", got, want)
+// TestMultilingualOutputRoot covers the three spellings of --output landing on
+// one tree. They used to produce three different layouts, none deployable:
+// sibling "dist-en_site" directories, or per-language directories named after
+// the book title (spaces and CJK in a URL path).
+func TestMultilingualOutputRoot(t *testing.T) {
+	sep := string(os.PathSeparator)
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"dist", "dist"},
+		{"dist" + sep, "dist"},
+		{filepath.Join("out", "book.html"), filepath.Join("out", "book")},
+		{filepath.Join("out", "book.pdf"), filepath.Join("out", "book")},
+		{filepath.Join("out", "site") + sep, filepath.Join("out", "site")},
+	}
+	for _, tt := range tests {
+		if got := multilingualOutputRoot(tt.in); got != tt.want {
+			t.Errorf("multilingualOutputRoot(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 
@@ -555,11 +547,6 @@ func TestNormalizeMultilingualRootDir(t *testing.T) {
 	})
 }
 
-// Helper function to guess if path looks like a directory (for test purposes)
-func isDirectoryPath(p string) bool {
-	return !strings.Contains(p, ".")
-}
-
 func TestWriteMultilingualLandingPage_RootOutputUsesRelativeSlashNormalizedLinks(t *testing.T) {
 	rootDir := t.TempDir()
 	summaries := []languageBuildSummary{
@@ -583,11 +570,11 @@ func TestWriteMultilingualLandingPage_RootOutputUsesRelativeSlashNormalizedLinks
 		},
 	}
 
-	if err := writeMultilingualLandingPage(rootDir, "", summaries); err != nil {
+	if err := writeMultilingualLandingPage(rootDir, summaries); err != nil {
 		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
 	}
 
-	landingPath := filepath.Join(rootDir, "_mdpress_langs.html")
+	landingPath := filepath.Join(rootDir, "index.html")
 	content, err := os.ReadFile(landingPath)
 	if err != nil {
 		t.Fatalf("read landing page: %v", err)
@@ -611,31 +598,33 @@ func TestWriteMultilingualLandingPage_RootOutputUsesRelativeSlashNormalizedLinks
 	}
 }
 
+// The landing page is always <root>/index.html now, so a file-ish --output is
+// normalized to the directory it names rather than producing "book-index.html".
 func TestWriteMultilingualLandingPage_FileOverrideWritesBookIndex(t *testing.T) {
 	rootDir := t.TempDir()
-	outputFile := filepath.Join(rootDir, "dist", "book.html")
+	outputFile := multilingualOutputRoot(filepath.Join(rootDir, "dist", "book.html"))
 	summaries := []languageBuildSummary{
 		{
 			Name: "English",
 			Dir:  "en",
 			Outputs: map[string]string{
-				"html": filepath.Join(rootDir, "dist", "en", "book.html"),
+				"html": filepath.Join(rootDir, "dist", "book", "en", "book.html"),
 			},
 		},
 		{
 			Name: "中文",
 			Dir:  "zh",
 			Outputs: map[string]string{
-				"html": filepath.Join(rootDir, "dist", "zh", "book.html"),
+				"html": filepath.Join(rootDir, "dist", "book", "zh", "book.html"),
 			},
 		},
 	}
 
-	if err := writeMultilingualLandingPage(rootDir, outputFile, summaries); err != nil {
+	if err := writeMultilingualLandingPage(outputFile, summaries); err != nil {
 		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
 	}
 
-	landingPath := filepath.Join(rootDir, "dist", "book-index.html")
+	landingPath := filepath.Join(rootDir, "dist", "book", "index.html")
 	content, err := os.ReadFile(landingPath)
 	if err != nil {
 		t.Fatalf("read landing page: %v", err)
@@ -676,7 +665,7 @@ func TestWriteMultilingualLandingPage_DirectoryOverrideWritesIndex(t *testing.T)
 		},
 	}
 
-	if err := writeMultilingualLandingPage(rootDir, outputDir, summaries); err != nil {
+	if err := writeMultilingualLandingPage(outputDir, summaries); err != nil {
 		t.Fatalf("writeMultilingualLandingPage() error: %v", err)
 	}
 
@@ -1112,169 +1101,6 @@ func TestResolveBuildBaseOutput_TrailingSeparator(t *testing.T) {
 	}
 }
 
-// Tests for deriveLanguageOutputOverride (TG-15: multi-dot filenames)
-func TestDeriveLanguageOutputOverride(t *testing.T) {
-	tests := []struct {
-		name           string
-		outputOverride string
-		langDir        string
-		expected       string
-		description    string
-	}{
-		// Empty output override cases
-		{
-			name:           "empty override returns empty",
-			outputOverride: "",
-			langDir:        "en",
-			expected:       "",
-			description:    "When outputOverride is empty, return empty string",
-		},
-		// Normal single-extension cases
-		{
-			name:           "normal case: output.pdf + en",
-			outputOverride: "output.pdf",
-			langDir:        "en",
-			expected:       "output-en.pdf",
-			description:    "Standard PDF file with language code",
-		},
-		{
-			name:           "normal case: book.html + zh",
-			outputOverride: "book.html",
-			langDir:        "zh",
-			expected:       "book-zh.html",
-			description:    "HTML file with language code",
-		},
-		{
-			name:           "normal case: document.epub + fr",
-			outputOverride: "document.epub",
-			langDir:        "fr",
-			expected:       "document-fr.epub",
-			description:    "EPUB file with language code",
-		},
-		// Multi-dot filenames (TG-15)
-		{
-			name:           "multi-dot: my.book.pdf + zh",
-			outputOverride: "my.book.pdf",
-			langDir:        "zh",
-			expected:       "my.book-zh.pdf",
-			description:    "Filename with multiple dots before extension",
-		},
-		{
-			name:           "multi-dot: my.project.name.html + en",
-			outputOverride: "my.project.name.html",
-			langDir:        "en",
-			expected:       "my.project.name-en.html",
-			description:    "HTML with three dots total",
-		},
-		{
-			name:           "multi-dot: data.backup.tar.gz + ja",
-			outputOverride: "data.backup.tar.gz",
-			langDir:        "ja",
-			expected:       "data.backup.tar-ja.gz",
-			description:    "Archive-like extension (filepath.Ext returns .gz)",
-		},
-		// No extension cases
-		{
-			name:           "no extension: output + en",
-			outputOverride: "output",
-			langDir:        "en",
-			expected:       "output-en",
-			description:    "Filename without extension",
-		},
-		{
-			name:           "no extension: mybook + fr",
-			outputOverride: "mybook",
-			langDir:        "fr",
-			expected:       "mybook-fr",
-			description:    "Filename without extension and different language",
-		},
-		// Path with extension
-		{
-			name:           "path with extension: /path/to/output.pdf + es",
-			outputOverride: "/path/to/output.pdf",
-			langDir:        "es",
-			expected:       "/path/to/output-es.pdf",
-			description:    "Absolute path with PDF extension",
-		},
-		{
-			name:           "path with extension: ./relative/book.html + de",
-			outputOverride: "./relative/book.html",
-			langDir:        "de",
-			expected:       "./relative/book-de.html",
-			description:    "Relative path with HTML extension",
-		},
-		// Path without extension
-		{
-			name:           "path without extension: /var/lib/output + it",
-			outputOverride: "/var/lib/output",
-			langDir:        "it",
-			expected:       "/var/lib/output-it",
-			description:    "Absolute path without extension",
-		},
-		// Edge cases
-		{
-			name:           "just extension: .pdf + en",
-			outputOverride: ".pdf",
-			langDir:        "en",
-			expected:       ".pdf-en",
-			description:    "Edge case: file that's just an extension",
-		},
-		{
-			name:           "complex langDir: en-US",
-			outputOverride: "book.pdf",
-			langDir:        "en-US",
-			expected:       "book-en-US.pdf",
-			description:    "Language directory with hyphen",
-		},
-		{
-			name:           "complex langDir: zh-CN",
-			outputOverride: "document.html",
-			langDir:        "zh-CN",
-			expected:       "document-zh-CN.html",
-			description:    "Traditional Chinese language code",
-		},
-		{
-			name:           "empty base filename: .hidden + en",
-			outputOverride: ".hidden",
-			langDir:        "en",
-			expected:       ".hidden-en",
-			description:    "Hidden file (starts with dot)",
-		},
-		// A trailing separator is explicit directory intent even when the
-		// directory does not exist yet.
-		{
-			name:           "path with trailing slash: /output/ + en",
-			outputOverride: "/output/",
-			langDir:        "en",
-			expected:       filepath.Join("/output", "en", "output"),
-			description:    "Trailing separator marks directory intent without an os.Stat hit",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := deriveLanguageOutputOverride(tt.outputOverride, tt.langDir)
-			if result != tt.expected {
-				t.Errorf("deriveLanguageOutputOverride(%q, %q) = %q, want %q\n%s",
-					tt.outputOverride, tt.langDir, result, tt.expected, tt.description)
-			}
-		})
-	}
-}
-
-func TestDeriveLanguageOutputOverride_DirectoryOverride(t *testing.T) {
-	outputDir := t.TempDir()
-	got := deriveLanguageOutputOverride(outputDir, "en")
-	want := filepath.Join(outputDir, "en", "output")
-	if got != want {
-		t.Fatalf("deriveLanguageOutputOverride() = %q, want %q", got, want)
-	}
-}
-
-// TestFormatOutcomesReportPartialSuccess covers a build where one format fails
-// and others succeed. Aborting on the first failure meant the user saw only
-// that error and never learned which artifacts had been written — so they
-// could not tell which files on disk were current.
 func TestFormatOutcomesReportPartialSuccess(t *testing.T) {
 	outcomes := []formatOutcome{
 		{Format: "html"},

@@ -368,7 +368,14 @@ func (c *BookConfig) Validate() error {
 	}
 
 	if len(c.Chapters) == 0 {
-		errs = append(errs, errors.New("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)"))
+		// A multi-language project's root book.yaml carries shared metadata;
+		// the chapters live in each language directory. Requiring chapters here
+		// made the obvious thing to write — a root book.yaml with the title and
+		// author — fail the build with an error about chapters that named a
+		// file the user had not been asked to create.
+		if c.LangsFile == "" {
+			errs = append(errs, errors.New("at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)"))
+		}
 	} else {
 		errs = append(errs, c.validateChapters(c.Chapters, "")...)
 	}
