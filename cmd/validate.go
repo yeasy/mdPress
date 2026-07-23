@@ -76,9 +76,14 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		return fmt.Errorf("validation failed: cannot resolve target directory: %w", absErr)
 	}
 
-	configPath := cfgFile
+	// An explicit --config wins over the target directory's own book.yaml.
+	sourceDir := ""
 	if targetDir != "." {
-		configPath = filepath.Join(absTargetDir, "book.yaml")
+		sourceDir = absTargetDir
+	}
+	configPath, allowDiscovery := resolveConfigPath(sourceDir)
+	if !allowDiscovery && !utils.FileExists(configPath) {
+		return errExplicitConfigMissing(configPath)
 	}
 	var cfg *config.BookConfig
 	var err error
@@ -100,6 +105,17 @@ func executeValidate(ctx context.Context, targetDir string) error {
 			OK:      true,
 			Message: "Config syntax is valid",
 		})
+		// Unknown keys parse fine but are dropped on load, so without this the
+		// report says the project is healthy while the setting does nothing.
+		if data, readErr := os.ReadFile(configPath); readErr == nil { //nolint:gosec // G304: path the user asked us to validate
+			for _, key := range config.FindUnknownKeys(data) {
+				results = append(results, validateResult{
+					OK:      true,
+					Warning: true,
+					Message: fmt.Sprintf("Unknown config key %q — ignored (%s)", key.Path, key.Hint()),
+				})
+			}
+		}
 	} else {
 		cfg, err = config.Discover(ctx, absTargetDir)
 		if err != nil {
@@ -118,10 +134,19 @@ func executeValidate(ctx context.Context, targetDir string) error {
 
 	// ========== 3. Check required fields ==========
 	// Title
-	if cfg.Book.Title == "" {
+	switch cfg.Book.Title {
+	case "":
 		results = append(results, validateResult{OK: false, Message: "Missing book title (book.title)"})
 		hasError = true
-	} else {
+	case config.DefaultBookTitle:
+		// The placeholder means book.title never took effect — usually a typo
+		// or wrong nesting. Reporting it as a pass hid exactly that.
+		results = append(results, validateResult{
+			OK:      true,
+			Warning: true,
+			Message: fmt.Sprintf("Title is still the placeholder %q — set book.title", config.DefaultBookTitle),
+		})
+	default:
 		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Title: %s", cfg.Book.Title)})
 	}
 

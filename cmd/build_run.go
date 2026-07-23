@@ -771,7 +771,7 @@ func deriveOutputFilename(cfg *config.BookConfig) string {
 		return filepath.Base(cfg.Output.Filename)
 	}
 	title := cfg.Book.Title
-	if title == "" || title == "Untitled Book" {
+	if title == "" || title == config.DefaultBookTitle {
 		title = filepath.Base(cfg.BaseDir())
 	}
 	return sanitizeBookFilename(title) + ".pdf"

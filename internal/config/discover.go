@@ -202,7 +202,7 @@ func autoDiscover(ctx context.Context, dir string) (*BookConfig, error) {
 	}
 
 	// If README.md did not define a title, fall back to the first chapter title.
-	if cfg.Book.Title == "Untitled Book" && len(cfg.Chapters) > 0 {
+	if cfg.Book.Title == DefaultBookTitle && len(cfg.Chapters) > 0 {
 		firstTitle := utils.ExtractTitleFromFile(filepath.Join(dir, cfg.Chapters[0].File))
 		if firstTitle != "" {
 			cfg.Book.Title = firstTitle

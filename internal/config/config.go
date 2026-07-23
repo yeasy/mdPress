@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -154,11 +155,16 @@ type OutputConfig struct {
 	TaggedPDF         *bool    `yaml:"tagged_pdf"`         // Generate accessible tagged PDF (default true; false produces smaller files)
 }
 
+// DefaultBookTitle is the placeholder used when book.title is unset. It is
+// exported so callers can tell "the user named their book" from "nothing took
+// effect" — reporting the placeholder as a valid title hid typo'd config keys.
+const DefaultBookTitle = "Untitled Book"
+
 // DefaultConfig returns a config populated with reasonable defaults.
 func DefaultConfig() *BookConfig {
 	return &BookConfig{
 		Book: BookMeta{
-			Title:  "Untitled Book",
+			Title:  DefaultBookTitle,
 			Author: "",
 			// Matches what `mdpress init` scaffolds. Zero-config discovery
 			// overrides this by sniffing the content, so a Chinese book still
@@ -241,6 +247,19 @@ func Load(path string) (*BookConfig, error) {
 	cfg := DefaultConfig()
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w (check the YAML syntax in %s)", err, path)
+	}
+	// A key mdpress does not recognize is almost always a typo or wrong
+	// nesting, and silently dropping it is the worst outcome: the user edits
+	// book.yaml, rebuilds, sees no change, and has nothing to go on. Report it
+	// as a warning rather than an error so an unknown key never breaks a build
+	// that used to work.
+	if unknown := FindUnknownKeys(data); len(unknown) > 0 {
+		for _, key := range unknown {
+			slog.Warn("unknown key in config file; it will be ignored",
+				slog.String("config", path),
+				slog.String("key", key.Path),
+				slog.String("hint", key.Hint()))
+		}
 	}
 
 	// Resolve the config base directory.
