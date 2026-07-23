@@ -207,7 +207,11 @@ func DefaultConfig() *BookConfig {
 			},
 		},
 		Output: OutputConfig{
-			Filename:          "output.pdf",
+			// Empty means "derive the name from the book title". A literal
+			// default of "output.pdf" forced the build to special-case that
+			// exact string as "unset", which silently ignored users who really
+			// did write `filename: "output.pdf"` in book.yaml.
+			Filename:          "",
 			TOC:               true,
 			TOCMaxDepth:       2,
 			Cover:             true,

@@ -975,7 +975,7 @@ func TestSanitizeBookFilename(t *testing.T) {
 		{"mixed CJK and invalid", "我的/书", "我的_书"},
 		{"empty string", "", "output"},
 		{"whitespace only", "   ", "output"},
-		{"leading trailing spaces", " my book ", "my book"},
+		{"leading trailing spaces", " my book ", "my-book"},
 		{"all invalid chars", `/\:*?"<>|`, "output"},
 	}
 
@@ -1006,14 +1006,16 @@ func TestDeriveOutputFilename(t *testing.T) {
 			expected: "custom.pdf",
 		},
 		{
-			name: "default output.pdf falls through to title",
+			// "output.pdf" used to be special-cased as "unset"; an author
+			// who really wants that name must get exactly that name.
+			name: "explicit output.pdf is honored",
 			setupCfg: func(t *testing.T) *config.BookConfig {
 				c := &config.BookConfig{}
 				c.Output.Filename = "output.pdf"
 				c.Book.Title = "Go Programming"
 				return c
 			},
-			expected: "Go Programming.pdf",
+			expected: "output.pdf",
 		},
 		{
 			name: "title with invalid chars",
@@ -1022,7 +1024,7 @@ func TestDeriveOutputFilename(t *testing.T) {
 				c.Book.Title = "Go: The Good Parts?"
 				return c
 			},
-			expected: "Go_ The Good Parts_.pdf",
+			expected: "Go_-The-Good-Parts_.pdf",
 		},
 		{
 			name: "empty title uses dir name",

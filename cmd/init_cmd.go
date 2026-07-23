@@ -261,7 +261,10 @@ func executeInit(ctx context.Context, dir string) error {
 	// Try to extract metadata from README.md to provide better defaults.
 	readmePath := filepath.Join(dir, "README.md")
 	readmeMeta := config.ExtractReadmeMetadata(ctx, readmePath)
-	defaultTitle := projectName
+	// Same fallback title as zero-config discovery, so `mdpress init` and a
+	// build of the same directory without book.yaml agree on the book title
+	// and on the artifact name derived from it.
+	defaultTitle := config.TitleFromDirName(dir)
 	defaultAuthor := ""
 	defaultLanguage := "en-US"
 	if readmeMeta.Title != "" {
@@ -510,13 +513,18 @@ func generateBookYAMLWithMeta(answers initAnswers, coverImage string, files []di
 }
 
 // sanitizeFilename derives a safe output filename from a book title.
-// It replaces spaces with underscores, strips path separators and other
-// filesystem-unsafe characters, and applies filepath.Base to remove any
-// remaining directory components. If the result is empty or consists only
+// It collapses whitespace runs into a single hyphen, strips path separators
+// and other filesystem-unsafe characters, and applies filepath.Base to remove
+// any remaining directory components. If the result is empty or consists only
 // of dots it returns an empty string so that the caller can fall back to
 // a default name.
+//
+// Hyphens rather than underscores: `mdpress build` derives the same name when
+// book.yaml has no explicit output.filename, and the two used to disagree, so
+// `init` and a zero-config build of the same directory produced differently
+// named PDFs.
 func sanitizeFilename(title string) string {
-	name := strings.ReplaceAll(title, " ", "_")
+	name := strings.Join(strings.Fields(title), "-")
 
 	// Strip directory components first so that "../../evil" becomes "evil".
 	name = filepath.Base(name)
@@ -604,7 +612,7 @@ style:
   page_size: "A4"
 
 output:
-  filename: "output.pdf"
+  # filename: "book.pdf"   # defaults to a name derived from book.title
   toc: true
   cover: true
 `, answers.Title, answers.Author, answers.Language, answers.Theme)

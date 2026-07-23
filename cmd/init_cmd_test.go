@@ -939,9 +939,9 @@ func TestSanitizeFilenameBasic(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"My Book Title", "My_Book_Title"},
+		{"My Book Title", "My-Book-Title"},
 		{"simple", "simple"},
-		{"hello world", "hello_world"},
+		{"hello world", "hello-world"},
 		{"Already_Underscore", "Already_Underscore"},
 	}
 
@@ -1078,7 +1078,7 @@ func TestSanitizeFilenameInGenerateBookYAML(t *testing.T) {
 		title    string
 		wantFile string
 	}{
-		{"My Book", "My_Book.pdf"},
+		{"My Book", "My-Book.pdf"},
 		{"../../evil", "evil.pdf"},
 		{"foo/bar", "bar.pdf"},
 		{"", "output.pdf"},

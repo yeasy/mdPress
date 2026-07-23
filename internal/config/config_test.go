@@ -36,8 +36,10 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Style.FontSize != "" {
 		t.Errorf("style.font_size should default to unset, got %q", cfg.Style.FontSize)
 	}
-	if cfg.Output.Filename != "output.pdf" {
-		t.Errorf("wrong default output filename: got %q, want %q", cfg.Output.Filename, "output.pdf")
+	// Unset means "derive from book.title"; a literal default forced the
+	// build to special-case that name as "the user did not choose one".
+	if cfg.Output.Filename != "" {
+		t.Errorf("output.filename should default to unset, got %q", cfg.Output.Filename)
 	}
 	if !cfg.Output.TOC {
 		t.Error("TOC should be enabled by default")
@@ -412,8 +414,8 @@ chapters:
 	if cfg.Style.PageSize != "A4" {
 		t.Errorf("default PageSize should be preserved: got %q", cfg.Style.PageSize)
 	}
-	if cfg.Output.Filename != "output.pdf" {
-		t.Errorf("default Filename should be preserved: got %q", cfg.Output.Filename)
+	if cfg.Output.Filename != "" {
+		t.Errorf("default Filename should be preserved as unset: got %q", cfg.Output.Filename)
 	}
 	if !cfg.Output.TOC {
 		t.Error("default TOC should be preserved as true")
