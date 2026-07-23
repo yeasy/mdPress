@@ -136,9 +136,14 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 
 	// ========== 2. Load config (supports zero-config mode) ==========
 	loadConfig := func() (*config.BookConfig, error) {
-		configPath := filepath.Join(workDir, "book.yaml")
-		if inputSource == "" {
-			configPath = cfgFile
+		// An explicit --config wins over the source directory's own book.yaml.
+		sourceDir := ""
+		if inputSource != "" {
+			sourceDir = workDir
+		}
+		configPath, allowDiscovery := resolveConfigPath(sourceDir)
+		if !allowDiscovery && !utils.FileExists(configPath) {
+			return nil, errExplicitConfigMissing(configPath)
 		}
 
 		var cfg *config.BookConfig

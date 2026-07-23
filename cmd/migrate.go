@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
@@ -199,7 +200,7 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report
 	// yaml.v3 can marshal correctly.
 	bookYAML := map[string]any{
 		"book": map[string]any{
-			"title":       nonEmpty(gb.Title, "Untitled Book"),
+			"title":       nonEmpty(gb.Title, config.DefaultBookTitle),
 			"author":      nonEmpty(gb.Author, "Unknown"),
 			"language":    nonEmpty(gb.Language, "en"),
 			"description": gb.Description,

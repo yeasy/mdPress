@@ -13,6 +13,8 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
+// parsedChapterCacheVersion invalidates cached chapters when the cache's own
+// format changes. It does not cover renderer changes — see the key below.
 const parsedChapterCacheVersion = "v2"
 
 type cachedParsedChapter struct {
@@ -22,7 +24,11 @@ type cachedParsedChapter struct {
 }
 
 func parsedChapterCachePath(chapterPath, expandedContent, codeTheme string) string {
-	key := utils.StableHash(parsedChapterCacheVersion, chapterPath, codeTheme, expandedContent)
+	// The mdpress version is part of the key so that upgrading invalidates the
+	// cache. Without it, a chapter whose source did not change keeps serving
+	// HTML produced by the previous binary, so every rendering fix stays
+	// invisible until the user edits the file or clears the cache by hand.
+	key := utils.StableHash(parsedChapterCacheVersion, Version, chapterPath, codeTheme, expandedContent)
 	return filepath.Join(utils.CacheRootDir(), "parsed-chapters", key[:2], key+".json")
 }
 

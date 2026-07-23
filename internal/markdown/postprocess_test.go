@@ -113,10 +113,14 @@ func TestProcessMermaidBasic(t *testing.T) {
 	if !strings.Contains(result, `class="mermaid"`) {
 		t.Error("should have mermaid class div")
 	}
-	// Entities are unescaped so Mermaid JS can parse the diagram syntax.
-	// XSS protection is handled by Mermaid's securityLevel:'strict'.
-	if !strings.Contains(result, "A-->B") {
-		t.Error("mermaid arrows should be unescaped for correct parsing")
+	// The diagram stays HTML-escaped in the markup. Mermaid reads textContent,
+	// which the browser decodes back to "A-->B"; emitting the raw text instead
+	// corrupts the DOM for any diagram containing "<".
+	if !strings.Contains(result, "A--&gt;B") {
+		t.Error("mermaid source should stay HTML-escaped in the markup")
+	}
+	if strings.Contains(result, "A-->B") {
+		t.Error("raw mermaid arrows leaked into the markup")
 	}
 }
 
@@ -126,9 +130,30 @@ func TestProcessMermaidSequenceDiagram(t *testing.T) {
     Bob-&gt;&gt;Alice: Hi</code></pre>`
 	result := postProcess(input)
 
-	// Entities are unescaped so Mermaid JS can parse the diagram syntax.
-	if !strings.Contains(result, "Alice->>Bob") {
-		t.Error("mermaid arrows should be unescaped for correct parsing")
+	if !strings.Contains(result, "Alice-&gt;&gt;Bob") {
+		t.Error("mermaid source should stay HTML-escaped in the markup")
+	}
+}
+
+// TestProcessMermaidClassDiagramAnnotation guards the case that made this
+// escaping matter: `<<interface>>` emitted raw is parsed as an HTML tag, so
+// the annotation vanishes from the page and the diagram fails to render.
+func TestProcessMermaidClassDiagramAnnotation(t *testing.T) {
+	input := `<pre><code class="language-mermaid">classDiagram
+    class Source {
+        &lt;&lt;interface&gt;&gt;
+    }
+    Source &lt;|.. LocalSource</code></pre>`
+	result := postProcess(input)
+
+	if !strings.Contains(result, "&lt;&lt;interface&gt;&gt;") {
+		t.Errorf("interface annotation did not survive escaping: %s", result)
+	}
+	if strings.Contains(result, "<<interface>>") {
+		t.Error("raw <<interface>> leaked into the markup; the browser will swallow it as a tag")
+	}
+	if !strings.Contains(result, "Source &lt;|.. LocalSource") {
+		t.Error("class relation should stay escaped")
 	}
 }
 

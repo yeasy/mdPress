@@ -139,11 +139,14 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	var cfg *config.BookConfig
 	var err error
 
-	// Prefer an explicit config path when one is available.
-	configPath := cfgFile
+	// An explicit --config wins over the source directory's own book.yaml.
+	sourceDir := ""
 	if inputSource != "" {
-		// External sources first look for book.yaml in the prepared working directory.
-		configPath = filepath.Join(workDir, "book.yaml")
+		sourceDir = workDir
+	}
+	configPath, allowDiscovery := resolveConfigPath(sourceDir)
+	if !allowDiscovery && !utils.FileExists(configPath) {
+		return errExplicitConfigMissing(configPath)
 	}
 
 	if utils.FileExists(configPath) {
@@ -156,7 +159,7 @@ func executeBuild(ctx context.Context, inputSource string) error {
 	} else {
 		// Zero-config mode: auto-discover Markdown files.
 		targetDir := workDir
-		if inputSource == "" && configPath == "book.yaml" {
+		if inputSource == "" && configPath == defaultConfigName {
 			// In the default case, discover from the current directory.
 			targetDir, err = filepath.Abs(".")
 			if err != nil {

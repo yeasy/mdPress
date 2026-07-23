@@ -76,9 +76,14 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		return fmt.Errorf("validation failed: cannot resolve target directory: %w", absErr)
 	}
 
-	configPath := cfgFile
+	// An explicit --config wins over the target directory's own book.yaml.
+	sourceDir := ""
 	if targetDir != "." {
-		configPath = filepath.Join(absTargetDir, "book.yaml")
+		sourceDir = absTargetDir
+	}
+	configPath, allowDiscovery := resolveConfigPath(sourceDir)
+	if !allowDiscovery && !utils.FileExists(configPath) {
+		return errExplicitConfigMissing(configPath)
 	}
 	var cfg *config.BookConfig
 	var err error
@@ -100,6 +105,17 @@ func executeValidate(ctx context.Context, targetDir string) error {
 			OK:      true,
 			Message: "Config syntax is valid",
 		})
+		// Unknown keys parse fine but are dropped on load, so without this the
+		// report says the project is healthy while the setting does nothing.
+		if data, readErr := os.ReadFile(configPath); readErr == nil { //nolint:gosec // G304: path the user asked us to validate
+			for _, key := range config.FindUnknownKeys(data) {
+				results = append(results, validateResult{
+					OK:      true,
+					Warning: true,
+					Message: fmt.Sprintf("Unknown config key %q — ignored (%s)", key.Path, key.Hint()),
+				})
+			}
+		}
 	} else {
 		cfg, err = config.Discover(ctx, absTargetDir)
 		if err != nil {
@@ -118,10 +134,19 @@ func executeValidate(ctx context.Context, targetDir string) error {
 
 	// ========== 3. Check required fields ==========
 	// Title
-	if cfg.Book.Title == "" {
+	switch cfg.Book.Title {
+	case "":
 		results = append(results, validateResult{OK: false, Message: "Missing book title (book.title)"})
 		hasError = true
-	} else {
+	case config.DefaultBookTitle:
+		// The placeholder means book.title never took effect — usually a typo
+		// or wrong nesting. Reporting it as a pass hid exactly that.
+		results = append(results, validateResult{
+			OK:      true,
+			Warning: true,
+			Message: fmt.Sprintf("Title is still the placeholder %q — set book.title", config.DefaultBookTitle),
+		})
+	default:
 		results = append(results, validateResult{OK: true, Message: fmt.Sprintf("Title: %s", cfg.Book.Title)})
 	}
 
@@ -358,9 +383,14 @@ func extractImagePaths(filePath string) ([]string, error) {
 	htmlImgRegex := htmlImgSrcPattern
 
 	var images []string
+	var fences fenceTracker
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
+		// Examples inside code fences are not real references.
+		line := scannableLine(scanner.Text(), &fences)
+		if line == "" {
+			continue
+		}
 
 		// Markdown images
 		matches := imgRegex.FindAllStringSubmatch(line, -1)
@@ -446,9 +476,14 @@ func extractMarkdownLinks(filePath string) ([]string, error) {
 	htmlLinkRegex := htmlLinkHrefPattern
 
 	var links []string
+	var fences fenceTracker
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
+		// Examples inside code fences are not real references.
+		line := scannableLine(scanner.Text(), &fences)
+		if line == "" {
+			continue
+		}
 
 		matches := linkRegex.FindAllStringSubmatchIndex(line, -1)
 		for _, m := range matches {
