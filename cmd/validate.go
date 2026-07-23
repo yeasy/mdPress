@@ -24,7 +24,12 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-var validateReportPath string
+var (
+	validateReportPath string
+	// validateStrict makes warning-level findings fail the run, mirroring
+	// `mdpress doctor --strict`.
+	validateStrict bool
+)
 
 // validateCmd validates project configuration and references.
 var validateCmd = &cobra.Command{
@@ -37,10 +42,15 @@ var validateCmd = &cobra.Command{
   - Image paths referenced from Markdown
   - Cover image paths
 
+Pass --strict to exit with a non-zero status when any warning is reported
+(for example a duplicate chapter entry or an unknown config key), which makes
+mdpress validate usable as a CI gate. Without --strict only errors fail the run.
+
 Examples:
   mdpress validate
   mdpress validate /path/to/book
   mdpress validate /path/to/book --report validate-report.json
+  mdpress validate /path/to/book --strict
   mdpress validate --config path/to/book.yaml`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -54,6 +64,7 @@ Examples:
 
 func init() {
 	validateCmd.Flags().StringVar(&validateReportPath, "report", "", "Write validation report to .json or .md")
+	validateCmd.Flags().BoolVar(&validateStrict, "strict", false, "Exit with a non-zero status when any warning is reported (useful as a CI gate)")
 }
 
 // validateResult represents a single validation result.
@@ -371,10 +382,14 @@ func printResults(results []validateResult, skipFirst ...int) {
 	if quiet {
 		// Quiet means "errors only", not "silence". Suppressing the failures
 		// too left CI users with a non-zero exit, the line "fix the issues
-		// above", and nothing above.
+		// above", and nothing above. Under --strict warnings are failures, so
+		// they have to be printed for the same reason.
 		for _, r := range results {
-			if !r.OK {
+			switch {
+			case !r.OK:
 				utils.Error("%s", r.Message)
+			case r.Warning && validateStrict:
+				utils.Warning("%s", r.Message)
 			}
 		}
 		return
@@ -701,6 +716,8 @@ type validationReport struct {
 	TotalChecks int              `json:"total_checks"`
 	Passed      int              `json:"passed"`
 	Failed      int              `json:"failed"`
+	Warnings    int              `json:"warnings"`
+	Strict      bool             `json:"strict"`
 	Results     []validateResult `json:"results"`
 }
 
@@ -713,12 +730,19 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 		}
 	}
 
+	// In strict mode warnings are failures, so the report has to say "failed"
+	// too — a report that reads "passed" next to a non-zero exit code is worse
+	// than no report at all.
+	strictFailure := validateStrict && warned > 0
+
 	if validateReportPath != "" {
 		if err := writeValidationReport(validateReportPath, validationReport{
-			Status:      validationStatus(hasError),
+			Status:      validationStatus(hasError || strictFailure),
 			TotalChecks: len(results),
 			Passed:      passed,
 			Failed:      failed,
+			Warnings:    warned,
+			Strict:      validateStrict,
 			Results:     results,
 		}); err != nil {
 			return fmt.Errorf("validation failed to write report: %w", err)
@@ -747,10 +771,17 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 			)
 			fmt.Println()
 		} else if warned > 0 {
-			fmt.Printf("  %s %d checks passed, %s warnings ✓\n",
-				utils.Green("Result:"),
+			label := utils.Green("Result:")
+			mark := " ✓"
+			if strictFailure {
+				label = utils.Red("Result:")
+				mark = " (failed: --strict)"
+			}
+			fmt.Printf("  %s %d checks passed, %s warnings%s\n",
+				label,
 				passed,
 				utils.Yellow(strconv.Itoa(warned)),
+				mark,
 			)
 			fmt.Println()
 		} else {
@@ -764,6 +795,9 @@ func finalizeValidate(results []validateResult, hasError bool, alreadyPrinted ..
 
 	if hasError {
 		return errors.New("validation failed; fix the issues above and try again")
+	}
+	if strictFailure {
+		return fmt.Errorf("validation found %d warning(s) (run without --strict to ignore)", warned)
 	}
 	return nil
 }

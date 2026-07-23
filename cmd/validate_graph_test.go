@@ -115,3 +115,77 @@ chapters:
 		t.Errorf("same basename in different directories is not a duplicate, got %q", got.Message)
 	}
 }
+
+func withValidateStrict(t *testing.T, strict bool) func() {
+	t.Helper()
+	old := validateStrict
+	validateStrict = strict
+	return func() { validateStrict = old }
+}
+
+// A warning-only project exits 0 by default, which is what makes `validate`
+// safe to adopt, and exits non-zero under --strict, which is what makes it
+// usable as a CI gate.
+func TestExecuteValidate_StrictFailsOnWarningsOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Warn Book"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+  - title: "One Again"
+    file: "ch1.md"
+`,
+		"ch1.md": "# One\n",
+	})
+
+	report, err := validateReportFor(t, tmpDir)
+	if err != nil {
+		t.Fatalf("without --strict warnings must not fail the run: %v", err)
+	}
+	if report.Warnings == 0 {
+		t.Fatalf("fixture should produce at least one warning, got %+v", report.Results)
+	}
+	if report.Status != "passed" {
+		t.Errorf("status without --strict should be passed, got %q", report.Status)
+	}
+
+	defer withValidateStrict(t, true)()
+	strictReport, strictErr := validateReportFor(t, tmpDir)
+	if strictErr == nil {
+		t.Fatal("--strict should fail a run that produced warnings")
+	}
+	if strictReport.Status != "failed" {
+		t.Errorf("status under --strict should be failed, got %q", strictReport.Status)
+	}
+	if !strictReport.Strict {
+		t.Error("report should record that it ran under --strict")
+	}
+}
+
+func TestExecuteValidate_StrictPassesWhenClean(t *testing.T) {
+	defer withValidateStrict(t, true)()
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Clean Book"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+`,
+		"ch1.md": "# One\n",
+	})
+
+	if _, err := validateReportFor(t, tmpDir); err != nil {
+		t.Errorf("--strict should not fail a warning-free project: %v", err)
+	}
+}
+
+func TestValidateCmd_HasStrictFlag(t *testing.T) {
+	if validateCmd.Flags().Lookup("strict") == nil {
+		t.Fatal("validate should expose a --strict flag, like doctor")
+	}
+}
