@@ -105,9 +105,34 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		cssBuilder.WriteString("\n")
 	}
 
-	// Convert chapter data and pre-compute prev/next navigation info.
-	chapters := make([]standaloneChapter, 0, len(parts.ChaptersHTML))
+	// Every chapter lands in one document here, but heading ids are only
+	// unique per chapter. Make them unique document-wide first, and remap the
+	// navigation to match, so sidebar and TOC links reach the heading the
+	// reader clicked rather than the first chapter that happens to use that
+	// name.
+	namespacer := newAnchorNamespacer()
 	for i, ch := range parts.ChaptersHTML {
+		id := ch.ID
+		if id == "" {
+			id = fmt.Sprintf("chapter-%d", i+1)
+		}
+		namespacer.Reserve(id)
+	}
+	navChapters := make([]ChapterHTML, len(parts.ChaptersHTML))
+	copy(navChapters, parts.ChaptersHTML)
+	for i := range navChapters {
+		chID := navChapters[i].ID
+		if chID == "" {
+			chID = fmt.Sprintf("chapter-%d", i+1)
+		}
+		content, mapping := namespacer.Rewrite(chID, navChapters[i].Content)
+		navChapters[i].Content = content
+		navChapters[i].Headings = remapHeadings(navChapters[i].Headings, mapping)
+	}
+
+	// Convert chapter data and pre-compute prev/next navigation info.
+	chapters := make([]standaloneChapter, 0, len(navChapters))
+	for i, ch := range navChapters {
 		chID := ch.ID
 		if chID == "" {
 			chID = fmt.Sprintf("chapter-%d", i+1)
@@ -116,15 +141,15 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		// Compute prev/next chapter info.
 		var prevTitle, prevID, nextTitle, nextID string
 		if i > 0 {
-			prev := parts.ChaptersHTML[i-1]
+			prev := navChapters[i-1]
 			prevTitle = prev.Title
 			prevID = prev.ID
 			if prevID == "" {
 				prevID = fmt.Sprintf("chapter-%d", i)
 			}
 		}
-		if i < len(parts.ChaptersHTML)-1 {
-			next := parts.ChaptersHTML[i+1]
+		if i < len(navChapters)-1 {
+			next := navChapters[i+1]
 			nextTitle = next.Title
 			nextID = next.ID
 			if nextID == "" {
@@ -157,7 +182,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		HasCover:    parts.CoverHTML != "",
 		CSS:         template.CSS(cssBuilder.String()),
 		Chapters:    chapters,
-		SidebarHTML: template.HTML(r.buildSidebar(parts.ChaptersHTML)),
+		SidebarHTML: template.HTML(r.buildSidebar(navChapters)),
 	}
 
 	var result strings.Builder
