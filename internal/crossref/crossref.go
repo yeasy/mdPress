@@ -4,11 +4,13 @@ package crossref
 
 import (
 	"fmt"
+	"html"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/yeasy/mdpress/internal/i18n"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -17,6 +19,9 @@ var (
 	refPlaceholderRegexp = regexp.MustCompile(`\{\{ref:([a-zA-Z0-9_\-]+)\}\}`)
 	figureCaptionRegexp  = regexp.MustCompile(`(?s)<figure\s+id="([^"]+)"([^>]*)>(.*?)</figure>`)
 	tableCaptionRegexp   = regexp.MustCompile(`(?s)<table\s+id="([^"]+)"([^>]*)>(.*?)</table>`)
+	figcaptionRegexp     = regexp.MustCompile(`(?s)<figcaption[^>]*>(.*?)</figcaption>`)
+	captionRegexp        = regexp.MustCompile(`(?s)<caption[^>]*>(.*?)</caption>`)
+	imgAltRegexp         = regexp.MustCompile(`(?s)<img[^>]*\salt="([^"]*)"`)
 )
 
 // referenceType defines reference type constants.
@@ -47,15 +52,24 @@ type Resolver struct {
 	figCount      int                   // Figure counter
 	tabCount      int                   // Table counter
 	sectionCounts map[int]int           // Section counters by heading level
+	labels        i18n.CrossRefLabels   // Localized "Figure"/"Table"/"Section" wording
 }
 
-// NewResolver creates a new cross-reference resolver instance.
+// NewResolver creates a new cross-reference resolver instance labeling
+// references in English, the default book language.
 func NewResolver() *Resolver {
+	return NewResolverForLanguage("")
+}
+
+// NewResolverForLanguage creates a resolver whose labels and captions follow
+// the book's language code (book.language), e.g. "Figure 1" or "图1".
+func NewResolverForLanguage(lang string) *Resolver {
 	return &Resolver{
 		figures:       make(map[string]*Reference),
 		tables:        make(map[string]*Reference),
 		sections:      make(map[string]*Reference),
 		sectionCounts: make(map[int]int),
+		labels:        i18n.CrossRefLabelsFor(lang),
 	}
 }
 
@@ -160,6 +174,44 @@ func (r *Resolver) RegisterSection(id, title string, level int) {
 	r.sections[id] = ref
 }
 
+// RegisterFromHTML registers every identified <figure> and <table> found in
+// the given HTML, in document order, so that {{ref:...}} placeholders and
+// auto-captions work without the author numbering anything by hand. Callers
+// run it over the whole book before resolving any placeholder.
+//
+// Titles are taken from an existing <figcaption>/<caption>, falling back to
+// the image's alt text, so a generated caption repeats what the author wrote
+// instead of being blank.
+func (r *Resolver) RegisterFromHTML(htmlContent string) {
+	for _, m := range figureCaptionRegexp.FindAllStringSubmatch(htmlContent, -1) {
+		r.RegisterFigure(m[1], figureTitle(m[3]))
+	}
+	for _, m := range tableCaptionRegexp.FindAllStringSubmatch(htmlContent, -1) {
+		r.RegisterTable(m[1], innerText(captionRegexp, m[3]))
+	}
+}
+
+// figureTitle derives a figure's title from its own caption, or from the alt
+// text of the image it wraps.
+func figureTitle(content string) string {
+	if title := innerText(figcaptionRegexp, content); title != "" {
+		return title
+	}
+	if m := imgAltRegexp.FindStringSubmatch(content); m != nil {
+		return strings.TrimSpace(html.UnescapeString(m[1]))
+	}
+	return ""
+}
+
+// innerText returns the plain text of the first match of pattern in content.
+func innerText(pattern *regexp.Regexp, content string) string {
+	m := pattern.FindStringSubmatch(content)
+	if m == nil {
+		return ""
+	}
+	return strings.TrimSpace(html.UnescapeString(utils.StripHTMLTags(m[1])))
+}
+
 // Resolve looks up reference information by ID.
 // Returns the found Reference pointer, or an error if not found.
 func (r *Resolver) Resolve(id string) (*Reference, error) {
@@ -180,17 +232,28 @@ func (r *Resolver) Resolve(id string) (*Reference, error) {
 	return nil, fmt.Errorf("reference not found: %s", id)
 }
 
-// ProcessHTML processes HTML content, replacing {{ref:id}} placeholders with actual references.
-// Supported placeholder formats:
-// - {{ref:fig_1}} replaced with "图1" (Chinese figure label)
-// - {{ref:table_1}} replaced with "表1" (Chinese table label)
-// - {{ref:section_intro}} replaced with "§1.2.3" (section number)
+// ProcessHTML replaces {{ref:id}} placeholders with links to the referenced
+// figure, table or section, labeled in the book's language ("Figure 1",
+// "图1", "§1.2.3"). Placeholders whose ID is unknown are left as-is; use
+// ProcessHTMLWithUnresolved to learn about them.
 //
 // Example:
 // Input: "As shown in {{ref:fig_demo}}, ..."
-// Output: "As shown in 图1, ..."
+// Output: "As shown in <a href=\"#fig_demo\" class=\"ref-figure\">Figure 1</a>, ..."
 func (r *Resolver) ProcessHTML(html string) string {
-	return refPlaceholderRegexp.ReplaceAllStringFunc(html, func(match string) string {
+	out, _ := r.ProcessHTMLWithUnresolved(html)
+	return out
+}
+
+// ProcessHTMLWithUnresolved is ProcessHTML plus the IDs it could not resolve,
+// in order of first appearance. A placeholder that stays in the text is
+// printed verbatim to the reader, so callers report these rather than
+// shipping "{{ref:fig_x}}" in the book.
+func (r *Resolver) ProcessHTMLWithUnresolved(html string) (string, []string) {
+	var unresolved []string
+	seen := make(map[string]bool)
+
+	out := refPlaceholderRegexp.ReplaceAllStringFunc(html, func(match string) string {
 		// Extract the ID.
 		parts := refPlaceholderRegexp.FindStringSubmatch(match)
 		if len(parts) < 2 {
@@ -200,6 +263,10 @@ func (r *Resolver) ProcessHTML(html string) string {
 		id := parts[1]
 		ref, err := r.Resolve(id)
 		if err != nil {
+			if !seen[id] {
+				seen[id] = true
+				unresolved = append(unresolved, id)
+			}
 			// If reference not found, return the original placeholder.
 			return match
 		}
@@ -207,19 +274,21 @@ func (r *Resolver) ProcessHTML(html string) string {
 		// Generate reference text based on type.
 		switch ref.Type {
 		case typeFigure:
-			return fmt.Sprintf(`<a href="#%s" class="ref-figure">图%d</a>`, utils.EscapeAttr(ref.ID), ref.Number)
+			return fmt.Sprintf(`<a href="#%s" class="ref-figure">%s</a>`, utils.EscapeAttr(ref.ID), utils.EscapeHTML(r.labels.FigureLabel(ref.Number)))
 		case typeTable:
-			return fmt.Sprintf(`<a href="#%s" class="ref-table">表%d</a>`, utils.EscapeAttr(ref.ID), ref.Number)
+			return fmt.Sprintf(`<a href="#%s" class="ref-table">%s</a>`, utils.EscapeAttr(ref.ID), utils.EscapeHTML(r.labels.TableLabel(ref.Number)))
 		case typeSection:
-			label := fmt.Sprintf("第%d节", ref.Number)
+			label := r.labels.SectionLabel(ref.Number)
 			if ref.NumberStr != "" {
 				label = "§" + ref.NumberStr
 			}
-			return fmt.Sprintf(`<a href="#%s" class="ref-section">%s</a>`, utils.EscapeAttr(ref.ID), label)
+			return fmt.Sprintf(`<a href="#%s" class="ref-section">%s</a>`, utils.EscapeAttr(ref.ID), utils.EscapeHTML(label))
 		default:
 			return match
 		}
 	})
+
+	return out, unresolved
 }
 
 // AddCaptions adds numbered captions to figures and tables.
@@ -275,8 +344,8 @@ func (r *Resolver) addFigureCaptions(html string, figures map[string]*Reference)
 		}
 
 		// Build the new figure element with caption.
-		caption := fmt.Sprintf(`<figcaption>图%d: %s</figcaption>`,
-			ref.Number, utils.EscapeHTML(ref.Title))
+		caption := fmt.Sprintf(`<figcaption>%s%s</figcaption>`,
+			utils.EscapeHTML(r.labels.FigureLabel(ref.Number)), captionSuffix(ref.Title))
 
 		return fmt.Sprintf(`<figure id="%s"%s>%s%s</figure>`,
 			utils.EscapeAttr(id), attrs, content, caption)
@@ -307,12 +376,21 @@ func (r *Resolver) addTableCaptions(html string, tables map[string]*Reference) s
 		}
 
 		// Build the new table element with caption prepended.
-		caption := fmt.Sprintf(`<caption>表%d: %s</caption>`,
-			ref.Number, utils.EscapeHTML(ref.Title))
+		caption := fmt.Sprintf(`<caption>%s%s</caption>`,
+			utils.EscapeHTML(r.labels.TableLabel(ref.Number)), captionSuffix(ref.Title))
 
 		return fmt.Sprintf(`<table id="%s"%s>%s%s</table>`,
 			utils.EscapeAttr(id), attrs, caption, content)
 	})
+}
+
+// captionSuffix renders the ": Title" part of a caption, omitting it when the
+// element has no title so the caption does not end in a dangling colon.
+func captionSuffix(title string) string {
+	if strings.TrimSpace(title) == "" {
+		return ""
+	}
+	return ": " + utils.EscapeHTML(title)
 }
 
 // GetAllReferences returns all registered references (for debugging or building reference lists).

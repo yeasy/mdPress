@@ -529,6 +529,115 @@ Details here.
 	}
 }
 
+// A cross-reference must work in both directions, and a figure declared in
+// the Markdown must be numbered without the author registering anything.
+func TestChapterPipelineCrossReferences(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	chapters := map[string]string{
+		"ch1.md": "# Chapter One\n\nForward to {{ref:deep-dive}}, figure {{ref:fig_arch}}, and {{ref:nope}}.\n\n" +
+			`<figure id="fig_arch"><img src="a.png" alt="System architecture"></figure>` + "\n",
+		"ch2.md": "# Chapter Two\n\nNothing here.\n",
+		"ch3.md": "# Chapter Three\n\n## Deep Dive\n\nBack to {{ref:chapter-one}}.\n",
+	}
+	for name, body := range chapters {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("failed to write %s: %v", name, err)
+		}
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{Title: "Test Book", Language: "en-US"},
+		Chapters: []config.ChapterDef{
+			{Title: "Chapter One", File: "ch1.md"},
+			{Title: "Chapter Two", File: "ch2.md"},
+			{Title: "Chapter Three", File: "ch3.md"},
+		},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	result, err := pipeline.Process(context.Background())
+	if err != nil {
+		t.Fatalf("pipeline process failed: %v", err)
+	}
+
+	first := result.Chapters[0].Content
+	// Forward reference into a later chapter.
+	if !strings.Contains(first, `<a href="#deep-dive" class="ref-section">`) {
+		t.Errorf("forward section reference was not resolved:\n%s", first)
+	}
+	// Figure declared in the same chapter, numbered and captioned.
+	if !strings.Contains(first, `<a href="#fig_arch" class="ref-figure">Figure 1</a>`) {
+		t.Errorf("figure reference was not resolved:\n%s", first)
+	}
+	if !strings.Contains(first, "<figcaption>Figure 1: System architecture</figcaption>") {
+		t.Errorf("figure caption was not added:\n%s", first)
+	}
+	// Backward reference from the last chapter.
+	last := result.Chapters[len(result.Chapters)-1].Content
+	if !strings.Contains(last, `<a href="#chapter-one" class="ref-section">`) {
+		t.Errorf("backward section reference was not resolved:\n%s", last)
+	}
+
+	// The one genuinely unknown ID stays literal and is reported exactly once.
+	if !strings.Contains(first, "{{ref:nope}}") {
+		t.Errorf("unknown reference should stay literal:\n%s", first)
+	}
+	var reported []projectIssue
+	for _, issue := range result.Issues {
+		if issue.Rule == "unresolved-cross-reference" {
+			reported = append(reported, issue)
+		}
+	}
+	if len(reported) != 1 || !strings.Contains(reported[0].Message, "{{ref:nope}}") {
+		t.Errorf("expected exactly one unresolved-cross-reference issue, got %+v", reported)
+	}
+}
+
+// A book written in Chinese keeps the Chinese labels.
+func TestChapterPipelineCrossReferenceLanguage(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	body := "# 第一章\n\n见 {{ref:fig_arch}}。\n\n" +
+		`<figure id="fig_arch"><img src="a.png" alt="架构"></figure>` + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "ch1.md"), []byte(body), 0o644); err != nil {
+		t.Fatalf("failed to write chapter: %v", err)
+	}
+
+	cfg := &config.BookConfig{
+		Book:     config.BookMeta{Title: "测试", Language: "zh-CN"},
+		Chapters: []config.ChapterDef{{Title: "第一章", File: "ch1.md"}},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	parser := markdown.NewParser()
+	themeManager := theme.NewThemeManager()
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	pipeline := newChapterPipeline(cfg, thm, parser, nil, logger, nil)
+	result, err := pipeline.Process(context.Background())
+	if err != nil {
+		t.Fatalf("pipeline process failed: %v", err)
+	}
+
+	if !strings.Contains(result.Chapters[0].Content, `class="ref-figure">图1</a>`) {
+		t.Errorf("Chinese book should keep Chinese labels:\n%s", result.Chapters[0].Content)
+	}
+}
+
 // TestChapterPipelineNestedChapters tests processing nested chapter sections.
 func TestChapterPipelineNestedChapters(t *testing.T) {
 	tmpDir := t.TempDir()

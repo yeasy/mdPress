@@ -348,7 +348,7 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 		imageOptions.Logger = p.Logger
 	}
 
-	resolver := crossref.NewResolver()
+	resolver := crossref.NewResolverForLanguage(p.Config.Book.Language)
 
 	var allHeadings []toc.HeadingInfo
 	chaptersHTML := make([]renderer.ChapterHTML, 0, len(p.Config.Chapters))
@@ -364,6 +364,42 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 	parsedChapters, err := p.parseChaptersParallel(ctx, flatChapters, imageOptions, options.MaxConcurrency)
 	if err != nil {
 		return nil, err
+	}
+
+	// Registration pass. Every heading, figure and table in the book is
+	// registered before any {{ref:...}} placeholder is replaced, so a
+	// reference works in both directions. Resolving inside the rendering loop
+	// meant a reference to a later chapter found nothing and was printed to
+	// the reader as literal "{{ref:sec_x}}" text.
+	for i := range parsedChapters {
+		parsed := &parsedChapters[i]
+		if parsed.htmlContent == "" || i >= len(flatChapters) {
+			continue
+		}
+
+		// Invoke the AfterParse hook so plugins can modify this chapter's
+		// HTML. It runs before registration so that a figure a plugin injects
+		// is numbered like any other.
+		hookCtx := &plugin.HookContext{
+			Context:      ctx,
+			Config:       p.Config,
+			Phase:        plugin.PhaseAfterParse,
+			Content:      parsed.htmlContent,
+			ChapterIndex: i,
+			ChapterFile:  parsed.chDef.File,
+			Metadata:     make(map[string]any),
+		}
+		if err := p.PluginManager.RunHook(hookCtx); err != nil {
+			p.Logger.Warn("afterParse plugin hook failed", slog.String("file", parsed.chDef.File), slog.Any("error", err))
+		} else if hookCtx.Content != "" {
+			parsed.htmlContent = hookCtx.Content
+		}
+
+		for _, h := range parsed.headings {
+			allHeadings = append(allHeadings, toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID})
+			resolver.RegisterSection(h.ID, h.Text, h.Level)
+		}
+		resolver.RegisterFromHTML(parsed.htmlContent)
 	}
 
 	// Process results in order
@@ -424,12 +460,6 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 			})
 		}
 
-		// Register headings with the cross-reference resolver.
-		for _, h := range headings {
-			allHeadings = append(allHeadings, toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID})
-			resolver.RegisterSection(h.ID, h.Text, h.Level)
-		}
-
 		// Determine chapter ID (prefer first heading ID, fallback to 1-based index).
 		chapterID := fmt.Sprintf("chapter-%d", i+1)
 		if len(headings) > 0 {
@@ -441,24 +471,16 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 		// silently drops a whole chapter, so de-duplicate across the book.
 		chapterID = uniqueChapterID(chapterID, seenChapterIDs)
 
-		// Invoke the AfterParse hook so plugins can modify this chapter's HTML.
-		hookCtx := &plugin.HookContext{
-			Context:      ctx,
-			Config:       p.Config,
-			Phase:        plugin.PhaseAfterParse,
-			Content:      htmlContent,
-			ChapterIndex: i,
-			ChapterFile:  chDef.File,
-			Metadata:     make(map[string]any),
-		}
-		if err := p.PluginManager.RunHook(hookCtx); err != nil {
-			p.Logger.Warn("afterParse plugin hook failed", slog.String("file", chDef.File), slog.Any("error", err))
-		} else if hookCtx.Content != "" {
-			htmlContent = hookCtx.Content
-		}
-
 		// Process cross-references and glossary.
-		htmlContent = resolver.ProcessHTML(htmlContent)
+		var unresolvedRefs []string
+		htmlContent, unresolvedRefs = resolver.ProcessHTMLWithUnresolved(htmlContent)
+		for _, id := range unresolvedRefs {
+			issues = append(issues, projectIssue{
+				Rule:    "unresolved-cross-reference",
+				File:    chDef.File,
+				Message: fmt.Sprintf("unknown cross-reference {{ref:%s}} — printed as literal text in the output", id),
+			})
+		}
 		htmlContent = resolver.AddCaptions(htmlContent)
 		if p.Glossary != nil {
 			htmlContent = p.Glossary.ProcessHTML(htmlContent)
