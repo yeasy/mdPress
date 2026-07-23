@@ -135,6 +135,7 @@ Common commands:
 	rootCmd.AddCommand(themesCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(cacheCmd)
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(versionCmd)
