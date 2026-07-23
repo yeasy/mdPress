@@ -57,6 +57,34 @@ const standaloneCSS = `    /* ==================================================
       --color-progress: var(--color-accent, #1C5A9E);
     }
 
+    /* ===== GFM callouts (> [!NOTE] etc.) =====
+       Styled by class so the dark overrides below can win; these used to be
+       inline style= attributes, which nothing could override. */
+    .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
+    .alert-title { font-weight: 600; margin: 0 0 4px; }
+    .alert > :last-child { margin-bottom: 0; }
+    .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
+    .alert-note .alert-title { color: #0969da; }
+    .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
+    .alert-tip .alert-title { color: #1a7f37; }
+    .alert-important { background: #fbefff; border-left-color: #c297ff; }
+    .alert-important .alert-title { color: #8250df; }
+    .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
+    .alert-warning .alert-title { color: #9a6700; }
+    .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
+    .alert-caution .alert-title { color: #cf222e; }
+
+    :root[data-theme="dark"] .alert-note { background: #0d2942; border-left-color: #316dca; }
+    :root[data-theme="dark"] .alert-note .alert-title { color: #6cb6ff; }
+    :root[data-theme="dark"] .alert-tip { background: #0f2e1a; border-left-color: #347d39; }
+    :root[data-theme="dark"] .alert-tip .alert-title { color: #57ab5a; }
+    :root[data-theme="dark"] .alert-important { background: #241a3a; border-left-color: #8256d0; }
+    :root[data-theme="dark"] .alert-important .alert-title { color: #b083f0; }
+    :root[data-theme="dark"] .alert-warning { background: #33270a; border-left-color: #ae7c14; }
+    :root[data-theme="dark"] .alert-warning .alert-title { color: #e3b341; }
+    :root[data-theme="dark"] .alert-caution { background: #3a0f14; border-left-color: #c93c37; }
+    :root[data-theme="dark"] .alert-caution .alert-title { color: #f47067; }
+
     /* ============================================================
        Dark Mode Overrides
        The :root[data-theme="dark"] selector carries higher specificity

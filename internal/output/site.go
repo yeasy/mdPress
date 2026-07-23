@@ -36,9 +36,12 @@ type SiteChapter struct {
 	// root (e.g. "chapter01/section1.md"), used to build "edit this page"
 	// links. When empty, the path is derived from Filename as a best effort.
 	SourcePath string
-	Depth      int
-	Headings   []SiteNavHeading
-	Children   []SiteChapter
+	// Section is an optional group label rendered above this chapter in the
+	// sidebar, from SUMMARY.md "## Heading" lines or book.yaml's `section:`.
+	Section  string
+	Depth    int
+	Headings []SiteNavHeading
+	Children []SiteChapter
 }
 
 // SiteNavHeading stores an in-chapter navigation tree.

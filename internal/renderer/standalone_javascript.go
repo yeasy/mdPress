@@ -350,11 +350,21 @@ const standaloneJS = `
     });
   }
 
+  // The page scrolls inside #main-content, not the document: the body is a
+  // full-height grid and only that pane overflows. Reading window.scrollY here
+  // always returned 0, so the progress bar never moved and back-to-top never
+  // appeared. Fall back to the document for safety.
+  function scrollContainer() {
+    return document.getElementById('main-content') || document.documentElement;
+  }
+
   // onScroll handles reading progress bar (GPU-accelerated with transform)
   // and back-to-top button. Chapter/heading tracking uses IntersectionObserver.
   function onScroll() {
-    var scrollTop = window.scrollY || document.documentElement.scrollTop;
-    var docH = document.documentElement.scrollHeight - window.innerHeight;
+    var sc = scrollContainer();
+    var isDoc = sc === document.documentElement;
+    var scrollTop = isDoc ? (window.scrollY || sc.scrollTop) : sc.scrollTop;
+    var docH = isDoc ? (sc.scrollHeight - window.innerHeight) : (sc.scrollHeight - sc.clientHeight);
     var pct  = docH > 0 ? Math.min(100, (scrollTop / docH) * 100) : 0;
 
     // Use transform scaleX for GPU acceleration instead of width
@@ -366,12 +376,19 @@ const standaloneJS = `
   }
 
   // Throttle scroll events with requestAnimationFrame to avoid excessive repaints.
+  // Listen on the actual scroller; also keep the window listener so the
+  // document-scrolling fallback still works.
   var rafPending = false;
-  window.addEventListener('scroll', function() {
+  function onScrollEvent() {
     if (rafPending) return;
     rafPending = true;
     requestAnimationFrame(function() { onScroll(); rafPending = false; });
-  }, { passive: true });
+  }
+  window.addEventListener('scroll', onScrollEvent, { passive: true });
+  (function() {
+    var sc = document.getElementById('main-content');
+    if (sc) { sc.addEventListener('scroll', onScrollEvent, { passive: true }); }
+  })();
 
   // ============================================================
   // Code block enhancement: auto-wrap pre > code, add language
@@ -882,7 +899,8 @@ const standaloneJS = `
   // Back-to-top button with smooth fade and scroll animation
   // ============================================================
   document.getElementById('back-to-top').addEventListener('click', function() {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll the pane that actually scrolls; window.scrollTo is a no-op here.
+    scrollContainer().scrollTo({ top: 0, behavior: 'smooth' });
   });
 
   // ============================================================

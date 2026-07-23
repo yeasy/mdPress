@@ -53,6 +53,9 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 		list   *[]ChapterDef
 	}
 	stack := []stackFrame{{indent: -1, list: &chapters}}
+	// Group label from the most recent heading, pending attachment to the next
+	// chapter parsed.
+	pendingSection := ""
 
 	// Belt-and-suspenders: also limit the reader to guard against TOCTOU
 	// races where the file could grow between Stat and Open.
@@ -62,9 +65,18 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 		line := scanner.Text()
 		lineNum++
 
-		// Skip blank lines and headings.
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		if trimmed == "" {
+			continue
+		}
+		// A heading groups the chapters that follow it. GitBook and HonKit use
+		// "## Part I" this way, and dropping them collapsed a structured book
+		// into one flat, unscannable sidebar. The label is held here and
+		// attached to the next chapter parsed.
+		if strings.HasPrefix(trimmed, "#") {
+			if label := strings.TrimSpace(strings.TrimLeft(trimmed, "#")); label != "" {
+				pendingSection = label
+			}
 			continue
 		}
 
@@ -83,15 +95,20 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 
 		title := strings.TrimSpace(matches[1])
 		file := strings.TrimSpace(matches[2])
+		section := pendingSection
+		pendingSection = ""
 
-		// Skip anchor-only links such as #introduction.
+		// Skip anchor-only links such as #introduction. Keep the pending label
+		// so it lands on the next real chapter instead of being lost here.
 		if strings.HasPrefix(file, "#") {
+			pendingSection = section
 			continue
 		}
 
 		ch := ChapterDef{
-			Title: title,
-			File:  file,
+			Title:   title,
+			File:    file,
+			Section: section,
 		}
 
 		// Pop the stack until the parent indent is smaller.

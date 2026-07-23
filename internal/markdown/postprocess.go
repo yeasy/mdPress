@@ -10,17 +10,23 @@ import (
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
-// alertTypes maps GFM Alert type names to their display style.
+// alertTypes maps GFM Alert type names to their label and icon.
+//
+// Colors deliberately live in the stylesheets, not here. They used to be
+// written as inline style= attributes, which no rule could override, so
+// callouts kept their light background in dark mode and became unreadable.
+// Each output format now styles .alert-<type> in its own CSS, where a dark
+// override can win.
 var alertTypes = map[string]alertStyle{
-	"NOTE":      {icon: "ℹ️", color: "#0969da", bg: "#ddf4ff", border: "#54aeff", label: "Note"},
-	"TIP":       {icon: "💡", color: "#1a7f37", bg: "#dafbe1", border: "#4ac26b", label: "Tip"},
-	"IMPORTANT": {icon: "🔔", color: "#8250df", bg: "#fbefff", border: "#c297ff", label: "Important"},
-	"WARNING":   {icon: "⚠️", color: "#9a6700", bg: "#fff8c5", border: "#d4a72c", label: "Warning"},
-	"CAUTION":   {icon: "🔴", color: "#cf222e", bg: "#ffebe9", border: "#ff8182", label: "Caution"},
+	"NOTE":      {icon: "ℹ️", label: "Note"},
+	"TIP":       {icon: "💡", label: "Tip"},
+	"IMPORTANT": {icon: "🔔", label: "Important"},
+	"WARNING":   {icon: "⚠️", label: "Warning"},
+	"CAUTION":   {icon: "🔴", label: "Caution"},
 }
 
 type alertStyle struct {
-	icon, color, bg, border, label string
+	icon, label string
 }
 
 // alertPattern matches the [!TYPE] marker inside a blockquote.
@@ -124,12 +130,9 @@ func processAlerts(html string) string {
 		// Strip any leading newline/whitespace after the [!TYPE] marker.
 		inner = strings.TrimPrefix(inner, "\n")
 
-		// Build the alert div.
-		alertHTML := "<div class=\"alert alert-" + strings.ToLower(alertType) + "\" " +
-			"style=\"border-left:4px solid " + style.border + ";background:" + style.bg +
-			";padding:12px 16px;margin:1em 0;border-radius:0 6px 6px 0;\">\n" +
-			"<p class=\"alert-title\" style=\"color:" + style.color +
-			";font-weight:600;margin:0 0 4px;\">" + style.icon + " " + style.label + "</p>\n" +
+		// Build the alert div. Styling is by class only — see alertTypes.
+		alertHTML := "<div class=\"alert alert-" + strings.ToLower(alertType) + "\">\n" +
+			"<p class=\"alert-title\">" + style.icon + " " + style.label + "</p>\n" +
 			inner + "\n</div>"
 
 		html = html[:startIdx] + alertHTML + html[closeIdx+len(closeTag):]

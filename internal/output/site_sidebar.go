@@ -30,6 +30,11 @@ func sidebarChapters(chapters []SiteChapter, siteTitle string) []SiteChapter {
 // elements with appropriate classes and states.
 func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteChapter, activeFile string) {
 	for _, ch := range chapters {
+		// A group label starts a new run of chapters. Without this a long book
+		// renders as one flat, unscannable list.
+		if ch.Section != "" {
+			fmt.Fprintf(b, `<div class="nav-section">%s</div>`, template.HTMLEscapeString(ch.Section))
+		}
 		filename := ch.Filename
 		if filename == "" {
 			filename = "#"

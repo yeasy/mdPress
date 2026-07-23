@@ -99,8 +99,14 @@ type CoverMeta struct {
 
 // ChapterDef defines a chapter and its nested sections.
 type ChapterDef struct {
-	Title    string       `yaml:"title"`
-	File     string       `yaml:"file"`
+	Title string `yaml:"title"`
+	File  string `yaml:"file"`
+	// Section is an optional group label rendered above this chapter in the
+	// site sidebar, starting a new group. SUMMARY.md "## Heading" lines set it
+	// on the chapter that follows them; book.yaml can set it directly. It is
+	// carried on a real chapter rather than modeled as a file-less entry, so
+	// nothing downstream has to cope with a chapter that has no content.
+	Section  string       `yaml:"section"`
 	Sections []ChapterDef `yaml:"sections"`
 }
 

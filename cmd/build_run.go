@@ -1324,6 +1324,7 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 				Filename: data.filename,
 				Content:  data.html.Content,
 				Markdown: data.markdown,
+				Section:  def.Section,
 				Depth:    data.html.Depth,
 				Headings: rendererHeadingsToSiteHeadings(data.html.Headings),
 				Children: build(def.Sections),
