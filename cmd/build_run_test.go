@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1264,4 +1267,50 @@ func TestDeriveLanguageOutputOverride_DirectoryOverride(t *testing.T) {
 	if got != want {
 		t.Fatalf("deriveLanguageOutputOverride() = %q, want %q", got, want)
 	}
+}
+
+// TestFormatOutcomesReportPartialSuccess covers a build where one format fails
+// and others succeed. Aborting on the first failure meant the user saw only
+// that error and never learned which artifacts had been written — so they
+// could not tell which files on disk were current.
+func TestFormatOutcomesReportPartialSuccess(t *testing.T) {
+	outcomes := []formatOutcome{
+		{Format: "html"},
+		{Format: "site"},
+		{Format: "typst", Err: errors.New("typst is not installed")},
+	}
+
+	out := captureStdout(t, func() {
+		printBuildOutcomes("/tmp/book/book", "/tmp/book/_book", outcomes)
+	})
+
+	for _, want := range []string{"Generated html", "Generated site", "typst failed"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("summary missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Generated typst") {
+		t.Errorf("a failed format must not be reported as generated:\n%s", out)
+	}
+}
+
+// captureStdout runs fn with stdout redirected and returns what it printed.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	fn()
+	w.Close() //nolint:errcheck
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatal(err)
+	}
+	r.Close() //nolint:errcheck
+	return buf.String()
 }
