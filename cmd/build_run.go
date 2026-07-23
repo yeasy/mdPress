@@ -12,9 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/yeasy/mdpress/internal/config"
 	"github.com/yeasy/mdpress/internal/cover"
@@ -328,8 +327,13 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	registry := newFormatBuilderRegistry()
 
 	// Build formats in parallel (but not PDF with others, as PDF generation is memory-intensive)
-	if err := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger); err != nil {
-		return fmt.Errorf("build output formats: %w", err)
+	outcomes, buildErr := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger)
+	if buildErr != nil {
+		// Report what did get built before surfacing the failure: the user
+		// needs to know which artifacts on disk are current.
+		progress.Fail()
+		printBuildOutcomes(baseOutput, siteDir, outcomes)
+		return fmt.Errorf("build output formats: %w", buildErr)
 	}
 
 	// Invoke the AfterBuild hook after all output formats have been written.
@@ -350,6 +354,34 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 }
 
 // printBuildOutputs prints one line per generated format with its output path.
+// printBuildOutcomes lists each attempted format with its result. Used on the
+// failure path, where the plain success summary would be a lie.
+func printBuildOutcomes(baseOutput, siteDir string, outcomes []formatOutcome) {
+	succeeded := make([]string, 0, len(outcomes))
+	for _, o := range outcomes {
+		if o.Err == nil {
+			succeeded = append(succeeded, o.Format)
+		}
+	}
+	links := predictedOutputLinks(baseOutput, siteDir, succeeded)
+
+	fmt.Println()
+	for _, format := range []string{"pdf", "html", "site", "epub", "typst"} {
+		for _, o := range outcomes {
+			if o.Format != format {
+				continue
+			}
+			if o.Err != nil {
+				fmt.Printf("  ✗ %-5s failed\n", format)
+				continue
+			}
+			if path, ok := links[format]; ok {
+				fmt.Printf("  ✓ Generated %-5s → %s\n", format, path)
+			}
+		}
+	}
+}
+
 func printBuildOutputs(baseOutput, siteDir string, formats []string) {
 	links := predictedOutputLinks(baseOutput, siteDir, formats)
 	if len(links) == 0 {
@@ -364,9 +396,16 @@ func printBuildOutputs(baseOutput, siteDir string, formats []string) {
 	}
 }
 
+// formatOutcome records how one output format fared, so a build that fails
+// partway can still tell the user which artifacts exist.
+type formatOutcome struct {
+	Format string
+	Err    error
+}
+
 // buildFormatsInParallel builds multiple output formats in parallel.
 // PDF formats are built sequentially (they're memory-intensive), while other formats build in parallel.
-func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry, buildCtx *buildContext, baseName string, formats []string, logger *slog.Logger) error {
+func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry, buildCtx *buildContext, baseName string, formats []string, logger *slog.Logger) ([]formatOutcome, error) {
 	// Separate PDF from other formats
 	var pdfFormats []string
 	var otherFormats []string
@@ -380,46 +419,61 @@ func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry
 		}
 	}
 
+	// Every requested format is attempted, and each outcome recorded. Aborting
+	// on the first failure meant a build that produced three good artifacts
+	// reported only the fourth format's error, so the user never learned the
+	// others existed.
+	var mu sync.Mutex
+	outcomes := make([]formatOutcome, 0, len(formats))
+	record := func(format string, err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		outcomes = append(outcomes, formatOutcome{Format: strings.ToLower(strings.TrimSpace(format)), Err: err})
+	}
+
 	// Build non-PDF formats in parallel, respecting context cancellation.
 	if len(otherFormats) > 0 {
-		eg, egCtx := errgroup.WithContext(ctx)
-
+		var wg sync.WaitGroup
 		for _, format := range otherFormats {
-			format := format // capture for closure
-			eg.Go(func() error {
-				if err := egCtx.Err(); err != nil {
-					return fmt.Errorf("parallel build canceled: %w", err)
+			wg.Add(1)
+			go func(format string) {
+				defer wg.Done()
+				if err := ctx.Err(); err != nil {
+					record(format, fmt.Errorf("build canceled: %w", err))
+					return
 				}
 				builder := registry.Get(strings.ToLower(format))
 				if builder == nil {
 					logger.Warn("unsupported output format, skipping", slog.String("format", format))
-					return nil
+					return
 				}
-				return builder.Build(buildCtx, baseName)
-			})
+				record(format, builder.Build(buildCtx, baseName))
+			}(format)
 		}
-
-		if err := eg.Wait(); err != nil {
-			return fmt.Errorf("parallel format build: %w", err)
-		}
+		wg.Wait()
 	}
 
 	// Build PDF formats sequentially (they're resource-intensive)
 	for _, format := range pdfFormats {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("pdf build canceled: %w", err)
+			record(format, fmt.Errorf("build canceled: %w", err))
+			continue
 		}
 		builder := registry.Get(strings.ToLower(format))
 		if builder == nil {
 			logger.Warn("unsupported output format, skipping", slog.String("format", format))
 			continue
 		}
-		if err := builder.Build(buildCtx, baseName); err != nil {
-			return fmt.Errorf("build %s: %w", format, err)
-		}
+		record(format, builder.Build(buildCtx, baseName))
 	}
 
-	return nil
+	var failures []error
+	for _, o := range outcomes {
+		if o.Err != nil {
+			failures = append(failures, fmt.Errorf("build %s: %w", o.Format, o.Err))
+		}
+	}
+	return outcomes, errors.Join(failures...)
 }
 
 func containsBuildFormat(formats []string, target string) bool {

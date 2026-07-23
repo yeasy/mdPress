@@ -573,8 +573,13 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string,
 		}
 
 		for _, diag := range diagnostics {
-			if strings.HasPrefix(diag.Rule, "mermaid-") {
+			switch {
+			case strings.HasPrefix(diag.Rule, "mermaid-"):
 				issues = append(issues, fmt.Sprintf("Mermaid issue in %s at %d:%d: %s", flat.Def.File, diag.Line, diag.Column, diag.Message))
+			case diag.Rule == "unclosed-code-fence":
+				// Silently swallows the rest of the chapter, so it belongs in
+				// the report a user runs precisely to catch that.
+				issues = append(issues, fmt.Sprintf("Unclosed code block in %s at %d:%d: %s", flat.Def.File, diag.Line, diag.Column, diag.Message))
 			}
 		}
 		if markdown.NeedsMermaid(htmlContent) {

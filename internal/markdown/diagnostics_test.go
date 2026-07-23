@@ -1,6 +1,9 @@
 package markdown
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseWithDiagnosticsOrderedListGap(t *testing.T) {
 	parser := NewParser()
@@ -382,5 +385,52 @@ func TestIsFenceCloseComprehensive(t *testing.T) {
 			t.Errorf("%s: expected %v, got %v (line=%q, char=%c, len=%d)",
 				test.name, test.expectedResult, result, test.line, test.fenceChar, test.fenceLen)
 		}
+	}
+}
+
+// TestCollectUnclosedFenceDiagnostics covers a silent content-loss case: an
+// unterminated fence swallows the rest of the chapter into the code block, so
+// the remaining sections vanish from the rendered page with no error and a
+// source file that still looks plausible.
+func TestCollectUnclosedFenceDiagnostics(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   string
+		wantRule bool
+	}{
+		{
+			name:     "unterminated fence is reported",
+			source:   "# T\n\nbefore\n\n```go\nfunc x() {}\n\nafter\n",
+			wantRule: true,
+		},
+		{
+			name:     "closed fence is fine",
+			source:   "# T\n\n```go\nfunc x() {}\n```\n\nafter\n",
+			wantRule: false,
+		},
+		{
+			name:     "tilde fence is tracked too",
+			source:   "# T\n\n~~~\nbody\n",
+			wantRule: true,
+		},
+		{
+			// Mermaid has its own, more specific diagnostic; reporting both
+			// would name the same line twice.
+			name:     "unterminated mermaid fence is left to the mermaid check",
+			source:   "# T\n\n```mermaid\nflowchart LR\n",
+			wantRule: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collectUnclosedFenceDiagnostics(strings.Split(tt.source, "\n"))
+			if tt.wantRule && len(got) == 0 {
+				t.Error("expected an unclosed-code-fence diagnostic")
+			}
+			if !tt.wantRule && len(got) != 0 {
+				t.Errorf("unexpected diagnostics: %+v", got)
+			}
+		})
 	}
 }

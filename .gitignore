@@ -75,3 +75,6 @@ _book/
 .env.*
 *.key
 *.pem
+
+# Agent worktrees created by the Claude Code Workflow tool
+.claude/worktrees/

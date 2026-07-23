@@ -100,6 +100,7 @@ func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	lines := strings.Split(string(source), "\n")
 	diagnostics := collectOrderedListDiagnostics(lines, index)
 	diagnostics = append(diagnostics, collectMermaidDiagnostics(lines)...)
+	diagnostics = append(diagnostics, collectUnclosedFenceDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
 	slices.SortStableFunc(diagnostics, func(a, b Diagnostic) int {
 		if c := cmp.Compare(a.Line, b.Line); c != 0 {
@@ -157,6 +158,54 @@ type mermaidFence struct {
 	startLine   int
 	startColumn int
 	content     []string
+}
+
+// collectUnclosedFenceDiagnostics reports a code fence that is never closed.
+//
+// Everything after the opening delimiter is swallowed into the code block, so
+// the rest of the chapter silently disappears from the rendered page — no
+// error, no warning, and the source still looks plausible. Mermaid fences are
+// handled separately (with a more specific message), so they are skipped here
+// to avoid reporting the same line twice.
+func collectUnclosedFenceDiagnostics(lines []string) []Diagnostic {
+	var (
+		openLine   int
+		openColumn int
+		fenceChar  byte
+		fenceLen   int
+		isMermaid  bool
+		open       bool
+	)
+
+	for i, rawLine := range lines {
+		line := strings.TrimRight(rawLine, "\r")
+		if !open {
+			info, ok := parseFenceOpen(line)
+			if !ok {
+				continue
+			}
+			open = true
+			openLine = i + 1
+			openColumn = len(info.indent) + 1
+			fenceChar = info.marker[0]
+			fenceLen = len(info.marker)
+			isMermaid = strings.EqualFold(firstFenceToken(info.rest), "mermaid")
+			continue
+		}
+		if isFenceClose(line, fenceChar, fenceLen) {
+			open = false
+		}
+	}
+
+	if !open || isMermaid {
+		return nil
+	}
+	return []Diagnostic{{
+		Rule:    "unclosed-code-fence",
+		Line:    openLine,
+		Column:  openColumn,
+		Message: "code block is never closed; everything after this line is rendered as code",
+	}}
 }
 
 func collectMermaidDiagnostics(lines []string) []Diagnostic {
