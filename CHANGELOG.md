@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.7.15] - 2026-07-22
+
 A follow-up audit after the 0.7.14 sweep surfaced a further set of confirmed issues. This wave fixes the data-loss, data-corruption and never-worked-at-all ones, and adds guardrail tests for the three patterns that keep producing them.
 
 ### Fixed
@@ -1024,7 +1028,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.14...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.15...HEAD
+[0.7.15]: https://github.com/yeasy/mdpress/compare/v0.7.14...v0.7.15
 [0.7.14]: https://github.com/yeasy/mdpress/compare/v0.7.13...v0.7.14
 [0.7.13]: https://github.com/yeasy/mdpress/compare/v0.7.12...v0.7.13
 [0.7.12]: https://github.com/yeasy/mdpress/compare/v0.7.11...v0.7.12
