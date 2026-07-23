@@ -372,6 +372,12 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 	// meant a reference to a later chapter found nothing and was printed to
 	// the reader as literal "{{ref:sec_x}}" text.
 	for i := range parsedChapters {
+		// Registration and rendering are sequential and, on a large book, by
+		// far the longest part of this stage. Without a check here an
+		// interrupt was not noticed until every chapter had been processed.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		parsed := &parsedChapters[i]
 		if parsed.htmlContent == "" || i >= len(flatChapters) {
 			continue
@@ -403,6 +409,9 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 
 	// Process results in order
 	for i, parsed := range parsedChapters {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		// Skip chapters with no content (they were skipped during parsing).
 		// Say so: an empty file produced no page, no navigation entry and no
 		// message, so the chapter simply was not in the book and the author
