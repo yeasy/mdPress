@@ -334,9 +334,12 @@ func TestNormalizeHTMLForXHTML(t *testing.T) {
 			wants: []string{`<br />`, `<img src="a.png" />`},
 		},
 		{
+			// Character references are resolved rather than passed through:
+			// XHTML is XML, so the output only has to be equivalent, and
+			// U+001F is not a legal XML character at all.
 			name:  "bare ampersands escaped",
 			input: `<p>A&B and C&amp;D and &#123; and &#x1f;</p>`,
-			wants: []string{`A&amp;B`, `C&amp;D`, `&#123;`, `&#x1f;`},
+			wants: []string{`A&amp;B`, `C&amp;D`, `{`},
 		},
 		{
 			name:  "boolean attributes expanded",

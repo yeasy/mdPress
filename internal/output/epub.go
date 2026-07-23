@@ -25,6 +25,10 @@ import (
 // epubKaTeXWarningOnce ensures the CDN dependency warning is logged only once.
 var epubKaTeXWarningOnce sync.Once
 
+// epubMermaidWarningOnce ensures the Mermaid degradation warning is logged
+// only once.
+var epubMermaidWarningOnce sync.Once
+
 // EpubMeta contains EPUB metadata.
 type EpubMeta struct {
 	Title          string
@@ -37,6 +41,15 @@ type EpubMeta struct {
 	CoverImagePath string
 	// CoverBackground is the configured cover background color (may be empty).
 	CoverBackground string
+	// Publishing metadata. Reading systems and library software index these:
+	// without them a book shows up with no publisher, no publication date and
+	// no subjects in every catalog it lands in.
+	Publisher string
+	ISBN      string
+	// Date is the publication date, ideally ISO 8601 (YYYY or YYYY-MM-DD).
+	Date     string
+	Rights   string
+	Subjects []string
 }
 
 // EpubChapter stores one EPUB chapter.
@@ -73,6 +86,9 @@ type epubAsset struct {
 	Filename  string
 	MediaType string
 	Data      []byte
+	// Synthesized marks a cover image mdPress generated itself rather than one
+	// the book supplied.
+	Synthesized bool
 }
 
 type epubAssetCollector struct {
@@ -183,6 +199,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 4. EPUB 3 nav document.
 	nav := g.generateNavDocument(chapters)
+	if err := validateXHTML("OEBPS/nav.xhtml", nav); err != nil {
+		return err
+	}
 	if err := writeZipFile(w, "OEBPS/nav.xhtml", nav); err != nil {
 		return fmt.Errorf("failed to write nav.xhtml: %w", err)
 	}
@@ -195,7 +214,11 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 
 	// 6. Optional generated title page.
 	if g.meta.IncludeCover {
-		if err := writeZipFile(w, "OEBPS/cover.xhtml", g.generateCoverPage(coverAsset)); err != nil {
+		coverPage := g.generateCoverPage(coverAsset)
+		if err := validateXHTML("OEBPS/cover.xhtml", coverPage); err != nil {
+			return err
+		}
+		if err := writeZipFile(w, "OEBPS/cover.xhtml", coverPage); err != nil {
 			return fmt.Errorf("failed to write cover.xhtml: %w", err)
 		}
 	}
@@ -233,6 +256,9 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 			return fmt.Errorf("invalid chapter filename: %s", ch.Filename)
 		}
 		xhtml := g.wrapXHTML(ch.Title, ch.HTML)
+		if err := validateXHTML("OEBPS/"+ch.Filename, xhtml); err != nil {
+			return err
+		}
 		if err := writeZipFile(w, "OEBPS/"+ch.Filename, xhtml); err != nil {
 			return fmt.Errorf("failed to write chapter %s: %w", ch.Filename, err)
 		}
@@ -270,6 +296,25 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 	fmt.Fprintf(&b, "    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(g.meta.Author))
 	fmt.Fprintf(&b, "    <dc:language>%s</dc:language>\n", utils.EscapeXML(g.meta.Language))
 	fmt.Fprintf(&b, "    <dc:identifier id=\"bookid\">%s</dc:identifier>\n", utils.EscapeXML(g.uniqueIdentifier()))
+	if normalizeISBN(g.meta.ISBN) != "" {
+		// The identifier above is the ISBN URN; declaring its type lets retail
+		// and library systems recognize it instead of treating it as opaque.
+		b.WriteString("    <meta refines=\"#bookid\" property=\"identifier-type\" scheme=\"onix:codelist5\">15</meta>\n")
+	}
+	if publisher := strings.TrimSpace(g.meta.Publisher); publisher != "" {
+		fmt.Fprintf(&b, "    <dc:publisher>%s</dc:publisher>\n", utils.EscapeXML(publisher))
+	}
+	if date := strings.TrimSpace(g.meta.Date); date != "" {
+		fmt.Fprintf(&b, "    <dc:date>%s</dc:date>\n", utils.EscapeXML(date))
+	}
+	if rights := strings.TrimSpace(g.meta.Rights); rights != "" {
+		fmt.Fprintf(&b, "    <dc:rights>%s</dc:rights>\n", utils.EscapeXML(rights))
+	}
+	for _, subject := range g.meta.Subjects {
+		if subject = strings.TrimSpace(subject); subject != "" {
+			fmt.Fprintf(&b, "    <dc:subject>%s</dc:subject>\n", utils.EscapeXML(subject))
+		}
+	}
 	if g.meta.Version != "" {
 		fmt.Fprintf(&b, "    <meta name=\"mdpress:version\" content=\"%s\"/>\n", utils.EscapeXML(g.meta.Version))
 	}
@@ -329,12 +374,23 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
   <head>
-    <meta name="dtb:uid" content="` + utils.EscapeXML(g.uniqueIdentifier()) + `"/>
-  </head>
-  <docTitle><text>`)
+`)
+	// All four head fields are required by the NCX specification; epubcheck
+	// reports the missing ones, and some readers use dtb:depth to decide how
+	// many levels of the table of contents to show.
+	fmt.Fprintf(&b, "    <meta name=\"dtb:uid\" content=\"%s\"/>\n", utils.EscapeXML(g.uniqueIdentifier()))
+	fmt.Fprintf(&b, "    <meta name=\"dtb:depth\" content=\"%d\"/>\n", navDepth(chapters))
+	// This book is not paginated, so the page list is empty by definition.
+	b.WriteString("    <meta name=\"dtb:totalPageCount\" content=\"0\"/>\n")
+	b.WriteString("    <meta name=\"dtb:maxPageNumber\" content=\"0\"/>\n")
+	b.WriteString("  </head>\n")
+	b.WriteString("  <docTitle><text>")
 	b.WriteString(utils.EscapeXML(g.meta.Title))
-	b.WriteString(`</text></docTitle>
-  <navMap>
+	b.WriteString("</text></docTitle>\n")
+	if author := strings.TrimSpace(g.meta.Author); author != "" {
+		fmt.Fprintf(&b, "  <docAuthor><text>%s</text></docAuthor>\n", utils.EscapeXML(author))
+	}
+	b.WriteString(`  <navMap>
 `)
 	playOrder := 1
 	if g.meta.IncludeCover {
@@ -347,6 +403,19 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	writeNavPoints(&b, chapters, 0, &playOrder, "    ")
 	b.WriteString("  </navMap>\n</ncx>\n")
 	return b.String()
+}
+
+// navDepth returns the number of navigation levels in the NCX, which is what
+// dtb:depth declares. It is never below 1: even a book with no chapters has a
+// navMap level.
+func navDepth(chapters []EpubChapter) int {
+	deepest := 0
+	for _, ch := range chapters {
+		if ch.Depth > deepest {
+			deepest = ch.Depth
+		}
+	}
+	return deepest + 1
 }
 
 // writeNavPoints emits NCX navPoints for the chapters at the current depth,
@@ -443,6 +512,14 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 // formulas. Readers without JS support will display the raw LaTeX source.
 func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	var b strings.Builder
+	if epubChapterHasMermaid(body) {
+		// Math already warns about its CDN dependency; Mermaid degraded to raw
+		// diagram source with no warning at all, so a book looked fine until it
+		// was opened in a reader.
+		epubMermaidWarningOnce.Do(func() {
+			slog.Warn("ePub cannot render Mermaid diagrams; their source is shown as a preformatted code block.")
+		})
+	}
 	body = normalizeHTMLForXHTML(body)
 	hasMath := epubChapterHasMath(body)
 
@@ -568,7 +645,9 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 <body>
   <section class="cover" epub:type="cover">
 `)
-	if coverAsset != nil {
+	// A generated cover carries the same title, subtitle and author this page
+	// renders as text, so showing it here would print everything twice.
+	if coverAsset != nil && !coverAsset.Synthesized {
 		b.WriteString("    <div class=\"cover-image-wrap\">\n")
 		fmt.Fprintf(&b, "      <img class=\"cover-image\" src=\"%s\" alt=\"%s\" />\n",
 			utils.EscapeXML(coverAsset.Filename), utils.EscapeXML(g.meta.Title))
@@ -594,6 +673,12 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 // (Goldmark math extension output), which is rendered via KaTeX scripts.
 func epubChapterHasMath(html string) bool {
 	return strings.Contains(html, `class="math `)
+}
+
+// epubChapterHasMermaid reports whether chapter HTML contains a Mermaid
+// diagram block, which EPUB readers cannot render.
+func epubChapterHasMermaid(html string) bool {
+	return strings.Contains(html, `class="mermaid"`)
 }
 
 // epubBodyStartsWithH1 reports whether the body content begins with a
@@ -689,10 +774,24 @@ table th, table td { border: 1px solid #cccccc; padding: 0.55em 0.85em; text-ali
 blockquote { border-left: 3px solid #cccccc; margin: 1.2em 0; padding: 0.2em 0 0.2em 1.1em; }
 `
 
+// epubMermaidCSS styles the Mermaid source blocks that EPUB ships instead of
+// rendered diagrams. Without it a reader's default <pre> styling still applies,
+// but the block is indistinguishable from prose in themes that reset <pre>.
+const epubMermaidCSS = `
+/* Mermaid diagrams are not rendered in ePub; their source is shown verbatim. */
+.mermaid {
+  font-family: ` + epubMonoFontFamily + `;
+  font-size: 0.82em;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+`
+
 // stylesheet returns the full content of OEBPS/style.css: the theme-derived
 // reader stylesheet followed by the user's custom CSS so custom rules win.
 func (g *EpubGenerator) stylesheet() string {
-	css := g.epubThemeCSS()
+	css := g.epubThemeCSS() + epubMermaidCSS
 	// Chapters carry chroma class markup, so without these rules every code
 	// block in the book renders as undifferentiated plain text. Only the light
 	// palette is packaged: reading systems apply their own night mode over it.
@@ -829,8 +928,15 @@ func languageOrDefault(lang string) string {
 }
 
 func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
-	if !g.meta.IncludeCover || strings.TrimSpace(g.meta.CoverImagePath) == "" {
+	if !g.meta.IncludeCover {
 		return nil, nil
+	}
+	if strings.TrimSpace(g.meta.CoverImagePath) == "" {
+		// Without a cover image the package declares no cover-image item, and
+		// every library shows the book as a blank tile. SVG is an EPUB 3 core
+		// media type, so one can be drawn from the metadata with no image
+		// toolchain involved.
+		return g.synthesizedCoverAsset(), nil
 	}
 
 	coverPath := g.meta.CoverImagePath
@@ -860,15 +966,23 @@ func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
 }
 
 func (g *EpubGenerator) uniqueIdentifier() string {
+	// A real ISBN is the identifier the rest of the publishing world uses; the
+	// synthetic urn:mdpress form only exists because most books have none.
+	if isbn := normalizeISBN(g.meta.ISBN); isbn != "" {
+		return "urn:isbn:" + isbn
+	}
+
 	parts := []string{"urn:mdpress"}
-	if title := slugify(g.meta.Title); title != "" {
+	if title := urnSegment(slugify(g.meta.Title)); title != "" {
 		parts = append(parts, title)
 	}
-	if author := slugify(g.meta.Author); author != "" {
+	if author := urnSegment(slugify(g.meta.Author)); author != "" {
 		parts = append(parts, author)
 	}
 	if g.meta.Version != "" {
-		parts = append(parts, slugify(g.meta.Version))
+		if version := urnSegment(slugify(g.meta.Version)); version != "" {
+			parts = append(parts, version)
+		}
 	}
 	if len(parts) == 1 {
 		parts = append(parts, "book")
@@ -876,73 +990,59 @@ func (g *EpubGenerator) uniqueIdentifier() string {
 	return strings.Join(parts, ":")
 }
 
-var epubVoidTagPattern = regexp.MustCompile(`(?i)<(img|br|hr|input|meta|link|col|area|base|embed|source|track|wbr)(\s[^<>]*?)?>`)
-
-// ampAndEntityPattern matches an & optionally followed by a valid HTML entity
-// reference body (name + semicolon). Go's RE2 does not support negative
-// lookaheads, so we match both cases and disambiguate in the replacement
-// function: a match of length 1 is a bare & that must be escaped; a longer
-// match is an existing entity reference that must be preserved.
-var ampAndEntityPattern = regexp.MustCompile(`&([a-zA-Z0-9#][a-zA-Z0-9#]{0,31};)?`)
-
-// booleanAttrPattern matches HTML boolean attributes like checked, disabled,
-// selected, etc., which XHTML requires to have an explicit value.
-var booleanAttrPattern = regexp.MustCompile(`(?i)\s(checked|disabled|selected|readonly|multiple|autofocus|autoplay|controls|loop|muted|open|required|reversed|hidden|defer|async|novalidate)(\s|/?>)`)
-
-// epubStartTagPattern matches a start tag, so attribute rewriting can be
-// confined to markup instead of running across the document's text. Goldmark
-// escapes ">" inside attribute values, so a tag never contains a bare one.
-var epubStartTagPattern = regexp.MustCompile(`<[a-zA-Z][^<>]*>`)
-
-// normalizeHTMLForXHTML converts HTML produced by Goldmark into valid XHTML.
-//
-// It handles the following transformations:
-//  1. Self-closes void elements (e.g. <br> → <br />)
-//  2. Escapes bare ampersands (e.g. A&B → A&amp;B)
-//  3. Expands boolean attributes (e.g. checked → checked="checked")
-func normalizeHTMLForXHTML(html string) string {
-	// 1. Self-close void elements.
-	html = epubVoidTagPattern.ReplaceAllStringFunc(html, func(match string) string {
-		if strings.HasSuffix(match, "/>") {
-			return match
+// normalizeISBN strips the separators an ISBN is usually written with. It
+// returns "" when the remainder is not a plausible ISBN-10/13 so a typo never
+// becomes the book's permanent identifier.
+func normalizeISBN(isbn string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(isbn) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == 'x' || r == 'X': // ISBN-10 check digit
+			b.WriteRune('X')
+		case r == '-' || r == ' ':
+		default:
+			return ""
 		}
-		return strings.TrimSuffix(match, ">") + " />"
-	})
-
-	// 2. Escape bare ampersands that are not part of a valid entity reference.
-	// A match of length 1 is a bare &; longer matches are existing entity refs.
-	html = ampAndEntityPattern.ReplaceAllStringFunc(html, func(m string) string {
-		if len(m) > 1 {
-			return m // already a valid entity reference — keep it
-		}
-		return "&amp;"
-	})
-
-	// 3. Expand boolean attributes to attribute="attribute" form.
-	//
-	// This must run inside start tags only. The attribute names are ordinary
-	// English words ("multiple", "open", "required", "hidden", "controls"…),
-	// so applying the pattern to the whole document rewrote prose and code
-	// samples: "supports multiple output formats" became
-	// `supports multiple="multiple" output formats` in the reader.
-	expandBoolAttr := func(match string) string {
-		sub := booleanAttrPattern.FindStringSubmatch(match)
-		if len(sub) < 3 {
-			return match
-		}
-		attr := strings.ToLower(sub[1])
-		trailing := sub[2]
-		return " " + attr + `="` + attr + `"` + trailing
 	}
-	html = epubStartTagPattern.ReplaceAllStringFunc(html, func(tag string) string {
-		// The trailing group (\s|/?>) consumes the whitespace separating
-		// adjacent boolean attributes, so one pass misses the second of a
-		// pair like `disabled multiple`; run it twice.
-		tag = booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
-		return booleanAttrPattern.ReplaceAllStringFunc(tag, expandBoolAttr)
-	})
+	switch b.Len() {
+	case 10, 13:
+		return b.String()
+	default:
+		return ""
+	}
+}
 
-	return html
+// urnSegment makes a slug safe to embed in a URN. Slugs keep Unicode so that
+// CJK titles stay readable in file names, but a URN is ASCII-only, so a book
+// titled in Chinese produced an identifier no reading system could match
+// against the NCX one.
+func urnSegment(slug string) string {
+	if slug == "" {
+		return ""
+	}
+	ascii := true
+	for _, r := range slug {
+		if r > 127 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return slug
+	}
+	var b strings.Builder
+	for _, r := range slug {
+		if r <= 127 {
+			b.WriteRune(r)
+			continue
+		}
+		for _, octet := range []byte(string(r)) {
+			fmt.Fprintf(&b, "%%%02X", octet)
+		}
+	}
+	return b.String()
 }
 
 // epubHref renders a packaged file name as an XML-safe, percent-encoded URI
