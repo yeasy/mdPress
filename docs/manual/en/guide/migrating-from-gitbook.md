@@ -22,17 +22,14 @@ Use the `mdpress migrate` command to convert your GitBook documentation.
 mdpress migrate ./gitbook-project
 ```
 
-This reads your GitBook project and creates a new mdPress project in the current directory with converted files.
+This converts the project **in place**: `book.json` becomes `book.yaml`, and
+GitBook template tags are rewritten inside your existing Markdown files.
+There is no `--output` flag — migrate does not copy the project to a new
+directory.
 
-### Output Directory
-
-Specify where to create the migrated project:
-
-```bash
-mdpress migrate ./gitbook-project --output ./mdpress-project
-```
-
-Creates the mdPress project in `./mdpress-project` with all converted content.
+> **Back up first.** Because the conversion rewrites your source files,
+> commit your work (or copy the directory) before running it, and always
+> preview with `--dry-run`.
 
 ### Dry Run Mode
 
@@ -62,11 +59,11 @@ Typical migration commands:
 # Preview the migration first
 mdpress migrate ./my-gitbook --dry-run
 
-# Then perform the actual migration
-mdpress migrate ./my-gitbook --output ./my-mdpress
+# Then perform the actual migration (rewrites files in place)
+mdpress migrate ./my-gitbook
 
-# Verbose output to see what's happening
-mdpress migrate ./my-gitbook --output ./my-mdpress --verbose
+# Overwrite an existing book.yaml as well
+mdpress migrate ./my-gitbook --force
 ```
 
 ## What Gets Converted

@@ -22,17 +22,11 @@ mdPress 迁移命令自动转换：
 mdpress migrate ./gitbook-project
 ```
 
-这读取你的 GitBook 项目并在当前目录中使用转换的文件创建新的 mdPress 项目。
+这会**就地**转换项目：`book.json` 转为 `book.yaml`，GitBook 模板标签在你现有的
+Markdown 文件中被直接改写。migrate 没有 `--output` 参数，也不会把项目复制到新目录。
 
-### 输出目录
-
-指定在何处创建迁移的项目：
-
-```bash
-mdpress migrate ./gitbook-project --output ./mdpress-project
-```
-
-在 `./mdpress-project` 中创建 mdPress 项目，包含所有转换的内容。
+> **先备份。** 由于转换会改写源文件，请在运行前提交代码（或复制一份目录），
+> 并且始终先用 `--dry-run` 预览。
 
 ### 模拟运行模式
 
@@ -63,10 +57,10 @@ mdpress migrate ./gitbook-project --verbose
 mdpress migrate ./my-gitbook --dry-run
 
 # 然后执行实际迁移
-mdpress migrate ./my-gitbook --output ./my-mdpress
+mdpress migrate ./my-gitbook
 
 # 详细输出以查看发生了什么
-mdpress migrate ./my-gitbook --output ./my-mdpress --verbose
+mdpress migrate ./my-gitbook --force
 ```
 
 ## 转换的内容
