@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -127,5 +128,46 @@ func TestGetPageDimensions(t *testing.T) {
 				t.Errorf("HeightMM() = %q, want %q", d.HeightMM(), tt.wantHeightMM)
 			}
 		})
+	}
+}
+
+// cdnPinnedVersionPattern matches an npm path pinned to an exact version.
+var cdnPinnedVersionPattern = regexp.MustCompile(`/npm/[^/@]+@\d+\.\d+\.\d+/`)
+
+// TestCDNAssetsArePinnedAndHaveIntegrityDigests keeps the two invariants that
+// make a third-party asset safe to hand a reader: the URL names an exact
+// version (so the bytes cannot change under us), and there is a Subresource
+// Integrity digest to check them against. A version bump that forgets to
+// recompute the digest fails here rather than in every reader's browser.
+func TestCDNAssetsArePinnedAndHaveIntegrityDigests(t *testing.T) {
+	for _, tc := range []struct {
+		name, url, sri string
+	}{
+		{"mermaid", MermaidCDNURL, MermaidSRI},
+		{"katex css", KaTeXCSSURL, KaTeXCSSSRI},
+		{"katex js", KaTeXJSURL, KaTeXJSSRI},
+		{"katex auto-render", KaTeXAutoRenderURL, KaTeXAutoRenderSRI},
+	} {
+		if !cdnPinnedVersionPattern.MatchString(tc.url) {
+			t.Errorf("%s URL %q is not pinned to an exact version", tc.name, tc.url)
+		}
+		if !strings.HasPrefix(tc.sri, "sha384-") || len(tc.sri) != len("sha384-")+64 {
+			t.Errorf("%s integrity digest %q is not a base64 sha384 digest", tc.name, tc.sri)
+		}
+	}
+}
+
+// TestResolveCDNPlaceholdersFillsIntegrityDigests guards against a template
+// shipping a literal {{..._SRI}} placeholder, which browsers reject outright.
+func TestResolveCDNPlaceholdersFillsIntegrityDigests(t *testing.T) {
+	got := ResolveCDNPlaceholders(
+		`{{MERMAID_SRI}} {{KATEX_CSS_SRI}} {{KATEX_JS_SRI}} {{KATEX_AUTO_RENDER_SRI}}`)
+	if strings.Contains(got, "{{") {
+		t.Fatalf("unresolved placeholder in %q", got)
+	}
+	for _, sri := range []string{MermaidSRI, KaTeXCSSSRI, KaTeXJSSRI, KaTeXAutoRenderSRI} {
+		if !strings.Contains(got, sri) {
+			t.Errorf("expected output to contain %q", sri)
+		}
 	}
 }
