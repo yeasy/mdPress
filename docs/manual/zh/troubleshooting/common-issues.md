@@ -456,7 +456,7 @@ graph TD
 如果 Mermaid 未安装，图表呈现为代码块：
 
 ```markdown
-对于图表，安装 PlantUML 或使用图像代替：
+对于图表，改用预先渲染好的图片：
 ![Architecture](../assets/architecture.png)
 ```
 

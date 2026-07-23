@@ -29,7 +29,7 @@ Key flags:
 
 - `-f, --format` accepts comma-separated formats such as `pdf,html,epub` or `all`.
 - `--branch` and `--subdir` apply to GitHub sources.
-- `-o, --output` sets the output target: an existing directory (or a path with a trailing slash) receives the files, and site pages are written into it directly; any other path acts as a filename base (`manual.pdf`, `manual.html`, `manual_site/`). Without `--output`, the site format goes to `_book/` under the project directory.
+- `-o, --output` sets the output target: an existing directory (or a path with a trailing slash) receives the files, and site pages are written into it directly; any other path acts as a filename base (`manual.pdf`, `manual.html`, `manual_site/`). When `site` is the only requested format, the path is used as the site directory as-is (`--format site -o ./dist` writes `dist/index.html`). Without `--output`, the site format goes to `_book/` under the project directory.
 - `--summary` loads chapters from a specific `SUMMARY.md`.
 - `--allow-plugins` executes plugins declared by a remote project's `book.yaml` (they are skipped by default because plugins are arbitrary executables; local projects always run plugins).
 
@@ -104,7 +104,7 @@ mdpress doctor --strict
 mdpress doctor ./docs
 ```
 
-Checks: platform/OS, Go installation, Chrome/Chromium availability, CJK fonts, PlantUML, cache directory, config validity, chapter and image references.
+Checks: platform/OS, Go installation, Chrome/Chromium and Typst availability, CJK fonts, git, network, disk space, cache directory, declared plugins, config validity, chapter and image references.
 
 See [doctor.md](../troubleshooting/doctor.md) for details.
 

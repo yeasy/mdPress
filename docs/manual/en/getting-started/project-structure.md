@@ -93,7 +93,7 @@ Store media and downloadable files in `assets/`:
 ```
 assets/
 ├── images/          # PNG, JPG, SVG, GIF
-├── diagrams/        # PlantUML or Mermaid
+├── diagrams/        # Mermaid sources or pre-rendered images
 └── downloads/       # Attachable files
 ```
 

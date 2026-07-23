@@ -93,7 +93,7 @@ mdPress 也接受 `book.json`（用于 GitBook 兼容）。如果没有配置文
 ```
 assets/
 ├── images/          # PNG、JPG、SVG、GIF
-├── diagrams/        # PlantUML 或 Mermaid
+├── diagrams/        # Mermaid 源码或预渲染图片
 └── downloads/       # 可附加的文件
 ```
 

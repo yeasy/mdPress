@@ -368,30 +368,24 @@ plugins:
       warn_threshold: 500
 ```
 
-创建一个插件（简单示例）：
+插件就是任意一个可执行文件。它先回答两个探测标志，然后从 stdin 读取一个 JSON
+请求、向 stdout 写出一个 JSON 响应：
 
-```go
-// plugins/my-plugin/main.go
-package main
+```bash
+#!/bin/sh
+# plugins/shout —— 什么也不改，只用来证明协议是通的。
+case "$1" in
+  --mdpress-info)  echo '{"version":"1.0.0","description":"Demo plugin."}'; exit 0 ;;
+  --mdpress-hooks) echo '["after_parse"]'; exit 0 ;;
+esac
 
-import (
-  "fmt"
-  "os"
-)
-
-func main() {
-  // 读取输入
-  input, _ := os.ReadFile("/dev/stdin")
-
-  // 处理
-  output := processMarkdown(input)
-
-  // 写输出
-  fmt.Println(output)
-}
+cat > /dev/null      # 请求从 stdin 进来
+echo '{}'            # 空响应 = 保持该章不变
 ```
 
-参见插件文档了解详细 API。
+`after_parse` 是唯一会采用返回 `content` 的阶段，而且负载是章节 **HTML**，不是
+Markdown。可运行的例子见[构建插件](../plugins/building-a-plugin.md)，完整协议见
+[插件 API 参考](../plugins/api.md)。
 
 ### 我能使用自定义主题吗？
 

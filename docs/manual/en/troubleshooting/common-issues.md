@@ -456,7 +456,7 @@ graph TD
 If Mermaid isn't installed, diagrams render as code blocks:
 
 ```markdown
-For diagrams, install PlantUML or use an image instead:
+For diagrams, use a pre-rendered image instead:
 ![Architecture](../assets/architecture.png)
 ```
 

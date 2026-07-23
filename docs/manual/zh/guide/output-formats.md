@@ -32,14 +32,23 @@ mdpress build --format all
 
 如果传入的是一个目录——已存在的目录，或任何以斜杠结尾的路径——文件会被写入该目录内，站点页面也会直接写入其中（就地写入，不会清理目录中已有的文件）。其他路径会被当作文件名基名处理：`--output release/manual.html` 会生成 `release/manual.html`、`release/manual.pdf`，站点则在 `release/manual_site/`。
 
+当 `site` 是**唯一**请求的格式时，`--output <路径>` 就是站点目录本身——没有 `_site` 后缀，也不去猜这个路径是否已经存在：
+
+```bash
+mdpress build --format site --output ./dist   # -> dist/index.html
+```
+
+只有在 `site` 与文件类格式一起请求时才会出现 `_site` 后缀，因为那时两者共用同一个基名。
+
 `site` 格式产出的是一个目录而非单个文件。默认写入项目目录下的 `_book/`——与
 `mdpress serve` 使用的位置相同，也是各部署示例默认假设的目录。默认站点构建会先在
 临时目录中完成，再原子地替换 `_book/`，因此改名或删除章节留下的旧页面会被清理；
 如果目标目录非空且看起来不是生成产物（没有 `index.html`/`search-index.json`），
 出于安全考虑会拒绝覆盖。
 
-**多语言例外：**含 `LANGS.md` 的项目仍保留按语言划分的 `<lang>_site/` 目录
-（外加语言入口页），而不是单一的 `_book/`。
+**多语言例外：**含 `LANGS.md` 的项目会在输出根目录下为每种语言构建一棵树——
+`<输出目录>/en/`、`<输出目录>/zh/`——语言切换页位于 `<输出目录>/index.html`。
+不传 `--output` 时，根目录就是 `_book/`。
 
 远程 GitHub 构建（例如 `mdpress build https://github.com/user/repo`）在不传
 `--output` 时会把产物写入当前工作目录：文件为 `./<书名>.pdf` 等，站点为 `./_book/`。

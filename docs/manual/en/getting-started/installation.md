@@ -7,7 +7,6 @@ mdPress is a Go CLI. Install it with Homebrew, Docker, a pre-built binary, `go i
 - Go 1.26 or newer if you want to build from source.
 - Chrome or Chromium for PDF output.
 - Typst if you want to try `mdpress build --format typst`.
-- PlantUML and Java only if you use `plantuml` code blocks.
 
 ## Homebrew (macOS)
 
@@ -70,7 +69,6 @@ go build -o mdpress .
 - `MDPRESS_CHROME_PATH` to point at a specific Chrome or Chromium binary.
 - `MDPRESS_CACHE_DIR` to move the cache.
 - `MDPRESS_DISABLE_CACHE` to disable caching.
-- `PLANTUML_JAR` to use a local PlantUML JAR with Java.
 
 ## Check The Install
 
