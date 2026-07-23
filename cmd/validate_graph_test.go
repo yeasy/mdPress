@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/config"
 )
 
 // validateReportFor runs the validate command against dir and returns the
@@ -264,5 +266,120 @@ chapters:
 	}
 	if _, ok := findResult(report, "Markdown chapter link and anchor check passed"); !ok {
 		t.Errorf("expected the link/anchor check to report a pass, got %+v", report.Results)
+	}
+}
+
+// A .md file no chapter points at is invisible in the built book, and nothing
+// in the output says it exists.
+func TestExecuteValidate_ReportsOrphanMarkdownFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Orphan Book"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+`,
+		"ch1.md":             "# One\n",
+		"guide/forgotten.md": "# Forgotten\n",
+		// Files mdpress itself never builds as chapters must stay quiet.
+		"SUMMARY.md":         "# Summary\n",
+		"GLOSSARY.md":        "# Glossary\n",
+		"CHANGELOG.md":       "# Changelog\n",
+		"CONTRIBUTING.md":    "# Contributing\n",
+		"LICENSE.md":         "# License\n",
+		"README.md":          "# Readme\n",
+		"_book/leftover.md":  "# Build output\n",
+		".git/hooks/note.md": "# Internal\n",
+	})
+
+	report, err := validateReportFor(t, tmpDir)
+	if err != nil {
+		t.Fatalf("orphans are warnings, not errors: %v", err)
+	}
+
+	var orphanMsgs []string
+	for _, r := range report.Results {
+		if strings.Contains(r.Message, "in no chapter list") {
+			if !r.Warning {
+				t.Errorf("orphan should be a warning, got %+v", r)
+			}
+			orphanMsgs = append(orphanMsgs, r.Message)
+		}
+	}
+	if len(orphanMsgs) != 1 {
+		t.Fatalf("expected exactly guide/forgotten.md to be reported, got %d: %v", len(orphanMsgs), orphanMsgs)
+	}
+	if !strings.Contains(orphanMsgs[0], "guide/forgotten.md") {
+		t.Errorf("expected guide/forgotten.md, got %q", orphanMsgs[0])
+	}
+}
+
+func TestFindOrphanMarkdownFiles_SkipsNestedProjects(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Outer"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+`,
+		"ch1.md": "# One\n",
+		// A directory with its own book.yaml is a separate book; its chapters
+		// are listed there, not here.
+		"inner/book.yaml": `book:
+  title: "Inner"
+chapters:
+  - title: "Inner One"
+    file: "i1.md"
+`,
+		"inner/i1.md": "# Inner One\n",
+	})
+
+	cfg, err := config.Load(filepath.Join(tmpDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	orphans, err := findOrphanMarkdownFiles(cfg)
+	if err != nil {
+		t.Fatalf("findOrphanMarkdownFiles: %v", err)
+	}
+	if len(orphans) != 0 {
+		t.Errorf("a nested project's chapters are not orphans of the outer book, got %v", orphans)
+	}
+}
+
+// A multi-language project lists its chapters in the per-language configs, so
+// every file under the root would look unreferenced from here.
+func TestFindOrphanMarkdownFiles_SkipsMultiLanguageProjects(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeProject(t, tmpDir, map[string]string{
+		"book.yaml": `book:
+  title: "Multi"
+  author: "Tester"
+chapters:
+  - title: "One"
+    file: "ch1.md"
+`,
+		"ch1.md":      "# One\n",
+		"LANGS.md":    "* [English](en/)\n",
+		"en/intro.md": "# Intro\n",
+	})
+
+	cfg, err := config.Load(filepath.Join(tmpDir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if cfg.LangsFile == "" {
+		t.Fatal("fixture should be detected as multi-language")
+	}
+	orphans, err := findOrphanMarkdownFiles(cfg)
+	if err != nil {
+		t.Fatalf("findOrphanMarkdownFiles: %v", err)
+	}
+	if len(orphans) != 0 {
+		t.Errorf("multi-language projects must not report orphans, got %v", orphans)
 	}
 }

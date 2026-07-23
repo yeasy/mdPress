@@ -369,7 +369,32 @@ func executeValidate(ctx context.Context, targetDir string) error {
 		}
 	}
 
-	// ========== 10. Detect special files ==========
+	// ========== 10. Check for Markdown files no chapter points at ==========
+	if orphans, orphanErr := findOrphanMarkdownFiles(cfg); orphanErr == nil && len(orphans) > 0 {
+		// A long list is almost always one mistake (a directory that was never
+		// registered), so show enough to recognize it and then summarize.
+		const orphanListLimit = 10
+		shown := orphans
+		if len(shown) > orphanListLimit {
+			shown = shown[:orphanListLimit]
+		}
+		for _, orphan := range shown {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("Markdown file is in no chapter list and will not be built: %s", orphan),
+			})
+		}
+		if len(orphans) > len(shown) {
+			results = append(results, validateResult{
+				OK:      true,
+				Warning: true,
+				Message: fmt.Sprintf("... and %d more Markdown file(s) in no chapter list", len(orphans)-len(shown)),
+			})
+		}
+	}
+
+	// ========== 11. Detect special files ==========
 	configDir := filepath.Dir(configPath)
 	if absDir, err := filepath.Abs(configDir); err == nil {
 		configDir = absDir
