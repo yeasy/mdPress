@@ -129,6 +129,29 @@ type Server struct {
 	// buildMu around the whole build ensures BuildFunc (and its output-dir
 	// RemoveAll/Rename swap) never runs concurrently with itself.
 	buildMu sync.Mutex
+
+	// lastBuildErr remembers the most recent failed rebuild so a browser that
+	// connects (or refreshes) after the failure still learns about it. Without
+	// it a refresh silently shows the last good build with a "Waiting for
+	// changes" badge, which reads as "your edit produced nothing".
+	lastBuildErr string
+	buildErrMu   sync.RWMutex
+}
+
+// setLastBuildErr records (or with an empty string clears) the sticky rebuild
+// failure replayed to newly connected clients.
+func (s *Server) setLastBuildErr(msg string) {
+	s.buildErrMu.Lock()
+	s.lastBuildErr = msg
+	s.buildErrMu.Unlock()
+}
+
+// LastBuildError returns the rebuild failure still in effect, or "" when the
+// most recent build succeeded.
+func (s *Server) LastBuildError() string {
+	s.buildErrMu.RLock()
+	defer s.buildErrMu.RUnlock()
+	return s.lastBuildErr
 }
 
 // NewServer creates a preview server.
@@ -345,8 +368,11 @@ func (s *Server) notifyCSSUpdate() {
 	}
 }
 
-// notifyBuildError sends a build error message to all connected WebSocket clients.
+// notifyBuildError sends a build error message to all connected WebSocket
+// clients and remembers it, so clients that connect later (a refresh, or a
+// browser opened after the failure) are told about it too.
 func (s *Server) notifyBuildError(errMsg string) {
+	s.setLastBuildErr(errMsg)
 	msg, err := buildWSErrorMessage(errMsg)
 	if err != nil {
 		s.logger.Error("Failed to marshal build error message", slog.Any("error", err))
@@ -399,6 +425,17 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Send the connection acknowledgment.
 	if err := client.writeMessage(websocket.TextMessage, []byte("connected")); err != nil {
 		s.logger.Debug("Failed to send WebSocket ack", slog.Any("error", err))
+	}
+
+	// Replay an unresolved rebuild failure. The page being loaded right now is
+	// the last *successful* build, so without this the reader sees stale
+	// content with no hint that their latest edit failed to compile.
+	if lastErr := s.LastBuildError(); lastErr != "" {
+		if msg, err := buildWSErrorMessage(lastErr); err == nil {
+			if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
+				s.logger.Debug("Failed to replay build error", slog.Any("error", err))
+			}
+		}
 	}
 
 	// Keep reading to detect disconnects.
@@ -601,6 +638,26 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
     } catch (e) {}
   }
 
+  // Perform a live reload.  When the SPA navigation hook is available
+  // (site output), re-fetch and swap only the page content so the reader
+  // keeps their scroll position and reading flow is not disrupted.  Falls
+  // back to a full page reload otherwise.
+  function doReload() {
+    if (typeof window.__mdpressLiveReload === 'function') {
+      window.__mdpressLiveReload();
+      setServeStatus('success', 'Content updated', '', false);
+    } else {
+      rememberServeFlash('success', 'Rebuild complete');
+      location.reload();
+    }
+  }
+
+  // Tracks whether this tab has ever had a live connection.  A *re*-connect
+  // means the server went away and came back — typically the user restarted
+  // "mdpress serve" — so whatever this tab is showing predates the new
+  // server and must be refreshed.  Without this the tab stays stale forever.
+  var everConnected = false;
+
   function connect() {
     var ws = new WebSocket(wsURL);
 
@@ -609,23 +666,14 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
       serveState.ws = 'connected';
       currentInterval = reconnectInterval;
       refreshServePanel();
+      if (everConnected) {
+        doReload();
+      }
+      everConnected = true;
     };
 
     ws.onmessage = function(e) {
       var data = e.data;
-      // Perform a live reload.  When the SPA navigation hook is available
-      // (site output), re-fetch and swap only the page content so the
-      // reader keeps their scroll position and reading flow is not
-      // disrupted.  Falls back to a full page reload otherwise.
-      function doReload() {
-        if (typeof window.__mdpressLiveReload === 'function') {
-          window.__mdpressLiveReload();
-          setServeStatus('success', 'Content updated', '', false);
-        } else {
-          rememberServeFlash('success', 'Rebuild complete');
-          location.reload();
-        }
-      }
       // Support both legacy string and JSON messages.
       if (data === 'reload') {
         doReload();
@@ -867,6 +915,7 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 			}
 		}
 		s.logger.Info("Build completed, notifying browser to reload")
+		s.setLastBuildErr("")
 		if capturedExt == ".css" {
 			s.notifyCSSUpdate()
 		} else {
