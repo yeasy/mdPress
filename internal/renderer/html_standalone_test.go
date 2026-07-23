@@ -1,6 +1,7 @@
 package renderer
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -1038,5 +1039,66 @@ func TestStandaloneChapterIDsInContent(t *testing.T) {
 	}
 	if !strings.Contains(html, `chapter-two`) {
 		t.Error("chapter ID should be in HTML")
+	}
+}
+
+// TestStandaloneAnchorsAreUniqueDocumentWide guards the single-file HTML's
+// navigation. Heading ids are minted per chapter, but this renderer puts every
+// chapter in one document: without namespacing, each "#examples" link resolves
+// to whichever chapter comes first. mdPress's own manual had 114 duplicated
+// ids, so most links under a repeated section name went to the wrong chapter.
+func TestStandaloneAnchorsAreUniqueDocumentWide(t *testing.T) {
+	r, err := NewStandaloneHTMLRenderer(newTestConfig(), newTestTheme(t))
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+	parts := &RenderParts{
+		ChaptersHTML: []ChapterHTML{
+			{
+				Title:    "Alpha",
+				ID:       "alpha",
+				Content:  `<h2 id="overview">Overview</h2><p>See <a href="#overview">above</a>.</p>`,
+				Headings: []NavHeading{{Title: "Overview", ID: "overview"}},
+			},
+			{
+				Title:    "Beta",
+				ID:       "beta",
+				Content:  `<h2 id="overview">Overview</h2><p>See <a href="#overview">above</a>.</p>`,
+				Headings: []NavHeading{{Title: "Overview", ID: "overview"}},
+			},
+		},
+	}
+
+	html, err := r.Render(parts)
+	if err != nil {
+		t.Fatalf("render failed: %v", err)
+	}
+
+	idPattern := regexp.MustCompile(`<[a-zA-Z0-9]+[^>]*?\sid="([^"]+)"`)
+	seen := map[string]int{}
+	for _, m := range idPattern.FindAllStringSubmatch(html, -1) {
+		seen[m[1]]++
+	}
+	for id, n := range seen {
+		if n > 1 {
+			t.Errorf("id %q appears %d times; every anchor must be unique in a single-file document", id, n)
+		}
+	}
+
+	// Every in-page link must reach an id that exists.
+	hrefPattern := regexp.MustCompile(`href="#([^"]+)"`)
+	for _, m := range hrefPattern.FindAllStringSubmatch(html, -1) {
+		if seen[m[1]] == 0 {
+			t.Errorf("link to #%s has no matching id", m[1])
+		}
+	}
+
+	// The second chapter's own link must stay inside that chapter.
+	betaStart := strings.Index(html, `id="beta"`)
+	if betaStart < 0 {
+		t.Fatal("second chapter not found in the rendered document")
+	}
+	if !strings.Contains(html[betaStart:], `href="#beta--overview"`) {
+		t.Error("the second chapter's in-content link was not remapped to its own heading")
 	}
 }
