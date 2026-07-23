@@ -56,6 +56,7 @@ const standaloneHTMLMiddle = `  </style>
          Titles use <div> so they never enter the document outline. -->
     <section class="cover-hero" aria-label="Book cover">
       <div class="cover-hero-inner">
+        {{if .CoverImage}}<img class="cover-hero-image" src="{{.CoverImage}}" alt="">{{end}}
         {{if .Title}}<div class="cover-hero-title">{{.Title}}</div>{{end}}
         {{if .Subtitle}}<div class="cover-hero-subtitle">{{.Subtitle}}</div>{{end}}
         <div class="cover-hero-divider"></div>

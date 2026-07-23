@@ -14,10 +14,14 @@ const standaloneJS = `
   var themeBtn  = document.getElementById('btn-theme');
   var themes    = ['light', 'dark', 'system'];
 
+  // The sun and monitor glyphs are line drawings: their paths enclose no area
+  // (rays, stand) or are meant to stay hollow (dial, screen). Filling them
+  // paints a solid black lozenge instead of an icon, so they are stroked.
+  // The moon is a genuine filled silhouette and keeps its fill.
   var themeSvgs = {
-    light: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M23 12h-6m-6 0H1M20.485 3.515l-4.243 4.243m0 5.484l4.243 4.243M3.515 3.515l4.243 4.243m0 5.484l-4.243 4.243"/></svg>',
+    light: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v6m0 6v6M23 12h-6m-6 0H1M20.485 3.515l-4.243 4.243m0 5.484l4.243 4.243M3.515 3.515l4.243 4.243m0 5.484l-4.243 4.243"/></svg>',
     dark: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
-    system: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
+    system: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>'
   };
 
   var themeLabels = { light: 'Light', dark: 'Dark', system: 'System' };
