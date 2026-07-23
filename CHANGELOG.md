@@ -6,6 +6,41 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+Continues the post-0.7.14 audit. This wave concentrates on content that was silently lost or silently changed — the class of bug where the build succeeds, the output looks plausible, and the author has nothing to debug with.
+
+### Fixed
+
+- **Images in a shared directory work again**: `![](../assets/logo.png)` — the normal layout once a book has more than one chapter — was dropped from the site, standalone HTML and PDF. Containment was checked against the chapter's own directory, so any parent-relative path was rejected and the reference passed through untouched: no embed, no copy, no diagnostic. (ePub was the only correct format because it already used the book root.) Traversal outside the project is still refused, and now says so
+- **YAML front matter no longer renders as body text**: `title:` and `description:` appeared in the page, the search index and the PDF. The block is stripped and its title/description read; unknown keys are ignored rather than rejected
+- **A UTF-8 BOM no longer eats the chapter title**: it stopped the first `# Heading` from being recognized as a heading at all
+- **A stray `<h1>` no longer hides the page title**: a chapter containing a second `<h1>` (an appendix, say) had its site page title suppressed entirely, leaving that inner heading as the page's only H1
+- **Template variables stay out of code**: `{{ book.title }}` was substituted inside fenced blocks and inline code, so any book documenting a templating syntax corrupted its own examples. Unrecognized variables were also shipped to the reader as literal braces; they are now reported
+- **`mdpress migrate` no longer destroys documents**: around an already-fenced block — the normal shape, since that is what GitBook's `{% code title=… %}` is for — it added a second fence, and the extra delimiter opened a new code block that swallowed every remaining paragraph and heading. In place, with no backup. It now passes an already-fenced body through unchanged and writes `<file>.md.bak` first
+- **Standalone HTML anchors are unique**: heading ids are minted per chapter, but this format concatenates every chapter into one document, so each `#examples` link resolved to whichever chapter came first. mdPress's own manual had 114 duplicated ids, `notes` appearing twelve times
+- **Empty chapters and unclosed code fences are reported**: an empty file produced no page, no navigation entry and no message; an unterminated fence swallows the rest of the chapter into the code block. Both are now build warnings and validate failures
+- **`validate` is usable as a CI gate**: it treated every Markdown example inside a ``` block as a real reference, so mdPress's own manual failed with 92 errors, none real. Two genuine bugs were buried under them and are also fixed: mermaid diagram bodies were emitted unescaped (a class diagram's `<<interface>>` was parsed as an HTML tag and swallowed, breaking the architecture diagram in every published format), and the parsed-chapter cache was not keyed on the renderer, so an unchanged chapter kept serving HTML from the previous binary and rendering fixes stayed invisible
+- **`--config` is honored**: it was discarded whenever a source directory was also given, so `mdpress build --config release.yaml ./docs` built the wrong book and exited 0. A path that does not exist is now an error instead of a silent fall-through to auto-discovery
+- **Unknown `book.yaml` keys are reported** with a "did you mean" suggestion instead of being dropped in silence; `validate` lists them, and stops presenting the placeholder title "Untitled Book" as a passed check
+- **Dark-mode callouts are readable**: GFM callouts carried inline light backgrounds that no rule could override
+- **`SUMMARY.md` part headings render**: `## Part I` was skipped outright, collapsing a structured book into one flat sidebar. `book.yaml` gains the same grouping via `section:` on a chapter
+- **Site search handles multi-word queries**: it ran one substring probe over the whole query, so "plugin hooks" found nothing
+- **Standalone HTML progress bar and back-to-top work**: the scroll listener read `window.scrollY`, but the page scrolls inside `#main-content`
+- **PDF pagination stops leaving near-blank pages**: `page-break-inside: avoid` was applied to chapters, lists, tables and code blocks — all routinely taller than a page, so the browser pushed each to the next page and left the current one blank. On a fixture of lists, code and tables: 39 pages with 15 near-blank → 34 with 5
+- **ePub keeps its hierarchy and highlighting**: the navigation document and NCX were flat, so a book using `sections:` lost its structure in the reader's table of contents; code blocks carried chroma markup with no matching rules; `toc.ncx` declared a constant `dtb:uid` that never matched the OPF identifier
+- **Site images ship as files**: they were base64-inlined into every page that referenced them, so a three-page book with one 592 KB screenshot built a 3.5 MB site of 912 KB pages. Now 1.0 MB of 106 KB pages, with the image stored once
+- **A failing format no longer hides the successful ones**: a multi-format build aborted on the first failure, so a run that produced a good HTML file and a good site but could not run Typst reported only the Typst error
+- **Command-line output**: diagnostics went to stdout at INFO level, interleaving with the step progress mid-line and making `mdpress build > build.log` swallow every warning; `--quiet` printed the full progress despite documenting itself as "only output errors"; `validate --quiet` suppressed the failures too; `mdpress themes lst` printed nothing and exited 0; usage errors had no pointer to `--help`; `--format PDF` was rejected
+
+### Added
+
+- **`static/` directory**: its contents are copied verbatim into the site root, which is how a project ships `CNAME`, `.nojekyll`, `robots.txt` or a favicon — previously there was no supported way, and files placed in `_book/` by hand were destroyed by the next build's atomic swap
+- **`variables:` in book.yaml** for user-defined template variables
+- **`section:` on a chapter** to label a sidebar group
+
+### Changed
+
+- **`mdpress migrate` stops deciding things it was never told**: it hardcoded `output.filename: output` and `output.cover: false` (so every migrated book produced a cover-less `output.pdf`) and invented `author: Unknown`. It now reports what it could not convert — `styles`, `structure`, `links`, `plugins`, and a `.gitbook.yaml` — instead of dropping it silently
+
 ---
 
 ## [0.7.15] - 2026-07-22
