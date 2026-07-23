@@ -49,6 +49,7 @@ v0.7.12 ████████████████████████
 v0.7.13 ██████████████████████████████████████████ released (2026-07-05)
 v0.7.14 ██████████████████████████████████████████ released (2026-07-10)
 v0.7.15 ██████████████████████████████████████████ released (2026-07-22)
+v0.8.0 ██████████████████████████████████████████ released (2026-07-23)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1142,6 +1143,33 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | `--format all` drops `typst` | `all` failed on any machine without the optional Typst CLI; pass `--format typst` explicitly |
 | Typography defaults moved into the themes | An unset `style.*` now means "inherit from the theme". **Breaking:** a `book.yaml` without `language:` resolves to `en-US` unless the content is predominantly CJK |
 | Guardrail tests | A cross-format matrix fixture, a style-wiring test driving the real CLI, and a test that resolves every `mdpress …` invocation in `docs/` against the real command tree |
+
+---
+
+## v0.8.0 — Audit Follow-Up: Silent Content Loss
+
+**Release date**: 2026-07-23
+**Theme**: the class of bug where the build succeeds, the output looks plausible, and the author has nothing to debug with
+
+### Changes
+
+| Change | Description |
+| --- | --- |
+| Shared image directories | `![](../assets/logo.png)` was dropped from site, standalone HTML and PDF with no diagnostic; containment was checked against the chapter's directory instead of the book root |
+| Front matter, BOM and stray `<h1>` | YAML front matter rendered as body text, a UTF-8 BOM stopped the first heading being a heading, and a second `<h1>` suppressed the page title |
+| `migrate` no longer destroys documents | Around an already-fenced block it added a second fence, swallowing the rest of the file — in place, with no backup |
+| `validate` as a CI gate | Markdown inside fenced blocks was treated as real references (92 false errors on mdPress's own manual); `--strict`, anchor checks, orphan and duplicate-chapter checks added |
+| `--config` is honored | It was discarded whenever a source directory was also given |
+| Unknown `book.yaml` keys | Reported with a "did you mean" suggestion instead of being dropped silently |
+| PDF output | `output.margin_*` reaches `@page`, the TOC has a heading and real page numbers via a two-pass render, and `page-break-inside: avoid` no longer leaves near-blank pages |
+| ePub output | Documents are parsed before packaging, hierarchy and highlighting are preserved, and a cover image is generated |
+| Site weight | Images ship as files rather than base64 in every page: a 3-page book with one screenshot went from 3.5 MB to 1.0 MB |
+| Multi-language layout | **Breaking:** every spelling of `--output` now resolves to one deployable tree with the switcher at its `index.html` |
+| `--format site --output ./dist` | **Breaking:** writes to `./dist` instead of appending `_site` when the path does not already exist |
+| Ctrl+C stops a build | SIGINT was captured and never acted on, leaving a finished artifact that looked deliberate |
+| CDN assets pinned and SRI-checked | A blocked or tampered CDN now shows an explanatory notice and the diagram source instead of a blank gap |
+| PlantUML documentation made honest | mdPress does not render it; the manual advertised automatic rendering and `doctor` told users to install it |
+| New commands | `config show`, `cache info`/`clear`, `validate --strict`, `version --json`, `static/` passthrough, site branding, `variables:`, `section:` |
 
 ---
 

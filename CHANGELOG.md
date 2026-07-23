@@ -6,7 +6,19 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.8.0] - 2026-07-23
+
 Continues the post-0.7.14 audit. This wave concentrates on content that was silently lost or silently changed — the class of bug where the build succeeds, the output looks plausible, and the author has nothing to debug with.
+
+Several of those fixes change output paths or defaults, which is why this is a minor bump rather than a patch. Nothing in a `book.yaml` needs editing; what may need editing is a deploy script or a CI recipe.
+
+### Upgrading
+
+- **Multi-language sites now build one tree.** `--output ./dist` previously wrote sibling `dist-en_site/`, `dist-zh_site/` and `dist-index.html`, with per-language directories named after the book title. It now writes `dist/`, `dist/en/`, `dist/zh/` with the switcher at `dist/index.html`. Publish `dist/` and drop any script that collected the siblings
+- **`--format site --output ./dist` writes to `./dist`.** It used to append `_site` unless the path already existed — so CI produced `dist_site/` and a second local run produced `dist/`. If your deploy step points at `dist_site/`, point it at `dist/`
+- **`mdpress doctor`'s report flag is `-r`/`--report`,** not `-o`. `-o` was the only place in the CLI where it did not mean "output path"
 
 ### Fixed
 
@@ -38,10 +50,8 @@ Continues the post-0.7.14 audit. This wave concentrates on content that was sile
 - **`output.margin_*` reaches the PDF**: recommended in four places in the manual as the way to fix cramped output, and read by nothing — `@page` was built from `style.margin` alone. On a 120-paragraph fixture, `margin_left: 20mm` and `60mm` both produced 5 pages; they now produce 5 and 8
 - **The manual's own header example produces a header**: it was byte-for-byte the built-in default, and the builder decided "the user customized this" by comparing against that default. Switching to the other documented token then printed `{{.Book.Author}}` onto every page
 - **Cross-references resolve across the whole book**: a `{{ref:}}` pointing at a later chapter stayed literal in the output while `validate` reported all checks passed
-- **Standalone HTML anchors are unique**: heading ids are per-chapter but this format concatenates every chapter, so each `#examples` link resolved to whichever chapter came first — 114 duplicated ids in mdPress's own manual
 - **`serve` tells the browser when a rebuild failed**: a refresh silently showed stale content, so an edit that broke the build looked like an edit that did nothing. Restarting `serve` now also refreshes open tabs, and unknown URLs return the generated 404 page with a 404 status instead of redirecting to `/`
 - **A project theme extends a built-in** instead of replacing it, so a `themes/<name>.yaml` listing a few colors no longer collapses the rest to empty values and 0mm margins
-- **Images in a shared directory work**: `![](../assets/logo.png)` was dropped from site, standalone HTML and PDF with no diagnostic
 - **PlantUML**: mdPress does not render it — the package is not linked into the binary — but the manual advertised automatic rendering and `doctor` told users to install it. Both now say what actually happens, and each `plantuml` block is a build warning
 
 ### Added
@@ -1086,7 +1096,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.7.15...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/yeasy/mdpress/compare/v0.7.15...v0.8.0
 [0.7.15]: https://github.com/yeasy/mdpress/compare/v0.7.14...v0.7.15
 [0.7.14]: https://github.com/yeasy/mdpress/compare/v0.7.13...v0.7.14
 [0.7.13]: https://github.com/yeasy/mdpress/compare/v0.7.12...v0.7.13

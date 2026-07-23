@@ -17,7 +17,7 @@ import (
 // -ldflags (goreleaser release), Version is overridden to the real tag.
 // For `go install`/source builds it stays at defaultVersion, and we fall
 // back to runtime/debug build info at startup (see initBuildInfo).
-const defaultVersion = "0.7.15"
+const defaultVersion = "0.8.0"
 
 var (
 	// Version is overridden at build time via -ldflags.

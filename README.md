@@ -125,7 +125,7 @@ Since v0.7.12, releases also ship Linux packages (`.deb`, `.rpm`, `.apk`) and a 
 Every release publishes a `checksums.txt` with a SHA-256 for each asset. Verify what you downloaded before running it — this is also the check to add to any CI step that installs mdPress with `curl`:
 
 ```bash
-VERSION=0.7.15
+VERSION=0.8.0
 BASE=https://github.com/yeasy/mdpress/releases/download/v${VERSION}
 
 curl -fsSLO "${BASE}/mdpress_${VERSION}_linux_amd64.tar.gz"

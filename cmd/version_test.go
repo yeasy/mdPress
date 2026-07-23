@@ -153,7 +153,7 @@ func TestVersionJSONFlagIsRegistered(t *testing.T) {
 
 // TestDefaultVersionConstant guards against stale hardcoded versions.
 func TestDefaultVersionConstant(t *testing.T) {
-	if defaultVersion != "0.7.15" {
-		t.Errorf("defaultVersion = %q, want 0.7.15", defaultVersion)
+	if defaultVersion != "0.8.0" {
+		t.Errorf("defaultVersion = %q, want 0.8.0", defaultVersion)
 	}
 }
