@@ -129,6 +129,29 @@ type Server struct {
 	// buildMu around the whole build ensures BuildFunc (and its output-dir
 	// RemoveAll/Rename swap) never runs concurrently with itself.
 	buildMu sync.Mutex
+
+	// lastBuildErr remembers the most recent failed rebuild so a browser that
+	// connects (or refreshes) after the failure still learns about it. Without
+	// it a refresh silently shows the last good build with a "Waiting for
+	// changes" badge, which reads as "your edit produced nothing".
+	lastBuildErr string
+	buildErrMu   sync.RWMutex
+}
+
+// setLastBuildErr records (or with an empty string clears) the sticky rebuild
+// failure replayed to newly connected clients.
+func (s *Server) setLastBuildErr(msg string) {
+	s.buildErrMu.Lock()
+	s.lastBuildErr = msg
+	s.buildErrMu.Unlock()
+}
+
+// LastBuildError returns the rebuild failure still in effect, or "" when the
+// most recent build succeeded.
+func (s *Server) LastBuildError() string {
+	s.buildErrMu.RLock()
+	defer s.buildErrMu.RUnlock()
+	return s.lastBuildErr
 }
 
 // NewServer creates a preview server.
@@ -187,6 +210,12 @@ func (s *Server) ListenFrom(startPort int) (net.Listener, error) {
 		s.Port = port
 		ln, err := s.Listen()
 		if err == nil {
+			// Say so out loud. Silently moving the preview to another port
+			// leaves the user staring at a stale tab on the port they expected.
+			if port != startPort {
+				s.logger.Warn("Port is already in use, serving on the next free port instead",
+					slog.Int("requested", startPort), slog.Int("port", port))
+			}
 			return ln, nil
 		}
 		if isAddrInUse(err) {
@@ -274,7 +303,12 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 	}()
 
 	fmt.Printf("\n📖 mdpress Live Preview Server\n\n")
-	fmt.Printf("  Address: %s\n", s.browserURL())
+	fmt.Printf("  Local:   %s\n", s.browserURL())
+	// When bound to a wildcard address the point is usually to preview from a
+	// phone or another machine, and "localhost" is useless there.
+	for _, u := range s.networkURLs() {
+		fmt.Printf("  Network: %s\n", u)
+	}
 	fmt.Printf("  Binding: %s\n", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 	fmt.Printf("  Watching: %s\n", s.WatchDir)
 	fmt.Printf("  Output: %s\n", s.OutputDir)
@@ -345,8 +379,11 @@ func (s *Server) notifyCSSUpdate() {
 	}
 }
 
-// notifyBuildError sends a build error message to all connected WebSocket clients.
+// notifyBuildError sends a build error message to all connected WebSocket
+// clients and remembers it, so clients that connect later (a refresh, or a
+// browser opened after the failure) are told about it too.
 func (s *Server) notifyBuildError(errMsg string) {
+	s.setLastBuildErr(errMsg)
 	msg, err := buildWSErrorMessage(errMsg)
 	if err != nil {
 		s.logger.Error("Failed to marshal build error message", slog.Any("error", err))
@@ -399,6 +436,17 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Send the connection acknowledgment.
 	if err := client.writeMessage(websocket.TextMessage, []byte("connected")); err != nil {
 		s.logger.Debug("Failed to send WebSocket ack", slog.Any("error", err))
+	}
+
+	// Replay an unresolved rebuild failure. The page being loaded right now is
+	// the last *successful* build, so without this the reader sees stale
+	// content with no hint that their latest edit failed to compile.
+	if lastErr := s.LastBuildError(); lastErr != "" {
+		if msg, err := buildWSErrorMessage(lastErr); err == nil {
+			if err := client.writeMessage(websocket.TextMessage, msg); err != nil {
+				s.logger.Debug("Failed to replay build error", slog.Any("error", err))
+			}
+		}
 	}
 
 	// Keep reading to detect disconnects.
@@ -601,6 +649,26 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
     } catch (e) {}
   }
 
+  // Perform a live reload.  When the SPA navigation hook is available
+  // (site output), re-fetch and swap only the page content so the reader
+  // keeps their scroll position and reading flow is not disrupted.  Falls
+  // back to a full page reload otherwise.
+  function doReload() {
+    if (typeof window.__mdpressLiveReload === 'function') {
+      window.__mdpressLiveReload();
+      setServeStatus('success', 'Content updated', '', false);
+    } else {
+      rememberServeFlash('success', 'Rebuild complete');
+      location.reload();
+    }
+  }
+
+  // Tracks whether this tab has ever had a live connection.  A *re*-connect
+  // means the server went away and came back — typically the user restarted
+  // "mdpress serve" — so whatever this tab is showing predates the new
+  // server and must be refreshed.  Without this the tab stays stale forever.
+  var everConnected = false;
+
   function connect() {
     var ws = new WebSocket(wsURL);
 
@@ -609,23 +677,14 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
       serveState.ws = 'connected';
       currentInterval = reconnectInterval;
       refreshServePanel();
+      if (everConnected) {
+        doReload();
+      }
+      everConnected = true;
     };
 
     ws.onmessage = function(e) {
       var data = e.data;
-      // Perform a live reload.  When the SPA navigation hook is available
-      // (site output), re-fetch and swap only the page content so the
-      // reader keeps their scroll position and reading flow is not
-      // disrupted.  Falls back to a full page reload otherwise.
-      function doReload() {
-        if (typeof window.__mdpressLiveReload === 'function') {
-          window.__mdpressLiveReload();
-          setServeStatus('success', 'Content updated', '', false);
-        } else {
-          rememberServeFlash('success', 'Rebuild complete');
-          location.reload();
-        }
-      }
       // Support both legacy string and JSON messages.
       if (data === 'reload') {
         doReload();
@@ -680,8 +739,15 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 `
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Proxy non-HTML requests directly.
+		// Proxy non-HTML requests directly. Missing *page* URLs are the one
+		// exception: a mistyped link such as /chapter-3 carries no .html
+		// suffix, and letting the file server answer it produced Go's bare
+		// "404 page not found" instead of the site's own 404 page.
 		if !strings.HasSuffix(r.URL.Path, ".html") && r.URL.Path != "/" && !strings.HasSuffix(r.URL.Path, "/") {
+			if isPageRequest(r.URL.Path) && !s.outputPathExists(r.URL.Path) {
+				s.serveNotFound(w, r, reloadScript)
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -741,13 +807,9 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 		// Use os.Open + Fstat + LimitReader to avoid TOCTOU between stat and read.
 		f, openErr := os.Open(absFilePath)
 		if openErr != nil {
-			if errors.Is(openErr, fs.ErrNotExist) && r.URL.Path != "/" {
-				ext := filepath.Ext(r.URL.Path)
-				if ext == "" || ext == ".html" {
-					s.logger.Warn("Page not found, redirecting to /", slog.String("path", r.URL.Path))
-					http.Redirect(w, r, "/", http.StatusFound)
-					return
-				}
+			if errors.Is(openErr, fs.ErrNotExist) && r.URL.Path != "/" && isPageRequest(r.URL.Path) {
+				s.serveNotFound(w, r, reloadScript)
+				return
 			}
 			next.ServeHTTP(w, r)
 			return
@@ -784,6 +846,70 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
 	})
 }
 
+// staticAssetExts are the extensions whose requests keep the file server's own
+// response. Everything else counts as a page request, because a chapter slug
+// like "02_reasoning-2.4_reflexion" ends in a dot-suffix that is not an
+// extension at all and must still reach the site's 404 page.
+var staticAssetExts = map[string]struct{}{
+	".css": {}, ".js": {}, ".mjs": {}, ".map": {}, ".json": {}, ".xml": {},
+	".txt": {}, ".md": {}, ".csv": {}, ".wasm": {},
+	".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".svg": {}, ".webp": {},
+	".avif": {}, ".ico": {}, ".bmp": {},
+	".woff": {}, ".woff2": {}, ".ttf": {}, ".otf": {}, ".eot": {},
+	".pdf": {}, ".epub": {}, ".zip": {}, ".gz": {},
+	".mp3": {}, ".mp4": {}, ".webm": {}, ".ogg": {}, ".wav": {},
+}
+
+// isPageRequest reports whether a URL path is asking for a readable page
+// rather than a static asset.
+func isPageRequest(urlPath string) bool {
+	ext := strings.ToLower(filepath.Ext(urlPath))
+	if ext == "" || ext == ".html" || ext == ".htm" {
+		return true
+	}
+	_, isAsset := staticAssetExts[ext]
+	return !isAsset
+}
+
+// outputPathExists reports whether a request path resolves to an existing file
+// or directory inside the output directory. Cleaning the path with a leading
+// separator keeps "../" from escaping OutputDir.
+func (s *Server) outputPathExists(urlPath string) bool {
+	if s.OutputDir == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(s.OutputDir, filepath.Clean("/"+urlPath)))
+	return err == nil
+}
+
+// serveNotFound answers with the site's generated 404.html and a real 404
+// status. The server used to 302 unknown pages back to /, which made a broken
+// link look like a working one and meant the 404 page mdpress generates was
+// never reachable during preview. A plain-text body is used when the output
+// directory has no 404.html (for example a partially built site).
+func (s *Server) serveNotFound(w http.ResponseWriter, r *http.Request, reloadScript string) {
+	s.logger.Debug("Page not found", slog.String("path", r.URL.Path))
+	body, err := os.ReadFile(filepath.Join(s.OutputDir, "404.html"))
+	if err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusNotFound)
+		if _, err := io.WriteString(w, "404 page not found\n"); err != nil {
+			s.logger.Debug("Failed to write 404 response", slog.Any("error", err))
+		}
+		return
+	}
+	// Inject live reload so the tab recovers on its own once the missing page
+	// is created and the rebuild fires.
+	page := strings.Replace(string(body), "</body>", reloadScript+"</body>", 1)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusNotFound)
+	if _, err := w.Write([]byte(page)); err != nil {
+		s.logger.Debug("Failed to write 404 response", slog.Any("error", err))
+	}
+}
+
 // securityHeaders wraps an http.Handler to set security headers on all responses.
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -809,6 +935,37 @@ func (s *Server) browserURL() string {
 		host = "[" + host + "]"
 	}
 	return fmt.Sprintf("http://%s:%d", host, s.Port)
+}
+
+// networkURLs returns preview URLs reachable from other machines. It is empty
+// unless the server binds a wildcard address, because a loopback binding is by
+// definition not reachable from anywhere else.
+func (s *Server) networkURLs() []string {
+	switch s.Host {
+	case "", "0.0.0.0", "::", "[::]":
+	default:
+		return nil
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		s.logger.Debug("Failed to enumerate interface addresses", slog.Any("error", err))
+		return nil
+	}
+	var urls []string
+	for _, addr := range addrs {
+		ipNet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		// IPv4 only: an IPv6 literal in a browser address bar is more friction
+		// than help, and every LAN that can reach the host has an IPv4 route.
+		ip := ipNet.IP.To4()
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			continue
+		}
+		urls = append(urls, fmt.Sprintf("http://%s:%d", ip.String(), s.Port))
+	}
+	return urls
 }
 
 // stopDebounceTimer cancels any pending debounce timer. The caller must hold
@@ -867,6 +1024,7 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 			}
 		}
 		s.logger.Info("Build completed, notifying browser to reload")
+		s.setLastBuildErr("")
 		if capturedExt == ".css" {
 			s.notifyCSSUpdate()
 		} else {

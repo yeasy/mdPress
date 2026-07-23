@@ -1558,9 +1558,11 @@ func TestInjectLiveReload_IndexHTMLFallback(t *testing.T) {
 	// This might not find index.html, which is OK - just verify no panic
 }
 
-// TestInjectLiveReload_NonExistentPathRedirectsToRoot tests that a request for
-// a non-existent HTML path (e.g. a mistyped URL) redirects to the home page.
-func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
+// TestInjectLiveReload_NonExistentPathServesNotFound checks that a request for
+// a non-existent page returns the site's own 404 page with a 404 status. The
+// server used to 302 back to /, which made a broken link look like a working
+// one; see serveNotFound.
+func TestInjectLiveReload_NonExistentPathServesNotFound(t *testing.T) {
 	outputDir := t.TempDir()
 
 	// Create only the root index.html – no subdirectory pages.
@@ -1568,31 +1570,35 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 	if err := os.WriteFile(indexFile, []byte("<html><body>Home</body></html>"), 0o644); err != nil {
 		t.Fatalf("Failed to write index file: %v", err)
 	}
+	notFoundFile := filepath.Join(outputDir, "404.html")
+	if err := os.WriteFile(notFoundFile, []byte("<html><head><title>Page not found - Demo</title></head><body>404</body></html>"), 0o644); err != nil {
+		t.Fatalf("Failed to write 404 file: %v", err)
+	}
 
 	srv := NewServer("127.0.0.1", 8080, "/tmp", outputDir, slog.Default())
 	fileServer := http.FileServer(http.Dir(outputDir))
 	handler := srv.injectLiveReload(fileServer)
 
-	// Request a path that does not exist.
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/02_reasoning-2.4_reflexion/", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	// Every shape a mistyped page URL can take: directory-style, bare, and
+	// explicit .html.
+	for _, missing := range []string{
+		"/02_reasoning-2.4_reflexion/",
+		"/02_reasoning-2.4_reflexion",
+		"/missing-page.html",
+	} {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, missing, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusFound {
-		t.Errorf("Expected 302 redirect for non-existent path, got %d", rec.Code)
-	}
-	loc := rec.Header().Get("Location")
-	if loc != "/" {
-		t.Errorf("Expected redirect to /, got %q", loc)
-	}
-
-	// A non-existent .html path should also redirect.
-	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/missing-page.html", nil)
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusFound {
-		t.Errorf("Expected 302 redirect for non-existent .html path, got %d", rec.Code)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: expected 404, got %d", missing, rec.Code)
+		}
+		if body := rec.Body.String(); !strings.Contains(body, "<title>Page not found") {
+			t.Errorf("%s: expected the generated 404 page, got %q", missing, body)
+		}
+		if loc := rec.Header().Get("Location"); loc != "" {
+			t.Errorf("%s: expected no redirect, got Location %q", missing, loc)
+		}
 	}
 
 	// Static asset requests should NOT redirect – they should fall through
@@ -1606,12 +1612,17 @@ func TestInjectLiveReload_NonExistentPathRedirectsToRoot(t *testing.T) {
 		"/favicon.ico",
 		"/font.woff2",
 	} {
-		req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, assetPath, nil)
-		rec = httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, assetPath, nil)
+		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
 
 		if rec.Code == http.StatusTemporaryRedirect {
 			t.Errorf("Static asset %s should not redirect, got 307", assetPath)
+		}
+		// An HTML body for a missing stylesheet or font would only confuse
+		// the browser; assets keep the file server's plain response.
+		if strings.Contains(rec.Body.String(), "<title>Page not found") {
+			t.Errorf("Static asset %s should not receive the HTML 404 page", assetPath)
 		}
 	}
 }
