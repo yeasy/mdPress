@@ -32,7 +32,10 @@ Examples:
 		if len(args) == 0 {
 			return cmd.Help()
 		}
-		return nil
+		// cobra routes an unmatched sub-command here. Returning nil made a
+		// typo look like success: `mdpress themes lst` printed nothing and
+		// exited 0.
+		return fmt.Errorf("unknown themes sub-command %q\n\nRun 'mdpress themes --help' to see the available sub-commands", args[0])
 	},
 }
 

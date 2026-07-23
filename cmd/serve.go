@@ -77,7 +77,7 @@ Examples:
 
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", defaultServePort, "HTTP server port")
-	serveCmd.Flags().StringVar(&serveHost, "host", defaultServeHost, "HTTP listen address (default 127.0.0.1)")
+	serveCmd.Flags().StringVar(&serveHost, "host", defaultServeHost, "HTTP listen address")
 	serveCmd.Flags().StringVarP(&serveDir, "output", "o", "", "Directory to write the generated site (default _book)")
 	serveCmd.Flags().BoolVar(&serveOpen, "open", false, "Open the browser automatically (default false)")
 	serveCmd.Flags().StringVar(&buildSummary, "summary", "", "Path to SUMMARY.md file")

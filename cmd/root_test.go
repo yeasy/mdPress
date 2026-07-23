@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"testing"
 
@@ -156,5 +157,32 @@ func TestConfigureRuntimeCacheEnvRobustness(t *testing.T) {
 	}
 	if v := os.Getenv("MDPRESS_DISABLE_CACHE"); v != "" {
 		t.Errorf("MDPRESS_DISABLE_CACHE should remain empty, got %q", v)
+	}
+}
+
+func TestIsUsageError(t *testing.T) {
+	// Usage mistakes get a pointer to --help; failures from a command that
+	// actually ran must not, or every build error grows a misleading footer.
+	usage := []string{
+		"unknown flag: --bogus",
+		"unknown command \"buld\" for \"mdpress\"",
+		"accepts at most 1 arg(s), received 3",
+		"flag needs an argument: --output",
+	}
+	for _, msg := range usage {
+		if !isUsageError(errors.New(msg)) {
+			t.Errorf("%q should be treated as a usage error", msg)
+		}
+	}
+
+	notUsage := []string{
+		"failed to load config: chapter 1 references a missing file",
+		"build output formats: build typst: compile failed",
+		"config file not found: nope.yaml",
+	}
+	for _, msg := range notUsage {
+		if isUsageError(errors.New(msg)) {
+			t.Errorf("%q should NOT be treated as a usage error", msg)
+		}
 	}
 }

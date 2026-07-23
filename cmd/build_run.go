@@ -143,6 +143,9 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		slog.Int("chapters", len(cfg.Chapters)))
 
 	progress := utils.NewProgressTracker(5)
+	// --quiet promises "only output errors"; the per-format summary printed
+	// after the build survives it deliberately.
+	progress.SetSilent(quiet)
 	needsPDF := containsBuildFormat(formats, "pdf")
 	needsNonPDF := containsAnyNonPDFFormat(formats)
 
