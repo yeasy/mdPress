@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Zero-config discovery spells chapter paths the same way on every platform**: `config.Discover` wrote `filepath.Rel`'s output straight into `ChapterDef.File`, so on Windows a subdirectory chapter became `guide\README.md` while `init` and every hand-written `book.yaml` spell it `guide/README.md`
+
 ---
 
 ## [0.8.0] - 2026-07-23
