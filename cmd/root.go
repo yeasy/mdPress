@@ -20,8 +20,19 @@ import (
 const defaultVersion = "0.8.0"
 
 var (
-	// Version is overridden at build time via -ldflags.
-	Version = defaultVersion
+	// Version is the release version, injected at build time via -ldflags.
+	//
+	// It starts empty, and empty means "not injected" — a `go install` or a
+	// plain `go build`, where initBuildInfo falls back to the embedded VCS
+	// data and finally to defaultVersion. It must not start at defaultVersion:
+	// goreleaser injects exactly the string defaultVersion holds (both are the
+	// release tag), so comparing the two to decide whether a value was
+	// injected is always true on a release build. The release binary then
+	// discarded the injected tag and reported the module version instead,
+	// which reads "<tag>+dirty" whenever a before-hook touches the tree — and
+	// `go mod tidy` plus `go test ./...` run as before-hooks, so every
+	// published binary since at least v0.7.15 called itself dirty.
+	Version = ""
 	// BuildTime is overridden at build time via -ldflags.
 	BuildTime = "unknown"
 	// Commit is overridden at build time via -ldflags (git commit hash).
@@ -41,35 +52,50 @@ var (
 	noCache bool
 )
 
+// resolveVersion picks the version to report. injected is the -ldflags value,
+// empty when the binary was not stamped; moduleVersion is Go's own
+// info.Main.Version, which is "" or "(devel)" when unknown and carries a
+// "+dirty" suffix when the tree was modified at build time.
+//
+// An injected value always wins, including when it equals defaultVersion. The
+// two are equal on every correctly prepared release — goreleaser injects the
+// tag and the release checklist bumps defaultVersion to that same tag — so
+// treating the equality as "nothing was injected" discarded the real tag.
+func resolveVersion(injected, moduleVersion string) string {
+	if injected != "" {
+		return injected
+	}
+	if moduleVersion != "" && moduleVersion != "(devel)" {
+		return strings.TrimPrefix(moduleVersion, "v")
+	}
+	return defaultVersion
+}
+
 // initBuildInfo backfills Version/Commit/BuildTime from the embedded Go build
 // info for builds that were NOT stamped via -ldflags (e.g. `go install`).
 // It never overrides values already injected at release time.
 func initBuildInfo() {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return
-	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		Version = resolveVersion(Version, info.Main.Version)
 
-	// Only trust the module version for source/go-install builds where the
-	// compiled-in default is still present. A real version looks like "v1.2.3";
-	// "" and "(devel)" mean the module version is unknown.
-	if Version == defaultVersion {
-		if v := info.Main.Version; v != "" && v != "(devel)" {
-			Version = strings.TrimPrefix(v, "v")
-		}
-	}
-
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			if Commit == "" && s.Value != "" {
-				Commit = s.Value
-			}
-		case "vcs.time":
-			if (BuildTime == "" || BuildTime == "unknown") && s.Value != "" {
-				BuildTime = s.Value
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				if Commit == "" && s.Value != "" {
+					Commit = s.Value
+				}
+			case "vcs.time":
+				if (BuildTime == "" || BuildTime == "unknown") && s.Value != "" {
+					BuildTime = s.Value
+				}
 			}
 		}
+	}
+
+	// Nothing injected and no usable build info: a plain `go build` of the
+	// source tree.
+	if Version == "" {
+		Version = defaultVersion
 	}
 }
 

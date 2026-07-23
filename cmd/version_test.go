@@ -157,3 +157,68 @@ func TestDefaultVersionConstant(t *testing.T) {
 		t.Errorf("defaultVersion = %q, want 0.8.0", defaultVersion)
 	}
 }
+
+// A release build injects the tag through -ldflags, and the release checklist
+// bumps defaultVersion to that same tag, so the two are equal on every
+// correctly prepared release. Treating that equality as "nothing was injected"
+// discarded the real tag in favor of Go's module version — which is why
+// v0.7.15 and v0.8.0 both shipped binaries calling themselves "<tag>+dirty":
+// goreleaser's own `go mod tidy` and `go test ./...` before-hooks modify the
+// tree before the compiler stamps it.
+//
+// This is a pure function precisely so the release case is reachable from a
+// test: debug.ReadBuildInfo() reports no module version inside a test binary,
+// so driving initBuildInfo() directly never exercises the broken branch.
+func TestResolveVersion(t *testing.T) {
+	cases := []struct {
+		name          string
+		injected      string
+		moduleVersion string
+		want          string
+	}{
+		{"release build: injected tag equals defaultVersion", defaultVersion, "v" + defaultVersion + "+dirty", defaultVersion},
+		{"release build: injected tag differs", "9.9.9", "v" + defaultVersion, "9.9.9"},
+		{"go install of a tagged version", "", "v0.7.14", "0.7.14"},
+		{"go build from source", "", "(devel)", defaultVersion},
+		{"no build info at all", "", "", defaultVersion},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := resolveVersion(tc.injected, tc.moduleVersion); got != tc.want {
+				t.Errorf("resolveVersion(%q, %q) = %q, want %q", tc.injected, tc.moduleVersion, got, tc.want)
+			}
+		})
+	}
+}
+
+// initBuildInfo must not overwrite the other stamped fields either.
+func TestInitBuildInfoKeepsInjectedStamps(t *testing.T) {
+	origVersion, origCommit, origBuildTime := Version, Commit, BuildTime
+	t.Cleanup(func() { Version, Commit, BuildTime = origVersion, origCommit, origBuildTime })
+
+	Version, Commit, BuildTime = defaultVersion, "deadbeef", "2026-01-01T00:00:00Z"
+	initBuildInfo()
+	if Version != defaultVersion {
+		t.Errorf("injected version was replaced with %q", Version)
+	}
+	if Commit != "deadbeef" {
+		t.Errorf("injected commit was replaced with %q", Commit)
+	}
+	if BuildTime != "2026-01-01T00:00:00Z" {
+		t.Errorf("injected build time was replaced with %q", BuildTime)
+	}
+}
+
+// An unstamped build must still report something: empty means -ldflags was not
+// used, and the fallback chain ends at defaultVersion.
+func TestInitBuildInfoFillsUnstampedVersion(t *testing.T) {
+	origVersion := Version
+	t.Cleanup(func() { Version = origVersion })
+
+	Version = ""
+	initBuildInfo()
+	if Version == "" {
+		t.Error("an unstamped build reported an empty version")
+	}
+}

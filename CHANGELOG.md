@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Fixed
 
+- **A released binary reports the tag it was built from**: `mdpress version` printed `0.8.0+dirty` (and `0.7.15+dirty` before it) because the injected tag was discarded whenever it matched the compiled-in default — which it does on every correctly prepared release — leaving Go's module version, stamped dirty by goreleaser's own `go mod tidy` and `go test` pre-build hooks
 - **Zero-config discovery spells chapter paths the same way on every platform**: `config.Discover` wrote `filepath.Rel`'s output straight into `ChapterDef.File`, so on Windows a subdirectory chapter became `guide\README.md` while `init` and every hand-written `book.yaml` spell it `guide/README.md`
 
 ---
