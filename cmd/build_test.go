@@ -424,23 +424,33 @@ func TestResolveSiteOutputDir(t *testing.T) {
 	missing := filepath.Join(existingDir, "missing")
 	sep := string(os.PathSeparator)
 
+	mixed := []string{"site", "html"}
+	siteOnly := []string{"site"}
+
 	tests := []struct {
 		name     string
 		baseDir  string
 		override string
+		formats  []string
 		want     string
 	}{
-		{"default is _book under project", "/proj", "", filepath.Join("/proj", "_book")},
-		{"existing directory used verbatim", "/proj", existingDir, existingDir},
-		{"trailing separator forces directory", "/proj", missing + sep, missing},
-		{"file path with extension becomes <base>_site", "/proj", filepath.Join(missing, "manual.html"), filepath.Join(missing, "manual_site")},
-		{"pdf file path becomes <base>_site", "/proj", filepath.Join(missing, "manual.pdf"), filepath.Join(missing, "manual_site")},
-		{"extension-less base becomes <base>_site", "/proj", filepath.Join(missing, "book"), filepath.Join(missing, "book_site")},
+		{"default is _book under project", "/proj", "", siteOnly, filepath.Join("/proj", "_book")},
+		{"existing directory used verbatim", "/proj", existingDir, mixed, existingDir},
+		{"trailing separator forces directory", "/proj", missing + sep, mixed, missing},
+		{"file path with extension becomes <base>_site", "/proj", filepath.Join(missing, "manual.html"), mixed, filepath.Join(missing, "manual_site")},
+		{"pdf file path becomes <base>_site", "/proj", filepath.Join(missing, "manual.pdf"), mixed, filepath.Join(missing, "manual_site")},
+		{"extension-less base becomes <base>_site", "/proj", filepath.Join(missing, "book"), mixed, filepath.Join(missing, "book_site")},
+		// The site is the whole output, so the named path is the directory the
+		// user wants. This used to depend on whether the path already existed,
+		// so a clean CI checkout got "dist_site" while a developer's second
+		// local run got "dist".
+		{"site-only uses --output verbatim even when missing", "/proj", filepath.Join(missing, "dist"), siteOnly, filepath.Join(missing, "dist")},
+		{"site-only with an extension-less base is still verbatim", "/proj", filepath.Join(missing, "book"), siteOnly, filepath.Join(missing, "book")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := resolveSiteOutputDir(tt.baseDir, tt.override); got != tt.want {
-				t.Errorf("resolveSiteOutputDir(%q, %q) = %q, want %q", tt.baseDir, tt.override, got, tt.want)
+			if got := resolveSiteOutputDir(tt.baseDir, tt.override, tt.formats, nil); got != tt.want {
+				t.Errorf("resolveSiteOutputDir(%q, %q, %v) = %q, want %q", tt.baseDir, tt.override, tt.formats, got, tt.want)
 			}
 		})
 	}

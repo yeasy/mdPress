@@ -205,39 +205,40 @@ const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-
 // {page}/{title} token expansion). By default PDFs get a centered page-number
 // footer and no header. An empty return value means "no header/footer".
 func pdfHeaderFooterTemplates(cfg *config.BookConfig) (headerTmpl, footerTmpl string) {
-	defaults := config.DefaultConfig().Style
 	if cfg.Output.Footer {
-		if isCustomHeaderFooterStyle(cfg.Style.Footer, defaults.Footer) {
-			footerTmpl = renderPDFHeaderFooter(cfg.Style.Footer, cfg.Book.Title)
+		if isCustomHeaderFooterStyle(cfg.Style.Footer) {
+			footerTmpl = renderPDFHeaderFooter(cfg.Style.Footer, cfg.Book)
 		}
 		if footerTmpl == "" {
 			footerTmpl = defaultPDFFooterTemplate
 		}
 	}
 	if cfg.Output.Header {
-		// Default: no header. Only an explicitly customized style.header
-		// renders one.
-		if isCustomHeaderFooterStyle(cfg.Style.Header, defaults.Header) {
-			headerTmpl = renderPDFHeaderFooter(cfg.Style.Header, cfg.Book.Title)
+		// Default: no header. Only a configured style.header renders one.
+		if isCustomHeaderFooterStyle(cfg.Style.Header) {
+			headerTmpl = renderPDFHeaderFooter(cfg.Style.Header, cfg.Book)
 		}
 	}
 	return headerTmpl, footerTmpl
 }
 
-// isCustomHeaderFooterStyle reports whether the user customized a
-// header/footer style, i.e. it differs from both the zero value and the
-// built-in default.
-func isCustomHeaderFooterStyle(s, def config.HeaderFooterStyle) bool {
-	return s != (config.HeaderFooterStyle{}) && s != def
+// isCustomHeaderFooterStyle reports whether the user configured a
+// header/footer style.
+//
+// This used to also require the value to differ from the built-in default —
+// and the manual's example was that default, so a reader who copied it got no
+// header and nothing to explain why.
+func isCustomHeaderFooterStyle(s config.HeaderFooterStyle) bool {
+	return s != (config.HeaderFooterStyle{})
 }
 
 // renderPDFHeaderFooter builds a Chrome print template with left/center/right
 // cells from a configured header/footer style. Returns "" when every cell
 // expands to nothing.
-func renderPDFHeaderFooter(parts config.HeaderFooterStyle, title string) string {
-	left := expandPDFTemplateTokens(parts.Left, title)
-	center := expandPDFTemplateTokens(parts.Center, title)
-	right := expandPDFTemplateTokens(parts.Right, title)
+func renderPDFHeaderFooter(parts config.HeaderFooterStyle, book config.BookMeta) string {
+	left := expandPDFTemplateTokens(parts.Left, book)
+	center := expandPDFTemplateTokens(parts.Center, book)
+	right := expandPDFTemplateTokens(parts.Right, book)
 	if left == "" && center == "" && right == "" {
 		return ""
 	}
@@ -253,23 +254,44 @@ func renderPDFHeaderFooter(parts config.HeaderFooterStyle, title string) string 
 // {page}/{pages}/{title} tokens and the legacy Go-template-style tokens used
 // by scaffolded configs ({{.PageNum}}, {{.Book.Title}}, ...) are supported.
 // {{.Chapter.Title}} has no Chrome equivalent and expands to nothing.
-func expandPDFTemplateTokens(text, title string) string {
+func expandPDFTemplateTokens(text string, book config.BookMeta) string {
 	if text == "" {
 		return ""
 	}
 	const pageSpan = "<span class='pageNumber'></span>"
 	const totalPagesSpan = "<span class='totalPages'></span>"
-	escapedTitle := html.EscapeString(title)
+	escapedTitle := html.EscapeString(book.Title)
+	escapedAuthor := html.EscapeString(book.Author)
 	replacer := strings.NewReplacer(
 		"{page}", pageSpan,
 		"{pages}", totalPagesSpan,
 		"{title}", escapedTitle,
+		"{author}", escapedAuthor,
 		"{{.PageNum}}", pageSpan,
 		"{{.TotalPages}}", totalPagesSpan,
 		"{{.Book.Title}}", escapedTitle,
+		"{{.Book.Author}}", escapedAuthor,
 		"{{.Chapter.Title}}", "",
 	)
-	return replacer.Replace(html.EscapeString(text))
+	expanded := replacer.Replace(html.EscapeString(text))
+	// A token with no Chrome equivalent must not be printed onto the paper.
+	// Chrome escapes nothing here, so an unexpanded "{{.Whatever}}" would
+	// appear verbatim in the running head of every page.
+	return stripUnexpandedTokens(expanded)
+}
+
+// unexpandedTokenPattern matches a leftover Go-template-style token.
+var unexpandedTokenPattern = regexp.MustCompile(`\{\{[^}]*\}\}`)
+
+// stripUnexpandedTokens removes tokens mdpress does not understand, warning
+// once per token so the author learns which one was dropped.
+func stripUnexpandedTokens(s string) string {
+	return unexpandedTokenPattern.ReplaceAllStringFunc(s, func(token string) string {
+		slog.Warn("unsupported header/footer token removed",
+			slog.String("token", token),
+			slog.String("supported", "{page} {pages} {title} {author}"))
+		return ""
+	})
 }
 
 // ---- HTML ----

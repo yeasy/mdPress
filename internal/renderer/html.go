@@ -177,6 +177,8 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		pageSize = "A4"
 	}
 
+	margins := resolveMargins(r.config)
+
 	fmt.Fprintf(&css, `
 @page {
   size: %s;
@@ -199,10 +201,10 @@ func (r *HTMLRenderer) buildPrintCSS() string {
   page-break-after: always;
 }
 `, pageSize,
-		r.config.Style.Margin.Top,
-		r.config.Style.Margin.Right,
-		r.config.Style.Margin.Bottom,
-		r.config.Style.Margin.Left)
+		margins.Top,
+		margins.Right,
+		margins.Bottom,
+		margins.Left)
 
 	fmt.Fprintf(&css, `
 @media print {
@@ -211,7 +213,7 @@ func (r *HTMLRenderer) buildPrintCSS() string {
     object-fit: contain;
   }
 }
-`, r.printableImageHeightMM(pageSize))
+`, printableImageHeightMM(pageSize, margins))
 
 	return css.String()
 }
@@ -222,10 +224,10 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 // bottom of it is silently clipped. Measure the real content box instead and
 // leave a little headroom for the caption or paragraph an image usually
 // travels with.
-func (r *HTMLRenderer) printableImageHeightMM(pageSize string) float64 {
+func printableImageHeightMM(pageSize string, margins pageMargins) float64 {
 	dims := utils.GetPageDimensions(pageSize)
 	const headroomMM = 10.0
-	h := dims.Height - r.config.Style.Margin.Top - r.config.Style.Margin.Bottom - headroomMM
+	h := dims.Height - margins.Top - margins.Bottom - headroomMM
 	// Absurd margins must not produce a zero or negative cap, which would make
 	// every image vanish.
 	if minH := dims.Height * 0.25; h < minH {

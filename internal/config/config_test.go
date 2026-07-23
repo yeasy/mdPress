@@ -1093,21 +1093,29 @@ func TestDefaultConfigWatermarkSettings(t *testing.T) {
 	}
 }
 
-// TestDefaultConfigMarginSettings tests margin default values.
+// TestDefaultConfigMarginSettings pins output.margin_* as unset by default.
+//
+// These are overrides for style.margin, and a literal default is
+// indistinguishable from a user's explicit choice — it would override
+// style.margin on every build, which is exactly why style.margin used to be the
+// only one that reached the page.
 func TestDefaultConfigMarginSettings(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Output.MarginTop != "15mm" {
-		t.Errorf("default margin_top should be '15mm', got %q", cfg.Output.MarginTop)
+	for name, got := range map[string]string{
+		"margin_top":    cfg.Output.MarginTop,
+		"margin_bottom": cfg.Output.MarginBottom,
+		"margin_left":   cfg.Output.MarginLeft,
+		"margin_right":  cfg.Output.MarginRight,
+	} {
+		if got != "" {
+			t.Errorf("output.%s should default to unset, got %q", name, got)
+		}
 	}
-	if cfg.Output.MarginBottom != "15mm" {
-		t.Errorf("default margin_bottom should be '15mm', got %q", cfg.Output.MarginBottom)
-	}
-	if cfg.Output.MarginLeft != "20mm" {
-		t.Errorf("default margin_left should be '20mm', got %q", cfg.Output.MarginLeft)
-	}
-	if cfg.Output.MarginRight != "20mm" {
-		t.Errorf("default margin_right should be '20mm', got %q", cfg.Output.MarginRight)
+
+	// The effective defaults live in style.margin.
+	if cfg.Style.Margin.Top != 25 || cfg.Style.Margin.Left != 20 {
+		t.Errorf("style.margin defaults changed: %+v", cfg.Style.Margin)
 	}
 }
 

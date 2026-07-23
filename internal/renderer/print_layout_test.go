@@ -52,7 +52,7 @@ func TestPrintImageCapFitsContentBox(t *testing.T) {
 				t.Fatalf("NewHTMLRenderer failed: %v", err)
 			}
 
-			got := r.printableImageHeightMM(tc.pageSize)
+			got := printableImageHeightMM(tc.pageSize, resolveMargins(r.config))
 			contentBox := tc.heightMM - tc.margin.Top - tc.margin.Bottom
 			if got > contentBox {
 				t.Errorf("image cap %.0fmm exceeds the %.0fmm content box; tall images will be clipped", got, contentBox)
@@ -76,7 +76,7 @@ func TestPrintImageCapSurvivesAbsurdMargins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTMLRenderer failed: %v", err)
 	}
-	if got := r.printableImageHeightMM("A4"); got <= 0 {
+	if got := printableImageHeightMM("A4", resolveMargins(r.config)); got <= 0 {
 		t.Errorf("image cap is %.0fmm; every image would vanish", got)
 	}
 }

@@ -833,7 +833,7 @@ func TestPDFHeaderFooterTemplatesCustom(t *testing.T) {
 }
 
 func TestExpandPDFTemplateTokens(t *testing.T) {
-	got := expandPDFTemplateTokens("<script>alert(1)</script> {page} of {pages}", "T")
+	got := expandPDFTemplateTokens("<script>alert(1)</script> {page} of {pages}", config.BookMeta{Title: "T"})
 	if strings.Contains(got, "<script>") {
 		t.Errorf("user text must be HTML-escaped, got %q", got)
 	}
@@ -843,10 +843,10 @@ func TestExpandPDFTemplateTokens(t *testing.T) {
 	if !strings.Contains(got, "<span class='totalPages'></span>") {
 		t.Errorf("{pages} must expand to the totalPages span, got %q", got)
 	}
-	if expandPDFTemplateTokens("{{.Chapter.Title}}", "T") != "" {
+	if expandPDFTemplateTokens("{{.Chapter.Title}}", config.BookMeta{Title: "T"}) != "" {
 		t.Error("{{.Chapter.Title}} has no Chrome equivalent and should expand to nothing")
 	}
-	if expandPDFTemplateTokens("", "T") != "" {
+	if expandPDFTemplateTokens("", config.BookMeta{Title: "T"}) != "" {
 		t.Error("empty input should stay empty")
 	}
 }
@@ -1092,5 +1092,57 @@ func TestSiteBuilderLegacySiteDirHint(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "moved to _book/") {
 		t.Errorf("expected a legacy <name>_site migration hint in the logs, got:\n%s", buf.String())
+	}
+}
+
+// TestPDFHeaderFooterHonorsDocumentedExample covers a configuration that could
+// not work: the manual's example header was byte-for-byte the built-in default,
+// and the builder decided "the user customized this" by comparing against that
+// default — so copying the example produced no header and no explanation.
+func TestPDFHeaderFooterHonorsDocumentedExample(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Book.Title = "Header Book"
+	cfg.Book.Author = "Ann Author"
+	cfg.Output.Header = true
+	cfg.Style.Header = config.HeaderFooterStyle{
+		Left:  "{{.Book.Title}}",
+		Right: "{{.Book.Author}}",
+	}
+
+	header, _ := pdfHeaderFooterTemplates(cfg)
+	if header == "" {
+		t.Fatal("the documented example produced no header")
+	}
+	for _, want := range []string{"Header Book", "Ann Author"} {
+		if !strings.Contains(header, want) {
+			t.Errorf("header is missing %q: %s", want, header)
+		}
+	}
+	if strings.Contains(header, "{{") {
+		t.Errorf("an unexpanded token reached the page: %s", header)
+	}
+}
+
+// TestPDFHeaderDefaultsToNone keeps the documented default: no header unless
+// style.header is configured.
+func TestPDFHeaderDefaultsToNone(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Output.Header = true
+
+	if header, _ := pdfHeaderFooterTemplates(cfg); header != "" {
+		t.Errorf("expected no header without style.header, got %q", header)
+	}
+}
+
+// TestExpandPDFTemplateTokensStripsUnknown keeps an unsupported token off the
+// paper: Chrome prints the running head verbatim, so "{{.Whatever}}" would
+// appear on every page.
+func TestExpandPDFTemplateTokensStripsUnknown(t *testing.T) {
+	got := expandPDFTemplateTokens("{{.Nope}} {title}", config.BookMeta{Title: "T"})
+	if strings.Contains(got, "{{") {
+		t.Errorf("unknown token survived: %q", got)
+	}
+	if !strings.Contains(got, "T") {
+		t.Errorf("known token was lost: %q", got)
 	}
 }
