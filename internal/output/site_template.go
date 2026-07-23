@@ -407,6 +407,33 @@ html.dark .content p:has(> a:only-child > img:only-child) + p:has(> em:only-chil
 .content .mermaid > * {
   margin: 0 auto;
 }
+/* A diagram whose library never loaded is not a diagram: show its source as
+   preformatted text rather than centring the raw code as if it had rendered. */
+.content .mermaid[data-mdpress-asset-error] {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  text-align: left;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85rem;
+  background: #f6f8fa;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.content .math[data-mdpress-asset-error] {
+  border-bottom: 1px dotted #b26a00;
+}
+.content .asset-error {
+  display: block;
+  margin: 1em 0 0.35em;
+  padding: 8px 12px;
+  border-left: 3px solid #b26a00;
+  background: #fff8e6;
+  color: #6b4500;
+  font-size: 0.85rem;
+  border-radius: 0 4px 4px 0;
+}
 .content blockquote {
   border-left: 4px solid var(--color-accent, #4285f4); background: #f4f7ff; margin: 1em 0;
   padding: 12px 16px; color: #555; border-radius: 0 4px 4px 0;
@@ -914,6 +941,8 @@ html.dark .search-footer kbd { background: #313244; border-color: #45475a; }
 html.dark .header-search-btn { background: #313244; border-color: #45475a; color: #9399b2; }
 html.dark .header-search-btn:hover { border-color: #585b70; background: #3b3d52; color: #a6adc8; }
 html.dark .header-search-btn kbd { background: #45475a; border-color: #585b70; color: #9399b2; }
+html.dark .content .mermaid[data-mdpress-asset-error] { background: #1e1e2e; border-color: #363849; color: #cdd6f4; }
+html.dark .content .asset-error { background: #2a2113; border-left-color: #d79921; color: #e9d8a6; }
 html.dark .content .mermaid text,
 html.dark .content .mermaid tspan,
 html.dark .content .mermaid .nodeLabel,
@@ -1155,7 +1184,9 @@ body {
     searchMatchText: "{{.UIsearchMatchText}}",
     searchMatched: "{{.UIsearchMatched}}",
     copy: "{{.UIcopy}}",
-    copied: "{{.UIcopied}}"
+    copied: "{{.UIcopied}}",
+    assetsMermaidFailed: "{{.UIassetsMermaidFailed}}",
+    assetsKatexFailed: "{{.UIassetsKatexFailed}}"
   };
   /* ===== Theme Management ===== */
   (function() {
@@ -1753,27 +1784,72 @@ body {
     scheduleNavigationUpdate();
   });
 
+  // markAssetFailure puts a visible notice on the page when a third-party
+  // library could not be loaded. Offline, air-gapped and strict-CSP readers
+  // used to get a silently blank area and a console warning they never saw;
+  // now the page says what is missing, and the diagram source stays legible
+  // instead of being laid out as if it were a rendered SVG.
+  //
+  // perNode is true for block elements such as diagrams, which are far apart
+  // and each deserve their own notice; it is false for inline math, where one
+  // banner per formula would shred the prose it sits in.
+  function markAssetFailure(selector, message, perNode) {
+    function notice() {
+      var note = document.createElement('span');
+      note.className = 'asset-error';
+      note.setAttribute('role', 'status');
+      note.textContent = message;
+      return note;
+    }
+    var nodes = document.querySelectorAll(selector);
+    var flagged = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (node.getAttribute('data-mdpress-asset-error') === 'true') continue;
+      node.setAttribute('data-mdpress-asset-error', 'true');
+      node.setAttribute('title', message);
+      flagged.push(node);
+    }
+    if (!flagged.length) return;
+    if (perNode) {
+      for (var j = 0; j < flagged.length; j++) {
+        flagged[j].parentNode.insertBefore(notice(), flagged[j]);
+      }
+      return;
+    }
+    var host = document.querySelector('.content') || document.body;
+    host.insertBefore(notice(), host.firstChild);
+  }
+
   // loadCDNScript is a helper to load a script from CDN only once.
-  // tag: data attribute name used to deduplicate; src: CDN URL; onReady: callback.
-  function loadCDNScript(tag, src, onReady) {
+  // tag: data attribute name used to deduplicate; src: CDN URL;
+  // integrity: Subresource Integrity digest; onReady: callback;
+  // onFail: callback invoked when the script cannot be loaded or fails the
+  // integrity check.
+  function loadCDNScript(tag, src, integrity, onReady, onFail) {
     var attrName = 'data-mdpress-' + tag.replace(/[A-Z]/g, function(ch) {
       return '-' + ch.toLowerCase();
     });
+    function fail() {
+      console.warn('mdpress: CDN script failed to load: ' + src);
+      if (onFail) onFail();
+    }
     var existing = document.querySelector('script[' + attrName + ']');
     if (existing) {
       if (existing.dataset.mdpressLoaded === 'true') {
         if (onReady) onReady();
-      } else if (onReady) {
-        existing.addEventListener('load', onReady, { once: true });
-        existing.addEventListener('error', function() {
-          console.warn('mdpress: CDN script failed to load: ' + src);
-        }, { once: true });
+      } else if (existing.dataset.mdpressFailed === 'true') {
+        fail();
+      } else {
+        if (onReady) existing.addEventListener('load', onReady, { once: true });
+        existing.addEventListener('error', fail, { once: true });
       }
       return;
     }
 
     var s = document.createElement('script');
     s.src = src;
+    if (integrity) s.integrity = integrity;
     s.crossOrigin = 'anonymous';
     s.referrerPolicy = 'no-referrer';
     s.setAttribute(attrName, 'true');
@@ -1782,7 +1858,8 @@ body {
       if (onReady) onReady();
     }, { once: true });
     s.addEventListener('error', function() {
-      console.warn('mdpress: CDN script failed to load: ' + src);
+      s.dataset.mdpressFailed = 'true';
+      fail();
     }, { once: true });
     document.body.appendChild(s);
   }
@@ -1816,7 +1893,9 @@ body {
     }
 
     if (window.mermaid) { runMermaid(); return; }
-    loadCDNScript('mermaid', '` + utils.MermaidCDNURL + `', runMermaid);
+    loadCDNScript('mermaid', '` + utils.MermaidCDNURL + `', '` + utils.MermaidSRI + `', runMermaid, function() {
+      markAssetFailure('.mermaid', __ui.assetsMermaidFailed, true);
+    });
   }
 
   // ensureKaTeX loads KaTeX and triggers auto-render when math elements are found.
@@ -1842,20 +1921,26 @@ body {
 
     if (typeof renderMathInElement === 'function') { runKaTeX(); return; }
 
+    function mathFailed() {
+      markAssetFailure('.math', __ui.assetsKatexFailed, false);
+    }
+
     // Load KaTeX CSS if not already loaded.
     if (!document.querySelector('link[data-mdpress-katex-css]')) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = '` + utils.KaTeXCSSURL + `';
+      link.integrity = '` + utils.KaTeXCSSSRI + `';
       link.crossOrigin = 'anonymous';
       link.referrerPolicy = 'no-referrer';
       link.dataset.mdpressKatexCss = 'true';
+      link.addEventListener('error', mathFailed, { once: true });
       document.head.appendChild(link);
     }
 
-    loadCDNScript('katex', '` + utils.KaTeXJSURL + `', function() {
-      loadCDNScript('katexAutoRender', '` + utils.KaTeXAutoRenderURL + `', runKaTeX);
-    });
+    loadCDNScript('katex', '` + utils.KaTeXJSURL + `', '` + utils.KaTeXJSSRI + `', function() {
+      loadCDNScript('katexAutoRender', '` + utils.KaTeXAutoRenderURL + `', '` + utils.KaTeXAutoRenderSRI + `', runKaTeX, mathFailed);
+    }, mathFailed);
   }
 
   function getClientNavigation(anchor) {

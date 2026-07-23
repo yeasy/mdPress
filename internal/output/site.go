@@ -490,6 +490,10 @@ type pageData struct {
 	UIsearchKbd         string
 	UIpageOf            string
 	UIbuiltWith         string
+	// Shown in place of a diagram or formula when its third-party library
+	// could not be fetched (offline reader, blocked CDN, failed SRI check).
+	UIassetsMermaidFailed string
+	UIassetsKatexFailed   string
 }
 
 type searchEntry struct {
