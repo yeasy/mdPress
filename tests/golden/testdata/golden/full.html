@@ -64,7 +64,6 @@
      
     .toc-page {
       page-break-after: always;
-      page-break-inside: avoid;
       padding: 0;
     }
 
@@ -117,7 +116,6 @@
      
     .chapter {
       page-break-before: always;
-      page-break-inside: avoid;
       padding: 0;
       margin: 0;
     }
@@ -211,7 +209,6 @@
       overflow-x: auto;
       font-size: 0.82em;
       line-height: 1.5;
-      page-break-inside: avoid;
       margin: 0.8rem 0;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -235,7 +232,6 @@
       width: 100%;
       border-collapse: collapse;
       margin: 1rem 0;
-      page-break-inside: avoid;
       table-layout: fixed;
     }
 
@@ -267,7 +263,6 @@
       padding: 0.5rem 0 0.5rem 1rem;
       background-color: #f9f9f9;
       color: #666;
-      page-break-inside: avoid;
     }
 
     blockquote p {
@@ -279,6 +274,14 @@
       max-width: 100%;
       height: auto;
       page-break-inside: avoid;
+    }
+
+    @media print {
+       
+      img {
+        max-height: 85vh;
+        object-fit: contain;
+      }
     }
 
      
@@ -348,9 +351,19 @@
       }
 
        
-      .chapter {
-        page-break-inside: avoid;
-      }
+      .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
+      .alert-title { font-weight: 600; margin: 0 0 4px; }
+      .alert > :last-child { margin-bottom: 0; }
+      .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
+      .alert-note .alert-title { color: #0969da; }
+      .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
+      .alert-tip .alert-title { color: #1a7f37; }
+      .alert-important { background: #fbefff; border-left-color: #c297ff; }
+      .alert-important .alert-title { color: #8250df; }
+      .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
+      .alert-warning .alert-title { color: #9a6700; }
+      .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
+      .alert-caution .alert-title { color: #cf222e; }
 
        
       a {
@@ -358,32 +371,24 @@
       }
 
        
-     
-    .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
-    .alert-title { font-weight: 600; margin: 0 0 4px; }
-    .alert > :last-child { margin-bottom: 0; }
-    .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
-    .alert-note .alert-title { color: #0969da; }
-    .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
-    .alert-tip .alert-title { color: #1a7f37; }
-    .alert-important { background: #fbefff; border-left-color: #c297ff; }
-    .alert-important .alert-title { color: #8250df; }
-    .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
-    .alert-warning .alert-title { color: #9a6700; }
-    .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
-    .alert-caution .alert-title { color: #cf222e; }
-      table, pre, .alert {
+      p, li, blockquote {
+        orphans: 3;
+        widows: 3;
+      }
+      tr, li, figure, .alert {
         page-break-inside: avoid;
+      }
+       
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-footer-group;
       }
 
        
       h1, h2, h3, h4, h5, h6 {
         page-break-after: avoid;
-        page-break-inside: avoid;
-      }
-
-       
-      ul, ol {
         page-break-inside: avoid;
       }
     }

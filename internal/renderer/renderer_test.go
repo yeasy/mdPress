@@ -675,9 +675,14 @@ func TestRenderPrintLayoutAvoidsExtraPaddingAndOverflow(t *testing.T) {
 		t.Fatalf("render failed: %v", err)
 	}
 
+	// This test is about padding and overflow. It used to pin the whole
+	// .chapter/.toc-page rule including page-break-inside: avoid, which
+	// coupled it to pagination — see
+	// TestPrintCSSDoesNotAvoidBreaksInsideUnboundedElements, which asserts
+	// that rule is deliberately absent.
 	for _, snippet := range []string{
-		".chapter {\n      page-break-before: always;\n      page-break-inside: avoid;\n      padding: 0;",
-		".toc-page {\n      page-break-after: always;\n      page-break-inside: avoid;\n      padding: 0;",
+		".chapter {\n      page-break-before: always;\n      padding: 0;",
+		".toc-page {\n      page-break-after: always;\n      padding: 0;",
 		"white-space: pre-wrap;",
 		"table-layout: fixed;",
 		"overflow-wrap: anywhere;",

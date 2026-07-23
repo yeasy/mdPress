@@ -83,7 +83,6 @@ const htmlTemplate = `<!DOCTYPE html>
        ============================================ */
     .toc-page {
       page-break-after: always;
-      page-break-inside: avoid;
       padding: 0;
     }
 
@@ -138,7 +137,6 @@ const htmlTemplate = `<!DOCTYPE html>
        ============================================ */
     .chapter {
       page-break-before: always;
-      page-break-inside: avoid;
       padding: 0;
       margin: 0;
     }
@@ -238,7 +236,6 @@ const htmlTemplate = `<!DOCTYPE html>
       overflow-x: auto;
       font-size: 0.82em;
       line-height: 1.5;
-      page-break-inside: avoid;
       margin: 0.8rem 0;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -264,7 +261,6 @@ const htmlTemplate = `<!DOCTYPE html>
       width: 100%;
       border-collapse: collapse;
       margin: 1rem 0;
-      page-break-inside: avoid;
       table-layout: fixed;
     }
 
@@ -298,7 +294,6 @@ const htmlTemplate = `<!DOCTYPE html>
       padding: 0.5rem 0 0.5rem 1rem;
       background-color: #f9f9f9;
       color: #666;
-      page-break-inside: avoid;
     }
 
     blockquote p {
@@ -312,6 +307,16 @@ const htmlTemplate = `<!DOCTYPE html>
       max-width: 100%;
       height: auto;
       page-break-inside: avoid;
+    }
+
+    @media print {
+      /* Bound images to the printable area. Without a height cap a tall image
+         is sliced across pages (and leaves a blank one behind) instead of
+         being scaled to fit. */
+      img {
+        max-height: 85vh;
+        object-fit: contain;
+      }
     }
 
     /* Standalone images (sole child of a paragraph) render as centered blocks
@@ -390,45 +395,58 @@ const htmlTemplate = `<!DOCTYPE html>
         background-color: transparent !important;
       }
 
-      /* Avoid splitting page content unexpectedly */
-      .chapter {
-        page-break-inside: avoid;
-      }
+      /* ===== GFM callouts (> [!NOTE] etc.) =====
+         Print output is always light; these colors used to be inline style=
+         attributes, which nothing could override. */
+      .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
+      .alert-title { font-weight: 600; margin: 0 0 4px; }
+      .alert > :last-child { margin-bottom: 0; }
+      .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
+      .alert-note .alert-title { color: #0969da; }
+      .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
+      .alert-tip .alert-title { color: #1a7f37; }
+      .alert-important { background: #fbefff; border-left-color: #c297ff; }
+      .alert-important .alert-title { color: #8250df; }
+      .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
+      .alert-warning .alert-title { color: #9a6700; }
+      .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
+      .alert-caution .alert-title { color: #cf222e; }
 
       /* Print: links should be body color, not blue */
       a {
         color: inherit;
       }
 
-      /* Keep tables, code blocks, and callouts on the same page when possible */
-    /* ===== GFM callouts (> [!NOTE] etc.) =====
-       Print output is always light; the colors used to be inline style=
-       attributes on the element itself. */
-    .alert { border-left: 4px solid; padding: 12px 16px; margin: 1em 0; border-radius: 0 6px 6px 0; }
-    .alert-title { font-weight: 600; margin: 0 0 4px; }
-    .alert > :last-child { margin-bottom: 0; }
-    .alert-note { background: #ddf4ff; border-left-color: #54aeff; }
-    .alert-note .alert-title { color: #0969da; }
-    .alert-tip { background: #dafbe1; border-left-color: #4ac26b; }
-    .alert-tip .alert-title { color: #1a7f37; }
-    .alert-important { background: #fbefff; border-left-color: #c297ff; }
-    .alert-important .alert-title { color: #8250df; }
-    .alert-warning { background: #fff8c5; border-left-color: #d4a72c; }
-    .alert-warning .alert-title { color: #9a6700; }
-    .alert-caution { background: #ffebe9; border-left-color: #ff8182; }
-    .alert-caution .alert-title { color: #cf222e; }
-      table, pre, .alert {
+      /* ===== Pagination =====
+         page-break-inside: avoid was previously applied to .chapter, ul, ol,
+         table and pre. All of those are routinely taller than a page, and the
+         rule is all-or-nothing: the browser cannot honor it, so it pushes the
+         whole element to the next page and leaves the remainder of the current
+         one blank. A book of lists and code blocks — i.e. technical
+         documentation — came out riddled with near-empty pages.
+
+         Keep the rule only for elements that are bounded by construction (a
+         table row, a list item, a figure), and use orphans/widows for the rest,
+         which degrades gracefully when the content does not fit. */
+      p, li, blockquote {
+        orphans: 3;
+        widows: 3;
+      }
+      tr, li, figure, .alert {
         page-break-inside: avoid;
       }
+      /* Repeat table headers when a table does spill across pages. */
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-footer-group;
+      }
 
-      /* Avoid isolated headings */
+      /* Avoid isolated headings: a heading must not be the last thing on a
+         page, and should not split. Headings are short, so avoid is safe. */
       h1, h2, h3, h4, h5, h6 {
         page-break-after: avoid;
-        page-break-inside: avoid;
-      }
-
-      /* Avoid splitting lists */
-      ul, ol {
         page-break-inside: avoid;
       }
     }
