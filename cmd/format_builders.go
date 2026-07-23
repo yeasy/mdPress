@@ -475,6 +475,7 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 			sourceDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
 		}
 		epubGen.AddChapter(output.EpubChapter{
+			Depth:     ch.Depth,
 			Title:     ch.Title,
 			ID:        ch.ID,
 			Filename:  ch.ID + ".xhtml",

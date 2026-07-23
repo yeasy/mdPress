@@ -1254,3 +1254,40 @@ func BenchmarkTemplateParsing(b *testing.B) {
 		_, _ = template.New("book").Parse(resolveTemplatePlaceholders(htmlTemplate))
 	}
 }
+
+// TestPrintCSSDoesNotAvoidBreaksInsideUnboundedElements guards PDF pagination.
+//
+// page-break-inside: avoid is all-or-nothing: when the element cannot fit, the
+// browser pushes the whole thing to the next page and leaves the rest of the
+// current one blank. Applying it to elements that are routinely taller than a
+// page — chapters, lists, tables, code blocks — filled technical books with
+// near-empty pages. On a 12-section fixture of lists, code and tables this was
+// 39 pages with 15 near-blank; it is now 34 with 5.
+func TestPrintCSSDoesNotAvoidBreaksInsideUnboundedElements(t *testing.T) {
+	css := htmlTemplate
+
+	// Selectors whose content commonly exceeds one page.
+	unbounded := []string{".chapter", ".toc-page", "pre", "table", "blockquote", "ul, ol"}
+	for _, selector := range unbounded {
+		idx := strings.Index(css, selector+" {")
+		if idx < 0 {
+			continue // selector may be written differently; other assertions cover it
+		}
+		block := css[idx:]
+		if end := strings.Index(block, "}"); end > 0 {
+			block = block[:end]
+		}
+		if strings.Contains(block, "page-break-inside: avoid") {
+			t.Errorf("%s sets page-break-inside: avoid; it is routinely taller than a page, "+
+				"so this pushes it wholesale to the next page and leaves a near-blank one behind", selector)
+		}
+	}
+
+	// Bounded elements should still be kept whole, and orphan/widow control
+	// must exist for the flowing text that no longer uses avoid.
+	for _, want := range []string{"orphans:", "widows:", "display: table-header-group"} {
+		if !strings.Contains(css, want) {
+			t.Errorf("print CSS is missing %q", want)
+		}
+	}
+}

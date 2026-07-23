@@ -53,6 +53,9 @@ chapters:
     file: "beta/overview.md"
   - title: "中文章节"
     file: "cjk.md"
+    sections:
+      - title: "Nested Child"
+        file: "nested.md"
 `)
 
 	// The prose deliberately uses words from the XHTML boolean-attribute list
@@ -79,6 +82,11 @@ ALPHA_UNIQUE_MARKER lives here.
 	write("beta/overview.md", `# Overview
 
 BETA_UNIQUE_MARKER lives here.
+`)
+
+	write("nested.md", `# Nested Child
+
+NESTED_UNIQUE_MARKER lives here.
 `)
 
 	// A CJK-titled chapter: its slug becomes a non-ASCII packaged filename,
@@ -234,7 +242,7 @@ func TestFormatMatrix(t *testing.T) {
 		})
 
 		t.Run(name+"/chapters with duplicate titles both survive", func(t *testing.T) {
-			for _, marker := range []string{"ALPHA_UNIQUE_MARKER", "BETA_UNIQUE_MARKER", "CJK_UNIQUE_MARKER"} {
+			for _, marker := range []string{"ALPHA_UNIQUE_MARKER", "BETA_UNIQUE_MARKER", "CJK_UNIQUE_MARKER", "NESTED_UNIQUE_MARKER"} {
 				if !strings.Contains(body, marker) {
 					t.Errorf("%s output lost the chapter containing %s (ID collision)", name, marker)
 				}
@@ -257,6 +265,44 @@ func TestFormatMatrix(t *testing.T) {
 				t.Errorf("duplicate ZIP entry %q — readers show only one of the colliding chapters", n)
 			}
 			seen[n] = true
+		}
+	})
+
+	t.Run("epub/navigation keeps the chapter hierarchy", func(t *testing.T) {
+		// A book using `sections:` must not be flattened: reading systems show
+		// the navigation document as the table of contents, and a flat list
+		// loses the structure the author wrote.
+		nav := readEpubDoc(t, epubPath, "OEBPS/nav.xhtml")
+		if !regexp.MustCompile(`(?s)<li>.*?<ol>`).MatchString(nav) {
+			t.Error("nav.xhtml has no nested list; the sections hierarchy was flattened")
+		}
+		ncx := readEpubDoc(t, epubPath, "OEBPS/toc.ncx")
+		if !regexp.MustCompile(`(?s)<navPoint[^>]*>.*?<content[^>]*/>\s*<navPoint`).MatchString(ncx) {
+			t.Error("toc.ncx has no nested navPoint; the sections hierarchy was flattened")
+		}
+	})
+
+	t.Run("epub/identifiers agree", func(t *testing.T) {
+		// A dtb:uid that does not match the OPF unique identifier is an
+		// epubcheck error and confuses library de-duplication.
+		opf := readEpubDoc(t, epubPath, "OEBPS/content.opf")
+		ncx := readEpubDoc(t, epubPath, "OEBPS/toc.ncx")
+		uid := regexp.MustCompile(`dtb:uid"?\s*content="([^"]*)"`).FindStringSubmatch(ncx)
+		ident := regexp.MustCompile(`<dc:identifier[^>]*>([^<]*)<`).FindStringSubmatch(opf)
+		if uid == nil || ident == nil {
+			t.Fatal("could not read both identifiers")
+		}
+		if uid[1] != ident[1] {
+			t.Errorf("dtb:uid %q does not match the OPF identifier %q", uid[1], ident[1])
+		}
+	})
+
+	t.Run("epub/code blocks keep their highlighting", func(t *testing.T) {
+		// Chapters carry chroma class markup; without the matching rules every
+		// code block renders as undifferentiated plain text.
+		css := readEpubDoc(t, epubPath, "OEBPS/style.css")
+		if !strings.Contains(css, ".chroma") && !regexp.MustCompile(`\.(kd|nf|s1|k)\s*\{`).MatchString(css) {
+			t.Error("packaged stylesheet has no syntax-highlighting rules")
 		}
 	})
 
