@@ -4,6 +4,7 @@ package toc
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -27,12 +28,46 @@ type TOCEntry struct {
 
 // Generator builds hierarchical TOC trees from flat heading lists.
 type Generator struct {
-	// Reserved for future configuration or metrics fields.
+	// language is a book language code such as "en" or "zh-CN". It only
+	// selects the wording of the rendered "Contents" heading.
+	language string
 }
 
-// NewGenerator creates a new TOC generator.
+// NewGenerator creates a new TOC generator that renders an English heading.
 func NewGenerator() *Generator {
 	return &Generator{}
+}
+
+// NewGeneratorForLanguage creates a TOC generator whose rendered heading is
+// written in the book's language.
+func NewGeneratorForLanguage(language string) *Generator {
+	return &Generator{language: language}
+}
+
+// contentsHeadings maps a base language code to the wording of the TOC page
+// heading. A printed table of contents that carries no heading at all reads as
+// a stray list of links, so one is always rendered; unknown languages fall
+// back to English, matching the default language in book.yaml.
+var contentsHeadings = map[string]string{
+	"en": "Contents",
+	"zh": "目录",
+	"ja": "目次",
+	"ko": "목차",
+	"fr": "Sommaire",
+	"de": "Inhalt",
+	"es": "Índice",
+	"pt": "Sumário",
+	"it": "Indice",
+	"ru": "Содержание",
+}
+
+// contentsHeading returns the localized "Contents" wording for language.
+func contentsHeading(language string) string {
+	base, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(language)), "-")
+	if heading, ok := contentsHeadings[base]; ok {
+		return heading
+	}
+	return contentsHeadings["en"]
 }
 
 // Generate builds a hierarchical TOC tree from document-order headings.
@@ -86,11 +121,19 @@ func (g *Generator) RenderHTML(entries []TOCEntry) string {
 
 	var buf strings.Builder
 	buf.WriteString(`<nav class="toc">` + "\n")
+	fmt.Fprintf(&buf, "  <h1 class=\"toc-title\">%s</h1>\n", utils.EscapeHTML(contentsHeading(g.language)))
 	g.renderEntries(&buf, entries, 0)
 	buf.WriteString(`</nav>` + "\n")
 
 	return buf.String()
 }
+
+// PageSlotAttr marks the element that holds an entry's printed page number.
+// The PDF generator prints the document once to learn which page each anchor
+// landed on, then fills these slots in and prints again — the slot is left
+// empty and reserved on the first pass so that filling it in cannot change the
+// layout, and therefore cannot invalidate the very page numbers being written.
+const PageSlotAttr = "data-toc-page"
 
 // renderEntries renders TOC entries recursively.
 func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, depth int) {
@@ -104,7 +147,17 @@ func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, dept
 	for _, entry := range entries {
 		itemIndent := strings.Repeat("  ", depth+2)
 		buf.WriteString(itemIndent + `<li>`)
-		fmt.Fprintf(buf, `<a href="#%s">%s</a>`, utils.EscapeAttr(entry.ID), utils.EscapeHTML(entry.Title))
+		// The title, the dot leader and the page-number slot are three flex
+		// items so the number is flushed right and the leader stretches
+		// between them; see the .toc rules in internal/renderer/template.go.
+		pageNum := ""
+		if entry.PageNum > 0 {
+			pageNum = strconv.Itoa(entry.PageNum)
+		}
+		fmt.Fprintf(buf,
+			`<a href="#%s"><span class="toc-entry-title">%s</span><span class="toc-leader"></span><span class="toc-pageno" %s="%s">%s</span></a>`,
+			utils.EscapeAttr(entry.ID), utils.EscapeHTML(entry.Title),
+			PageSlotAttr, utils.EscapeAttr(entry.ID), pageNum)
 
 		// Render child entries recursively when present.
 		if len(entry.Children) > 0 {

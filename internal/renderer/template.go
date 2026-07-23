@@ -108,6 +108,39 @@ const htmlTemplate = `<!DOCTYPE html>
     .toc a {
       color: var(--color-heading, #14263b);
       text-decoration: none;
+      /* Title, dot leader and page number sit on one baseline so the number
+         is flushed to the right margin the way a printed book sets it. */
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+
+    .toc-entry-title {
+      flex: 0 1 auto;
+    }
+
+    .toc-leader {
+      flex: 1 1 auto;
+      min-width: 1rem;
+      /* An empty flex item takes its baseline from its bottom edge, so the
+         dots land on the text baseline the way a printed TOC sets them. */
+      border-bottom: 1px dotted currentColor;
+      opacity: 0.35;
+    }
+
+    .toc-pageno {
+      /* Reserved even while empty: the first print pass measures the layout
+         that the second pass fills in, so the two must be identical. */
+      flex: 0 0 auto;
+      min-width: 2.2em;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 400;
+    }
+
+    /* No page number could be resolved — do not lead the eye to a blank. */
+    .toc a:has(.toc-pageno:empty) .toc-leader {
+      border-bottom: none;
     }
 
     /* Top-level entries (chapters) stand out. */

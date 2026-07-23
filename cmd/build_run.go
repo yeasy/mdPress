@@ -162,6 +162,58 @@ func normalizeMultilingualRootDir(rootDir string) (string, error) {
 	return filepath.Abs(rootDir)
 }
 
+// errBuildCanceled ends a build that the user interrupted. Ctrl+C used to be
+// swallowed: the root command installs a signal handler, which stops Go's
+// default "die on SIGINT" behavior, but no build stage ever looked at the
+// resulting context. The build ran to completion, printed its success summary
+// and exited 0 — so scripts and CI treated an interrupted build as a good one.
+var errBuildCanceled = errors.New("build canceled")
+
+// buildCanceled reports errBuildCanceled once ctx is done, and nil otherwise.
+// Call it between build stages so an interrupt takes effect at the next
+// boundary instead of at the end of the build.
+func buildCanceled(ctx context.Context) error {
+	err := ctx.Err()
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, context.Canceled):
+		return errBuildCanceled
+	default:
+		return fmt.Errorf("%w: %w", errBuildCanceled, err)
+	}
+}
+
+// removeCanceledBuildArtifacts deletes the single-file outputs a canceled build
+// managed to write. A file left behind looks current to make, to a deploy step
+// and to the reader, so a canceled build must not leave one.
+//
+// Directory outputs (the "site" format) are reported instead of deleted: the
+// site generator writes into a directory it does not own and does not clear,
+// so removing the tree could take unrelated files with it.
+func removeCanceledBuildArtifacts(baseOutput, siteDir string, outcomes []formatOutcome, logger *slog.Logger) {
+	written := make([]string, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		if outcome.Err == nil {
+			written = append(written, outcome.Format)
+		}
+	}
+	links := predictedOutputLinks(baseOutput, siteDir, written)
+	for format, path := range links {
+		if format == "site" {
+			logger.Warn("build canceled after the site was written; it may be incomplete",
+				slog.String("dir", filepath.Dir(path)))
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			logger.Warn("failed to remove the output of a canceled build",
+				slog.String("path", path), slog.Any("error", err))
+			continue
+		}
+		logger.Info("removed the output of a canceled build", slog.String("path", path))
+	}
+}
+
 func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats []string, outputOverride, siteDir string, logger *slog.Logger) error {
 	logger.Info("configuration loaded",
 		slog.String("title", cfg.Book.Title),
@@ -175,6 +227,10 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	progress.SetSilent(quiet)
 	needsPDF := containsBuildFormat(formats, "pdf")
 	needsNonPDF := containsAnyNonPDFFormat(formats)
+
+	if err := buildCanceled(ctx); err != nil {
+		return err
+	}
 
 	progress.Start("Initializing theme system")
 	orchestrator, err := newBuildOrchestrator(cfg, logger)
@@ -216,6 +272,9 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	result, err := orchestrator.ProcessChaptersWithOptions(ctx, primaryPipelineOptions)
 	if err != nil {
 		progress.Fail()
+		if canceled := buildCanceled(ctx); canceled != nil {
+			return canceled
+		}
 		return fmt.Errorf("process chapters: %w", err)
 	}
 	progress.DoneWithDetail(fmt.Sprintf("%d chapters", len(result.Chapters)))
@@ -235,10 +294,17 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		pdfResult, pdfErr := orchestrator.ProcessChaptersWithOptions(ctx, chapterPipelineOptions{ImageOptions: &pdfOpts})
 		if pdfErr != nil {
 			progress.Fail()
+			if canceled := buildCanceled(ctx); canceled != nil {
+				return canceled
+			}
 			return pdfErr
 		}
 		pdfChaptersHTML = pdfResult.Chapters
 		pdfChapterFiles = pdfResult.ChapterFiles
+	}
+
+	if err := buildCanceled(ctx); err != nil {
+		return err
 	}
 
 	progress.Start("Generating cover and TOC")
@@ -259,7 +325,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 			}
 			tocHeadings = filtered
 		}
-		tocGen := toc.NewGenerator()
+		tocGen := toc.NewGeneratorForLanguage(cfg.Book.Language)
 		entries := tocGen.Generate(tocHeadings)
 		tocHTML = tocGen.RenderHTML(entries)
 		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)),
@@ -273,6 +339,10 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	}
 
 	singlePageChapters := rewriteChapterLinks(chaptersHTML, chapterFiles)
+
+	if err := buildCanceled(ctx); err != nil {
+		return err
+	}
 
 	progress.Start("Assembling HTML")
 	if glossaryHTML != "" {
@@ -333,6 +403,10 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	progress.Done()
 
+	if err := buildCanceled(ctx); err != nil {
+		return err
+	}
+
 	progress.Start(fmt.Sprintf("Generating output (%s)", strings.Join(formats, ", ")))
 	baseOutput, err := resolveBuildBaseOutput(cfg, outputOverride)
 	if err != nil {
@@ -356,6 +430,15 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 
 	// Build formats in parallel (but not PDF with others, as PDF generation is memory-intensive)
 	outcomes, buildErr := buildFormatsInParallel(ctx, registry, buildCtx, baseName, formats, logger)
+	// An interrupt during this stage takes priority over whatever the format
+	// builders reported: some of them were skipped because the build was
+	// canceled, and the artifacts the rest wrote must not be left behind
+	// looking like a finished build.
+	if canceled := buildCanceled(ctx); canceled != nil {
+		progress.Fail()
+		removeCanceledBuildArtifacts(baseOutput, siteDir, outcomes, logger)
+		return canceled
+	}
 	if buildErr != nil {
 		// Report what did get built before surfacing the failure: the user
 		// needs to know which artifacts on disk are current.
