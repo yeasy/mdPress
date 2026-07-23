@@ -180,6 +180,14 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		outputDir = filepath.Join(cfg.BaseDir(), "_book")
 	}
 
+	// Every rebuild replaces outputDir wholesale via an atomic swap, so a
+	// directory holding anything other than a previously generated site would
+	// lose its contents on the first save. Refuse it up front, exactly like
+	// `mdpress build --format site` does.
+	if err := ensureReplaceableSiteDir(outputDir); err != nil {
+		return err
+	}
+
 	// Warn when binding to a non-loopback address as this exposes the
 	// preview server (including WebSocket and all generated content) to
 	// other machines on the network.

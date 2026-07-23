@@ -1,9 +1,57 @@
 package cmd
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// TestExecuteServe_RefusesNonSiteOutputDir guards against data loss: every
+// rebuild swaps the output directory out wholesale, so serve must refuse an
+// --output directory holding anything other than a previously generated site
+// instead of deleting it on the first save.
+func TestExecuteServe_RefusesNonSiteOutputDir(t *testing.T) {
+	root := t.TempDir()
+	book := "book:\n  title: \"T\"\nchapters:\n  - title: \"Intro\"\n    file: \"README.md\"\n"
+	if err := os.WriteFile(filepath.Join(root, "book.yaml"), []byte(book), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Intro\n\nhello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := filepath.Join(root, "precious")
+	if err := os.MkdirAll(filepath.Join(outDir, "photos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(outDir, "IMPORTANT.txt")
+	if err := os.WriteFile(keep, []byte("do not delete"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// A cancelled context keeps this test bounded: the guard runs before the
+	// listener, so a regression returns promptly instead of blocking on serve.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := executeServe(ctx, root, serveOptions{
+		Host:        "127.0.0.1",
+		Port:        0,
+		OutputDir:   outDir,
+		PortChanged: true,
+	})
+	if err == nil {
+		t.Fatal("serve accepted a non-site output directory; it would be deleted on the first rebuild")
+	}
+	if !strings.Contains(err.Error(), "refusing to replace") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if _, statErr := os.Stat(keep); statErr != nil {
+		t.Errorf("serve destroyed the user's file: %v", statErr)
+	}
+}
 
 // TestServeCommand_Creation tests that the serve command is properly created
 func TestServeCommand_Creation(t *testing.T) {
