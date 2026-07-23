@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -45,6 +46,10 @@ type EpubChapter struct {
 	Filename  string
 	HTML      string // XHTML body content.
 	SourceDir string // Source directory used to resolve relative asset paths.
+	// Depth is the chapter's nesting level (0 = top level). Reading systems
+	// render the navigation document as a tree, so a book using `sections:`
+	// needs this to keep its hierarchy instead of showing one flat list.
+	Depth int
 }
 
 // EpubGenerator builds an EPUB file.
@@ -324,7 +329,7 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
   <head>
-    <meta name="dtb:uid" content="urn:mdpress"/>
+    <meta name="dtb:uid" content="` + utils.EscapeXML(g.uniqueIdentifier()) + `"/>
   </head>
   <docTitle><text>`)
 	b.WriteString(utils.EscapeXML(g.meta.Title))
@@ -339,15 +344,68 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 		b.WriteString("    </navPoint>\n")
 		playOrder++
 	}
-	for i, ch := range chapters {
-		fmt.Fprintf(&b, "    <navPoint id=\"nav%d\" playOrder=\"%d\">\n", i, playOrder)
-		fmt.Fprintf(&b, "      <navLabel><text>%s</text></navLabel>\n", utils.EscapeXML(ch.Title))
-		fmt.Fprintf(&b, "      <content src=\"%s\"/>\n", epubHref(ch.Filename))
-		b.WriteString("    </navPoint>\n")
-		playOrder++
-	}
+	writeNavPoints(&b, chapters, 0, &playOrder, "    ")
 	b.WriteString("  </navMap>\n</ncx>\n")
 	return b.String()
+}
+
+// writeNavPoints emits NCX navPoints for the chapters at the current depth,
+// recursing so that a book using `sections:` keeps its hierarchy. The flat
+// list it replaced collapsed every level into one, which is what the reader's
+// table of contents shows.
+func writeNavPoints(b *strings.Builder, chapters []EpubChapter, depth int, playOrder *int, indent string) {
+	for i := 0; i < len(chapters); i++ {
+		ch := chapters[i]
+		if ch.Depth != depth {
+			continue
+		}
+		// Children are the following entries that sit deeper than this one,
+		// up to the next sibling.
+		end := i + 1
+		for end < len(chapters) && chapters[end].Depth > depth {
+			end++
+		}
+		children := chapters[i+1 : end]
+
+		fmt.Fprintf(b, "%s<navPoint id=\"nav-%s\" playOrder=\"%d\">\n", indent, utils.EscapeXML(ch.ID), *playOrder)
+		fmt.Fprintf(b, "%s  <navLabel><text>%s</text></navLabel>\n", indent, utils.EscapeXML(ch.Title))
+		fmt.Fprintf(b, "%s  <content src=\"%s\"/>\n", indent, epubHref(ch.Filename))
+		*playOrder++
+		writeNavPoints(b, children, depth+1, playOrder, indent+"  ")
+		fmt.Fprintf(b, "%s</navPoint>\n", indent)
+
+		i = end - 1
+	}
+}
+
+// writeNavItems emits the EPUB 3 navigation document's list items, nesting a
+// child <ol> for chapters that have sub-sections.
+func writeNavItems(b *strings.Builder, chapters []EpubChapter, indent string) {
+	writeNavItemsAtDepth(b, chapters, 0, indent)
+}
+
+func writeNavItemsAtDepth(b *strings.Builder, chapters []EpubChapter, depth int, indent string) {
+	for i := 0; i < len(chapters); i++ {
+		ch := chapters[i]
+		if ch.Depth != depth {
+			continue
+		}
+		end := i + 1
+		for end < len(chapters) && chapters[end].Depth > depth {
+			end++
+		}
+		children := chapters[i+1 : end]
+
+		fmt.Fprintf(b, "%s<li><a href=\"%s\">%s</a>", indent, epubHref(ch.Filename), utils.EscapeXML(ch.Title))
+		if len(children) > 0 {
+			b.WriteString("\n" + indent + "  <ol>\n")
+			writeNavItemsAtDepth(b, children, depth+1, indent+"    ")
+			b.WriteString(indent + "  </ol>\n" + indent)
+		}
+		b.WriteString("</li>\n")
+
+		i = end - 1
+	}
 }
 
 // generateNavDocument builds the EPUB 3 navigation document.
@@ -370,9 +428,7 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 	if g.meta.IncludeCover {
 		b.WriteString(`      <li><a href="cover.xhtml">Cover</a></li>` + "\n")
 	}
-	for _, ch := range chapters {
-		fmt.Fprintf(&b, "      <li><a href=\"%s\">%s</a></li>\n", epubHref(ch.Filename), utils.EscapeXML(ch.Title))
-	}
+	writeNavItems(&b, chapters, "      ")
 	b.WriteString(`    </ol>
   </nav>
 </body>
@@ -637,10 +693,25 @@ blockquote { border-left: 3px solid #cccccc; margin: 1.2em 0; padding: 0.2em 0 0
 // reader stylesheet followed by the user's custom CSS so custom rules win.
 func (g *EpubGenerator) stylesheet() string {
 	css := g.epubThemeCSS()
+	// Chapters carry chroma class markup, so without these rules every code
+	// block in the book renders as undifferentiated plain text. Only the light
+	// palette is packaged: reading systems apply their own night mode over it.
+	if highlight := markdown.HighlightCSSLight(g.codeTheme()); strings.TrimSpace(highlight) != "" {
+		css += "\n/* Syntax highlighting */\n" + highlight
+	}
 	if strings.TrimSpace(g.css) != "" {
 		css += "\n/* Custom user CSS */\n" + g.css
 	}
 	return css
+}
+
+// codeTheme returns the chroma theme the chapters were highlighted with,
+// falling back to the generator's default.
+func (g *EpubGenerator) codeTheme() string {
+	if g.thm != nil && g.thm.CodeTheme != "" {
+		return g.thm.CodeTheme
+	}
+	return "github"
 }
 
 // epubColorOrDefault returns the trimmed color value, or def when empty.
