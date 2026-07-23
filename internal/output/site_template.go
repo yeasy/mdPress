@@ -10,11 +10,13 @@ var sitePageTemplate = `<!DOCTYPE html>
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="{{.Description}}">
 <meta name="generator" content="mdPress">
-<meta property="og:title" content="{{.PageTitle}} - {{.SiteTitle}}">
+<meta property="og:title" content="{{.HeadTitle}}">
 <meta property="og:description" content="{{.Description}}">
 <meta property="og:type" content="article">
+{{if .CanonicalURL}}<meta property="og:url" content="{{.CanonicalURL}}">{{end}}
 {{if .Author}}<meta name="author" content="{{.Author}}">{{end}}
-<title>{{.PageTitle}} - {{.SiteTitle}}</title>
+<title>{{.HeadTitle}}</title>
+{{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">
 {{if .SitemapLink}}<link rel="sitemap" type="application/xml" href="{{.SitemapLink}}">{{end}}
 <style>
@@ -1236,6 +1238,10 @@ body {
   var internalNavStateKey = 'mdpress-site-nav';
   var scrollStoreKey = 'mdpress-site-scroll';
   var currentFile = '{{.ActiveFile}}';
+  /* index.html re-serves the first chapter, so sidebar highlighting has to
+     match that chapter's entry while URL resolution keeps using index.html's
+     own depth. navFile follows currentFile everywhere else. */
+  var navFile = '{{.NavFile}}' || currentFile;
   var navLinksByCurrentFile = [];
   var navChapterLinks = [];
   var navHeadingLinks = [];
@@ -1342,7 +1348,7 @@ body {
   }
 
   function refreshPageContext() {
-    var esc = CSS.escape ? CSS.escape(currentFile) : currentFile.replace(/[!"#$%&'()*+,.\/:;<=>?@\[\\\]^{|}~]/g, '\\$&');
+    var esc = CSS.escape ? CSS.escape(navFile) : navFile.replace(/[!"#$%&'()*+,.\/:;<=>?@\[\\\]^{|}~]/g, '\\$&');
     navLinksByCurrentFile = Array.from(document.querySelectorAll('.nav-item[data-file="' + esc + '"]'));
     navChapterLinks = Array.from(document.querySelectorAll('.nav-chapter[data-file="' + esc + '"]'));
     navHeadingLinks = Array.from(document.querySelectorAll('.nav-heading[data-file="' + esc + '"]'));
@@ -1613,7 +1619,7 @@ body {
 
   function syncSidebarForCurrentFile() {
     document.querySelectorAll('.nav-group[data-group-file]').forEach(function(group) {
-      if (group.getAttribute('data-group-file') === currentFile) {
+      if (group.getAttribute('data-group-file') === navFile) {
         expandGroupChain(group);
       }
     });
@@ -1910,6 +1916,7 @@ body {
 
   function finalizeNavigation(targetURL, options) {
     currentFile = getFileFromPathname(targetURL.pathname);
+    navFile = currentFile;
     refreshPageContext();
     syncSidebarForCurrentFile();
     setupHeadingObserver();
@@ -2801,6 +2808,9 @@ var site404Template = `<!DOCTYPE html>
 <meta name="generator" content="mdPress">
 <title>{{.Title}} - {{.SiteTitle}}</title>
 <style>
+:root {
+{{safeCSS .ThemeVars}}
+}
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "Helvetica Neue", Arial, sans-serif;
   margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
@@ -2809,24 +2819,41 @@ body {
 .notfound { text-align: center; padding: 40px 24px; }
 .notfound-code { font-size: 5rem; font-weight: 700; color: var(--color-accent, #4285f4); margin: 0; line-height: 1.1; }
 .notfound-title { font-size: 1.3rem; font-weight: 600; margin: 12px 0 4px; }
-.notfound-site { font-size: 0.9rem; color: #888; margin: 0 0 28px; }
+.notfound-site { font-size: 0.9rem; color: #6a6a6a; margin: 0 0 28px; }
 .notfound-home {
   display: inline-block; padding: 10px 22px; border-radius: 6px;
   background: var(--color-accent, #4285f4); color: #fff; text-decoration: none; font-weight: 500;
 }
 .notfound-home:hover { opacity: 0.9; }
-@media (prefers-color-scheme: dark) {
-  body { background: #1e1e2e; color: #cdd6f4; }
-  .notfound-site { color: #8b91ab; }
-}
+html.dark body { background: #1e1e2e; color: #cdd6f4; }
+html.dark .notfound-site { color: #9399b2; }
 </style>
+<script>
+/* Same theme bootstrap as the content pages, so a reader who picked dark mode
+   does not get a white flash on the one page they did not ask for. */
+(function(){var t=localStorage.getItem('mdpress-theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})();
+</script>
 </head>
 <body>
   <div class="notfound">
     <p class="notfound-code">404</p>
     <h1 class="notfound-title">{{.Title}}</h1>
     <p class="notfound-site">{{.SiteTitle}}</p>
-    <a class="notfound-home" href="{{.HomeLink}}">{{.HomeLabel}}</a>
+    <a class="notfound-home" id="notfound-home" href="{{.HomeLink}}">{{.HomeLabel}}</a>
   </div>
+  <script>
+  /* Hosts serve this page for arbitrary URL depths without redirecting, so a
+     relative home link would resolve against the path that did not exist and
+     land on another 404. The generated href is therefore root-absolute; the
+     only case where that is wrong and detectable is a local file:// preview,
+     where "/" is the filesystem root. */
+  (function(){
+    if (window.location.protocol !== 'file:') return;
+    var link = document.getElementById('notfound-home');
+    if (link && link.getAttribute('href').charAt(0) === '/') {
+      link.setAttribute('href', 'index.html');
+    }
+  })();
+  </script>
 </body>
 </html>`
