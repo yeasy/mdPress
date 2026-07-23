@@ -39,12 +39,23 @@ var orphanExemptNames = map[string]struct{}{
 }
 
 // orphanSkipDirs are directories that never hold chapters: build output,
-// dependencies, and vendored trees.
+// dependencies, vendored trees, and the conventional asset directories.
+//
+// A Markdown file inside an asset directory documents the assets — mdpress's
+// own `quickstart` scaffolds images/README.md explaining what to put there —
+// so reporting it as a forgotten chapter made the tool's own scaffold fail its
+// own `validate --strict`.
 var orphanSkipDirs = map[string]struct{}{
 	"node_modules": {},
 	"_book":        {},
 	"vendor":       {},
 	"dist":         {},
+	"images":       {},
+	"img":          {},
+	"assets":       {},
+	"static":       {},
+	"public":       {},
+	"media":        {},
 }
 
 // findOrphanMarkdownFiles returns the project-relative paths of Markdown files
