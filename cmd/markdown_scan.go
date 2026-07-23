@@ -22,12 +22,19 @@ type fenceTracker struct {
 	// marker is the run of characters that opened the current block, or ""
 	// when outside one.
 	marker string
+	// openedAt is the 1-based line number of the opening fence, or 0 when
+	// outside a block.
+	openedAt int
+	// line counts the lines fed to InCode so an unterminated fence can be
+	// reported at its opening position.
+	line int
 }
 
 // InCode reports whether line belongs to a fenced code block, and advances the
 // tracker. Fence delimiters themselves count as code, so a caller can simply
 // skip every line for which this returns true.
 func (f *fenceTracker) InCode(line string) bool {
+	f.line++
 	m := fencePattern.FindStringSubmatch(line)
 	if m == nil {
 		return f.marker != ""
@@ -37,6 +44,7 @@ func (f *fenceTracker) InCode(line string) bool {
 	if f.marker == "" {
 		// An opening fence may carry an info string (```go).
 		f.marker = delimiter
+		f.openedAt = f.line
 		return true
 	}
 	// A closing fence must use the same character, be at least as long, and
@@ -45,6 +53,7 @@ func (f *fenceTracker) InCode(line string) bool {
 		len(delimiter) >= len(f.marker) &&
 		strings.TrimSpace(info) == "" {
 		f.marker = ""
+		f.openedAt = 0
 	}
 	return true
 }
@@ -61,6 +70,14 @@ func stripInlineCode(line string) string {
 	return inlineCodePattern.ReplaceAllStringFunc(line, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
+}
+
+// Open reports the line number of the fence that is still open, or 0 when the
+// tracker is outside a block. Callers check this after the last line: an
+// unterminated fence swallows the remainder of the document into a code block,
+// which is silent, easy to introduce, and hard to spot in the source.
+func (f *fenceTracker) Open() int {
+	return f.openedAt
 }
 
 // scannableLine returns the part of a Markdown line that reference checks

@@ -368,8 +368,16 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 
 	// Process results in order
 	for i, parsed := range parsedChapters {
-		// Skip chapters with no content (they were skipped during parsing)
+		// Skip chapters with no content (they were skipped during parsing).
+		// Say so: an empty file produced no page, no navigation entry and no
+		// message, so the chapter simply was not in the book and the author
+		// had nothing to go on.
 		if parsed.htmlContent == "" {
+			issues = append(issues, projectIssue{
+				Rule:    "empty-chapter",
+				File:    parsed.chDef.File,
+				Message: "chapter has no content; it produces no page and no navigation entry",
+			})
 			continue
 		}
 
