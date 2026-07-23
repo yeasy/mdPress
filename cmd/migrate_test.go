@@ -474,8 +474,14 @@ func TestMigrateBookJSON_EmptyJSON(t *testing.T) {
 	if !strings.Contains(content, "Untitled Book") {
 		t.Errorf("expected default title, got:\n%s", content)
 	}
-	if !strings.Contains(content, "Unknown") {
-		t.Errorf("expected default author, got:\n%s", content)
+	// No invented author. "Unknown" would silently ship on the book's cover
+	// and read as a real value; an empty field is honest and validate prompts
+	// for it.
+	if strings.Contains(content, "Unknown") {
+		t.Errorf("author should be left empty rather than invented, got:\n%s", content)
+	}
+	if !strings.Contains(content, `author: ""`) {
+		t.Errorf("expected an empty author field, got:\n%s", content)
 	}
 }
 
@@ -742,5 +748,44 @@ func TestFileExists(t *testing.T) {
 	// Test with directory
 	if !utils.FileExists(dir) {
 		t.Error("expected FileExists to return true for existing directory")
+	}
+}
+
+// TestRewriteGitBookSyntaxDoesNotNestFences covers a data-corruption bug:
+// GitBook's {% code %} normally wraps an already-fenced block (that is what its
+// title attribute is for). Wrapping it in another fence produced four
+// delimiters, and the fourth opened a new block that swallowed the entire rest
+// of the document into code — rewritten in place, with no backup.
+func TestRewriteGitBookSyntaxDoesNotNestFences(t *testing.T) {
+	source := "# Intro\n\n" +
+		"{% code title=\"main.go\" %}\n```go\nfunc main() {}\n```\n{% endcode %}\n\n" +
+		"This paragraph must survive.\n\n## Second Section\n\nAnd this one too.\n"
+
+	got, changed := rewriteGitBookSyntax(source)
+	if !changed {
+		t.Fatal("expected the code tag to be rewritten")
+	}
+	if n := strings.Count(got, "```"); n != 2 {
+		t.Errorf("expected exactly 2 fence delimiters, got %d:\n%s", n, got)
+	}
+	for _, keep := range []string{"This paragraph must survive.", "## Second Section", "And this one too."} {
+		if !strings.Contains(got, keep) {
+			t.Errorf("content after the code block was swallowed: %q missing", keep)
+		}
+	}
+	if !strings.Contains(got, "```go\nfunc main() {}\n```") {
+		t.Errorf("the original fenced block should pass through unchanged:\n%s", got)
+	}
+}
+
+// TestRewriteGitBookSyntaxWrapsUnfencedCode keeps the conversion useful for the
+// case the wrapper was written for.
+func TestRewriteGitBookSyntaxWrapsUnfencedCode(t *testing.T) {
+	got, changed := rewriteGitBookSyntax("{% code %}\nplain text\n{% endcode %}\n")
+	if !changed {
+		t.Fatal("expected a rewrite")
+	}
+	if !strings.Contains(got, "```\nplain text\n```") {
+		t.Errorf("unfenced body should gain a fence, got:\n%s", got)
 	}
 }

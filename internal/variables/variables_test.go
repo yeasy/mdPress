@@ -120,3 +120,56 @@ func TestExpandMixedContent(t *testing.T) {
 		t.Error("should not touch cross-ref syntax")
 	}
 }
+
+// TestExpandSkipsCode covers the case that makes this tool's own manual build
+// correctly: a book documenting a templating syntax shows that syntax inside
+// code, and substituting there corrupts the example the page exists to show.
+func TestExpandSkipsCode(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Book.Title = "MyBook"
+
+	source := "# A\n\n" +
+		"Prose: {{ book.title }}\n\n" +
+		"Inline: `{{ book.title }}`\n\n" +
+		"```yaml\ntitle: {{ book.title }}\n```\n\n" +
+		"~~~\ntilde: {{ book.title }}\n~~~\n"
+
+	got := string(Expand([]byte(source), cfg))
+
+	if !strings.Contains(got, "Prose: MyBook") {
+		t.Error("prose variable was not substituted")
+	}
+	if !strings.Contains(got, "Inline: `{{ book.title }}`") {
+		t.Error("variable inside an inline code span was substituted")
+	}
+	if !strings.Contains(got, "title: {{ book.title }}") {
+		t.Error("variable inside a backtick fence was substituted")
+	}
+	if !strings.Contains(got, "tilde: {{ book.title }}") {
+		t.Error("variable inside a tilde fence was substituted")
+	}
+	if n := strings.Count(got, "MyBook"); n != 1 {
+		t.Errorf("expected exactly one substitution, got %d", n)
+	}
+}
+
+func TestExpandWithUnknownReportsTypos(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Book.Author = "Ann"
+
+	_, unknown := ExpandWithUnknown([]byte("{{ book.author }} and {{ book.autor }} and {{ book.autor }}"), cfg)
+	if len(unknown) != 1 || unknown[0] != "book.autor" {
+		t.Errorf("unknown = %v, want exactly [book.autor] (deduplicated)", unknown)
+	}
+}
+
+func TestExpandCustomVariables(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Book.Title = "Built-in"
+	cfg.Variables = map[string]string{"product": "Widget Pro", "book.title": "Overridden"}
+
+	got := string(Expand([]byte("{{ product }} / {{ book.title }}"), cfg))
+	if got != "Widget Pro / Overridden" {
+		t.Errorf("got %q; user-defined variables should work and should win over built-ins", got)
+	}
+}

@@ -176,6 +176,7 @@ func executeMigrate(dir string, dryRun, force bool) error {
 	if gb != nil {
 		summarisePluginWarnings(gb, report)
 	}
+	warnUntranslatedGitBookYAML(absDir, report)
 
 	report.print()
 
@@ -200,19 +201,44 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report
 	// yaml.v3 can marshal correctly.
 	bookYAML := map[string]any{
 		"book": map[string]any{
-			"title":       nonEmpty(gb.Title, config.DefaultBookTitle),
-			"author":      nonEmpty(gb.Author, "Unknown"),
+			"title": nonEmpty(gb.Title, config.DefaultBookTitle),
+			// No invented author: an empty value is honest and validate
+			// prompts for it, whereas "Unknown" silently ships on the cover.
+			"author":      gb.Author,
 			"language":    nonEmpty(gb.Language, "en"),
 			"description": gb.Description,
 		},
 		"style": map[string]any{
 			"theme": "technical",
 		},
+		// Only settings the source project actually implied. Forcing
+		// filename/cover here produced a cover-less "output.pdf" for every
+		// migrated book, contradicting mdpress's own defaults and docs.
 		"output": map[string]any{
-			"filename": "output",
-			"toc":      true,
-			"cover":    false,
+			"toc": true,
 		},
+	}
+
+	// GitBook variables map directly onto mdpress's own `variables:` block.
+	if len(gb.Variables) > 0 {
+		vars := make(map[string]any, len(gb.Variables))
+		for k, v := range gb.Variables {
+			vars[k] = v
+		}
+		bookYAML["variables"] = vars
+	}
+
+	// Anything that has no mdpress equivalent is called out rather than
+	// dropped in silence: the user needs to know what to re-create by hand.
+	for key, present := range map[string]bool{
+		"styles":    len(gb.Styles) > 0,
+		"structure": len(gb.Structure) > 0,
+		"links":     len(gb.Links) > 0,
+		"plugins":   len(gb.Plugins) > 0,
+	} {
+		if present {
+			report.addWarning(fmt.Sprintf("book.json %q has no direct mdpress equivalent and was not converted", key))
+		}
 	}
 
 	yamlBytes, err := yaml.Marshal(bookYAML)
@@ -310,6 +336,13 @@ func rewriteGitBookSyntax(content string) (string, bool) {
 			return match
 		}
 		body := strings.TrimSpace(groups[1])
+		// GitBook's {% code %} usually wraps an already-fenced block, which is
+		// the whole point of its title attribute. Adding another fence around
+		// it produced nested fences: the extra closing delimiter opened a new
+		// block that swallowed the entire rest of the document into code.
+		if isFencedBlock(body) {
+			return body
+		}
 		return "```\n" + body + "\n```"
 	})
 
@@ -357,7 +390,8 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 			return nil
 		}
 
-		rewritten, changed := rewriteGitBookSyntax(string(data))
+		original := string(data)
+		rewritten, changed := rewriteGitBookSyntax(original)
 		if !changed {
 			return nil
 		}
@@ -377,6 +411,13 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 			report.addWarning(fmt.Sprintf("cannot stat %s: %v", path, err))
 			return nil
 		}
+		// migrate rewrites the user's own sources. Keep a copy: the conversion
+		// is heuristic, and without a backup an unexpected result is
+		// unrecoverable for anyone not working in a clean git tree.
+		if err := os.WriteFile(path+".bak", []byte(original), info.Mode()); err != nil {
+			report.addWarning(fmt.Sprintf("failed to back up %s (skipping rewrite): %v", relPath, err))
+			return nil
+		}
 		if err := os.WriteFile(path, []byte(rewritten), info.Mode()); err != nil {
 			report.addWarning(fmt.Sprintf("failed to write %s: %v", relPath, err))
 			return nil
@@ -388,6 +429,17 @@ func migrateMarkdownFiles(projectDir string, dryRun bool, report *migrateReport)
 
 // summarisePluginWarnings warns about GitBook plugins that have no known mdpress equivalent.
 // It accepts the already-parsed gitBookConfig to avoid redundantly re-reading book.json.
+// warnUntranslatedGitBookYAML reports a .gitbook.yaml, which mdpress does not
+// read at all. Leaving it unmentioned let users assume its redirects and root
+// settings had been carried over.
+func warnUntranslatedGitBookYAML(projectDir string, report *migrateReport) {
+	for _, name := range []string{".gitbook.yaml", ".gitbook.yml"} {
+		if utils.FileExists(filepath.Join(projectDir, name)) {
+			report.addWarning(name + " is not read by mdpress; re-create its redirects and root settings in book.yaml by hand")
+		}
+	}
+}
+
 func summarisePluginWarnings(gb *gitBookConfig, report *migrateReport) {
 	if gb == nil {
 		return
@@ -412,4 +464,13 @@ func summarisePluginWarnings(gb *gitBookConfig, report *migrateReport) {
 			p,
 		))
 	}
+}
+
+// isFencedBlock reports whether body is already a fenced code block. GitBook's
+// {% code %} normally wraps one — that is what its title attribute is for — so
+// wrapping it again is what produced the nested fences that swallowed the rest
+// of the document.
+func isFencedBlock(body string) bool {
+	trimmed := strings.TrimSpace(body)
+	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
 }

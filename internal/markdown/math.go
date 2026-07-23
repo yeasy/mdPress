@@ -64,6 +64,18 @@ func (m *mathPreprocessor) preprocess(md string) string {
 	// Block math ($$...$$) can legitimately span multiple lines, so it is
 	// applied to each non-fenced segment as a whole. Inline math ($...$) is
 	// applied per line while skipping inline code spans (`...`).
+	return ProcessOutsideCode(md, m.substituteMath)
+}
+
+// ProcessOutsideCode applies fn to every part of a Markdown document that is
+// not inside a fenced code block, leaving fenced content byte-for-byte intact.
+//
+// Any transformation of Markdown source has to respect this boundary: a book
+// that documents a tool will show that tool's own syntax inside fences, and
+// rewriting it there corrupts the very thing the page is trying to display.
+// (Inline `code` spans are a separate, narrower concern — see
+// ProcessOutsideCodeSpans.)
+func ProcessOutsideCode(md string, fn func(string) string) string {
 	var out strings.Builder
 	lines := splitLinesKeepEndings(md)
 
@@ -72,7 +84,7 @@ func (m *mathPreprocessor) preprocess(md string) string {
 		if nonFenced.Len() == 0 {
 			return
 		}
-		out.WriteString(m.substituteMath(nonFenced.String()))
+		out.WriteString(fn(nonFenced.String()))
 		nonFenced.Reset()
 	}
 
@@ -106,6 +118,12 @@ func (m *mathPreprocessor) preprocess(md string) string {
 	}
 	flush()
 	return out.String()
+}
+
+// ProcessOutsideCodeSpans applies fn outside backtick-delimited inline code
+// spans, leaving their contents unchanged.
+func ProcessOutsideCodeSpans(text string, fn func(string) string) string {
+	return mathProcessOutsideCodeSpans(text, fn)
 }
 
 // substituteMath applies block-math and inline-math substitution to a chunk of
