@@ -1,505 +1,201 @@
 # 多语言书籍
 
-mdPress 支持使用自动语言切换和每种语言版本的单独构建来创建多语言文档。本指南解释了如何设置和管理多语言文档。
+多语言项目就是一个包含 `LANGS.md` 以及每种语言一个子目录的目录。**每个语言目录都是一个普通的、自包含的 mdPress 项目。** mdPress 会逐个构建它们，并在旁边写一个简单的着陆页。
 
-## 多语言结构
+不存在 `multiLanguage`、`languages`、`defaultLanguage`、`languageSwitcher` 之类的配置项。`LANGS.md` 就是全部机制。
 
-多语言书籍使用特定的目录结构和配置文件来按语言组织内容。
-
-### 目录布局
-
-像这样组织多语言文档：
+## 目录布局
 
 ```
 book/
-├── LANGS.md
-├── book.yaml
+├── LANGS.md          <- 让这个目录成为多语言项目的唯一标志
 ├── en/
 │   ├── book.yaml
-│   ├── SUMMARY.md
-│   ├── chapter-1.md
-│   ├── chapter-2.md
-│   └── assets/
-├── zh/
-│   ├── book.yaml
-│   ├── SUMMARY.md
-│   ├── chapter-1.md
-│   ├── chapter-2.md
-│   └── assets/
-└── ja/
+│   ├── README.md
+│   └── guide.md
+└── zh/
     ├── book.yaml
-    ├── SUMMARY.md
-    ├── chapter-1.md
-    ├── chapter-2.md
-    └── assets/
+    ├── README.md
+    └── guide.md
 ```
 
-每种语言都有其完整的文档内容和配置的目录。
-
-## LANGS.md 配置
-
-`LANGS.md` 文件定义文档中的所有可用语言。
-
-### LANGS.md 格式
-
-在根目录中创建 `LANGS.md`：
-
-```markdown
-# Languages
-
-- [English](en/README.md)
-- [中文](zh/README.md)
-- [日本語](ja/README.md)
-```
-
-或更详细的格式：
-
-```markdown
-# Languages
-
-* [English - English Documentation](en/)
-* [中文（简体）- Simplified Chinese](zh/)
-* [繁體中文 - Traditional Chinese](zh-tw/)
-* [日本語 - Japanese](ja/)
-```
-
-### 语言结构
-
-格式为 Markdown，包含：
-- 主标题 (H1)："Languages"
-- 每种语言的链接列表
-- 显示给用户的链接文本
-- 链接目标指向语言目录或 README
-
-## 每种语言的配置
-
-每种语言需要其自己带有语言特定设置的 `book.yaml` 文件。
-
-### 特定语言的 book.yaml
-
-在 `en/book.yaml` 中：
-
-```yaml
-title: "My Project Documentation"
-description: "Complete guide to my project"
-language: "en"
-authors:
-  - "Your Name"
-
-# Language-specific metadata
-site:
-  baseUrl: "https://docs.example.com/en/"
-
-search:
-  languages: ["en"]
-```
-
-在 `zh/book.yaml` 中：
-
-```yaml
-title: "我的项目文档"
-description: "我的项目的完整指南"
-language: "zh"
-authors:
-  - "你的名字"
-
-site:
-  baseUrl: "https://docs.example.com/zh/"
-
-search:
-  languages: ["zh"]
-```
-
-在 `ja/book.yaml` 中：
-
-```yaml
-title: "マイプロジェクトドキュメント"
-description: "マイプロジェクトの完全ガイド"
-language: "ja"
-authors:
-  - "あなたの名前"
-
-site:
-  baseUrl: "https://docs.example.com/ja/"
-
-search:
-  languages: ["ja"]
-```
-
-### 必需的语言设置
-
-每种语言的 `book.yaml` 应该有：
-
-- `language`：ISO 639-1 语言代码（en、zh、ja、fr、de 等）
-- `title`：目标语言的标题
-- `description`：目标语言的描述
-- `search.languages`：与语言代码匹配
-
-## 根 book.yaml 配置
-
-根 `book.yaml` 定义整个多语言项目的全局设置。
-
-### 根配置
-
-在你的根 `book.yaml` 中：
-
-```yaml
-title: "Multi-Language Documentation"
-description: "Documentation in multiple languages"
-
-# Multi-language configuration
-multiLanguage: true
-languages:
-  - code: "en"
-    name: "English"
-    region: "US"
-  - code: "zh"
-    name: "中文"
-    region: "CN"
-  - code: "ja"
-    name: "日本語"
-    region: "JP"
-
-# Default language for the root
-defaultLanguage: "en"
-
-# Language switcher configuration
-languageSwitcher:
-  enabled: true
-  position: "top-right"
-```
-
-### 语言代码
-
-使用标准 ISO 639-1 语言代码：
-
-- `en`：英文
-- `zh`：中文（简体）
-- `zh-tw`：中文（繁体）
-- `ja`：日文
-- `ko`：韩文
-- `fr`：法文
-- `de`：德文
-- `es`：西班牙文
-- `ru`：俄文
-- `ar`：阿拉伯文
-- `pt`：葡萄牙文
-- `it`：意大利文
-
-## 构建多语言文档
-
-多语言构建由 `LANGS.md` 驱动。当项目根目录存在 `LANGS.md` 时，`mdpress build` 会为其中列出的每种语言各构建一次。要单独构建某一种语言，把该语言的子目录作为源目录传入即可。`build` 命令没有 `--lang` 标志。
-
-### 构建所有语言
-
-```bash
-mdpress build
-```
-
-构建 `LANGS.md` 中指定的所有语言并创建：
+**不要**在根目录放 `book.yaml`。mdPress 会先加载根配置再去看 `LANGS.md`，而一个自身没有章节的根 `book.yaml` 会让构建失败：
 
 ```
-dist/
-├── en/
-│   ├── index.html
-│   ├── chapter-1/
-│   └── ...
-├── zh/
-│   ├── index.html
-│   ├── chapter-1/
-│   └── ...
-└── ja/
-    ├── index.html
-    ├── chapter-1/
-    └── ...
+Error: failed to load config: config validation failed: at least one chapter is required
 ```
 
-### 只构建某一种语言
-
-要仅构建单一语言，把该语言的子目录作为源目录传入，并用 `--output` 指定输出位置：
-
-```bash
-mdpress build ./en --output ./dist/en
-mdpress build ./ja --output ./dist/ja
-```
-
-每条命令只处理对应的语言目录，跳过其余语言。
-
-### 使用输出目录构建
-
-```bash
-mdpress build --output ./dist
-```
-
-将所有语言版本输出到 `./dist` 目录，结构如上。
-
-## 每种语言的构建
-
-如果需要，单独构建各个语言。
-
-### 构建单一语言
-
-```bash
-cd en
-mdpress build
-```
-
-或从根目录，把语言子目录作为源目录传入：
-
-```bash
-mdpress build ./en --output ./dist/en
-```
-
-这对于将各个语言版本部署到单独的服务器或域很有用。
-
-### 特定语言的输出
-
-构建单一语言时，结构更简单：
-
-```
-dist/
-├── index.html
-├── chapter-1/
-│   └── index.html
-├── chapter-2/
-│   └── index.html
-└── assets/
-```
-
-### 增量构建
-
-对于大型多语言项目，仅重建更改的语言——把该语言的子目录作为源目录传入：
-
-```bash
-mdpress build ./zh --output ./dist/zh
-```
-
-仅重建中文版本，保持其他语言不变。
-
-## 语言切换
-
-用户可以在文档界面中切换语言。
-
-### 语言切换器 UI
-
-语言切换器出现在网站界面中（位置可在 `book.yaml` 中配置）：
-
-- 通常位于标题或侧边栏中
-- 显示所有可用语言的本地名称
-- 点击切换到所选语言
-- 突出显示当前语言
-
-### 语言切换后的导航
-
-切换语言时：
-
-1. 用户点击语言切换器
-2. 浏览器导航到新语言中的同一页面
-3. 如果该页面在新语言中不存在，导航到主页
-4. 语言偏好保存在浏览器本地存储中
-
-### 语言间的深层链接
-
-从一种语言链接到另一种语言中的相应页面：
-
-在英文文档中：
-```markdown
-[日本語版](../ja/chapter-1.md)
-```
-
-在日文文档中：
-```markdown
-[English Version](../en/chapter-1.md)
-```
-
-mdPress 自动根据语言上下文重写这些链接。
-
-## 跨语言管理内容
-
-### 同步更新
-
-更新英文文档时，需要更新翻译：
-
-1. 在 `en/chapter-1.md` 中更新源内容
-2. 在 `zh/chapter-1.md` 中更新相应文件
-3. 在 `ja/chapter-1.md` 中更新相应文件
-4. 重建文档
-
-### 维护一致性
-
-跨所有语言使用相同的文件名：
-
-```
-en/chapter-1.md
-zh/chapter-1.md
-ja/chapter-1.md
-```
-
-这使得识别相应的部分变得容易。
-
-### 部分语言支持
-
-你可以有不完整的语言版本。例如：
-
-- 英文：100% 完整
-- 日文：80% 完整
-- 中文：50% 完整
-
-语言切换器仍然显示所有语言。点击不可用语言的用户被定向到该语言中的主页。
-
-### 翻译工作流
-
-管理翻译的推荐工作流：
-
-1. 创建英文文档
-2. 提交并发布英文版本
-3. 创建从英文复制结构的语言目录
-4. 逐部分翻译
-5. 提交翻译部分
-6. 重建以包括所有可用语言
-
-## 多语言设置示例
-
-### 完整示例
-
-这是一个包含三种语言的完整示例：
-
-创建目录结构：
-
-```bash
-mkdir -p book/{en,zh,ja}
-```
-
-创建 `book/LANGS.md`：
+## LANGS.md
 
 ```markdown
 # Languages
 
 - [English](en/)
 - [中文](zh/)
-- [日本語](ja/)
 ```
 
-创建 `book/book.yaml`：
+解析规则（与实现完全一致）：
+
+- 任何包含 Markdown 链接 `[名称](目录)` 的行都会成为一种语言。以 `#` 开头的行和空行会被跳过，所以那个标题只是装饰。
+- 链接文本是语言切换器中显示的名称。
+- **链接目标必须是语言目录。** 结尾的斜杠可有可无。绝对路径和 `..` 会被拒绝。
+- 如果指向文件（`[English](en/README.md)`），构建会失败：`stat …/en/README.md/<Title>_site: not a directory`。
+- 列表符号无所谓，`-` 和 `*` 都可以。
+
+## 每种语言的配置
+
+每个语言目录都按与独立项目相同的规则被发现：先 `book.yaml`，再 `book.json`，再 `SUMMARY.md`，最后是对目录下 `.md` 文件的零配置发现。
+
+语言目录的 `book.yaml` 使用 mdPress 的正常 schema——是 `book:` 块，而不是顶层的 `title:`/`language:`：
+
+`en/book.yaml`：
 
 ```yaml
-title: "Multi-Language Docs"
-multiLanguage: true
-languages:
-  - code: "en"
-    name: "English"
-  - code: "zh"
-    name: "中文"
-  - code: "ja"
-    name: "日本語"
-defaultLanguage: "en"
+book:
+  title: "My Docs"
+  author: "Your Name"
+  description: "Complete guide to my project"
+  language: "en-US"
+
+chapters:
+  - title: "Intro"
+    file: "README.md"
+  - title: "Guide"
+    file: "guide.md"
 ```
 
-创建 `book/en/book.yaml`：
+`zh/book.yaml`：
 
 ```yaml
-title: "Documentation"
-language: "en"
+book:
+  title: "我的文档"
+  author: "你的名字"
+  description: "我的项目的完整指南"
+  language: "zh-CN"
+
+chapters:
+  - title: "简介"
+    file: "README.md"
+  - title: "指南"
+    file: "guide.md"
 ```
 
-创建 `book/en/SUMMARY.md`：
+把 `title:` 写在顶层而不是 `book:` 下面，会得到 unknown key 警告，并且书名变成 "Untitled Book"。
 
-```markdown
-# Summary
+`book.language` 接受完整的 locale 标签，例如 `en-US` 或 `zh-CN`，它决定界面文案与封面。省略时 mdPress 会按目录名猜测（`en/` → 英文，`zh/` → 中文）。
 
-- [Introduction](./README.md)
-- [Getting Started](./getting-started.md)
-- [Configuration](./configuration.md)
-```
+其余配置——`style:`、`output:`、`plugins:`——都是按语言独立的。两种语言可以用不同主题。
 
-创建 `book/en/README.md`：
-
-```markdown
-# Welcome
-
-Welcome to the documentation.
-```
-
-然后将结构复制到 `zh/` 和 `ja/` 目录并翻译内容。
-
-构建所有语言：
+## 构建
 
 ```bash
 cd book
-mdpress build --output ../dist
+mdpress build --format site
+```
+
+mdPress 会逐个构建每种语言。产物落在**各自的语言目录内部**：
+
+```
+book/
+├── _mdpress_langs.html          <- 列出各语言的着陆页
+├── en/
+│   └── My Docs_site/            <- 名字取自书名，或 output.filename
+│       └── index.html
+└── zh/
+    └── 我的文档_site/
+        └── index.html
+```
+
+文件类格式同理——`mdpress build --format pdf` 会生成 `en/My Docs.pdf` 与 `zh/我的文档.pdf`。在某个语言的 `book.yaml` 里设置 `output.filename` 可以控制这个名字：
+
+```yaml
+output:
+  filename: "en-docs"     # -> en/en-docs.pdf 和 en/en-docs_site/
+```
+
+生成的每个站点页面顶部还会注入一条语言切换栏，链接到其他语言和着陆页。
+
+### 整项目构建的已知限制
+
+整项目构建适合本地预览，但**目前还不适合**直接拿去部署：
+
+- 着陆页叫 `_mdpress_langs.html` 而不是 `index.html`，Web 服务器在站点根路径上并不会提供它。
+- 站点目录名取自书**标题**，因此标题里的空格或中文会进入 URL 路径（`en/My%20Docs_site/`）。
+- 着陆页与切换栏里的链接没有做百分号编码，所以上述标题会产生打不开的链接。
+- `--output ./dist` **不会**创建 `dist/`。它会在项目旁边生成 `dist-en_site/`、`dist-zh_site/` 和 `dist-index.html`，并且各语言自己的 `output.filename` 会被忽略。
+
+要得到可部署的产物，请用下面的按语言构建方式。
+
+### 构建单一语言（部署推荐做法）
+
+没有 `--lang` 参数。把每个语言目录当作独立项目构建，并自己指定输出路径。**给 `--output` 加上结尾斜杠**，这样 mdPress 才会把它当目录而不是文件基名：
+
+```bash
+mdpress build ./en --format site --output ./dist/en/
+mdpress build ./zh --format site --output ./dist/zh/
+```
+
+这会得到正是你想部署的布局：
+
+```
+dist/
+├── en/
+│   ├── index.html
+│   ├── guide.html
+│   └── search-index.json
+└── zh/
+    ├── index.html
+    ├── guide.html
+    └── search-index.json
+```
+
+不加结尾斜杠时，`--output ./dist/en` 会被当作文件基名，站点会落到 `dist/en_site/`。
+
+这也是只重建某一种语言而不动其他语言的方式。
+
+### 预览单一语言
+
+`mdpress serve` 没有多语言模式。请把它指向某个语言目录：
+
+```bash
+mdpress serve ./en
+```
+
+## 跨语言链接
+
+跨语言链接就是普通相对链接，mdPress **不会**改写它们；从 `en/guide.md` 指向 `../zh/guide.md` 的链接落在英文书的构建图之外，`mdpress doctor` 会报告：
+
+```
+⚠ Detected 1 Markdown link(s) outside the build graph
+    - ../zh/guide.md (from guide.md)
+```
+
+要让链接在部署后的站点里可用，请直接写部署后的 URL：
+
+```markdown
+[English version](/en/guide.html)
 ```
 
 ## 部署
 
-### 基于语言的路由
-
-将所有语言部署到同一域，使用基于路径的路由：
+用上面的按语言构建方式，`dist/` 就是一棵普通的静态站点目录树：
 
 ```
 https://docs.example.com/en/
 https://docs.example.com/zh/
-https://docs.example.com/ja/
 ```
 
-配置你的网络服务器或 CDN 以适当地路由请求。
+如果需要根路径跳转到默认语言，请自己加一个 `dist/index.html`——mdPress 目前还生成不了可用的那一个。
 
-### 单独的域
+每种语言也可以单独部署到各自的域名或存储桶，因为每个 `dist/<lang>/` 都是自包含的。
 
-将每种语言部署到单独的域：
+## 排查
 
-```
-https://en.docs.example.com/
-https://zh.docs.example.com/
-https://ja.docs.example.com/
-```
-
-在每种语言的 `book.yaml` 中相应地更新 `baseUrl`。
-
-### 重定向和本地化
-
-对于根域，将用户重定向到他们的首选语言：
-
-```
-https://docs.example.com/ → https://docs.example.com/en/ (对于英文用户)
-https://docs.example.com/ → https://docs.example.com/zh/ (对于中文用户)
-```
-
-使用以下方法实现：
-- 网络服务器配置
-- Service Worker 重定向
-- 基于浏览器语言的 JavaScript 重定向
-
-## 故障排除
-
-### 语言未构建
-
-验证：
-1. 语言目录存在
-2. `book.yaml` 存在于语言目录中
-3. `SUMMARY.md` 存在于语言目录中
-4. `book.yaml` 中的语言代码与 `LANGS.md` 匹配
-
-### 语言间的断开链接
-
-检查：
-1. 文件名跨语言目录匹配
-2. 链接中的相对路径考虑语言前缀
-3. 所有引用的文件存在于目标语言中
-
-### 语言切换器未出现
-
-在 `book.yaml` 中验证：
-- `multiLanguage: true` 已设置
-- `languageSwitcher.enabled: true` 已设置
-- 多种语言列在 `languages` 中
-
-### 内容不一致
-
-当内容在语言版本之间分散时，记录差异：
-
-```markdown
-> 注意：此功能仅在英文文档中提供。
-> 请参阅 [英文版本](../en/chapter-1.md#feature-name)。
-```
-
-保持翻译更改记录以供参考。
+| 现象 | 原因 |
+| --- | --- |
+| 根目录报 `at least one chapter is required` | 项目根目录存在 `book.yaml`。删掉它；配置应放在各语言目录里。 |
+| `stat …/en/README.md/…: not a directory` | `LANGS.md` 的某一项指向了文件。请改为指向目录：`[English](en/)`。 |
+| `no language definitions found in LANGS.md` | `LANGS.md` 里没有任何一行包含 Markdown 链接。 |
+| 书名显示为 "Untitled Book" | 语言目录的 `book.yaml` 用了顶层 `title:` 而不是 `book: { title: … }`。 |
+| 站点界面语言不对 | 在该语言的 `book.yaml` 里设置 `book.language`（`en-US`、`zh-CN` 等）。 |
+| `build --output ./dist` 之后没有 `dist/` | 整项目模式下这是预期行为。请按上面的方式逐语言构建。 |
