@@ -1072,8 +1072,10 @@ func TestSiteGeneratorSitemapAndSearchIndex(t *testing.T) {
 	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/</loc>`) {
 		t.Error("sitemap.xml should contain the absolute site root URL")
 	}
-	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/ch1.html</loc>`) {
-		t.Error("sitemap.xml should contain the absolute ch1.html URL")
+	// index.html serves chapter one byte for byte, so submitting ch1.html as a
+	// second URL would just ask crawlers to index the same page twice.
+	if strings.Contains(sitemapContent, `<loc>https://example.com/book/ch1.html</loc>`) {
+		t.Error("sitemap.xml should not duplicate the first chapter, which the site root already serves")
 	}
 	if !strings.Contains(sitemapContent, `<loc>https://example.com/book/ch2.html</loc>`) {
 		t.Error("sitemap.xml should contain the absolute ch2.html URL")
@@ -1558,8 +1560,11 @@ func TestSiteGenerator404Page(t *testing.T) {
 		if !strings.Contains(html, "Page not found") {
 			t.Error("404.html should contain the localized title")
 		}
-		if !strings.Contains(html, `href="index.html"`) {
-			t.Error("404.html should fall back to a relative home link without SiteURL")
+		// Hosts serve 404.html for unknown URLs at any depth without changing
+		// the address bar, so a relative home link resolves against the path
+		// that did not exist and lands on another 404.
+		if !strings.Contains(html, `href="/"`) {
+			t.Error("404.html should fall back to a root-absolute home link without SiteURL")
 		}
 		if !strings.Contains(html, "Back to home") {
 			t.Error("404.html should contain the home link label")

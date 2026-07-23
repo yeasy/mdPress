@@ -208,6 +208,13 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		if hasSitemap {
 			sitemapLink = relativeSiteHref(page.Filename, "sitemap.xml")
 		}
+		// index.html re-serves the first chapter byte for byte. Pointing that
+		// chapter's own URL at the site root keeps the two from competing for
+		// the same search result.
+		canonical := g.canonicalURL(page.Filename)
+		if i == 0 {
+			canonical = g.canonicalURL("")
+		}
 		sidebarHTML := g.buildSidebar(g.Chapters, page.Filename)
 		data := pageData{
 			SiteTitle:        g.Meta.Title,
@@ -231,6 +238,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			NextTitle:        nextTitle,
 			EditLink:         g.editPageLink(page),
 			ActiveFile:       page.Filename,
+			HeadTitle:        siteHeadTitle(page.Title, g.Meta.Title),
+			CanonicalURL:     canonical,
 			TotalPages:       len(flatPages),
 			CurrentPage:      i + 1,
 			ShowTitle:        !contentStartsWithTitle(pageContent, page.Title),
@@ -297,9 +306,14 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			NextTitle:        nextTitle,
 			EditLink:         g.editPageLink(firstPage),
 			ActiveFile:       "index.html",
-			TotalPages:       len(flatPages),
-			CurrentPage:      1,
-			ShowTitle:        !contentStartsWithTitle(firstContent, firstPage.Title),
+			NavFile:          firstPage.Filename,
+			// The site root is the book, not its first chapter: titling it
+			// "Preface - My Book" wastes the most valuable search result.
+			HeadTitle:    siteHeadTitle("", g.Meta.Title),
+			CanonicalURL: g.canonicalURL(""),
+			TotalPages:   len(flatPages),
+			CurrentPage:  1,
+			ShowTitle:    !contentStartsWithTitle(firstContent, firstPage.Title),
 		}
 		populateUIStrings(&idxData)
 		var buf strings.Builder
@@ -326,7 +340,12 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		sm.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
 		fmt.Fprintf(&sm, "  <url><loc>%s/</loc><lastmod>%s</lastmod><priority>1.0</priority></url>\n",
 			template.HTMLEscapeString(base), lastMod)
-		for _, page := range flatPages {
+		for i, page := range flatPages {
+			// The first chapter is what index.html serves, so listing its own
+			// URL as well would submit the same page to crawlers twice.
+			if i == 0 {
+				continue
+			}
 			fmt.Fprintf(&sm, "  <url><loc>%s/%s</loc><lastmod>%s</lastmod></url>\n",
 				template.HTMLEscapeString(base), template.HTMLEscapeString(page.Filename), lastMod)
 		}
@@ -341,6 +360,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	// Generate a 404 fallback page (served automatically by GitHub Pages,
 	// Netlify, and similar hosts for unknown URLs).
 	if err := g.generate404(outputDir); err != nil {
+		return err
+	}
+
+	if err := g.writeHostingFiles(outputDir, hasSitemap && len(flatPages) > 0); err != nil {
 		return err
 	}
 
@@ -426,9 +449,17 @@ type pageData struct {
 	NextTitle        string
 	EditLink         string // "Edit this page" URL; empty disables the link.
 	ActiveFile       string
-	TotalPages       int
-	CurrentPage      int
-	ShowTitle        bool // true when Content lacks an <h1>, so the template should insert one.
+	// NavFile is the chapter filename the sidebar should highlight. It differs
+	// from ActiveFile only on index.html, which re-serves the first chapter.
+	NavFile string
+	// HeadTitle is the full <title>/og:title text.
+	HeadTitle string
+	// CanonicalURL is the absolute URL crawlers should treat as this page's
+	// address. Empty when output.site_url is not configured.
+	CanonicalURL string
+	TotalPages   int
+	CurrentPage  int
+	ShowTitle    bool // true when Content lacks an <h1>, so the template should insert one.
 
 	// Localized UI strings.
 	UIprevious          string
@@ -589,16 +620,78 @@ func (g *SiteGenerator) editPageLink(ch SiteChapter) string {
 	return strings.TrimRight(base, "/") + "/" + strings.TrimLeft(src, "/")
 }
 
+// siteHeadTitle builds the text used for both <title> and og:title.  A page
+// title is prefixed to the book title; an empty page title (the site root)
+// yields the book title alone.
+func siteHeadTitle(pageTitle, siteTitle string) string {
+	pageTitle = strings.TrimSpace(pageTitle)
+	if pageTitle == "" || pageTitle == siteTitle {
+		return siteTitle
+	}
+	if siteTitle == "" {
+		return pageTitle
+	}
+	return pageTitle + " - " + siteTitle
+}
+
+// canonicalURL returns the absolute URL that a page should declare as
+// canonical.  An empty filename means the site root.  It returns "" when
+// output.site_url is not configured: a self-referencing relative canonical
+// link tells a crawler nothing, and a wrong absolute one is worse than none.
+func (g *SiteGenerator) canonicalURL(filename string) string {
+	base := strings.TrimRight(strings.TrimSpace(g.Meta.SiteURL), "/")
+	if base == "" {
+		return ""
+	}
+	filename = strings.TrimPrefix(filename, "/")
+	if filename == "" || filename == "index.html" {
+		return base + "/"
+	}
+	return base + "/" + filename
+}
+
+// themeRootVars extracts the custom-property declarations from the first
+// `:root { ... }` block of the site CSS.  The 404 page is standalone (it may
+// be served at any URL depth, where the shared stylesheet would not resolve),
+// but it still styles itself with var(--color-accent, …) — without these
+// declarations every book's 404 page rendered in the same default blue.
+func themeRootVars(css string) string {
+	start := strings.Index(css, ":root")
+	if start < 0 {
+		return ""
+	}
+	open := strings.Index(css[start:], "{")
+	if open < 0 {
+		return ""
+	}
+	open += start
+	closing := strings.Index(css[open:], "}")
+	if closing < 0 {
+		return ""
+	}
+	var out strings.Builder
+	for _, line := range strings.Split(css[open+1:open+closing], "\n") {
+		decl := strings.TrimSpace(line)
+		if strings.HasPrefix(decl, "--") && strings.HasSuffix(decl, ";") {
+			out.WriteString("  " + decl + "\n")
+		}
+	}
+	return strings.TrimSuffix(out.String(), "\n")
+}
+
 // generate404 writes a small standalone 404 page linking back to the site
-// home.  Hosts may serve the page at any URL depth, so the home link uses the
-// configured absolute site URL when available and falls back to a relative
-// link that works at the site root.
+// home.  Hosts serve this page for unknown URLs at any depth without
+// redirecting, so a relative home link would resolve against the path that did
+// not exist; the link is absolute, from output.site_url when configured and
+// root-absolute otherwise.
 func (g *SiteGenerator) generate404(outputDir string) error {
-	homeLink := "index.html"
+	homeLink := "/"
 	if url := strings.TrimSpace(g.Meta.SiteURL); url != "" {
 		homeLink = strings.TrimRight(url, "/") + "/"
 	}
-	tmpl, err := template.New("404").Parse(site404Template)
+	tmpl, err := template.New("404").Funcs(template.FuncMap{
+		"safeCSS": func(s string) template.CSS { return template.CSS(s) },
+	}).Parse(site404Template)
 	if err != nil {
 		return fmt.Errorf("failed to parse 404 template: %w", err)
 	}
@@ -608,12 +701,14 @@ func (g *SiteGenerator) generate404(outputDir string) error {
 		Title     string
 		HomeLink  string
 		HomeLabel string
+		ThemeVars string
 	}{
 		Language:  g.Meta.Language,
 		SiteTitle: g.Meta.Title,
 		Title:     uiString(g.Meta.Language, "not_found_title"),
 		HomeLink:  homeLink,
 		HomeLabel: uiString(g.Meta.Language, "not_found_home"),
+		ThemeVars: themeRootVars(g.CSS),
 	}
 	var buf strings.Builder
 	if err := tmpl.Execute(&buf, data); err != nil {
@@ -621,6 +716,36 @@ func (g *SiteGenerator) generate404(outputDir string) error {
 	}
 	if err := os.WriteFile(filepath.Join(outputDir, "404.html"), []byte(buf.String()), 0o644); err != nil {
 		return fmt.Errorf("failed to write 404.html: %w", err)
+	}
+	return nil
+}
+
+// writeHostingFiles emits the two files every static host wants but no book
+// author thinks to write.  Without .nojekyll, GitHub Pages runs the source
+// through Jekyll and silently drops anything whose name starts with an
+// underscore; without robots.txt, crawlers never learn where the sitemap is.
+// A file shipped in the project's static/ directory always wins, so these
+// remain overridable.
+func (g *SiteGenerator) writeHostingFiles(outputDir string, hasSitemap bool) error {
+	if err := writeSiteFileIfAbsent(filepath.Join(outputDir, ".nojekyll"), nil); err != nil {
+		return err
+	}
+	robots := "User-agent: *\nAllow: /\n"
+	if hasSitemap {
+		base := strings.TrimRight(strings.TrimSpace(g.Meta.SiteURL), "/")
+		robots += "\nSitemap: " + base + "/sitemap.xml\n"
+	}
+	return writeSiteFileIfAbsent(filepath.Join(outputDir, "robots.txt"), []byte(robots))
+}
+
+// writeSiteFileIfAbsent writes content unless the path already exists, which
+// happens when the project's static/ directory supplied its own copy.
+func writeSiteFileIfAbsent(path string, content []byte) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	if err := os.WriteFile(path, content, 0o644); err != nil { //nolint:gosec // G306: published site files must be world-readable
+		return fmt.Errorf("failed to write %s: %w", filepath.Base(path), err)
 	}
 	return nil
 }
