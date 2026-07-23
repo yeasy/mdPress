@@ -30,16 +30,39 @@ Continues the post-0.7.14 audit. This wave concentrates on content that was sile
 - **Site images ship as files**: they were base64-inlined into every page that referenced them, so a three-page book with one 592 KB screenshot built a 3.5 MB site of 912 KB pages. Now 1.0 MB of 106 KB pages, with the image stored once
 - **A failing format no longer hides the successful ones**: a multi-format build aborted on the first failure, so a run that produced a good HTML file and a good site but could not run Typst reported only the Typst error
 - **Command-line output**: diagnostics went to stdout at INFO level, interleaving with the step progress mid-line and making `mdpress build > build.log` swallow every warning; `--quiet` printed the full progress despite documenting itself as "only output errors"; `validate --quiet` suppressed the failures too; `mdpress themes lst` printed nothing and exited 0; usage errors had no pointer to `--help`; `--format PDF` was rejected
+- **ePub chapters are real XHTML**: they were assembled by regex, so unquoted attributes, unclosed tags and `&nbsp;` produced documents a strict reader rejects. Each packaged document is now parsed before it goes into the archive, and a malformed one fails the build naming the file instead of shipping an unopenable book. Books also get a generated cover image, so they no longer appear as a blank tile in a library
+- **PDF table of contents is usable in print**: it had no heading, used each file's own H1 instead of the `book.yaml` chapter title, and carried no page numbers. mdPress now prints once, reads each anchor's page from the PDF's own destination table, and prints again with the numbers filled in
+- **Ctrl+C stops a build**: SIGINT was captured and never acted on, so an interrupted build ran to completion, exited 0, and left a finished artifact that looked deliberate
+- **Multi-language builds produce one deployable tree**: `--output ./dist` used to write sibling `dist-en_site/`, `dist-zh_site/` and `dist-index.html` with no `dist/` at all; per-language directories were named after the book title, putting spaces and CJK in URL paths; and the switcher was `_mdpress_langs.html`, so a web root served a directory listing. Every spelling of `--output` now resolves to one root with the switcher at its `index.html`. A root `book.yaml` beside `LANGS.md` is allowed and holds shared metadata
+- **`--format site --output ./dist` writes to `./dist`**: it appended `_site` unless the path already existed, so a clean CI checkout produced `dist_site/` while a developer's second local run produced `dist/`
+- **`output.margin_*` reaches the PDF**: recommended in four places in the manual as the way to fix cramped output, and read by nothing — `@page` was built from `style.margin` alone. On a 120-paragraph fixture, `margin_left: 20mm` and `60mm` both produced 5 pages; they now produce 5 and 8
+- **The manual's own header example produces a header**: it was byte-for-byte the built-in default, and the builder decided "the user customized this" by comparing against that default. Switching to the other documented token then printed `{{.Book.Author}}` onto every page
+- **Cross-references resolve across the whole book**: a `{{ref:}}` pointing at a later chapter stayed literal in the output while `validate` reported all checks passed
+- **Standalone HTML anchors are unique**: heading ids are per-chapter but this format concatenates every chapter, so each `#examples` link resolved to whichever chapter came first — 114 duplicated ids in mdPress's own manual
+- **`serve` tells the browser when a rebuild failed**: a refresh silently showed stale content, so an edit that broke the build looked like an edit that did nothing. Restarting `serve` now also refreshes open tabs, and unknown URLs return the generated 404 page with a 404 status instead of redirecting to `/`
+- **A project theme extends a built-in** instead of replacing it, so a `themes/<name>.yaml` listing a few colors no longer collapses the rest to empty values and 0mm margins
+- **Images in a shared directory work**: `![](../assets/logo.png)` was dropped from site, standalone HTML and PDF with no diagnostic
+- **PlantUML**: mdPress does not render it — the package is not linked into the binary — but the manual advertised automatic rendering and `doctor` told users to install it. Both now say what actually happens, and each `plantuml` block is a build warning
 
 ### Added
 
 - **`static/` directory**: its contents are copied verbatim into the site root, which is how a project ships `CNAME`, `.nojekyll`, `robots.txt` or a favicon — previously there was no supported way, and files placed in `_book/` by hand were destroyed by the next build's atomic swap
 - **`variables:` in book.yaml** for user-defined template variables
 - **`section:` on a chapter** to label a sidebar group
+- **`mdpress config show`** prints the resolved configuration as YAML or JSON. There was no way to see what mdpress actually resolved, which made every "I set it and nothing happened" problem undebuggable
+- **`mdpress cache info` / `cache clear`**, plus automatic pruning of parsed-chapter entries unused for 14 days
+- **`mdpress validate --strict`** fails on warnings so validate can gate CI. validate also now checks in-page anchors, reports Markdown files that no chapter list includes, and reports a file listed as more than one chapter
+- **`mdpress version --json`** for CI, and shell completions that suggest formats and theme names instead of file paths
+- **Site branding**: `book.favicon`, `book.logo`, `book.copyright`, `output.footer_html` and `output.show_theme_badge`. The theme badge and mdPress's own theme description no longer appear on a published site by default
+- **`markdown.allow_html: false`** for projects that render Markdown they did not write
 
 ### Changed
 
 - **`mdpress migrate` stops deciding things it was never told**: it hardcoded `output.filename: output` and `output.cover: false` (so every migrated book produced a cover-less `output.pdf`) and invented `author: Unknown`. It now reports what it could not convert — `styles`, `structure`, `links`, `plugins`, and a `.gitbook.yaml` — instead of dropping it silently
+- **CDN assets are pinned and integrity-checked**: Mermaid and KaTeX now load from exact versions with `sha384` digests, and a blocked, offline or tampered CDN shows the reader an explanatory notice and the diagram source instead of a blank gap. The README no longer calls the single-file HTML "self-contained": a book containing math or diagrams is not offline, and opening it tells the CDN the reader's IP
+- **`-q`/`-v` apply to every subcommand**, not just `build` and `serve`
+- **Generated artifact names no longer contain spaces**, and `output.filename` is honored
+- **Plugin documentation** now describes the protocol mdpress implements. A plugin written from the old reference built successfully and silently did nothing
 
 ---
 
