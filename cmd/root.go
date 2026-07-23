@@ -101,6 +101,7 @@ Common commands:
   mdpress build --format html  Build HTML
   mdpress serve                Start live preview
   mdpress validate             Validate project configuration
+  mdpress config show          Print the effective configuration
   mdpress doctor               Check environment and project readiness`,
 		Version: Version,
 		// Cobra otherwise prints the error itself AND dumps full usage on any
@@ -116,6 +117,11 @@ Common commands:
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode: only output errors, suppress warnings and info")
 	rootCmd.PersistentFlags().StringVar(&cacheDir, "cache-dir", "", "Override mdpress runtime cache directory")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable mdpress runtime caches for this command")
+
+	// Without these, completing a flag value offered every file in the
+	// directory — including the ones that can never be right.
+	_ = rootCmd.MarkPersistentFlagFilename("config", "yaml", "yml")
+	_ = rootCmd.MarkPersistentFlagDirname("cache-dir")
 
 	// Configure cache environment AFTER Cobra parses flags.
 	// This must be in PersistentPreRun (not before ExecuteContext) so that
@@ -138,6 +144,7 @@ Common commands:
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(quickstartCmd)
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(themesCmd)
 	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(migrateCmd)

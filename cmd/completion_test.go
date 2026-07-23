@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // TestCompletionCmd_Creation tests that the completion command is properly created
@@ -358,5 +361,123 @@ func TestCompletionCmd_CaseInsensitiveShellDetection(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "unsupported shell") {
 		t.Errorf("error should mention unsupported shell, got: %v", err)
+	}
+}
+
+// clearHelpFlagState resets the --help/--version flags across the command
+// tree. Cobra suppresses all completions for a command whose help flag is
+// marked as set, and earlier tests in this package run commands with --help in
+// the same process — something that cannot happen to a real one-shot CLI run.
+func clearHelpFlagState(t *testing.T) {
+	t.Helper()
+	var reset func(cmd *cobra.Command)
+	reset = func(cmd *cobra.Command) {
+		for _, name := range []string{"help", "version"} {
+			if flag := cmd.Flags().Lookup(name); flag != nil {
+				flag.Changed = false
+			}
+		}
+		for _, sub := range cmd.Commands() {
+			reset(sub)
+		}
+	}
+	reset(rootCmd)
+}
+
+// runShellCompletion drives the hidden "__complete" command cobra installs,
+// which is exactly what an interactive shell calls, and returns the candidate
+// values without their descriptions.
+func runShellCompletion(t *testing.T, args ...string) []string {
+	t.Helper()
+	restoreGlobalFlags(t)
+	clearHelpFlagState(t)
+
+	var out bytes.Buffer
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs(append([]string{"__complete"}, args...))
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("__complete %v failed: %v", args, err)
+	}
+
+	var values []string
+	for _, line := range strings.Split(out.String(), "\n") {
+		// The trailing ":<directive>" line and its human-readable note are not
+		// candidates.
+		if line == "" || strings.HasPrefix(line, ":") || strings.HasPrefix(line, "Completion ended") {
+			continue
+		}
+		value, _, _ := strings.Cut(line, "\t")
+		values = append(values, value)
+	}
+	return values
+}
+
+// TestBuildFormatFlagCompletion covers the reported gap: completing --format
+// offered nothing at all and fell back to file names, none of which are valid
+// format values.
+func TestBuildFormatFlagCompletion(t *testing.T) {
+	got := runShellCompletion(t, "build", "--format", "")
+	want := []string{"pdf", "html", "site", "epub", "typst", "all"}
+	if len(got) != len(want) {
+		t.Fatalf("--format completion returned %v, want %v", got, want)
+	}
+	for i, value := range want {
+		if got[i] != value {
+			t.Errorf("--format completion[%d] = %q, want %q (full list: %v)", i, got[i], value, got)
+		}
+	}
+}
+
+// TestBuildFormatFlagCompletionIsCommaAware verifies completion keeps working
+// after a comma, since --format takes a list.
+func TestBuildFormatFlagCompletionIsCommaAware(t *testing.T) {
+	got := runShellCompletion(t, "build", "--format", "pdf,")
+	for _, value := range got {
+		if !strings.HasPrefix(value, "pdf,") {
+			t.Errorf("completion %q should extend the list the user already typed", value)
+		}
+		if value == "pdf,pdf" {
+			t.Error("completion should not offer a format that is already in the list")
+		}
+	}
+	if len(got) == 0 {
+		t.Error("completing after a comma returned no candidates")
+	}
+}
+
+// TestBuildFormatCompletionMatchesValidation guards the two lists against
+// drifting apart: every completed value (except the "all" alias) must survive
+// the build command's own format validation.
+func TestBuildFormatCompletionMatchesValidation(t *testing.T) {
+	for _, value := range supportedBuildFormats() {
+		if value == "all" {
+			continue
+		}
+		formats, err := parseFormatFlag(value)
+		if err != nil || len(formats) != 1 || formats[0] != value {
+			t.Errorf("completed format %q is not accepted by parseFormatFlag: %v (%v)", value, formats, err)
+		}
+	}
+}
+
+// TestThemesShowArgCompletion covers `themes show <TAB>`, which offered file
+// names instead of the theme names the command accepts.
+func TestThemesShowArgCompletion(t *testing.T) {
+	got := runShellCompletion(t, "themes", "show", "")
+	for _, want := range []string{"technical", "elegant", "minimal"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("themes show completion %v is missing %q", got, want)
+		}
+	}
+}
+
+// TestConfigShowFormatCompletion verifies the new command completes its own
+// encodings rather than file names.
+func TestConfigShowFormatCompletion(t *testing.T) {
+	got := runShellCompletion(t, "config", "show", "--format", "")
+	want := []string{"yaml", "json"}
+	if !slices.Equal(got, want) {
+		t.Errorf("config show --format completion = %v, want %v", got, want)
 	}
 }
