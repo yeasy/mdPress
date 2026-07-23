@@ -530,8 +530,62 @@ func TestRenderHTMLWithPageNumbers(t *testing.T) {
 		t.Error("HTML should contain #ch1 link")
 	}
 
-	// Page numbers may render differently depending on implementation
-	if !strings.Contains(html, "<nav class=\"toc\">") {
-		t.Error("HTML should contain toc navigation container")
+	// A known page number is printed. This used to be left to "however the
+	// implementation happens to render it", which is how the printed table of
+	// contents ended up with no page numbers at all.
+	for _, want := range []string{
+		`data-toc-page="ch1">1</span>`,
+		`data-toc-page="sec1-1">2</span>`,
+		`data-toc-page="ch2">5</span>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered TOC is missing %s\ngot:\n%s", want, html)
+		}
+	}
+}
+
+// TestRenderHTMLHasContentsHeading checks that a printed table of contents is
+// introduced by a heading instead of starting as a bare list of links.
+func TestRenderHTMLHasContentsHeading(t *testing.T) {
+	entries := []TOCEntry{{Level: 1, Title: "Intro", ID: "intro"}}
+
+	tests := []struct {
+		language string
+		want     string
+	}{
+		{"", "Contents"},
+		{"en", "Contents"},
+		{"en-US", "Contents"},
+		{"zh-CN", "目录"},
+		{"ja", "目次"},
+		{"kl-GL", "Contents"}, // unknown language falls back to English
+	}
+	for _, tt := range tests {
+		t.Run(tt.language, func(t *testing.T) {
+			html := NewGeneratorForLanguage(tt.language).RenderHTML(entries)
+			if !strings.Contains(html, `<h1 class="toc-title">`+tt.want+`</h1>`) {
+				t.Errorf("language %q rendered no %q heading\ngot:\n%s", tt.language, tt.want, html)
+			}
+		})
+	}
+}
+
+// TestRenderHTMLReservesPageNumberSlots checks that an entry whose page is not
+// known yet still carries an addressable, empty slot: the PDF generator prints
+// once to learn the page numbers and fills these slots in on a second pass.
+func TestRenderHTMLReservesPageNumberSlots(t *testing.T) {
+	html := NewGenerator().RenderHTML([]TOCEntry{
+		{Level: 1, Title: "Intro", ID: "intro", Children: []TOCEntry{
+			{Level: 2, Title: "Details", ID: "details"},
+		}},
+	})
+
+	for _, want := range []string{
+		`<span class="toc-pageno" data-toc-page="intro"></span>`,
+		`<span class="toc-pageno" data-toc-page="details"></span>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered TOC is missing %s\ngot:\n%s", want, html)
+		}
 	}
 }

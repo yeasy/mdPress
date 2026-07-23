@@ -396,7 +396,6 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 		}
 
 		for _, h := range parsed.headings {
-			allHeadings = append(allHeadings, toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID})
 			resolver.RegisterSection(h.ID, h.Text, h.Level)
 		}
 		resolver.RegisterFromHTML(parsed.htmlContent)
@@ -478,6 +477,23 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 		// ID becomes an ePub filename and a manifest key, where a collision
 		// silently drops a whole chapter, so de-duplicate across the book.
 		chapterID = uniqueChapterID(chapterID, seenChapterIDs)
+
+		// Collect the headings the table of contents is built from. The
+		// chapter's own leading h1 is not what the reader sees: the template
+		// prints book.yaml's title as <h1 class="chapter-title"> and
+		// stripDuplicateLeadingH1 deletes the file's h1, so a TOC built from
+		// the parsed h1 named chapters differently from the page, the site
+		// navigation and the ePub. Its anchor is the chapter <div> id too,
+		// which is the de-duplicated one — linking to the raw heading id broke
+		// whenever two chapters shared a title.
+		for hi, h := range headings {
+			entry := toc.HeadingInfo{Level: h.Level, Text: h.Text, ID: h.ID}
+			if hi == 0 && h.Level == 1 && strings.TrimSpace(chDef.Title) != "" {
+				entry.Text = chDef.Title
+				entry.ID = chapterID
+			}
+			allHeadings = append(allHeadings, entry)
+		}
 
 		// Process cross-references and glossary.
 		var unresolvedRefs []string

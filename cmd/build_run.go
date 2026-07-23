@@ -259,7 +259,7 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 			}
 			tocHeadings = filtered
 		}
-		tocGen := toc.NewGenerator()
+		tocGen := toc.NewGeneratorForLanguage(cfg.Book.Language)
 		entries := tocGen.Generate(tocHeadings)
 		tocHTML = tocGen.RenderHTML(entries)
 		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)),

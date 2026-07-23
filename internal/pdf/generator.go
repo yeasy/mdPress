@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/page"
@@ -526,6 +527,9 @@ type fontServer struct {
 	listener net.Listener
 	server   *http.Server
 	baseURL  string
+
+	mu   sync.RWMutex
+	html string
 }
 
 // newFontServer starts an HTTP server on a random localhost port, serving
@@ -535,6 +539,7 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start font server: %w", err)
 	}
+	fs := &fontServer{listener: listener, html: htmlContent}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -542,7 +547,10 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(htmlContent)) //nolint:errcheck
+		// The document is rewritten between print passes, so Chrome must not
+		// reuse the copy it already has.
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write([]byte(fs.document())) //nolint:errcheck
 	})
 	if fontPath != "" {
 		mux.HandleFunc("/cjk-font", func(w http.ResponseWriter, r *http.Request) {
@@ -576,11 +584,25 @@ func newFontServer(htmlContent string, fontPath string) (*fontServer, error) {
 			slog.Debug("Font server error", slog.Any("error", err))
 		}
 	}()
-	return &fontServer{
-		listener: listener,
-		server:   server,
-		baseURL:  fmt.Sprintf("http://%s", listener.Addr().String()),
-	}, nil
+	fs.server = server
+	fs.baseURL = fmt.Sprintf("http://%s", listener.Addr().String())
+	return fs, nil
+}
+
+// document returns the HTML currently being served.
+func (fs *fontServer) document() string {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+	return fs.html
+}
+
+// setDocument replaces the HTML served at "/" so the next navigation renders
+// an updated document.
+func (fs *fontServer) setDocument(htmlContent string) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	fs.html = htmlContent
+	return nil
 }
 
 func (fs *fontServer) Close() {
@@ -628,7 +650,11 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 	}
 	defer srv.Close() //nolint:errcheck
 
-	return g.generateFromURL(srv.baseURL, outputPath)
+	return g.generateFromSource(documentSource{
+		url:     srv.baseURL,
+		html:    htmlContent,
+		rewrite: srv.setDocument,
+	}, outputPath)
 }
 
 // generateFromString writes HTML to a temp file and generates PDF from it.
@@ -669,8 +695,23 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 	return g.generateFromURL(fileURL, outputPath)
 }
 
+// documentSource describes where Chrome loads the document from. rewrite is
+// non-nil only when the document can be replaced and re-printed — needed for
+// the second pass that fills in table-of-contents page numbers.
+type documentSource struct {
+	url     string
+	html    string
+	rewrite func(string) error
+}
+
 // generateFromURL opens pageURL in Chrome and prints it to PDF.
 func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
+	return g.generateFromSource(documentSource{url: pageURL}, outputPath)
+}
+
+// generateFromSource prints src to outputPath, optionally printing a second
+// time to fill in the table of contents' page numbers.
+func (g *Generator) generateFromSource(src documentSource, outputPath string) error {
 	chromePath, err := resolveChromiumPath()
 	if err != nil {
 		return fmt.Errorf("resolve Chrome path: %w", err)
@@ -686,16 +727,105 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
 	defer allocCancel()
 
-	ctx, ctxCancel := chromedp.NewContext(allocCtx)
+	browserCtx, ctxCancel := chromedp.NewContext(allocCtx)
 	defer ctxCancel()
 
-	ctx, timeoutCancel := context.WithTimeout(ctx, g.timeout)
+	// Start the browser and its tab up front, under a cancel that lives as
+	// long as this function. chromedp allocates the browser on the first Run,
+	// so a per-pass timeout there would take the whole browser down with it
+	// and the second print pass would find nothing to talk to.
+	startCtx, startCancel := context.WithTimeout(browserCtx, g.timeout)
+	defer startCancel()
+	err = chromedp.Run(startCtx)
+
+	var pdfBuf []byte
+	if err == nil {
+		pdfBuf, err = g.printOnce(browserCtx, src.url)
+	}
+	if err != nil {
+		// Only try CLI fallback for file:// URLs. Parse the URL so the path is
+		// decoded back to a real filesystem path: pageURL is percent-encoded
+		// (url.URL.String() escaped spaces/CJK as %XX), and CutPrefix would
+		// leave those escapes in place. generatePDFViaChromeCLI re-wraps the
+		// path in a url.URL, which would then double-encode % as %25 and break
+		// the fallback for paths containing spaces or non-ASCII characters.
+		if u, parseErr := url.Parse(src.url); parseErr == nil && u.Scheme == "file" {
+			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
+				g.stampMetadataFile(outputPath)
+				return nil
+			}
+		}
+		details := strings.TrimSpace(chromeOutput.String())
+		if details != "" {
+			return fmt.Errorf("failed to generate PDF with Chrome at %q: %w\nchrome output:\n%s", chromePath, err, details)
+		}
+		return fmt.Errorf("failed to generate PDF with Chrome at %q: %w", chromePath, err)
+	}
+
+	pdfBuf = g.printWithTOCPageNumbers(browserCtx, src, pdfBuf)
+	pdfBuf = g.stampMetadata(pdfBuf)
+
+	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
+		return fmt.Errorf("failed to write PDF file: %w", err)
+	}
+
+	return nil
+}
+
+// printWithTOCPageNumbers reprints the document with the page numbers read back
+// from firstPass written into the table of contents.
+//
+// A printed table of contents is only useful with page numbers, and there is no
+// way to know them before printing: CSS target-counter(), which would compute
+// them during layout, is not implemented by Blink. So the document is printed
+// once to find out which page each anchor landed on, and printed again with the
+// numbers filled in. The page-number slots are already present and reserved in
+// the first pass, so filling them cannot reflow the table and invalidate the
+// numbers it now carries.
+//
+// The cost is one extra render. Anything that goes wrong here — an unreadable
+// PDF, a failed reprint — leaves the first pass's PDF in place, which is a
+// correct document whose table of contents simply has no page numbers.
+func (g *Generator) printWithTOCPageNumbers(browserCtx context.Context, src documentSource, firstPass []byte) []byte {
+	if src.rewrite == nil || !hasTOCPageSlots(src.html) {
+		return firstPass
+	}
+	pages, err := namedDestinationPages(firstPass)
+	if err != nil {
+		slog.Debug("Skipped PDF table-of-contents page numbers", slog.Any("error", err))
+		return firstPass
+	}
+	numbered, filled := fillTOCPageNumbers(src.html, pages)
+	if filled == 0 {
+		slog.Debug("Skipped PDF table-of-contents page numbers: no entry matched a destination")
+		return firstPass
+	}
+	if err := src.rewrite(numbered); err != nil {
+		slog.Debug("Skipped PDF table-of-contents page numbers", slog.Any("error", err))
+		return firstPass
+	}
+	secondPass, err := g.printOnce(browserCtx, src.url)
+	if err != nil {
+		slog.Warn("Kept the table of contents without page numbers: the second print pass failed",
+			slog.Any("error", err))
+		return firstPass
+	}
+	slog.Debug("Filled PDF table-of-contents page numbers", slog.Int("entries", filled))
+	return secondPass
+}
+
+// printOnce navigates to pageURL in an existing browser context and prints it.
+// The configured timeout applies to each print pass, not to the browser
+// session, so enabling the table-of-contents page-number pass does not make a
+// book that used to fit inside pdf_timeout start failing.
+func (g *Generator) printOnce(browserCtx context.Context, pageURL string) ([]byte, error) {
+	ctx, timeoutCancel := context.WithTimeout(browserCtx, g.timeout)
 	defer timeoutCancel()
 
 	mmToInch := func(mm float64) float64 { return mm / 25.4 }
 
 	var pdfBuf []byte
-	err = chromedp.Run(ctx,
+	err := chromedp.Run(ctx,
 		chromedp.Navigate(pageURL),
 		chromedp.WaitReady("body"),
 		// Wait up to 15 s (polling every 200 ms) for Mermaid diagrams to
@@ -816,32 +946,9 @@ func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
 		}),
 	)
 	if err != nil {
-		// Only try CLI fallback for file:// URLs. Parse the URL so the path is
-		// decoded back to a real filesystem path: pageURL is percent-encoded
-		// (url.URL.String() escaped spaces/CJK as %XX), and CutPrefix would
-		// leave those escapes in place. generatePDFViaChromeCLI re-wraps the
-		// path in a url.URL, which would then double-encode % as %25 and break
-		// the fallback for paths containing spaces or non-ASCII characters.
-		if u, parseErr := url.Parse(pageURL); parseErr == nil && u.Scheme == "file" {
-			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
-				g.stampMetadataFile(outputPath)
-				return nil
-			}
-		}
-		details := strings.TrimSpace(chromeOutput.String())
-		if details != "" {
-			return fmt.Errorf("failed to generate PDF with Chrome at %q: %w\nchrome output:\n%s", chromePath, err, details)
-		}
-		return fmt.Errorf("failed to generate PDF with Chrome at %q: %w", chromePath, err)
+		return nil, err
 	}
-
-	pdfBuf = g.stampMetadata(pdfBuf)
-
-	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
-		return fmt.Errorf("failed to write PDF file: %w", err)
-	}
-
-	return nil
+	return pdfBuf, nil
 }
 
 // stampMetadata rewrites the /Info dictionary of a freshly printed PDF.

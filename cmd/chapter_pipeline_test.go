@@ -462,19 +462,25 @@ Final section.
 		t.Error("Expected headings to be collected, got none")
 	}
 
-	// Verify we have at least the main heading
-	foundMainHeading := false
+	// The chapter's top-level entry is named after book.yaml, not after the
+	// file's own h1: that h1 is stripped from the rendered page in favor of the
+	// configured title, so a TOC built from it named the chapter something the
+	// reader never sees.
+	foundChapterHeading := false
 	for _, heading := range result.AllHeadings {
 		if strings.Contains(heading.Text, "Main Heading") {
-			foundMainHeading = true
+			t.Errorf("file h1 %q should not appear in the collected headings", heading.Text)
+		}
+		if heading.Text == "Chapter" {
+			foundChapterHeading = true
 			if heading.Level != 1 {
-				t.Errorf("Main heading should be level 1, got %d", heading.Level)
+				t.Errorf("Chapter heading should be level 1, got %d", heading.Level)
 			}
 		}
 	}
 
-	if !foundMainHeading {
-		t.Error("Expected to find 'Main Heading' in collected headings")
+	if !foundChapterHeading {
+		t.Error("Expected to find the configured chapter title in collected headings")
 	}
 }
 
@@ -1169,5 +1175,81 @@ func TestStripDuplicateLeadingH1(t *testing.T) {
 				t.Errorf("stripDuplicateLeadingH1() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestChapterPipelineTOCHeadingsMatchTheRenderedPages checks that the headings
+// the table of contents is built from name each chapter the way the reader sees
+// it, and anchor the entry at the id the chapter <div> actually carries.
+//
+// Both used to be taken straight from the Markdown file: the TOC listed the
+// file's own h1 (which the renderer strips in favor of the book.yaml title),
+// and linked to that h1's id — which breaks as soon as two chapters share a
+// title and the second chapter's id gets de-duplicated.
+func TestChapterPipelineTOCHeadingsMatchTheRenderedPages(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	for _, f := range []struct{ name, body string }{
+		{"first.md", "# File Heading\n\nFirst.\n\n## Shared Section\n\nMore.\n"},
+		{"second.md", "# File Heading\n\nSecond.\n"},
+	} {
+		if err := os.WriteFile(filepath.Join(tmpDir, f.name), []byte(f.body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", f.name, err)
+		}
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{Title: "Test Book"},
+		Chapters: []config.ChapterDef{
+			{Title: "Getting Started", File: "first.md"},
+			{Title: "Going Further", File: "second.md"},
+		},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	themeManager := theme.NewThemeManager()
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("failed to get theme: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pipeline := newChapterPipeline(cfg, thm, markdown.NewParser(), nil, logger, nil)
+
+	result, err := pipeline.Process(context.Background())
+	if err != nil {
+		t.Fatalf("Pipeline process failed: %v", err)
+	}
+
+	titles := make([]string, 0, len(result.AllHeadings))
+	idByTitle := make(map[string]string, len(result.AllHeadings))
+	for _, h := range result.AllHeadings {
+		titles = append(titles, h.Text)
+		idByTitle[h.Text] = h.ID
+	}
+
+	for _, want := range []string{"Getting Started", "Going Further"} {
+		if !strings.Contains(strings.Join(titles, "|"), want) {
+			t.Errorf("configured chapter title %q missing from TOC headings %v", want, titles)
+		}
+	}
+	if strings.Contains(strings.Join(titles, "|"), "File Heading") {
+		t.Errorf("TOC headings still use the file h1 instead of the configured title: %v", titles)
+	}
+
+	// The two chapters share a file heading, so their ids collide and the
+	// second one is de-duplicated. The TOC must follow that, or its link
+	// jumps to the wrong chapter.
+	chapterIDs := make(map[string]bool, len(result.Chapters))
+	for _, ch := range result.Chapters {
+		chapterIDs[ch.ID] = true
+	}
+	for _, title := range []string{"Getting Started", "Going Further"} {
+		if !chapterIDs[idByTitle[title]] {
+			t.Errorf("TOC entry %q links to #%s, which is not the id of any chapter (%v)",
+				title, idByTitle[title], chapterIDs)
+		}
+	}
+	if idByTitle["Getting Started"] == idByTitle["Going Further"] {
+		t.Errorf("both chapters share the TOC anchor #%s", idByTitle["Getting Started"])
 	}
 }
