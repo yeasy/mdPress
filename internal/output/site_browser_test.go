@@ -87,6 +87,23 @@ func newBrowser(t *testing.T) context.Context {
 	t.Cleanup(cancelBrowser)
 	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 90*time.Second)
 	t.Cleanup(cancelTimeout)
+
+	// Chrome being installed is not the same as Chrome being able to start.
+	// A sandboxed CI environment — goreleaser's release runner among them —
+	// has the binary but crashpad aborts the launch on missing cpufreq sysfs
+	// files. That is an environment limitation, not a site regression, so
+	// force the browser to start here (chromedp allocates it lazily on the
+	// first Run) and skip on failure, rather than letting every individual
+	// assertion below fail with "chrome failed to start". The probe runs on
+	// timeoutCtx — the same context the test uses and whose cancel is deferred
+	// to t.Cleanup — because chromedp ties the browser's lifetime to the
+	// context of that first Run; a shorter-lived one would be canceled out
+	// from under the test. A real launch means the failures that follow are
+	// real.
+	if err := chromedp.Run(timeoutCtx); err != nil {
+		t.Skipf("Chrome is installed but would not start here: %v", err)
+	}
+
 	return timeoutCtx
 }
 
