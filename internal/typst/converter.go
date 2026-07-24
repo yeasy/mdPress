@@ -36,32 +36,40 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 	var result strings.Builder
 	var inCodeBlock bool
 	var codeBlockLang string
+	var codeFenceLen int
 	var codeBlockContent strings.Builder
 
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
-		// Handle code blocks: triple backticks
-		if rest, ok := strings.CutPrefix(line, "```"); ok {
-			if !inCodeBlock {
-				// Start of code block
-				inCodeBlock = true
-				codeBlockLang = strings.TrimSpace(rest)
-				codeBlockContent.Reset()
-			} else {
-				// End of code block
+		// Inside a code block, only a fence of backticks at least as long as
+		// the opening one and carrying no info string closes it (CommonMark).
+		// Tracking the opening length keeps an inner ``` fence from prematurely
+		// closing a book that documents a fenced block with a longer ````
+		// outer fence — otherwise the language tag and body were mis-parsed and
+		// Typst failed with "unclosed raw text".
+		if inCodeBlock {
+			if n := leadingBacktickRun(line); n >= codeFenceLen && strings.TrimRight(line[n:], " \t") == "" {
 				inCodeBlock = false
 				typstCode := c.convertCodeBlock(codeBlockContent.String(), codeBlockLang)
 				result.WriteString(typstCode)
 				result.WriteString("\n\n")
+				continue
 			}
+			codeBlockContent.WriteString(line)
+			codeBlockContent.WriteString("\n")
 			continue
 		}
 
-		// If we're inside a code block, accumulate the content
-		if inCodeBlock {
-			codeBlockContent.WriteString(line)
-			codeBlockContent.WriteString("\n")
+		// Start of a code block: a run of three or more backticks at the start
+		// of the line. The full run length is recorded (not assumed to be 3) so
+		// a ```` documentation fence is closed by a matching ```` and its
+		// language tag is parsed correctly.
+		if n := leadingBacktickRun(line); n >= 3 {
+			inCodeBlock = true
+			codeFenceLen = n
+			codeBlockLang = strings.TrimSpace(line[n:])
+			codeBlockContent.Reset()
 			continue
 		}
 
@@ -170,15 +178,23 @@ func (c *MarkdownToTypstConverter) convertInline(text string) string {
 }
 
 // typstProseReplacer escapes Typst control characters that appear in ordinary
-// prose and would otherwise break compilation ($, #, @, <, >). It deliberately
-// does NOT touch '*' or '_' (used for bold/italic conversion), brackets/parens,
-// or backticks (code spans, already excluded upstream).
+// prose and would otherwise break compilation ($, #, @, <, >, `). It
+// deliberately does NOT touch '*' or '_' (used for bold/italic conversion) or
+// brackets/parens.
+//
+// Backticks are escaped here even though matched code spans are extracted
+// upstream: an UNMATCHED backtick run still reaches prose escaping (e.g. the
+// manual's sentence "A ```plantuml block is published as a plain code block"),
+// and a bare ``` run left verbatim opens a Typst raw block that swallows the
+// rest of the document — the compile then fails with "unclosed raw text". A
+// literal backtick in Typst is written "\`".
 var typstProseReplacer = strings.NewReplacer(
 	"$", "\\$",
 	"#", "\\#",
 	"@", "\\@",
 	"<", "\\<",
 	">", "\\>",
+	"`", "\\`",
 )
 
 // escapeTypstProse escapes Typst control characters in a plain-text prose
@@ -438,12 +454,49 @@ func (c *MarkdownToTypstConverter) convertItalic(text string) string {
 
 // convertCodeBlock converts a code block to Typst syntax.
 // In Typst, code blocks are marked with triple backticks and optional language.
+//
+// The fence length is chosen dynamically: a book that documents a fenced code
+// block (e.g. a ```markdown example whose body contains a ```mermaid fence)
+// carries a run of backticks inside the body. A fixed ``` fence would be closed
+// early by that inner run, spilling the remainder into Typst markup and failing
+// compilation with "unclosed delimiter". CommonMark and Typst both allow a
+// longer fence, so open/close with a run at least one backtick longer than the
+// longest run appearing in the content (never fewer than three).
 func (c *MarkdownToTypstConverter) convertCodeBlock(content, lang string) string {
 	content = strings.TrimRight(content, "\n")
-	if lang == "" {
-		return "```\n" + content + "\n```"
+	fenceLen := longestBacktickRun(content) + 1
+	if fenceLen < 3 {
+		fenceLen = 3
 	}
-	return "```" + lang + "\n" + content + "\n```"
+	fence := strings.Repeat("`", fenceLen)
+	return fence + lang + "\n" + content + "\n" + fence
+}
+
+// longestBacktickRun returns the length of the longest run of consecutive
+// backtick characters in s (0 if there are none).
+func longestBacktickRun(s string) int {
+	longest, run := 0, 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '`' {
+			run++
+			if run > longest {
+				longest = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	return longest
+}
+
+// leadingBacktickRun returns the number of backtick characters at the very
+// start of line (0 if the line does not begin with a backtick).
+func leadingBacktickRun(line string) int {
+	n := 0
+	for n < len(line) && line[n] == '`' {
+		n++
+	}
+	return n
 }
 
 // Helper functions

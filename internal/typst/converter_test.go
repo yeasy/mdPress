@@ -1313,6 +1313,122 @@ func TestConvertCodeBlockMethod(t *testing.T) {
 	}
 }
 
+// TestConvertCodeBlockFenceLongerThanBody guards the P1 fix: a book that
+// documents a fenced code block gives convertCodeBlock a body that itself
+// contains a backtick fence. A fixed ``` Typst fence would be closed early by
+// that interior run, spilling the remainder into Typst markup and failing
+// compilation with "unclosed delimiter". The emitted fence must therefore be
+// at least one backtick longer than the longest run inside the body.
+func TestConvertCodeBlockFenceLongerThanBody(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name       string
+		content    string
+		lang       string
+		wantFence  string // expected opening/closing delimiter
+		wantMinRun int    // longest backtick run inside the body
+	}{
+		{
+			name:       "body with triple-backtick fence promotes to four",
+			content:    "```mermaid\nstateDiagram-v2\n```",
+			lang:       "markdown",
+			wantFence:  "````",
+			wantMinRun: 3,
+		},
+		{
+			name:       "body with quadruple-backtick fence promotes to five",
+			content:    "````text\ninner\n````",
+			lang:       "markdown",
+			wantFence:  "`````",
+			wantMinRun: 4,
+		},
+		{
+			name:       "body without backticks keeps the three-backtick fence",
+			content:    "plain code",
+			lang:       "",
+			wantFence:  "```",
+			wantMinRun: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := converter.convertCodeBlock(tt.content, tt.lang)
+			openFence := tt.wantFence + tt.lang + "\n"
+			closeFence := "\n" + tt.wantFence
+			if !strings.HasPrefix(got, openFence) {
+				t.Errorf("expected opening fence %q, got %q", openFence, got)
+			}
+			if !strings.HasSuffix(got, closeFence) {
+				t.Errorf("expected closing fence %q, got %q", closeFence, got)
+			}
+			// The fence must be strictly longer than the longest interior run,
+			// otherwise the interior run would close the Typst raw block early.
+			if fenceLen := len(tt.wantFence); fenceLen <= tt.wantMinRun {
+				t.Errorf("fence length %d not longer than interior run %d", fenceLen, tt.wantMinRun)
+			}
+		})
+	}
+}
+
+// TestConvertDocumentedFenceEndToEnd guards the full Convert() path for the two
+// ways a book documents a fenced code block, both of which previously produced
+// NO Typst output at all (the shipped manual among them).
+func TestConvertDocumentedFenceEndToEnd(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	t.Run("outer ``` fence with zero-width-space escaped inner fences", func(t *testing.T) {
+		// The manual's exact pattern: a ```markdown block whose body shows a
+		// ```mermaid diagram, its inner fences prefixed with U+200B so they are
+		// not column-zero fences. The promoted outer fence must be four
+		// backticks so the interior triple-backtick runs stay inside the block.
+		zwsp := "\u200b"
+		input := "```markdown\n" + zwsp + "```mermaid\nstateDiagram-v2\n" + zwsp + "```\n```"
+		got := converter.Convert(input)
+		if !strings.HasPrefix(got, "````markdown\n") {
+			t.Fatalf("expected promoted 4-backtick outer fence, got:\n%s", got)
+		}
+		if !strings.Contains(got, zwsp+"```mermaid\nstateDiagram-v2") {
+			t.Errorf("inner fence/body not preserved as raw content, got:\n%s", got)
+		}
+	})
+
+	t.Run("outer ```` fence is not closed by an inner ``` line", func(t *testing.T) {
+		// Standard CommonMark: a four-backtick outer fence documenting a
+		// three-backtick fence. The scanner must record the opening length (4)
+		// so the column-zero inner ```mermaid line does not toggle the block
+		// off — otherwise the language tag was mangled to "`markdown" and the
+		// body was lost, and Typst failed with "unclosed raw text".
+		input := "````markdown\n```mermaid\nstateDiagram-v2\n```\n````"
+		got := converter.Convert(input)
+		// The four-backtick block must open with the "markdown" language tag and
+		// carry the inner ```mermaid fence verbatim as its body. Without the
+		// fence-length tracking the inner ```mermaid line closed the block
+		// immediately, discarding "mermaid" and leaving an empty body.
+		if !strings.HasPrefix(got, "````markdown\n```mermaid\nstateDiagram-v2\n```") {
+			t.Errorf("inner three-backtick fence not preserved as body, got:\n%s", got)
+		}
+	})
+}
+
+// TestConvertInlineUnmatchedBacktickRunEscaped guards against an unmatched
+// backtick run in prose leaking into Typst as a raw-block opener. The manual's
+// sentence "A ```plantuml block is published as a plain code block" carries a
+// bare triple-backtick run that, left verbatim, opened a Typst raw block and
+// swallowed the rest of the document ("unclosed raw text").
+func TestConvertInlineUnmatchedBacktickRunEscaped(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	got := converter.Convert("A ```plantuml block is published as a plain code block.")
+	if strings.Contains(got, "```plantuml") {
+		t.Errorf("unmatched backtick run left unescaped (leaks as a raw block), got:\n%s", got)
+	}
+	if !strings.Contains(got, "\\`\\`\\`plantuml") {
+		t.Errorf("expected the backtick run to be escaped as \\`, got:\n%s", got)
+	}
+}
+
 // TestConvertBoldItalicPipeline tests that ***text*** converts to *_text_*
 // through the italic+bold pipeline.
 func TestConvertBoldItalicPipeline(t *testing.T) {
@@ -2018,9 +2134,13 @@ func TestCodeSpanProtection(t *testing.T) {
 			expected: "`![alt](img.png)`",
 		},
 		{
-			name:     "unmatched backtick treated as regular text",
+			// An unmatched backtick must be escaped, not emitted verbatim: a
+			// bare backtick opens a Typst raw block that swallows the rest of
+			// the document ("unclosed raw text"). "\`" renders as a literal
+			// backtick.
+			name:     "unmatched backtick is escaped so it does not open a raw block",
 			input:    "text with ` unmatched",
-			expected: "text with ` unmatched",
+			expected: "text with \\` unmatched",
 		},
 		{
 			name:     "code span between converted regions",
