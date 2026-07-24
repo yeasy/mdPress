@@ -243,24 +243,34 @@ Custom IDs are useful when:
 
 ## Glossary Terms Auto-Linking
 
-mdPress can automatically convert glossary terms to links. Define your glossary in the configuration:
+mdPress can automatically convert glossary terms to links. The glossary is not a `book.yaml` setting — it is a `GLOSSARY.md` file next to `book.yaml`, which mdPress picks up automatically when it exists:
 
-```yaml
-# book.yaml
-glossary:
-  - term: "API"
-    definition: "Application Programming Interface"
-    link: "./glossary.md#api"
-  - term: "REST"
-    definition: "Representational State Transfer"
-    link: "./glossary.md#rest"
+```markdown
+# Glossary
+
+## API
+
+Application Programming Interface - a set of protocols and tools for building software applications.
+
+## REST
+
+Representational State Transfer - an architectural style for designing networked applications.
+
+## JSON
+
+JavaScript Object Notation - a lightweight data interchange format.
 ```
 
-When `glossary` is configured, the first occurrence of each term is automatically linked. This appears in the text as highlighted terms that link to the glossary.
+Every level-2 heading is a term, and the text under it is its definition. When the book is built, mdPress:
 
-### Creating a Glossary Chapter
+- appends a generated **Glossary** chapter listing every term, and
+- turns each occurrence of a term in your chapters into a link to its entry there, with the definition as a tooltip for pointer users.
 
-Create a glossary chapter with custom heading IDs:
+Matching is case-insensitive and whole-word (`API` also matches `api`, but not `APIs`); CJK terms match without word boundaries. Longer terms win over shorter ones they contain, so `REST API` is linked as one term rather than as `REST` plus `API`. A term inside a link you wrote yourself is left alone.
+
+### Writing the Glossary Chapter Yourself
+
+If you want a glossary page with prose, examples or an order of your own instead of the generated list, write it as an ordinary chapter and give each term a custom heading ID so links to it stay stable even when you reword the heading:
 
 ```markdown
 # Glossary
@@ -272,10 +282,6 @@ Application Programming Interface - a set of protocols and tools for building so
 ## REST {#rest}
 
 Representational State Transfer - an architectural style for designing networked applications.
-
-## JSON {#json}
-
-JavaScript Object Notation - a lightweight data interchange format.
 ```
 
 ## Cross-References
