@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -28,6 +29,10 @@ var epubKaTeXWarningOnce sync.Once
 // epubMermaidWarningOnce ensures the Mermaid degradation warning is logged
 // only once.
 var epubMermaidWarningOnce sync.Once
+
+// epubLanguageWarningOnce ensures the rewritten-language warning is logged only
+// once.
+var epubLanguageWarningOnce sync.Once
 
 // EpubMeta contains EPUB metadata.
 type EpubMeta struct {
@@ -94,6 +99,11 @@ type epubAsset struct {
 type epubAssetCollector struct {
 	nextIndex int
 	cache     map[string]*epubAsset
+	// failedRemote remembers remote images that could not be downloaded. The
+	// asset cache only holds successes, so a badge or hosted diagram repeated
+	// across chapters otherwise paid DownloadImage's retry delay once per
+	// reference.
+	failedRemote map[string]bool
 }
 
 // NewEpubGenerator creates an ePub generator.
@@ -139,6 +149,7 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("collect chapter assets: %w", err)
 	}
+	chapters = g.resolveNameCollisions(chapters, coverAsset, chapterAssets)
 
 	// Every other backend creates its output directory; the EPUB writer used
 	// to be the only one that did not, so `-o release/book.epub` failed with a
@@ -281,6 +292,83 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	return nil
 }
 
+// resolveNameCollisions gives every chapter an archive name and a navigation id
+// that nothing else in the package already uses.
+//
+// Chapter documents are named after their titles, so a book with a front-matter
+// chapter called "Cover" or "Nav" wrote a second OEBPS/cover.xhtml or
+// OEBPS/nav.xhtml into the archive. OCF forbids duplicate ZIP entries outright,
+// and readers take the last one, so the generated navigation document was
+// silently replaced by a chapter body and the book opened with no table of
+// contents at all. Chapter ids have the same problem one level down: the
+// auto-appended glossary chapter carries the fixed id "glossary", and a
+// hand-written Glossary chapter next to a GLOSSARY.md then produced two NCX
+// navPoints with the same id.
+func (g *EpubGenerator) resolveNameCollisions(chapters []EpubChapter, coverAsset *epubAsset, chapterAssets []*epubAsset) []EpubChapter {
+	takenNames := map[string]bool{
+		"content.opf": true,
+		"nav.xhtml":   true,
+		"toc.ncx":     true,
+		"style.css":   true,
+	}
+	if g.meta.IncludeCover {
+		takenNames["cover.xhtml"] = true
+	}
+	if coverAsset != nil {
+		takenNames[coverAsset.Filename] = true
+	}
+	for _, asset := range chapterAssets {
+		takenNames[asset.Filename] = true
+	}
+
+	takenIDs := make(map[string]bool, len(chapters))
+	if g.meta.IncludeCover {
+		// The generated title page occupies <navPoint id="nav-cover">.
+		takenIDs["cover"] = true
+	}
+
+	resolved := make([]EpubChapter, len(chapters))
+	copy(resolved, chapters)
+	for i := range resolved {
+		ext := path.Ext(resolved[i].Filename)
+		name := uniqueEpubName(takenNames, strings.TrimSuffix(resolved[i].Filename, ext), ext)
+		if name != resolved[i].Filename {
+			slog.Warn("Renamed ePub chapter document to avoid a duplicate archive entry",
+				slog.String("chapter", resolved[i].Title),
+				slog.String("from", resolved[i].Filename),
+				slog.String("to", name))
+			resolved[i].Filename = name
+		}
+		takenNames[name] = true
+
+		// An id-less chapter would emit <navPoint id="nav-">, which repeats for
+		// every such chapter; the manifest's own ch<N> scheme is unique by
+		// construction.
+		id := resolved[i].ID
+		if strings.TrimSpace(id) == "" {
+			id = fmt.Sprintf("ch%d", i)
+		}
+		id = uniqueEpubName(takenIDs, id, "")
+		resolved[i].ID = id
+		takenIDs[id] = true
+	}
+	return resolved
+}
+
+// uniqueEpubName returns stem+ext, or the first stem-N+ext variant that is not
+// already in taken.
+func uniqueEpubName(taken map[string]bool, stem, ext string) string {
+	if name := stem + ext; !taken[name] {
+		return name
+	}
+	for n := 2; ; n++ {
+		candidate := fmt.Sprintf("%s-%d%s", stem, n, ext)
+		if !taken[candidate] {
+			return candidate
+		}
+	}
+}
+
 // generateOPF builds the OPF package file.
 func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsset, chapterAssets []*epubAsset) string {
 	var b strings.Builder
@@ -293,8 +381,13 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 		fmt.Fprintf(&b, "    <dc:title id=\"subtitle\">%s</dc:title>\n", utils.EscapeXML(g.meta.Subtitle))
 		b.WriteString("    <meta property=\"title-type\" refines=\"#subtitle\">subtitle</meta>\n")
 	}
-	fmt.Fprintf(&b, "    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(g.meta.Author))
-	fmt.Fprintf(&b, "    <dc:language>%s</dc:language>\n", utils.EscapeXML(g.meta.Language))
+	// An unset author shipped as an empty <dc:creator></dc:creator>, which
+	// catalogs index as a book by someone with a blank name; omitting the
+	// element says "unknown", which is what the NCX's docAuthor already does.
+	if author := strings.TrimSpace(g.meta.Author); author != "" {
+		fmt.Fprintf(&b, "    <dc:creator>%s</dc:creator>\n", utils.EscapeXML(author))
+	}
+	fmt.Fprintf(&b, "    <dc:language>%s</dc:language>\n", utils.EscapeXML(languageOrDefault(g.meta.Language)))
 	fmt.Fprintf(&b, "    <dc:identifier id=\"bookid\">%s</dc:identifier>\n", utils.EscapeXML(g.uniqueIdentifier()))
 	if normalizeISBN(g.meta.ISBN) != "" {
 		// The identifier above is the ISBN URN; declaring its type lets retail
@@ -370,6 +463,7 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 
 // generateNCX builds the NCX table of contents.
 func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
+	chapters = normalizeNavDepths(chapters)
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
@@ -403,6 +497,37 @@ func (g *EpubGenerator) generateNCX(chapters []EpubChapter) string {
 	writeNavPoints(&b, chapters, 0, &playOrder, "    ")
 	b.WriteString("  </navMap>\n</ncx>\n")
 	return b.String()
+}
+
+// normalizeNavDepths rebases chapter depths so every chapter is reachable from
+// the navigation tree.
+//
+// Both nav writers walk the flat chapter list one level at a time and skip
+// entries whose Depth is not the level being walked, which assumes each entry's
+// parent is still present. When a part-introduction file is empty the pipeline
+// drops the parent but keeps its children at their original depth, so those
+// chapters matched no level and were emitted in neither nav.xhtml nor toc.ncx —
+// packaged and in the spine, but reachable only by paging forward. A one-part
+// book lost its entire table of contents, leaving an empty <ol>/<navMap> that
+// is invalid on top of being unnavigable.
+func normalizeNavDepths(chapters []EpubChapter) []EpubChapter {
+	normalized := make([]EpubChapter, len(chapters))
+	copy(normalized, chapters)
+	// The first entry must sit at the top level; after that an entry may go at
+	// most one level deeper than the one before it.
+	prev := -1
+	for i := range normalized {
+		depth := normalized[i].Depth
+		if depth < 0 {
+			depth = 0
+		}
+		if depth > prev+1 {
+			depth = prev + 1
+		}
+		normalized[i].Depth = depth
+		prev = depth
+	}
+	return normalized
 }
 
 // navDepth returns the number of navigation levels in the NCX, which is what
@@ -450,7 +575,7 @@ func writeNavPoints(b *strings.Builder, chapters []EpubChapter, depth int, playO
 // writeNavItems emits the EPUB 3 navigation document's list items, nesting a
 // child <ol> for chapters that have sub-sections.
 func writeNavItems(b *strings.Builder, chapters []EpubChapter, indent string) {
-	writeNavItemsAtDepth(b, chapters, 0, indent)
+	writeNavItemsAtDepth(b, normalizeNavDepths(chapters), 0, indent)
 }
 
 func writeNavItemsAtDepth(b *strings.Builder, chapters []EpubChapter, depth int, indent string) {
@@ -920,11 +1045,81 @@ func writeZipBinaryFile(w *zip.Writer, name string, data []byte) error {
 	return nil
 }
 
+// languageOrDefault returns a well-formed BCP 47 tag for dc:language and the
+// chapter documents' lang attribute.
+//
+// The configured value used to be written out verbatim. "zh_CN" is a common way
+// to spell the tag and is not valid BCP 47, so a reading system matched nothing
+// and fell back to its default for font selection, line breaking and
+// text-to-speech — a Chinese book rendered in a Latin font on a Kobo-class
+// device — and the package failed EPUB validation on the dc:language pattern.
+// Free text such as "Simplified Chinese" got the same treatment. Underscores are
+// folded to hyphens (the separator BCP 47 uses), subtags are case-normalized,
+// and a value with nothing usable left falls back to "en" rather than shipping
+// an invalid tag.
 func languageOrDefault(lang string) string {
-	if strings.TrimSpace(lang) == "" {
-		return "en"
+	normalized := normalizeBCP47(lang)
+	if normalized == "" {
+		normalized = "en"
 	}
-	return lang
+	if normalized != strings.TrimSpace(lang) && strings.TrimSpace(lang) != "" {
+		epubLanguageWarningOnce.Do(func() {
+			slog.Warn("Rewrote book.language to a well-formed BCP 47 tag for the ePub",
+				slog.String("configured", strings.TrimSpace(lang)),
+				slog.String("used", normalized))
+		})
+	}
+	return normalized
+}
+
+// normalizeBCP47 returns a well-formed BCP 47 tag for lang, or "" when nothing
+// usable remains. It accepts the underscore separator POSIX locales use and
+// applies the conventional subtag casing (language lowercase, script Titlecase,
+// region uppercase).
+func normalizeBCP47(lang string) string {
+	fields := strings.Split(strings.ReplaceAll(strings.TrimSpace(lang), "_", "-"), "-")
+	normalized := make([]string, 0, len(fields))
+	for i, field := range fields {
+		if !isAlphanumericSubtag(field) || len(field) > 8 {
+			break
+		}
+		switch {
+		case i == 0:
+			// The primary subtag is the only required one and must be alphabetic.
+			if len(field) < 2 || len(field) > 8 || !isAlphaSubtag(field) {
+				return ""
+			}
+			normalized = append(normalized, strings.ToLower(field))
+		case len(field) == 4 && isAlphaSubtag(field):
+			normalized = append(normalized, strings.ToUpper(field[:1])+strings.ToLower(field[1:]))
+		case len(field) == 2 && isAlphaSubtag(field), len(field) == 3 && !isAlphaSubtag(field):
+			normalized = append(normalized, strings.ToUpper(field))
+		default:
+			normalized = append(normalized, strings.ToLower(field))
+		}
+	}
+	if len(normalized) == 0 {
+		return ""
+	}
+	return strings.Join(normalized, "-")
+}
+
+func isAlphaSubtag(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
+			return false
+		}
+	}
+	return s != ""
+}
+
+func isAlphanumericSubtag(s string) bool {
+	for _, r := range s {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return s != ""
 }
 
 func (g *EpubGenerator) loadCoverImageAsset() (*epubAsset, error) {
@@ -1069,7 +1264,8 @@ func (g *EpubGenerator) collectChapterAssets() ([]EpubChapter, []*epubAsset, err
 	}
 	defer func() { _ = os.RemoveAll(remoteTempDir) }()
 	collector := &epubAssetCollector{
-		cache: make(map[string]*epubAsset),
+		cache:        make(map[string]*epubAsset),
+		failedRemote: make(map[string]bool),
 	}
 
 	// Determine the containment base: the configured book root when available,
@@ -1188,9 +1384,18 @@ func collectImageAssetsFromHTML(html string, sourceDir string, containBase strin
 }
 
 func (c *epubAssetCollector) assetForSource(src string, sourceDir string, containBase string, remoteTempDir string) (*epubAsset, bool, error) {
+	if c.failedRemote[src] {
+		return nil, false, nil
+	}
 	key, asset, err := buildImageAssetFromSource(src, sourceDir, containBase, remoteTempDir, c.nextIndex)
-	if err != nil || asset == nil {
-		return asset, false, err
+	if err != nil {
+		return nil, false, err
+	}
+	if asset == nil {
+		if utils.IsRemoteURL(src) {
+			c.failedRemote[src] = true
+		}
+		return nil, false, nil
 	}
 	if existing, ok := c.cache[key]; ok {
 		return existing, false, nil
@@ -1207,7 +1412,16 @@ func buildImageAssetFromSource(src string, sourceDir string, containBase string,
 	}
 	if utils.IsRemoteURL(src) {
 		asset, err := buildRemoteImageAsset(src, remoteTempDir, index)
-		return "remote:" + src, asset, err
+		if err != nil {
+			// An unreachable host, a proxy, an offline CI runner or a hotlinked
+			// image whose server is down used to fail the whole ePub build while
+			// pdf/html/site built the same sources fine. Degrade like the local
+			// file branch below: warn, keep the original URL, package the book.
+			slog.Warn("Skipping EPUB image that could not be downloaded; keeping original src",
+				slog.String("src", src), slog.Any("error", err))
+			return "remote:" + src, nil, nil
+		}
+		return "remote:" + src, asset, nil
 	}
 	if filepath.IsAbs(src) {
 		// Reject absolute paths to prevent reading arbitrary files.
