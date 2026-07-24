@@ -2170,3 +2170,56 @@ func TestCodeSpanProtection(t *testing.T) {
 		})
 	}
 }
+
+// A paragraph's soft-wrapped source lines are one paragraph, and an inline span
+// may cross the wrap. Converting each source line on its own split the span and
+// left an unbalanced delimiter on each half, which Typst rejects with "unclosed
+// delimiter" — so the whole book produced no PDF. mdPress's own manual hit this
+// with emphasis wrapped mid-sentence.
+func TestConvertJoinsSoftWrappedParagraphLines(t *testing.T) {
+	converter := &MarkdownToTypstConverter{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "emphasis spanning a soft line break",
+			input:    "This is *emphasis that wraps\nacross a line* in the source.",
+			expected: "This is _emphasis that wraps across a line_ in the source.",
+		},
+		{
+			name:     "bold spanning a soft line break",
+			input:    "A **bold phrase\nthat wraps** here.",
+			expected: "A *bold phrase that wraps* here.",
+		},
+		{
+			name:     "plain soft-wrapped lines join with a space",
+			input:    "First line\nsecond line\nthird line.",
+			expected: "First line second line third line.",
+		},
+		{
+			name:  "a blank line still separates two paragraphs",
+			input: "First para.\n\nSecond para.",
+			// The blank line flushes the first paragraph (which writes its own
+			// separator) and is itself preserved, so the two are kept apart;
+			// Typst collapses the run of blank lines into one paragraph break.
+			expected: "First para.\n\n\nSecond para.",
+		},
+		{
+			name:     "a heading still ends the preceding paragraph",
+			input:    "A paragraph.\n# Heading",
+			expected: "A paragraph.\n\n= Heading",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := strings.TrimSpace(converter.Convert(tt.input))
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}

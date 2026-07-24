@@ -39,6 +39,23 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 	var codeFenceLen int
 	var codeBlockContent strings.Builder
 
+	// A paragraph is accumulated across its soft-wrapped source lines and
+	// converted as one unit. Converting each source line on its own splits an
+	// inline span at the wrap: `*emphasis that\ncontinues*` became `*emphasis
+	// that` + `continues*`, two lines each carrying one unbalanced `*`, and
+	// Typst rejected the file with "unclosed delimiter" so no PDF was written.
+	// A single Markdown newline inside a paragraph is a space, so the lines are
+	// joined with one.
+	var paragraph []string
+	flushParagraph := func() {
+		if len(paragraph) == 0 {
+			return
+		}
+		result.WriteString(c.convertInline(strings.Join(paragraph, " ")))
+		result.WriteString("\n\n")
+		paragraph = paragraph[:0]
+	}
+
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 
@@ -66,6 +83,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		// a ```` documentation fence is closed by a matching ```` and its
 		// language tag is parsed correctly.
 		if n := leadingBacktickRun(line); n >= 3 {
+			flushParagraph()
 			inCodeBlock = true
 			codeFenceLen = n
 			codeBlockLang = strings.TrimSpace(line[n:])
@@ -79,6 +97,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 			if level <= 6 && len(line) > level && line[level] == ' ' {
 				heading := strings.TrimSpace(line[level+1:])
 				if heading != "" {
+					flushParagraph()
 					// Convert # to =, ## to ==, etc.
 					typstLevel := strings.Repeat("=", level)
 					result.WriteString(typstLevel)
@@ -94,6 +113,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 		// Handle lists (unordered)
 		trimmedForList := strings.TrimLeft(line, " \t")
 		if strings.HasPrefix(trimmedForList, "- ") || strings.HasPrefix(trimmedForList, "* ") {
+			flushParagraph()
 			depth := countLeadingSpaces(line) / 2
 			item := strings.TrimSpace(trimmedForList[2:])
 			result.WriteString(strings.Repeat("  ", depth))
@@ -105,6 +125,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 
 		// Handle ordered lists
 		if isOrderedListItem(line) {
+			flushParagraph()
 			depth := countLeadingSpaces(line) / 2
 			item := extractListItemContent(line)
 			result.WriteString(strings.Repeat("  ", depth))
@@ -116,6 +137,7 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 
 		// Handle blockquotes
 		if content, ok := strings.CutPrefix(line, "> "); ok {
+			flushParagraph()
 			result.WriteString("> ")
 			result.WriteString(c.convertInline(content))
 			result.WriteString("\n")
@@ -124,20 +146,25 @@ func (c *MarkdownToTypstConverter) Convert(markdown string) string {
 
 		// Handle horizontal rules
 		if isHorizontalRule(line) {
+			flushParagraph()
 			result.WriteString("---\n\n")
 			continue
 		}
 
-		// Handle empty lines
+		// Handle empty lines: a blank line ends the current paragraph, and is
+		// otherwise kept as the separator that follows a list item or blockquote.
 		if strings.TrimSpace(line) == "" {
+			flushParagraph()
 			result.WriteString("\n")
 			continue
 		}
 
-		// Handle paragraphs
-		result.WriteString(c.convertInline(line))
-		result.WriteString("\n\n")
+		// Accumulate a paragraph line; flushed at the next blank or block-level
+		// line, or at end of input.
+		paragraph = append(paragraph, line)
 	}
+
+	flushParagraph()
 
 	// Flush an unclosed code block at EOF so content is preserved.
 	if inCodeBlock {
