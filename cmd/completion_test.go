@@ -199,6 +199,11 @@ func TestExecuteCompletion_InvalidShell(t *testing.T) {
 // TestCompletionCmd_ExactArgsValidation tests that completion command requires exactly 1 argument.
 // We use rootCmd.SetArgs to test through the real Cobra command tree.
 func TestCompletionCmd_ExactArgsValidation(t *testing.T) {
+	// A sibling test runs `completion --help`, which leaves completionCmd's
+	// help flag set on the shared command tree; without this reset the
+	// "invalid shell" case gets help text and a nil error on any repeat run.
+	restoreGlobalFlags(t)
+
 	tests := []struct {
 		name    string
 		args    []string

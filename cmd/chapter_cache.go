@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yeasy/mdpress/internal/markdown"
@@ -56,6 +58,26 @@ var rendererFingerprint = sync.OnceValue(func() string {
 // only ever built a handful of books. Two weeks is well past the point where a
 // stale entry could still be hit by a rebuild.
 const parsedChapterCacheMaxAge = 14 * 24 * time.Hour
+
+// parsedChapterCacheMaxBytes caps the total size of the parsed-chapter cache,
+// and parsedChapterCacheCheckBytes is how much has to be written before the
+// cap is rechecked (the check walks the cache, so it is not worth doing per
+// chapter). Both are vars rather than consts so the tests can shrink the
+// budget instead of writing half a gigabyte.
+//
+// Age-based pruning does nothing for the session that creates the problem:
+// `mdpress serve` on a 20 MB chapter grew the cache by ~24 MB on every save —
+// 165 MB in seven saves — because the key covers the chapter's content, so an
+// edit mints a new entry and never replaces the superseded one. An hour of
+// writing was over a gigabyte that nothing reclaimed for two weeks.
+var (
+	parsedChapterCacheMaxBytes   int64 = 512 << 20 // 512 MB
+	parsedChapterCacheCheckBytes int64 = 64 << 20  // 64 MB
+)
+
+// parsedChapterCacheWritten accumulates the bytes written since the last
+// budget check.
+var parsedChapterCacheWritten atomic.Int64
 
 // parsedChaptersCacheDir is the subdirectory holding parsed-chapter entries.
 func parsedChaptersCacheDir() string {
@@ -103,14 +125,99 @@ func sweepParsedChapterCache(root string, maxAge time.Duration, now time.Time) (
 	return removed
 }
 
+// enforceParsedChapterCacheBudget deletes the least recently used entries
+// until the cache fits in maxBytes. Entries are touched on every hit, so the
+// modification time is a real "last used" and an actively rebuilt book keeps
+// its cache while the superseded generations of an edited chapter go first.
+// Best-effort, like the sweep above: a cache that cannot be pruned must never
+// fail a build.
+func enforceParsedChapterCacheBudget(root string, maxBytes int64) (removed int) {
+	type cacheEntry struct {
+		path    string
+		size    int64
+		modTime time.Time
+	}
+	shards, err := os.ReadDir(root)
+	if err != nil {
+		return 0
+	}
+	var (
+		files []cacheEntry
+		total int64
+	)
+	for _, shard := range shards {
+		if !shard.IsDir() {
+			continue
+		}
+		shardDir := filepath.Join(root, shard.Name())
+		entries, err := os.ReadDir(shardDir)
+		if err != nil {
+			continue
+		}
+		for _, f := range entries {
+			info, err := f.Info()
+			if err != nil || info.IsDir() {
+				continue
+			}
+			files = append(files, cacheEntry{
+				path:    filepath.Join(shardDir, f.Name()),
+				size:    info.Size(),
+				modTime: info.ModTime(),
+			})
+			total += info.Size()
+		}
+	}
+	if total <= maxBytes {
+		return 0
+	}
+
+	slices.SortFunc(files, func(a, b cacheEntry) int { return a.modTime.Compare(b.modTime) })
+	evicted := make(map[string]bool)
+	for _, f := range files {
+		if total <= maxBytes {
+			break
+		}
+		if err := os.Remove(f.path); err != nil {
+			continue
+		}
+		evicted[filepath.Dir(f.path)] = true
+		total -= f.size
+		removed++
+	}
+	for shardDir := range evicted {
+		if remaining, err := os.ReadDir(shardDir); err == nil && len(remaining) == 0 {
+			_ = os.Remove(shardDir)
+		}
+	}
+	return removed
+}
+
+// maybeEnforceParsedChapterCacheBudget rechecks the cache size once enough has
+// been written to make another walk worthwhile.
+func maybeEnforceParsedChapterCacheBudget(written int64) {
+	if parsedChapterCacheWritten.Add(written) < parsedChapterCacheCheckBytes {
+		return
+	}
+	parsedChapterCacheWritten.Store(0)
+	if removed := enforceParsedChapterCacheBudget(parsedChaptersCacheDir(), parsedChapterCacheMaxBytes); removed > 0 {
+		slog.Debug("evicted least recently used parsed chapter cache entries", "count", removed)
+	}
+}
+
 // sweepParsedChapterCacheOnce prunes the cache at most once per process, on
 // first use, so long-lived `mdpress serve` sessions do not rescan every build.
 var sweepParsedChapterCacheOnce = sync.OnceFunc(func() {
 	if utils.CacheDisabled() {
 		return
 	}
-	if removed := sweepParsedChapterCache(parsedChaptersCacheDir(), parsedChapterCacheMaxAge, time.Now()); removed > 0 {
+	root := parsedChaptersCacheDir()
+	if removed := sweepParsedChapterCache(root, parsedChapterCacheMaxAge, time.Now()); removed > 0 {
 		slog.Debug("pruned stale parsed chapter cache entries", "count", removed)
+	}
+	// A cache left oversized by an earlier session is trimmed here rather than
+	// waiting for this run to write enough to trip the write threshold.
+	if removed := enforceParsedChapterCacheBudget(root, parsedChapterCacheMaxBytes); removed > 0 {
+		slog.Debug("evicted least recently used parsed chapter cache entries", "count", removed)
 	}
 })
 
@@ -177,5 +284,6 @@ func storeParsedChapterCache(chapterPath, expandedContent, codeTheme string, cac
 	if err := os.Rename(tmpPath, cachePath); err != nil {
 		return fmt.Errorf("rename temp cache file: %w", err)
 	}
+	maybeEnforceParsedChapterCacheBudget(int64(len(data)))
 	return nil
 }

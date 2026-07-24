@@ -358,7 +358,11 @@ func executeBuild(ctx context.Context, inputSource string) error {
 //     "dist", which is the worst possible way for a path to be decided;
 //   - --output alongside other formats: the site goes to a "<base>_site"
 //     sibling so pdf/html/epub can keep using the base path for their files,
-//     and a warning names the directory actually used.
+//     and a warning names the directory actually used. The warning is only
+//     printed when "site" is actually one of the requested formats: a plain
+//     `build --format pdf -o book.pdf` used to warn about a "book_site"
+//     directory it was never going to create, which sent users looking for
+//     output that does not exist and tripped every CI job that greps stderr.
 func resolveSiteOutputDir(baseDir, outputOverride string, formats []string, logger *slog.Logger) string {
 	if outputOverride == "" {
 		return filepath.Join(baseDir, "_book")
@@ -373,7 +377,7 @@ func resolveSiteOutputDir(baseDir, outputOverride string, formats []string, logg
 		return outputOverride
 	}
 	siteDir := strings.TrimSuffix(outputOverride, filepath.Ext(outputOverride)) + "_site"
-	if logger != nil {
+	if logger != nil && containsBuildFormat(formats, "site") {
 		logger.Warn("--output is shared with other formats, so the site goes to a sibling directory",
 			slog.String("site_dir", siteDir),
 			slog.String("hint", "build the site on its own to write straight into --output"))
