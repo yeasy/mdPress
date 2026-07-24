@@ -4,6 +4,7 @@
 package linkrewrite
 
 import (
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -103,6 +104,24 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 		fragment = pathPart[idx+1:]
 		pathPart = pathPart[:idx]
 	}
+	// A query string has to come off before the extension check, otherwise
+	// filepath.Ext("install.md?os=linux") is ".md?os=linux", the .md guard below
+	// bails out, and the link ships to the site as a dead href to a .md file that
+	// was never published.
+	query := ""
+	if idx := strings.Index(pathPart, "?"); idx >= 0 {
+		query = pathPart[idx+1:]
+		pathPart = pathPart[:idx]
+	}
+
+	// goldmark percent-encodes link destinations, so a chapter under "user guide/"
+	// arrives here as "user%20guide/README.md" and misses the target map, which is
+	// keyed on raw file paths. Without decoding, every link into a directory or file
+	// whose name has a space (or any non-ASCII character) becomes a 404 in the
+	// published output.
+	if decoded, err := url.PathUnescape(pathPart); err == nil {
+		pathPart = decoded
+	}
 
 	if pathPart == "" || strings.ToLower(filepath.Ext(pathPart)) != ".md" {
 		return "", false, false
@@ -119,22 +138,18 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 		if target.PageFilename == "" {
 			return "", false, true
 		}
-		baseTarget := relativeSiteTarget(currentFile, target.PageFilename)
-		if fragment != "" {
-			return baseTarget + "#" + fragment, true, false
-		}
-		return baseTarget, true, false
+		// The query is only carried over for the site, where pages are served over
+		// HTTP and "install.html?os=linux" still means something. In an ePub or a
+		// single HTML file the target is a packaged document or an in-page anchor,
+		// so a query would just be noise appended to a local resource name.
+		return withSuffix(relativeSiteTarget(currentFile, target.PageFilename), query, fragment), true, false
 	case ModeEpub:
 		// ePub chapters are flat siblings in OEBPS/, so the target is just the
 		// chapter's own document name regardless of the source directory.
 		if target.ChapterID == "" {
 			return "", false, true
 		}
-		baseTarget := target.ChapterID + ".xhtml"
-		if fragment != "" {
-			return baseTarget + "#" + fragment, true, false
-		}
-		return baseTarget, true, false
+		return withSuffix(target.ChapterID+".xhtml", "", fragment), true, false
 	case ModeSingle: // also handles unknown modes via default
 		fallthrough
 	default:
@@ -146,6 +161,18 @@ func rewriteHref(href string, currentFile string, currentDir string, targets map
 		}
 		return "#" + target.ChapterID, true, false
 	}
+}
+
+// withSuffix reattaches the query and fragment that were split off the href
+// before the chapter lookup, in URL order (?query then #fragment).
+func withSuffix(base, query, fragment string) string {
+	if query != "" {
+		base += "?" + query
+	}
+	if fragment != "" {
+		base += "#" + fragment
+	}
+	return base
 }
 
 func relativeSiteTarget(currentFile, targetFile string) string {

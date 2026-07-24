@@ -9,8 +9,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // FileExists reports whether a file or directory exists.
@@ -30,21 +33,107 @@ func EnsureDir(path string) error {
 
 // CacheRootDir returns the root directory used for mdpress runtime caches.
 // MDPRESS_CACHE_DIR overrides the default location when set.
+//
+// The default is the per-user cache directory, not the system temp dir. A
+// parsed-chapter cache entry's HTML is emitted into the published book
+// verbatim, so a cache at a fixed path under a shared, world-writable /tmp let
+// any other local user pre-create the tree and plant entries — arbitrary script
+// in someone else's site, from a build that reports success, and it defeated
+// markdown.allow_html: false, the setting whose entire purpose is publishing
+// content you did not write.
 func CacheRootDir() string {
 	if override := strings.TrimSpace(os.Getenv("MDPRESS_CACHE_DIR")); override != "" {
 		return override
 	}
+	if userCache, err := os.UserCacheDir(); err == nil && userCache != "" {
+		return filepath.Join(userCache, "mdpress")
+	}
+	// No per-user cache directory (HOME/XDG_CACHE_HOME unset, as in some
+	// container images). cacheRootUsable below is what keeps this fallback from
+	// reintroducing the shared-temp-dir problem.
 	return filepath.Join(os.TempDir(), "mdpress-cache")
 }
 
 // CacheDisabled reports whether runtime caches are disabled for this process.
+//
+// Besides the explicit MDPRESS_DISABLE_CACHE opt-out, caching is refused when
+// the cache root is not a private directory belonging to this user: trusting a
+// tree someone else can write to is the same as trusting their HTML.
 func CacheDisabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("MDPRESS_DISABLE_CACHE"))) {
 	case "1", "true", "yes", "on":
 		return true
-	default:
+	}
+	return !cacheRootUsable(CacheRootDir())
+}
+
+// cacheRootWarned records the roots already reported so a rejected cache root
+// is explained once per process rather than once per chapter.
+var cacheRootWarned sync.Map
+
+// cacheRootUsable reports whether root is a directory this user owns and only
+// this user can write to, creating it privately when it does not exist yet.
+// Creating it here rather than on first write also closes the window where an
+// attacker could win the race to create it.
+func cacheRootUsable(root string) bool {
+	if root == "" {
 		return false
 	}
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		warnUnusableCacheRoot(root, "cannot be created: "+err.Error())
+		return false
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		warnUnusableCacheRoot(root, "cannot be inspected: "+err.Error())
+		return false
+	}
+	if !info.IsDir() {
+		warnUnusableCacheRoot(root, "is not a directory")
+		return false
+	}
+	if uid, ok := fileOwnerUID(info); ok {
+		// os.Getuid reports -1 where there is no uid to compare against.
+		if self := os.Getuid(); self >= 0 && uid != uint64(self) {
+			warnUnusableCacheRoot(root, "is owned by another user")
+			return false
+		}
+	}
+	// Windows reports synthesized permission bits, so the mode says nothing
+	// about who may write there; the ownership check above carries that platform.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o022 != 0 {
+		warnUnusableCacheRoot(root, "is writable by other users")
+		return false
+	}
+	return true
+}
+
+func warnUnusableCacheRoot(root, reason string) {
+	if _, seen := cacheRootWarned.LoadOrStore(root, struct{}{}); seen {
+		return
+	}
+	slog.Warn("Cache disabled: the cache directory is not private to this user",
+		slog.String("dir", root), slog.String("reason", reason))
+}
+
+// fileOwnerUID returns the uid owning info. Unix carries it in the
+// syscall.Stat_t behind FileInfo.Sys(); Windows reports no uid at all, so ok is
+// false there. Reading it reflectively keeps this in one file instead of a pair
+// of build-tagged ones for a single field.
+func fileOwnerUID(info os.FileInfo) (uint64, bool) {
+	sys := info.Sys()
+	if sys == nil {
+		return 0, false
+	}
+	value := reflect.Indirect(reflect.ValueOf(sys))
+	if value.Kind() != reflect.Struct {
+		return 0, false
+	}
+	field := value.FieldByName("Uid")
+	if !field.IsValid() || !field.CanUint() {
+		return 0, false
+	}
+	return field.Uint(), true
 }
 
 // maxReadFileSize is a general-purpose safety net for ReadFile.

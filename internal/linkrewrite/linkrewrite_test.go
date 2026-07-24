@@ -371,3 +371,142 @@ func TestRewriteLinks_ModeVariations(t *testing.T) {
 		})
 	}
 }
+
+// TestRewriteLinks_PercentEncodedPaths covers chapter paths that goldmark
+// percent-encodes on the way in. Before the decode step these hrefs missed the
+// target map entirely and shipped as dead .md links in the site and the ePub.
+func TestRewriteLinks_PercentEncodedPaths(t *testing.T) {
+	targets := map[string]Target{
+		"user guide/README.md": {ChapterID: "user-guide", PageFilename: "userguide/index.html"},
+		"第一章 guide/README.md":  {ChapterID: "guide-cjk", PageFilename: "第一章guide/index.html"},
+	}
+
+	tests := []struct {
+		name        string
+		mode        Mode
+		html        string
+		currentFile string
+		want        string
+	}{
+		{
+			name:        "site mode resolves a space encoded as %20",
+			mode:        ModeSite,
+			html:        `<a href="user%20guide/README.md">Guide</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="userguide/index.html">Guide</a>`,
+		},
+		{
+			name:        "site mode keeps the fragment on an encoded path",
+			mode:        ModeSite,
+			html:        `<a href="user%20guide/README.md#install">Install</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="userguide/index.html#install">Install</a>`,
+		},
+		{
+			name:        "epub mode resolves a space encoded as %20",
+			mode:        ModeEpub,
+			html:        `<a href="user%20guide/README.md">Guide</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="user-guide.xhtml">Guide</a>`,
+		},
+		{
+			name:        "single mode resolves a space encoded as %20",
+			mode:        ModeSingle,
+			html:        `<a href="user%20guide/README.md">Guide</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="#user-guide">Guide</a>`,
+		},
+		{
+			name:        "site mode resolves a percent-encoded non-ASCII path",
+			mode:        ModeSite,
+			html:        `<a href="%E7%AC%AC%E4%B8%80%E7%AB%A0%20guide/README.md">CJK</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="第一章guide/index.html">CJK</a>`,
+		},
+		{
+			name:        "a stray percent is left alone rather than dropping the link",
+			mode:        ModeSite,
+			html:        `<a href="100%off.md">Sale</a>`,
+			currentFile: "intro.md",
+			want:        `<a href="100%off.md" data-mdpress-link="unresolved-markdown" title="Markdown link target is outside the current build graph">Sale</a>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RewriteLinks(tt.html, tt.currentFile, targets, tt.mode)
+			if got != tt.want {
+				t.Errorf("RewriteLinks() =\n  %q\nwant:\n  %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRewriteLinks_QueryString covers "install.md?os=linux". The query used to
+// defeat the .md extension check, so the href was passed through untouched and
+// published as a link to a .md file that does not exist in the output.
+func TestRewriteLinks_QueryString(t *testing.T) {
+	targets := map[string]Target{
+		"install.md": {ChapterID: "install", PageFilename: "install.html"},
+	}
+
+	tests := []struct {
+		name        string
+		mode        Mode
+		html        string
+		currentFile string
+		want        string
+	}{
+		{
+			name:        "site mode rewrites the path and keeps the query",
+			mode:        ModeSite,
+			html:        `<a href="install.md?os=linux">Linux setup</a>`,
+			currentFile: "README.md",
+			want:        `<a href="install.html?os=linux">Linux setup</a>`,
+		},
+		{
+			name:        "site mode keeps query and fragment in URL order",
+			mode:        ModeSite,
+			html:        `<a href="install.md?os=linux#step-2">Step 2</a>`,
+			currentFile: "README.md",
+			want:        `<a href="install.html?os=linux#step-2">Step 2</a>`,
+		},
+		{
+			name:        "epub mode drops the query so the href names a real package document",
+			mode:        ModeEpub,
+			html:        `<a href="install.md?os=linux">Linux setup</a>`,
+			currentFile: "README.md",
+			want:        `<a href="install.xhtml">Linux setup</a>`,
+		},
+		{
+			name:        "single mode resolves to the chapter anchor",
+			mode:        ModeSingle,
+			html:        `<a href="install.md?os=linux">Linux setup</a>`,
+			currentFile: "README.md",
+			want:        `<a href="#install">Linux setup</a>`,
+		},
+		{
+			name:        "an unknown .md target with a query is reported as unresolved",
+			mode:        ModeSite,
+			html:        `<a href="nope.md?x=1">Nope</a>`,
+			currentFile: "README.md",
+			want:        `<a href="nope.md?x=1" data-mdpress-link="unresolved-markdown" title="Markdown link target is outside the current build graph">Nope</a>`,
+		},
+		{
+			name:        "a query on a non-markdown link is left alone",
+			mode:        ModeSite,
+			html:        `<a href="assets/report.pdf?v=2">Report</a>`,
+			currentFile: "README.md",
+			want:        `<a href="assets/report.pdf?v=2">Report</a>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := RewriteLinks(tt.html, tt.currentFile, targets, tt.mode)
+			if got != tt.want {
+				t.Errorf("RewriteLinks() =\n  %q\nwant:\n  %q", got, tt.want)
+			}
+		})
+	}
+}

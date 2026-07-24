@@ -328,6 +328,16 @@ func ImageToBase64(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to stat image file: %w", err)
 	}
+	if fi.IsDir() {
+		return "", fmt.Errorf("image path %q is a directory", path)
+	}
+	// A 0-byte file is what an interrupted download or a half-finished
+	// `git lfs pull` leaves behind. Encoding it produces "data:image/png;base64,"
+	// — a data URI the browser renders as a broken image while the build reports
+	// success — so treat it as the failure it is and let the caller warn.
+	if fi.Size() == 0 {
+		return "", fmt.Errorf("image file %q is empty", path)
+	}
 	if fi.Size() > MaxImageSize {
 		return "", fmt.Errorf("image %q exceeds maximum size (%d bytes)", path, MaxImageSize)
 	}
@@ -626,14 +636,27 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 			}
 		}
 
-		targetPath := resolveLocalImagePath(baseDir, options.ContainmentRoot, src)
+		// goldmark percent-encodes image destinations, so a screenshot named
+		// "pic two.png" reaches us as "pic%20two.png". Looking that up on disk
+		// misses, and the build then warns "file not found" about a file that is
+		// sitting right there while shipping a broken <img>. A stray "%" that is
+		// not a valid escape leaves the value alone rather than dropping the link.
+		decodedSrc := src
+		if decoded, decodeErr := url.PathUnescape(src); decodeErr == nil {
+			decodedSrc = decoded
+		}
+
+		targetPath := resolveLocalImagePath(baseDir, options.ContainmentRoot, decodedSrc)
 		if !FileExists(targetPath) {
 			// Silence here is how a broken image reaches the reader: the <img>
 			// tag looks right in view-source and nothing in the build says
 			// otherwise.
 			if options.Logger != nil {
 				reason := "file not found"
-				if targetPath == "" {
+				switch {
+				case targetPath == "" && isRootedImagePath(decodedSrc):
+					reason = "absolute and site-root paths are not resolved; use a path relative to the chapter"
+				case targetPath == "":
 					reason = "path resolves outside the book directory"
 				}
 				options.Logger.Warn("Image reference could not be resolved; it will be broken in the output",
@@ -649,13 +672,21 @@ func ProcessImagesWithOptions(htmlContent string, baseDir string, options ImageP
 			}
 			dataURI, err := ImageToBase64(targetPath)
 			if err != nil {
+				// The file exists, so the not-found warning above did not fire —
+				// but an over-cap, unreadable, empty or directory target still
+				// ships as a broken image in a document sold as self-contained.
+				// Staying quiet here is how that reaches the reader unnoticed.
+				if options.Logger != nil {
+					options.Logger.Warn("Image could not be embedded; it will be broken in the output",
+						slog.String("src", src), slog.String("path", targetPath), slog.Any("error", err))
+				}
 				return match
 			}
 			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, dataURI, suffix)
 		case options.RewriteLocalToFileURL:
 			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, filePathToURL(targetPath), suffix)
 		default:
-			newSrc := RelPath(baseDir, targetPath)
+			newSrc := escapeImageHref(RelPath(baseDir, targetPath))
 			return fmt.Sprintf(`<img %ssrc="%s"%s>`, prefix, newSrc, suffix)
 		}
 	})
@@ -725,8 +756,8 @@ func prefetchRemoteImages(matches [][]string, options ImageProcessingOptions) ma
 // baseDir is what allows a shared assets directory to be referenced with `../`
 // without opening up arbitrary filesystem reads. An empty root means baseDir.
 func resolveLocalImagePath(baseDir, containmentRoot, src string) string {
-	if filepath.IsAbs(src) {
-		return "" // reject absolute paths to prevent reading arbitrary files
+	if isRootedImagePath(src) {
+		return "" // reject rooted paths to prevent reading arbitrary files
 	}
 	if containmentRoot == "" {
 		containmentRoot = baseDir
@@ -755,6 +786,45 @@ func resolveLocalImagePath(baseDir, containmentRoot, src string) string {
 		return ""
 	}
 	return resolved
+}
+
+// isRootedImagePath reports whether src names a location that must not be
+// resolved against the chapter directory: a Unix absolute path, a site-root
+// reference the deployment supplies itself (the rule IsExternalAssetRef already
+// applies to branding assets), or a Windows drive-letter or UNC path.
+//
+// filepath.IsAbs on its own is not enough because it is platform-dependent:
+// on Windows "/assets/logo.png" is not absolute, so the same book emitted
+// different HTML depending on who built it — a contributor's Windows build
+// inlined the image and rewrote the src, while the Linux CI build that actually
+// publishes the site left src="/assets/logo.png" and copied nothing.
+func isRootedImagePath(src string) bool {
+	if src == "" {
+		return false
+	}
+	if filepath.IsAbs(src) || src[0] == '/' || src[0] == '\\' {
+		return true
+	}
+	// Windows drive-relative ("C:logo.png") and drive-absolute ("C:\logo.png").
+	if len(src) >= 2 && src[1] == ':' &&
+		((src[0] >= 'a' && src[0] <= 'z') || (src[0] >= 'A' && src[0] <= 'Z')) {
+		return true
+	}
+	return false
+}
+
+// escapeImageHref percent-encodes a filesystem-derived relative path so it is a
+// valid URL reference. Path separators are preserved; a screenshot named
+// "pic two.png" becomes "pic%20two.png".
+func escapeImageHref(relPath string) string {
+	if !strings.ContainsAny(relPath, " %?#") {
+		return relPath
+	}
+	segments := strings.Split(relPath, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/")
 }
 
 func filePathToURL(path string) string {

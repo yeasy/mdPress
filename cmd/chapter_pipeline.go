@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -243,6 +244,17 @@ func (p *chapterPipeline) parserCodeTheme() string {
 	return codeTheme
 }
 
+// normalizeLineEndings converts CRLF and lone CR line endings to LF, as
+// CommonMark requires. Returns the input untouched when it has no CR at all,
+// which is the common case.
+func normalizeLineEndings(content []byte) []byte {
+	if !bytes.ContainsRune(content, '\r') {
+		return content
+	}
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+}
+
 func (p *chapterPipeline) parseChapterWorker(
 	ctx context.Context,
 	job *parsedChapterData,
@@ -261,6 +273,14 @@ func (p *chapterPipeline) parseChapterWorker(
 		job.err = fmt.Errorf("failed to read chapter %q: %w", chDef.File, err)
 		return
 	}
+
+	// CommonMark counts a lone CR as a line ending, but goldmark only splits on
+	// LF. A chapter saved with classic-Mac CR endings therefore arrives as one
+	// giant line: everything after "# Title" is swallowed into the heading and
+	// the published page ships blank apart from its title, with no warning and a
+	// green build. Normalize once here so the parser, the search index and the
+	// Typst source all see the same LF-terminated text.
+	content = normalizeLineEndings(content)
 
 	// Expand variables. Unrecognized ones are left as-is but reported: a typo
 	// that renders as a literal "{{ book.autor }}" reads as a mdpress bug to

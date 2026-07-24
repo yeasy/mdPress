@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -329,16 +330,25 @@ func TestReadWriteRoundTrip(t *testing.T) {
 
 // TestCacheRootDir tests cache root directory
 func TestCacheRootDir(t *testing.T) {
-	// Test 1: Default behavior (no env var)
+	// Test 1: Default behavior (no env var). The default lives under the
+	// per-user cache directory, never at a fixed path in the shared system temp
+	// dir where another local user could pre-create it and plant entries.
 	t.Run("default without env var", func(t *testing.T) {
 		t.Setenv("MDPRESS_CACHE_DIR", "")
 		cacheDir := CacheRootDir()
 		if cacheDir == "" {
 			t.Error("CacheRootDir should return non-empty path")
 		}
-		// Should contain expected pattern
-		if !strings.HasSuffix(cacheDir, "mdpress-cache") {
-			t.Errorf("CacheRootDir() = %q, expected to end with 'mdpress-cache'", cacheDir)
+		userCache, err := os.UserCacheDir()
+		if err != nil || userCache == "" {
+			t.Skip("no per-user cache directory on this machine")
+		}
+		want := filepath.Join(userCache, "mdpress")
+		if cacheDir != want {
+			t.Errorf("CacheRootDir() = %q, want %q", cacheDir, want)
+		}
+		if strings.HasPrefix(cacheDir, os.TempDir()) {
+			t.Errorf("CacheRootDir() = %q, which is under the shared temp dir", cacheDir)
 		}
 	})
 
@@ -394,11 +404,111 @@ func TestCacheDisabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("MDPRESS_DISABLE_CACHE", tt.envValue)
+			// Point at a private root so this test exercises the env var alone.
+			t.Setenv("MDPRESS_CACHE_DIR", filepath.Join(t.TempDir(), "cache"))
 			result := CacheDisabled()
 			if result != tt.expectedVal {
 				t.Errorf("CacheDisabled() with %q = %v, want %v", tt.envValue, result, tt.expectedVal)
 			}
 		})
+	}
+}
+
+// TestCacheRootUsable pins the rule that keeps a planted cache entry out of the
+// published book: a parsed chapter's HTML is emitted verbatim, so a cache root
+// another local user can write to must not be trusted at all.
+func TestCacheRootUsable(t *testing.T) {
+	t.Run("creates a missing root privately", func(t *testing.T) {
+		root := filepath.Join(t.TempDir(), "cache")
+		if !cacheRootUsable(root) {
+			t.Fatal("a fresh root under a private parent should be usable")
+		}
+		info, err := os.Stat(root)
+		if err != nil {
+			t.Fatalf("cache root was not created: %v", err)
+		}
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
+			t.Errorf("cache root mode = %v, want 0700", info.Mode().Perm())
+		}
+	})
+
+	t.Run("rejects a world-writable root", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows reports synthesized permission bits")
+		}
+		root := filepath.Join(t.TempDir(), "shared")
+		if err := os.Mkdir(root, 0o777); err != nil {
+			t.Fatalf("mkdir failed: %v", err)
+		}
+		// Mkdir applies umask, so set the mode explicitly.
+		if err := os.Chmod(root, 0o777); err != nil {
+			t.Fatalf("chmod failed: %v", err)
+		}
+		if cacheRootUsable(root) {
+			t.Error("a world-writable cache root must not be trusted")
+		}
+	})
+
+	t.Run("rejects a root that is a file", func(t *testing.T) {
+		root := filepath.Join(t.TempDir(), "notadir")
+		if err := os.WriteFile(root, []byte("x"), 0o600); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+		if cacheRootUsable(root) {
+			t.Error("a cache root that is not a directory must not be trusted")
+		}
+	})
+
+	t.Run("empty root", func(t *testing.T) {
+		if cacheRootUsable("") {
+			t.Error("an empty cache root must not be trusted")
+		}
+	})
+}
+
+// TestCacheDisabledForUnsafeRoot is the end-to-end half: an unsafe root turns
+// caching off for every consumer instead of silently trusting planted entries.
+func TestCacheDisabledForUnsafeRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows reports synthesized permission bits")
+	}
+	root := filepath.Join(t.TempDir(), "shared")
+	if err := os.Mkdir(root, 0o777); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.Chmod(root, 0o777); err != nil {
+		t.Fatalf("chmod failed: %v", err)
+	}
+	t.Setenv("MDPRESS_DISABLE_CACHE", "")
+	t.Setenv("MDPRESS_CACHE_DIR", root)
+	if !CacheDisabled() {
+		t.Error("CacheDisabled() = false for a world-writable cache root, want true")
+	}
+}
+
+// TestFileOwnerUID checks that the reflective uid read finds the owner on
+// platforms that report one; the permission check alone carries Windows.
+func TestFileOwnerUID(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+	uid, ok := fileOwnerUID(info)
+	if runtime.GOOS == "windows" {
+		if ok {
+			t.Errorf("fileOwnerUID reported uid %d on Windows", uid)
+		}
+		return
+	}
+	if !ok {
+		t.Fatal("fileOwnerUID did not report an owner on a Unix platform")
+	}
+	if uid != uint64(os.Getuid()) { //nolint:gosec // G115: Getuid is non-negative on Unix
+		t.Errorf("fileOwnerUID() = %d, want %d", uid, os.Getuid())
 	}
 }
 

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1200,4 +1201,149 @@ func TestResolveLocalImagePathContainmentRoot(t *testing.T) {
 			t.Errorf("absolute path accepted: %q", got)
 		}
 	})
+}
+
+// TestProcessImagesPercentEncodedSrc guards the case where goldmark
+// percent-encodes a filename with a space: the build used to warn "file not
+// found" about a file that exists and ship a broken <img>.
+func TestProcessImagesPercentEncodedSrc(t *testing.T) {
+	tmpDir := t.TempDir()
+	assets := filepath.Join(tmpDir, "assets")
+	if err := os.MkdirAll(assets, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(assets, "pic two.png"), []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
+
+	html := `<img src="assets/pic%20two.png">`
+	result, err := ProcessImages(html, tmpDir, true)
+	if err != nil {
+		t.Fatalf("ProcessImages failed: %v", err)
+	}
+	if !strings.Contains(result, "data:image/png;base64,") {
+		t.Errorf("percent-encoded image src was not resolved; got %q", result)
+	}
+}
+
+// TestProcessImagesPercentEncodedSrcNoEmbed checks the non-embedding path keeps
+// the src usable as a URL rather than emitting a raw space.
+func TestProcessImagesPercentEncodedSrcNoEmbed(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "pic two.png"), []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
+
+	result, err := ProcessImages(`<img src="pic%20two.png">`, tmpDir, false)
+	if err != nil {
+		t.Fatalf("ProcessImages failed: %v", err)
+	}
+	if !strings.Contains(result, `src="pic%20two.png"`) {
+		t.Errorf("expected the src to stay percent-encoded, got %q", result)
+	}
+}
+
+// TestProcessImagesInvalidPercentEscape checks that a literal "%" that is not a
+// valid escape does not make the reference unresolvable.
+func TestProcessImagesInvalidPercentEscape(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "100%off.png"), []byte{0x89, 0x50, 0x4E, 0x47}, 0o644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
+
+	result, err := ProcessImages(`<img src="100%off.png">`, tmpDir, true)
+	if err != nil {
+		t.Fatalf("ProcessImages failed: %v", err)
+	}
+	if !strings.Contains(result, "data:image/png;base64,") {
+		t.Errorf("src with a stray %% should fall back to the raw value; got %q", result)
+	}
+}
+
+// TestIsRootedImagePath pins the platform-independent rule. Before it existed,
+// resolveLocalImagePath relied on filepath.IsAbs, which is platform-dependent:
+// "/assets/logo.png" is absolute on Unix but not on Windows, so the same book
+// produced different HTML depending on which machine ran the build.
+func TestIsRootedImagePath(t *testing.T) {
+	rooted := []string{
+		"/assets/logo.png",
+		`\assets\logo.png`,
+		`\\server\share\logo.png`,
+		`C:\assets\logo.png`,
+		"c:/assets/logo.png",
+		"C:logo.png",
+		"a:b/logo.png", // drive-relative on Windows, so never chapter-relative anywhere
+	}
+	for _, src := range rooted {
+		if !isRootedImagePath(src) {
+			t.Errorf("isRootedImagePath(%q) = false, want true on every platform", src)
+		}
+	}
+
+	relative := []string{"", "logo.png", "assets/logo.png", "../assets/logo.png", "shot 10:14.png"}
+	for _, src := range relative {
+		if isRootedImagePath(src) {
+			t.Errorf("isRootedImagePath(%q) = true, want false", src)
+		}
+	}
+}
+
+// TestResolveLocalImagePathRejectsWindowsRootedPaths is the executable half of
+// the platform-independence fix: these forms are not absolute under Unix's
+// filepath.IsAbs, so they used to be joined onto the chapter directory.
+func TestResolveLocalImagePathRejectsWindowsRootedPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, src := range []string{`\\server\share\logo.png`, `C:\assets\logo.png`, `\assets\logo.png`} {
+		if got := resolveLocalImagePath(tmpDir, "", src); got != "" {
+			t.Errorf("resolveLocalImagePath(%q) = %q, want \"\" (rooted paths are never chapter-relative)", src, got)
+		}
+	}
+}
+
+// TestImageToBase64EmptyFile covers the 0-byte file an interrupted download or
+// a half-finished `git lfs pull` leaves behind. It used to encode successfully
+// to "data:image/png;base64," — a broken image with a green build.
+func TestImageToBase64EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	imgPath := filepath.Join(tmpDir, "zero.png")
+	if err := os.WriteFile(imgPath, nil, 0o644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
+	if _, err := ImageToBase64(imgPath); err == nil {
+		t.Error("a 0-byte image should be an error, not an empty data URI")
+	}
+}
+
+// TestImageToBase64Directory covers `![x](img/)`, which passes the exists check.
+func TestImageToBase64Directory(t *testing.T) {
+	if _, err := ImageToBase64(t.TempDir()); err == nil {
+		t.Error("a directory should be an error, not an image")
+	}
+}
+
+// TestProcessImagesWarnsWhenEmbeddingFails is the finding this lane cares about
+// most for "self-contained" HTML: an image that resolves but cannot be embedded
+// used to be dropped without a single line of output.
+func TestProcessImagesWarnsWhenEmbeddingFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "zero.png"), nil, 0o644); err != nil {
+		t.Fatalf("write image failed: %v", err)
+	}
+
+	var logs strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	result, err := ProcessImagesWithOptions(`<img src="zero.png">`, tmpDir, ImageProcessingOptions{
+		EmbedLocalAsBase64: true,
+		Logger:             logger,
+	})
+	if err != nil {
+		t.Fatalf("ProcessImagesWithOptions failed: %v", err)
+	}
+	if strings.Contains(result, "base64,\"") {
+		t.Errorf("a 0-byte image should not become an empty data URI; got %q", result)
+	}
+	if !strings.Contains(logs.String(), "Image could not be embedded") {
+		t.Errorf("expected a warning about the unembeddable image, got logs: %q", logs.String())
+	}
 }
