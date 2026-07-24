@@ -150,7 +150,7 @@ api-errors.md (8 pages)
 api-examples.md (10 pages)
 ```
 
-使用交叉引用（参见 [Authentication](api-authentication.md)）来连接相关章节。
+使用交叉引用（例如，链接到 `api-authentication.md`）来连接相关章节。
 
 ## 资源目录中的图像管理
 

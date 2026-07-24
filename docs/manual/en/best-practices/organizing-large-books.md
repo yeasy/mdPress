@@ -150,7 +150,7 @@ api-errors.md (8 pages)
 api-examples.md (10 pages)
 ```
 
-Use cross-references (see [Authentication](api-authentication.md)) to connect related chapters.
+Use cross-references (for example, a link to `api-authentication.md`) to connect related chapters.
 
 ## Image Management in assets/
 
