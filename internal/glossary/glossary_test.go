@@ -216,3 +216,31 @@ func TestRenderHTMLEscaping(t *testing.T) {
 		t.Error("should escape HTML in term names")
 	}
 }
+
+// TestProcessHTMLMatchingRules pins the matching rules the manual states in
+// "Glossary Terms Auto-Linking": case-insensitive, whole-word, longest term
+// first. The page used to document a book.yaml `glossary:` key instead, so
+// none of this was written down anywhere a reader could check it.
+func TestProcessHTMLMatchingRules(t *testing.T) {
+	g := &Glossary{
+		Terms: []Term{
+			{Name: "API", Definition: "Application Programming Interface"},
+			{Name: "REST API", Definition: "A REST-style API"},
+		},
+	}
+
+	result := g.ProcessHTML("<p>The REST API is great. Many APIs exist. Plain api here.</p>")
+
+	if !strings.Contains(result, `href="#glossary-rest-api" class="glossary-term" title="A REST-style API">REST API</a>`) {
+		t.Errorf("the longer term should win over the one it contains, got: %s", result)
+	}
+	if strings.Contains(result, ">APIs<") || strings.Contains(result, `>API</a>s`) {
+		t.Errorf("APIs is not the term API, got: %s", result)
+	}
+	if !strings.Contains(result, `>api</a>`) {
+		t.Errorf("matching should be case-insensitive, got: %s", result)
+	}
+	if got := strings.Count(result, `class="glossary-term"`); got != 2 {
+		t.Errorf("expected 2 linked occurrences, got %d: %s", got, result)
+	}
+}

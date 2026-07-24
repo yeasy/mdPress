@@ -4,6 +4,7 @@ package markdown
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
 
@@ -740,5 +741,94 @@ func TestHeadingIDTransformer_Transform_NonHeadingNodes(t *testing.T) {
 		if _, hasID := child.AttributeString("id"); hasID {
 			t.Errorf("non-heading node of type %T should not have an id attribute", child)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test cases: custom heading IDs (`## Heading {#custom-id}`)
+// ---------------------------------------------------------------------------
+
+// TestParseCustomHeadingID covers the syntax the manual documents in four
+// places: before heading attributes were enabled the braces rendered as part of
+// the heading text ("My Section {#custom-id}") and every [link](#custom-id) was
+// dead.
+func TestParseCustomHeadingID(t *testing.T) {
+	parser := NewParser()
+	html, headings, err := parser.Parse([]byte("# Intro\n\n## My Section {#custom-id}\n\nBody.\n"))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if !strings.Contains(html, `<h2 id="custom-id">`) {
+		t.Errorf("expected heading to carry the custom id, got: %s", html)
+	}
+	if strings.Contains(html, "{#custom-id}") {
+		t.Errorf("attribute block leaked into the rendered heading: %s", html)
+	}
+	if len(headings) != 2 {
+		t.Fatalf("expected 2 headings, got %d", len(headings))
+	}
+	if headings[1].ID != "custom-id" {
+		t.Errorf("heading ID = %q, want %q", headings[1].ID, "custom-id")
+	}
+	if headings[1].Text != "My Section" {
+		t.Errorf("heading text = %q, want %q (TOC and sidebar use this)", headings[1].Text, "My Section")
+	}
+}
+
+// TestParseCustomHeadingIDWinsOverDerivedSlug pins the collision rule: an
+// author writes {#intro} so that links to #intro land on that heading, so a
+// different heading that merely slugifies to "intro" is the one that yields.
+func TestParseCustomHeadingIDWinsOverDerivedSlug(t *testing.T) {
+	parser := NewParser()
+	html, headings, err := parser.Parse([]byte("## Intro\n\n## Details {#intro}\n\n## Intro\n"))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	ids := make([]string, 0, len(headings))
+	seen := make(map[string]bool, len(headings))
+	for _, h := range headings {
+		if seen[h.ID] {
+			t.Errorf("duplicate heading id %q in %v", h.ID, ids)
+		}
+		seen[h.ID] = true
+		ids = append(ids, h.ID)
+	}
+	if headings[1].ID != "intro" {
+		t.Errorf("custom id lost to a derived slug: ids = %v", ids)
+	}
+	if !strings.Contains(html, `<h2 id="intro">Details</h2>`) {
+		t.Errorf("expected the custom-id heading to keep #intro, got: %s", html)
+	}
+}
+
+// TestParseHeadingBracesWithoutAttributes makes sure only real attribute blocks
+// are consumed: "## Config {json}" is prose, not an id, and must render as
+// written.
+func TestParseHeadingBracesWithoutAttributes(t *testing.T) {
+	parser := NewParser()
+	html, headings, err := parser.Parse([]byte("## Config {json}\n"))
+	if err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if !strings.Contains(html, "Config {json}") {
+		t.Errorf("literal braces were swallowed: %s", html)
+	}
+	if len(headings) != 1 || headings[0].Text != "Config {json}" {
+		t.Errorf("heading text = %+v, want %q", headings, "Config {json}")
+	}
+}
+
+// TestClaimUniqueIDSkipsSuffixTakenByCustomID guards the suffix loop: a custom
+// {#intro-2} owns the exact name the duplicate-slug counter would hand out next.
+func TestClaimUniqueIDSkipsSuffixTakenByCustomID(t *testing.T) {
+	usedIDs := make(map[string]int)
+	if got := claimUniqueID("intro-2", usedIDs); got != "intro-2" {
+		t.Fatalf("claimUniqueID(custom) = %q, want %q", got, "intro-2")
+	}
+	if got := claimUniqueID("intro", usedIDs); got != "intro" {
+		t.Fatalf("claimUniqueID(first) = %q, want %q", got, "intro")
+	}
+	if got := claimUniqueID("intro", usedIDs); got != "intro-3" {
+		t.Errorf("claimUniqueID(duplicate) = %q, want %q (intro-2 is taken)", got, "intro-3")
 	}
 }

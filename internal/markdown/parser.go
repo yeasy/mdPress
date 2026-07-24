@@ -89,6 +89,13 @@ func (p *Parser) initGoldmark() {
 	p.md = goldmark.New(
 		goldmark.WithExtensions(exts...),
 		goldmark.WithParserOptions(
+			// Custom heading IDs: "## Heading {#custom-id}" sets the heading's
+			// id instead of printing "{#custom-id}" as heading text (which is
+			// what happened before — the braces showed up in every page, in the
+			// sidebar, and every documented [link](#custom-id) was dead).
+			// Only the ATX heading parser reads this option, so the attribute
+			// syntax stays confined to heading lines.
+			parser.WithAttribute(),
 			// NOTE: Do NOT use parser.WithAutoHeadingID() here — Goldmark's
 			// built-in auto-ID generator strips CJK characters, producing
 			// meaningless IDs like "heading" or "41-".  Our custom
