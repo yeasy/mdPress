@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	goruntime "runtime" // aliased: cdproto/runtime already owns the name "runtime" here
 	"strconv"
 	"strings"
 	"sync"
@@ -183,10 +184,6 @@ type cjkFontResult struct {
 }
 
 func buildCJKFontFaceCSS() cjkFontResult {
-	const cjkRange = "U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, " +
-		"U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, " +
-		"U+20000-2A6DF, U+2A700-2B73F, U+2B740-2B81F, U+2B820-2CEAF"
-
 	// Find the first available CJK font file.
 	var font cjkFontSource
 	var family string
@@ -205,6 +202,16 @@ func buildCJKFontFaceCSS() cjkFontResult {
 	if font.path == "" {
 		return cjkFontResult{} // no CJK font found
 	}
+	return cjkFontResult{css: cjkFontFaceCSS(font), fontPath: font.path, family: family}
+}
+
+// cjkFontFaceCSS renders the stylesheet injected for font. It is separate from
+// the discovery above so its output can be asserted on a machine with no CJK
+// font installed.
+func cjkFontFaceCSS(font cjkFontSource) string {
+	const cjkRange = "U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, " +
+		"U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, " +
+		"U+20000-2A6DF, U+2A700-2B73F, U+2B740-2B81F, U+2B820-2CEAF"
 
 	var css strings.Builder
 	// Declare the embeddable CJK alias restricted to CJK code points.
@@ -216,21 +223,34 @@ func buildCJKFontFaceCSS() cjkFontResult {
 	// Use !important to win the CSS cascade over theme CSS which sets
 	// body { font-family: var(--font-family); } and would otherwise
 	// override this injection, causing CJK characters to render as tofu.
+	//
+	// Only the first entry is ours. The rest of the stack is deferred to
+	// var(--font-family), the same custom property theme.ToCSS() writes from
+	// style.font_family and the theme's own fonts, because this block is spliced
+	// in after the document stylesheet: a literal stack here used to replace the
+	// requested typography outright, so every PDF came out in the browser
+	// default sans while the site and the ePub honored the setting. The
+	// unicode-range on @font-face keeps "CJK-Embedded" confined to CJK code
+	// points, so Latin text still renders in the book's own font. The literal
+	// stack survives as the var() fallback for documents with no theme CSS.
 	css.WriteString("body {\n" +
-		"  font-family: \"CJK-Embedded\", -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n" +
+		"  font-family: \"CJK-Embedded\", var(--font-family,\n" +
+		"    -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n" +
 		"    \"PingFang SC\", \"Hiragino Sans GB\", \"Heiti SC\", \"Heiti TC\",\n" +
 		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
 		"    \"Source Han Sans SC\", \"WenQuanYi Micro Hei\",\n" +
-		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif !important;\n" +
+		"    \"Roboto\", \"Droid Sans\", \"Helvetica Neue\", sans-serif) !important;\n" +
 		"}\n")
 	// Override monospace elements too — code/pre have their own font-family
 	// that does not inherit from body, so CJK characters in code blocks would
-	// be missing without this rule.
+	// be missing without this rule. Same deal as body: defer to the theme's
+	// --font-family-mono rather than pinning a fixed monospace stack.
 	css.WriteString("code, pre, kbd, samp, .hljs {\n" +
-		"  font-family: \"CJK-Embedded\", ui-monospace, \"SF Mono\", Menlo, Monaco,\n" +
+		"  font-family: \"CJK-Embedded\", var(--font-family-mono,\n" +
+		"    ui-monospace, \"SF Mono\", Menlo, Monaco,\n" +
 		"    Consolas, \"Liberation Mono\", \"Courier New\",\n" +
 		"    \"PingFang SC\", \"Hiragino Sans GB\", \"Microsoft YaHei\",\n" +
-		"    \"Noto Sans Mono CJK SC\", monospace !important;\n" +
+		"    \"Noto Sans Mono CJK SC\", monospace) !important;\n" +
 		"}\n")
 	// Override Mermaid SVG text elements — Mermaid renders diagrams as SVG
 	// and sets font-family directly on <text>/<foreignObject> elements.
@@ -249,7 +269,7 @@ func buildCJKFontFaceCSS() cjkFontResult {
 		"    \"Microsoft YaHei\", \"Noto Sans SC\", \"Noto Sans CJK SC\",\n" +
 		"    \"Source Han Sans SC\", sans-serif !important;\n" +
 		"}\n")
-	return cjkFontResult{css: css.String(), fontPath: font.path, family: family}
+	return css.String()
 }
 
 func cjkFontSrc(src cjkFontSource) string {
@@ -391,12 +411,82 @@ var (
 		"google-chrome-stable",
 		"chromium",
 		"chromium-browser",
+		// Windows binary names. exec.LookPath applies PATHEXT there, so the
+		// ".exe" suffix must not be spelled out; on Unix these simply never
+		// match anything.
+		"chrome",
+		"msedge",
 	}
-	chromiumMacPaths = []string{
-		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-		"/Applications/Chromium.app/Contents/MacOS/Chromium",
-	}
+	// chromiumInstallPaths holds the well-known install locations for the
+	// platform this binary runs on, checked after PATH.
+	chromiumInstallPaths = platformChromiumInstallPaths(goruntime.GOOS, os.Getenv)
 )
+
+// platformChromiumInstallPaths returns the standard install locations of Chrome,
+// Chromium and Edge for goos, in preference order. lookupEnv supplies the
+// environment (os.Getenv in production, a stub in tests) because every Windows
+// location is expressed relative to %ProgramFiles%, %ProgramFiles(x86)% or
+// %LOCALAPPDATA%.
+//
+// Windows is why this is a per-GOOS table rather than the flat list of macOS
+// bundle paths it replaced: Chrome's Windows installer puts nothing on PATH, so
+// a stock Windows box with Chrome installed exactly as the README instructs
+// resolved nothing at all and every `mdpress build --format pdf` (and
+// `--format all`) failed with "Chrome/Chromium was not found", with no way out
+// short of hand-setting MDPRESS_CHROME_PATH. Edge is listed too because it ships
+// with Windows, so PDF works there even before Chrome is installed. Returning
+// per-GOOS lists also stops a Linux run from stat-ing macOS bundle paths.
+func platformChromiumInstallPaths(goos string, lookupEnv func(string) string) []string {
+	switch goos {
+	case "darwin":
+		return []string{
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+			"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+		}
+	case "windows":
+		// Every installer drops its browser under one of three roots, so the
+		// table is (root × browser) rather than a flat list of absolute paths.
+		relative := [][]string{
+			{"Google", "Chrome", "Application", "chrome.exe"},
+			{"Chromium", "Application", "chrome.exe"},
+			{"Microsoft", "Edge", "Application", "msedge.exe"},
+		}
+		roots := []string{
+			envOrDefault(lookupEnv, "ProgramFiles", `C:\Program Files`),
+			envOrDefault(lookupEnv, "ProgramFiles(x86)", `C:\Program Files (x86)`),
+			// Chrome's per-user ("no admin rights") install; there is no
+			// sensible default for it, so an unset LOCALAPPDATA is skipped.
+			strings.TrimSpace(lookupEnv("LOCALAPPDATA")),
+		}
+		paths := make([]string, 0, len(roots)*len(relative))
+		for _, root := range roots {
+			if root == "" {
+				continue
+			}
+			for _, rel := range relative {
+				paths = append(paths, filepath.Join(append([]string{root}, rel...)...))
+			}
+		}
+		return paths
+	default:
+		// Linux and the other Unixes install into PATH, which the executable
+		// candidates above already cover. Google's .deb/.rpm and the Chromium
+		// snap keep the real binary outside PATH, so name those two directly.
+		return []string{
+			"/opt/google/chrome/chrome",
+			"/snap/bin/chromium",
+		}
+	}
+}
+
+// envOrDefault reads name from lookupEnv, falling back when it is unset or blank.
+func envOrDefault(lookupEnv func(string) string, name, fallback string) string {
+	if value := strings.TrimSpace(lookupEnv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
 
 // NewGenerator creates a PDF generator.
 // By default, it generates a document outline (clickable bookmarks) and tagged PDF.
@@ -731,18 +821,36 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 	defer ctxCancel()
 
 	// Start the browser and its tab up front, under a cancel that lives as
-	// long as this function. chromedp allocates the browser on the first Run,
-	// so a per-pass timeout there would take the whole browser down with it
-	// and the second print pass would find nothing to talk to.
-	startCtx, startCancel := context.WithTimeout(browserCtx, g.timeout)
-	defer startCancel()
-	err = chromedp.Run(startCtx)
+	// long as this function. chromedp allocates the browser on the first Run
+	// and ties the browser's lifetime to that Run's context, so a deadline here
+	// killed the whole browser g.timeout after startup: a book that needed
+	// longer died mid-print with a bare "context canceled" — no deadline of its
+	// own had expired, so nothing could name the limit — and the second print
+	// pass found nothing to talk to. Bound the wait rather than the browser; the
+	// goroutine ends when browserCtx is canceled on return.
+	startErr := make(chan error, 1)
+	go func() { startErr <- chromedp.Run(browserCtx) }()
+	startTimer := time.NewTimer(g.timeout)
+	defer startTimer.Stop()
+	select {
+	case err = <-startErr:
+	case <-startTimer.C:
+		err = &printTimeoutError{stage: "starting Chrome", limit: g.timeout}
+	}
 
 	var pdfBuf []byte
 	if err == nil {
 		pdfBuf, err = g.printOnce(browserCtx, src.url)
 	}
 	if err != nil {
+		// A blown pdf_timeout is not something a second attempt can fix, and the
+		// CLI fallback below would make the user wait out the same limit again.
+		// Return the message that names the setting, unburied by the Chrome path
+		// and Chrome's own stderr.
+		var timeoutErr *printTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return err
+		}
 		// Only try CLI fallback for file:// URLs. Parse the URL so the path is
 		// decoded back to a real filesystem path: pageURL is percent-encoded
 		// (url.URL.String() escaped spaces/CJK as %XX), and CutPrefix would
@@ -812,6 +920,36 @@ func (g *Generator) printWithTOCPageNumbers(browserCtx context.Context, src docu
 	}
 	slog.Debug("Filled PDF table-of-contents page numbers", slog.Int("entries", filled))
 	return secondPass
+}
+
+// printTimeoutError reports that Chrome ran past output.pdf_timeout.
+//
+// chromedp surfaces an expired deadline by canceling its inner context, so the
+// error that came back was a bare "context canceled" — the same wording the
+// Ctrl+C path produces. An author whose book simply needed more than two minutes
+// waited out the limit, read "canceled", concluded something had crashed or that
+// a stray keypress had killed the build, and had nothing to search for. Naming
+// the setting is the whole point of this type.
+type printTimeoutError struct {
+	stage string // what was in progress, e.g. "rendering the PDF in Chrome"
+	limit time.Duration
+}
+
+func (e *printTimeoutError) Error() string {
+	// Config validation accepts 5..3600 seconds, so keep the suggestion inside
+	// the range the user is allowed to write.
+	suggested := min(max(int(e.limit.Seconds())*2, 5), 3600)
+	return fmt.Sprintf("%s exceeded output.pdf_timeout (%s); raise it in book.yaml for a book this size (output.pdf_timeout: %d)",
+		e.stage, e.limit, suggested)
+}
+
+// timeoutError returns a printTimeoutError when ctx died of its deadline rather
+// than of an actual cancellation, and nil otherwise.
+func (g *Generator) timeoutError(ctx context.Context, stage string) error {
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil
+	}
+	return &printTimeoutError{stage: stage, limit: g.timeout}
 }
 
 // printOnce navigates to pageURL in an existing browser context and prints it.
@@ -946,6 +1084,9 @@ func (g *Generator) printOnce(browserCtx context.Context, pageURL string) ([]byt
 		}),
 	)
 	if err != nil {
+		if timeoutErr := g.timeoutError(ctx, "rendering the PDF in Chrome"); timeoutErr != nil {
+			return nil, timeoutErr
+		}
 		return nil, err
 	}
 	return pdfBuf, nil
@@ -1015,7 +1156,7 @@ func resolveChromiumPath() (string, error) {
 		}
 	}
 
-	for _, p := range chromiumMacPaths {
+	for _, p := range chromiumInstallPaths {
 		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
@@ -1120,6 +1261,46 @@ func filterChromiumCLIFlags(flagsString string) []string {
 	return filtered
 }
 
+// staleChromiumRuntimeAge is how long a run-* directory must sit untouched
+// before the next PDF build deletes it. pdf_timeout caps a single Chrome run at
+// one hour, so half a day of no activity means the build that owned the
+// directory is gone — while leaving enough slack that a still-running build can
+// never have its profile pulled out from under it.
+const staleChromiumRuntimeAge = 12 * time.Hour
+
+// pruneStaleChromiumRuntimeDirs removes run-* directories abandoned by builds
+// that never reached their deferred cleanup: an OOM kill, a canceled CI job,
+// kill -9, a machine crash. Nothing else ever collected them — the cache sweep
+// walks parsed-chapters only — so they piled up at a few megabytes each for the
+// life of the machine, visible in `mdpress cache info` but removable only by a
+// manual `mdpress cache clear`.
+//
+// Age, not process liveness, decides: PIDs get reused, and every portable way to
+// ask whether one is still alive is wrong somewhere. Failures are logged at debug
+// and otherwise ignored, because a PDF build must not fail over housekeeping.
+func pruneStaleChromiumRuntimeDirs(rootBase string, now time.Time) {
+	entries, err := os.ReadDir(rootBase)
+	if err != nil {
+		slog.Debug("Failed to scan Chrome runtime dirs", slog.String("dir", rootBase), slog.Any("error", err))
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "run-") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || now.Sub(info.ModTime()) < staleChromiumRuntimeAge {
+			continue
+		}
+		dir := filepath.Join(rootBase, entry.Name())
+		if err := os.RemoveAll(dir); err != nil {
+			slog.Debug("Failed to remove stale Chrome runtime dir", slog.String("dir", dir), slog.Any("error", err))
+			continue
+		}
+		slog.Debug("Removed stale Chrome runtime dir", slog.String("dir", dir))
+	}
+}
+
 func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 	rootBase := filepath.Join(utils.CacheRootDir(), "chrome-runtime")
 	if utils.CacheDisabled() {
@@ -1128,6 +1309,7 @@ func prepareChromiumRuntimeDirs() (chromiumRuntimeDirs, error) {
 	if err := os.MkdirAll(rootBase, 0o755); err != nil {
 		return chromiumRuntimeDirs{}, fmt.Errorf("create chrome runtime base dir: %w", err)
 	}
+	pruneStaleChromiumRuntimeDirs(rootBase, time.Now())
 
 	root, err := os.MkdirTemp(rootBase, "run-*")
 	if err != nil {
