@@ -154,16 +154,37 @@ func TestProcessHTMLNoTerms(t *testing.T) {
 	}
 }
 
+// TestProcessHTMLSkipsTags guards the tag/anchor skipping in highlightTerm: a
+// glossary term that also occurs inside a tag's attribute value must never be
+// linked there. Injecting the link inside the tag corrupts the markup — with
+// skipping off, term "test" against `<a href="test">link</a>` comes back as
+// `<a href="<a href="#glossary-test" class="glossary-term" ...>test</a>">link</a>`.
+//
+// The old assertion only checked for a `<a <span` shape the linker can no
+// longer emit (it links with `<a href=...>`, not `<span>`), so it passed even
+// when attribute skipping was removed entirely.
 func TestProcessHTMLSkipsTags(t *testing.T) {
 	g := &Glossary{
-		Terms: []Term{{Name: "href", Definition: "test"}},
+		Terms: []Term{{Name: "test", Definition: "a self-test"}},
 	}
-	html := `<a href="test">Click href here</a>`
-	result := g.ProcessHTML(html)
-	// href inside <a> tag attribute should not be highlighted
-	// but "href" in text content may be
-	if strings.Contains(result, `<a <span`) {
-		t.Error("should not modify HTML tag attributes")
+
+	// The term appears only inside the anchor's href attribute, never in body
+	// text, so the whole anchor must come back byte-for-byte unchanged — in
+	// particular no class="glossary-term" injected between `<a` and `>`.
+	const anchor = `<a href="test">link</a>`
+	if got := g.ProcessHTML(anchor); got != anchor {
+		t.Errorf("term inside an attribute value must not be linked;\n want %q\n  got %q", anchor, got)
+	}
+
+	// The same holds for a non-anchor tag: the attribute is left alone while the
+	// identical term in the surrounding body text IS linked, so the skip is not
+	// just disabling glossary linking wholesale.
+	body := g.ProcessHTML(`<p><img alt="test"> a test here</p>`)
+	if !strings.Contains(body, `<img alt="test">`) {
+		t.Errorf("term inside a tag attribute must be left alone, got: %s", body)
+	}
+	if !strings.Contains(body, `<a href="#glossary-test" class="glossary-term"`) {
+		t.Errorf("the term in body text should be linked, got: %s", body)
 	}
 }
 
