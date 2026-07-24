@@ -32,6 +32,7 @@ type StandaloneHTMLRenderer struct {
 type standaloneData struct {
 	Title       string
 	Subtitle    string
+	Description string
 	Author      string
 	Version     string
 	Language    string
@@ -182,8 +183,13 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 	// TOCHTML is intentionally not rendered: the sidebar already provides
 	// the complete book navigation.
 	data := standaloneData{
-		Title:       r.config.Book.Title,
-		Subtitle:    r.config.Book.Subtitle,
+		Title:    r.config.Book.Title,
+		Subtitle: r.config.Book.Subtitle,
+		// book.description is documented as metadata for "EPUB and HTML", and
+		// the single-file HTML is the format meant for emailing or dropping on
+		// a static host — it carried no description meta tag at all, so link
+		// previews and search engines had nothing but scraped body text.
+		Description: r.config.Book.Description,
 		Author:      r.config.Book.Author,
 		Version:     r.config.Book.Version,
 		Language:    r.config.Book.Language,

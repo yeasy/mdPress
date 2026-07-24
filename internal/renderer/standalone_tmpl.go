@@ -7,6 +7,7 @@ const standaloneHTMLHead = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="author" content="{{.Author}}">
+  {{if .Description}}<meta name="description" content="{{.Description}}">{{end}}
   <title>{{.Title}}</title>
   <!--
     Prevent theme flash (FOUC): read theme setting from localStorage and apply immediately before page renders.

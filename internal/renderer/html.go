@@ -95,15 +95,30 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 	// Assemble CSS: theme CSS + custom CSS + print CSS.
 	fullCSS := r.buildFullCSS(parts.CustomCSS)
 
+	// Every chapter lands in one document here, but heading ids are only unique
+	// per chapter, so two chapters that both have "## Overview" mint the same
+	// id. Chrome records a single destination for it, and the printed table of
+	// contents then gives the second entry the first chapter's page number and
+	// links there too — while the PDF bookmarks, built from the headings
+	// themselves, show the right page, so the document contradicts itself.
+	// Make the ids unique document-wide and remap the TOC to match.
+	namespacer := newAnchorNamespacer()
+	for _, ch := range parts.ChaptersHTML {
+		namespacer.Reserve(ch.ID)
+	}
+
 	// Convert chapter data.
 	chapters := make([]templateChapter, len(parts.ChaptersHTML))
 	for i, ch := range parts.ChaptersHTML {
+		namespacer.MarkChapter(ch.ID)
+		content, _ := namespacer.Rewrite(ch.ID, ch.Content)
 		chapters[i] = templateChapter{
 			Title:   ch.Title,
 			ID:      ch.ID,
-			Content: template.HTML(ch.Content),
+			Content: template.HTML(content),
 		}
 	}
+	tocHTML := namespacer.RemapTOC(parts.TOCHTML, r.config.Output.TOCMaxDepth)
 
 	// Build header and footer text.
 	headerText := r.config.Style.Header.Left
@@ -123,7 +138,7 @@ func (r *HTMLRenderer) Render(parts *RenderParts) (string, error) {
 		Language:         r.config.Book.Language,
 		CSS:              template.CSS(fullCSS),
 		CoverHTML:        template.HTML(parts.CoverHTML),
-		TOCHTML:          template.HTML(parts.TOCHTML),
+		TOCHTML:          template.HTML(tocHTML),
 		Chapters:         chapters,
 		HeaderText:       headerText,
 		FooterText:       footerText,
@@ -147,6 +162,15 @@ func (r *HTMLRenderer) buildFullCSS(customCSS string) string {
 	if r.theme != nil {
 		css.WriteString(r.theme.ToCSS())
 		css.WriteString("\n")
+		// ToCSS()'s body margin is a page margin, but @page already owns the
+		// page box in a paged medium, so the two stacked: `margin_left: 30mm`
+		// printed as 50mm on every page except the first, where
+		// `@page :first { margin: 0 }` left the theme's 20mm on its own. Books
+		// with a cover hid the bug — the cover's embedded stylesheet resets the
+		// body margin as a side effect — so it only showed up with
+		// `output.cover: false`, as a text column ~23% narrower than asked for.
+		// Comes before the custom CSS so users still keep the final say.
+		css.WriteString("body {\n  margin: 0;\n}\n\n")
 		// Class-based syntax-highlighting stylesheet (light; PDF has no dark mode).
 		css.WriteString(markdown.HighlightCSSLight(r.theme.CodeTheme))
 		css.WriteString("\n")
@@ -179,6 +203,18 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 
 	margins := resolveMargins(r.config)
 
+	// A cover is artwork printed to the edge of the sheet, so page one gets no
+	// page box. Without a cover, page one is the table of contents or the first
+	// chapter and needs the book's margins like any other page — zeroing them
+	// there printed the first page edge to edge. The rule is emitted either way
+	// because the template carries an unconditional `@page :first { margin: 0 }`
+	// that this stylesheet has to override.
+	firstPageMargin := fmt.Sprintf("%.0fmm %.0fmm %.0fmm %.0fmm",
+		margins.Top, margins.Right, margins.Bottom, margins.Left)
+	if r.config.Output.Cover {
+		firstPageMargin = "0"
+	}
+
 	fmt.Fprintf(&css, `
 @page {
   size: %s;
@@ -186,7 +222,7 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 }
 
 @page :first {
-  margin: 0;
+  margin: %s;
 }
 
 .chapter {
@@ -204,7 +240,8 @@ func (r *HTMLRenderer) buildPrintCSS() string {
 		margins.Top,
 		margins.Right,
 		margins.Bottom,
-		margins.Left)
+		margins.Left,
+		firstPageMargin)
 
 	fmt.Fprintf(&css, `
 @media print {

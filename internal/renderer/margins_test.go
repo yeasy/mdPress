@@ -89,3 +89,66 @@ func TestPageCSSUsesResolvedMargins(t *testing.T) {
 		t.Error("the generated @page rule does not carry the resolved margins")
 	}
 }
+
+// TestPageBoxIsTheOnlyMargin covers a book whose margins came out double the
+// configured value: theme.ToCSS() emits the page margin as a body margin, and
+// @page emits it again, so the two stacked. Books with a cover were spared by
+// accident — the cover's embedded stylesheet resets the body margin — so the
+// symptom only appeared with output.cover: false.
+func TestPageBoxIsTheOnlyMargin(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Output.Cover = false
+	cfg.Output.MarginLeft = "30mm"
+	cfg.Output.MarginRight = "30mm"
+
+	r, err := NewHTMLRenderer(cfg, newTestTheme(t))
+	if err != nil {
+		t.Fatalf("NewHTMLRenderer failed: %v", err)
+	}
+	css := r.buildFullCSS("")
+
+	themeMargin := strings.Index(css, "margin: var(--margin-top")
+	reset := strings.Index(css, "body {\n  margin: 0;\n}")
+	if themeMargin < 0 {
+		t.Fatalf("expected the theme's own body margin in the stylesheet:\n%s", css)
+	}
+	if reset < 0 || reset < themeMargin {
+		t.Error("the body margin must be zeroed after the theme CSS, so @page alone defines the page box")
+	}
+	// Custom CSS still gets the final say.
+	custom := r.buildFullCSS("body { margin: 5mm; }")
+	if strings.Index(custom, "body { margin: 5mm; }") < strings.Index(custom, "body {\n  margin: 0;\n}") {
+		t.Error("custom CSS should come after the reset so users keep the final say")
+	}
+}
+
+// TestFirstPageKeepsMarginsWithoutACover pins the other half: @page :first is
+// zeroed so cover artwork can bleed to the sheet edge, but with no cover page
+// one is the table of contents or the first chapter and was printed edge to
+// edge.
+func TestFirstPageKeepsMarginsWithoutACover(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Style.Margin = config.MarginConfig{Top: 25, Right: 20, Bottom: 25, Left: 20}
+
+	t.Run("with a cover the first page bleeds", func(t *testing.T) {
+		cfg.Output.Cover = true
+		r, err := NewHTMLRenderer(cfg, newTestTheme(t))
+		if err != nil {
+			t.Fatalf("NewHTMLRenderer failed: %v", err)
+		}
+		if !strings.Contains(r.buildPrintCSS(), "@page :first {\n  margin: 0;\n}") {
+			t.Error("a cover page must have no page box")
+		}
+	})
+
+	t.Run("without a cover the first page keeps the book's margins", func(t *testing.T) {
+		cfg.Output.Cover = false
+		r, err := NewHTMLRenderer(cfg, newTestTheme(t))
+		if err != nil {
+			t.Fatalf("NewHTMLRenderer failed: %v", err)
+		}
+		if !strings.Contains(r.buildPrintCSS(), "@page :first {\n  margin: 25mm 20mm 25mm 20mm;\n}") {
+			t.Errorf("the first page lost its margins:\n%s", r.buildPrintCSS())
+		}
+	})
+}
