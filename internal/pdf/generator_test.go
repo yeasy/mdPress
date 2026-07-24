@@ -247,12 +247,12 @@ func TestWithFooterTemplateOption(t *testing.T) {
 func TestResolveChromiumPathPrefersMDPRESSChromePath(t *testing.T) {
 	t.Setenv("CHROME_BIN", "")
 	originalCandidates := chromiumExecutableCandidates
-	originalMacPaths := chromiumMacPaths
+	originalInstallPaths := chromiumInstallPaths
 	chromiumExecutableCandidates = nil
-	chromiumMacPaths = nil
+	chromiumInstallPaths = nil
 	defer func() {
 		chromiumExecutableCandidates = originalCandidates
-		chromiumMacPaths = originalMacPaths
+		chromiumInstallPaths = originalInstallPaths
 	}()
 
 	dir := t.TempDir()
@@ -274,12 +274,12 @@ func TestResolveChromiumPathPrefersMDPRESSChromePath(t *testing.T) {
 func TestResolveChromiumPathFallsBackToChromeBin(t *testing.T) {
 	t.Setenv("MDPRESS_CHROME_PATH", "")
 	originalCandidates := chromiumExecutableCandidates
-	originalMacPaths := chromiumMacPaths
+	originalInstallPaths := chromiumInstallPaths
 	chromiumExecutableCandidates = nil
-	chromiumMacPaths = nil
+	chromiumInstallPaths = nil
 	defer func() {
 		chromiumExecutableCandidates = originalCandidates
-		chromiumMacPaths = originalMacPaths
+		chromiumInstallPaths = originalInstallPaths
 	}()
 
 	dir := t.TempDir()
@@ -317,12 +317,12 @@ func TestResolveChromiumPathFindsPathExecutable(t *testing.T) {
 	}
 
 	originalCandidates := chromiumExecutableCandidates
-	originalMacPaths := chromiumMacPaths
+	originalInstallPaths := chromiumInstallPaths
 	chromiumExecutableCandidates = []string{"google-chrome"}
-	chromiumMacPaths = nil
+	chromiumInstallPaths = nil
 	defer func() {
 		chromiumExecutableCandidates = originalCandidates
-		chromiumMacPaths = originalMacPaths
+		chromiumInstallPaths = originalInstallPaths
 	}()
 
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
