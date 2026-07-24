@@ -920,15 +920,15 @@ func TestSwapSiteDir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(target, "stale.html"), []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	temp, err := os.MkdirTemp(root, "mdpress-site-*.tmp")
+	staging, err := newSiteStaging(root, "mdpress-site-*.tmp")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(temp, "index.html"), []byte("new"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(staging.Site, "index.html"), []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := swapSiteDir(temp, target, slog.Default()); err != nil {
+	if err := swapSiteDir(staging, target, slog.Default()); err != nil {
 		t.Fatalf("swapSiteDir() error: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(target, "index.html")); err != nil {
@@ -940,8 +940,8 @@ func TestSwapSiteDir(t *testing.T) {
 	if _, err := os.Stat(target + ".old"); !os.IsNotExist(err) {
 		t.Error("backup directory left behind after swap")
 	}
-	if _, err := os.Stat(temp); !os.IsNotExist(err) {
-		t.Error("temp directory left behind after swap")
+	if _, err := os.Stat(staging.Root); !os.IsNotExist(err) {
+		t.Error("staging directory left behind after swap")
 	}
 }
 

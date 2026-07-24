@@ -4,9 +4,7 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -23,6 +21,11 @@ import (
 const (
 	defaultServePort = 9000
 	defaultServeHost = "127.0.0.1"
+	// serveStagingDirPattern names the per-rebuild staging directory created
+	// next to the output. The file watcher skips directories matching it by
+	// name (internal/server.isIgnoredDirName), so changing it here without
+	// changing it there makes every rebuild retrigger the watcher.
+	serveStagingDirPattern = "mdpress-serve-*.tmp"
 )
 
 var (
@@ -185,18 +188,22 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		outputDir = filepath.Join(cfg.BaseDir(), "_book")
 	}
 
-	// A serve process killed mid-rebuild (Ctrl-C at the wrong moment, or
-	// SIGKILL) leaves the atomic-swap scratch behind. Sweep it now so the
-	// project does not accumulate _book.old and mdpress-serve-*.tmp copies.
-	cleanupServeLeftovers(outputDir, logger)
-
 	// Every rebuild replaces outputDir wholesale via an atomic swap, so a
 	// directory holding anything other than a previously generated site would
 	// lose its contents on the first save. Refuse it up front, exactly like
 	// `mdpress build --format site` does.
+	//
+	// This runs before any cleanup: a refused run must leave the filesystem
+	// exactly as it found it. The sweep below used to run first, so `serve`
+	// deleted scratch next to the output and only then bailed out.
 	if err := ensureReplaceableSiteDir(outputDir); err != nil {
 		return err
 	}
+
+	// A serve process killed mid-rebuild (Ctrl-C at the wrong moment, or
+	// SIGKILL) leaves the atomic-swap scratch behind. Sweep it now so the
+	// project does not accumulate mdpress-serve-*.tmp copies.
+	cleanupServeLeftovers(outputDir, logger)
 
 	// Warn when binding to a non-loopback address as this exposes the
 	// preview server (including WebSocket and all generated content) to
@@ -235,40 +242,22 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 			return fmt.Errorf("reload config: %w", err)
 		}
 		// Build to a temporary directory first, then swap on success.
-		tempOutput, err := newSiteStagingDir(filepath.Dir(outputDir), "mdpress-serve-*.tmp")
+		staging, err := newSiteStaging(filepath.Dir(outputDir), serveStagingDirPattern)
 		if err != nil {
 			return fmt.Errorf("create temp output dir: %w", err)
 		}
-		if buildErr := buildSiteForServe(ctx, newCfg, tempOutput, logger); buildErr != nil {
+		if buildErr := buildSiteForServe(ctx, newCfg, staging.Site, logger); buildErr != nil {
 			// Clean up the failed temp build, keep the previous good output.
-			if err := os.RemoveAll(tempOutput); err != nil {
-				logger.Debug("failed to remove temp output directory", slog.String("path", tempOutput), slog.Any("error", err))
-			}
+			staging.Discard(logger)
 			return buildErr
 		}
-		// Swap the temp build into the final output directory.
-		// Rename the old dir out of the way first, then rename the new dir in.
-		// This minimizes the window where no content is available.
-		backupDir := outputDir + ".old"
-		if err := os.RemoveAll(backupDir); err != nil {
-			logger.Debug("Failed to remove previous backup directory", slog.String("dir", backupDir), slog.Any("error", err))
-		}
-		if err := os.Rename(outputDir, backupDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			logger.Debug("Failed to move previous output aside", slog.Any("error", err))
-		}
-		if renameErr := os.Rename(tempOutput, outputDir); renameErr != nil {
-			// Restore the previous build if the swap failed.
-			if err := os.Rename(backupDir, outputDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				logger.Debug("Failed to restore previous output", slog.Any("error", err))
-			}
-			if err := os.RemoveAll(tempOutput); err != nil {
-				logger.Debug("Failed to remove temp output directory", slog.String("dir", tempOutput), slog.Any("error", err))
-			}
-			// Fallback: if rename fails (cross-device), try the direct build.
+		// Swap the temp build into the final output directory. Shared with
+		// `build --format site` so both park the previous output inside the
+		// staging area rather than in the user's "<outputDir>.old" sibling.
+		if err := swapSiteDir(staging, outputDir, logger); err != nil {
+			// Rename can fail across devices; fall back to building in place.
+			logger.Debug("Atomic site swap failed, rebuilding in place", slog.Any("error", err))
 			return buildSiteForServe(ctx, newCfg, outputDir, logger)
-		}
-		if err := os.RemoveAll(backupDir); err != nil {
-			logger.Debug("Failed to remove backup directory after swap", slog.String("dir", backupDir), slog.Any("error", err))
 		}
 		return nil
 	}
@@ -283,16 +272,16 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 	return srv.StartWithListener(ctx, ln)
 }
 
-// cleanupServeLeftovers removes the scratch directories the serve rebuild swap
-// creates: the <outputDir>.old backup and any mdpress-serve-*.tmp staging dirs
-// next to it. They are only ever meaningful inside a single rebuild, so any
-// that survive belong to a previous run that did not exit cleanly.
+// cleanupServeLeftovers removes the mdpress-serve-*.tmp staging directories
+// the rebuild swap creates next to the output directory. They are only ever
+// meaningful inside a single rebuild, so any that survive belong to a previous
+// run that did not exit cleanly.
+//
+// It deliberately never touches "<outputDir>.old". mdpress no longer parks the
+// previous site there, and sweeping that name destroyed hand-made backups of
+// the last release that happened to sit next to the output directory.
 func cleanupServeLeftovers(outputDir string, logger *slog.Logger) {
-	backupDir := outputDir + ".old"
-	if err := os.RemoveAll(backupDir); err != nil {
-		logger.Debug("Failed to remove leftover backup directory", slog.String("dir", backupDir), slog.Any("error", err))
-	}
-	matches, err := filepath.Glob(filepath.Join(filepath.Dir(outputDir), "mdpress-serve-*.tmp"))
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(outputDir), serveStagingDirPattern))
 	if err != nil {
 		logger.Debug("Failed to scan for leftover staging directories", slog.Any("error", err))
 		return

@@ -17,6 +17,7 @@ import (
 	"github.com/yeasy/mdpress/internal/pdf"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/theme"
+	"github.com/yeasy/mdpress/internal/toc"
 	"github.com/yeasy/mdpress/internal/typst"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -124,6 +125,16 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 
 	headerTmpl, footerTmpl := pdfHeaderFooterTemplates(ctx.Config)
 
+	// A printed table of contents may only cite page numbers the reader can
+	// actually turn to. With output.footer:false (and no {page} in the header)
+	// no sheet carries a folio, yet the contents still read "Deep Dive .... 10"
+	// — a number that appears nowhere in the document. Drop the page-number
+	// slots so the two halves of the feature agree; internal/pdf then also
+	// skips its numbering print pass, which halves the render.
+	if !pdfPrintsPageNumbers(headerTmpl, footerTmpl) {
+		fullHTML = stripTOCPageSlots(fullHTML)
+	}
+
 	// Prepare margin options from config, with fallback defaults
 	marginOpts := []pdf.GeneratorOption{
 		pdf.WithTimeout(pdfTimeout),
@@ -195,9 +206,16 @@ func pdfDocumentMetadata(cfg *config.BookConfig) pdf.DocumentMetadata {
 	}
 }
 
+// pdfPageNumberSpan is the markup Chrome replaces with the current page number
+// when it renders a print header/footer template.
+const pdfPageNumberSpan = `<span class='pageNumber'></span>`
+
+// pdfTotalPagesSpan is the markup Chrome replaces with the page count.
+const pdfTotalPagesSpan = `<span class='totalPages'></span>`
+
 // defaultPDFFooterTemplate is the out-of-the-box PDF footer: a centered page
 // number in subtle small print.
-const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;'><span class='pageNumber'></span></div>`
+const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;'>` + pdfPageNumberSpan + `</div>`
 
 // pdfHeaderFooterTemplates derives the Chrome print header/footer templates
 // from the book configuration. The output.header/output.footer booleans act
@@ -220,6 +238,26 @@ func pdfHeaderFooterTemplates(cfg *config.BookConfig) (headerTmpl, footerTmpl st
 		}
 	}
 	return headerTmpl, footerTmpl
+}
+
+// pdfPrintsPageNumbers reports whether any sheet of the printed document will
+// carry a page number, i.e. whether a rendered header or footer expands
+// Chrome's page-number placeholder.
+func pdfPrintsPageNumbers(headerTmpl, footerTmpl string) bool {
+	return strings.Contains(headerTmpl, pdfPageNumberSpan) ||
+		strings.Contains(footerTmpl, pdfPageNumberSpan)
+}
+
+// tocPageSlotAttrPattern matches the attribute that marks a table-of-contents
+// page-number slot, e.g. ` data-toc-page="deep-dive"`.
+var tocPageSlotAttrPattern = regexp.MustCompile(`\s` + regexp.QuoteMeta(toc.PageSlotAttr) + `="[^"]*"`)
+
+// stripTOCPageSlots removes the page-number slot markers from the document.
+// internal/pdf keys its second print pass off their presence, so dropping them
+// leaves every slot empty — and the TOC stylesheet already renders an entry
+// with an empty slot without a dot leader, so it reads as a plain list.
+func stripTOCPageSlots(htmlContent string) string {
+	return tocPageSlotAttrPattern.ReplaceAllString(htmlContent, "")
 }
 
 // isCustomHeaderFooterStyle reports whether the user configured a
@@ -258,8 +296,8 @@ func expandPDFTemplateTokens(text string, book config.BookMeta) string {
 	if text == "" {
 		return ""
 	}
-	const pageSpan = "<span class='pageNumber'></span>"
-	const totalPagesSpan = "<span class='totalPages'></span>"
+	const pageSpan = pdfPageNumberSpan
+	const totalPagesSpan = pdfTotalPagesSpan
 	escapedTitle := html.EscapeString(book.Title)
 	escapedAuthor := html.EscapeString(book.Author)
 	replacer := strings.NewReplacer(
@@ -376,17 +414,15 @@ func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := utils.EnsureDir(filepath.Dir(outputDir)); err != nil {
 		return fmt.Errorf("failed to create site output parent directory: %w", err)
 	}
-	tempDir, err := newSiteStagingDir(filepath.Dir(outputDir), "mdpress-site-*.tmp")
+	staging, err := newSiteStaging(filepath.Dir(outputDir), "mdpress-site-*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary site directory: %w", err)
 	}
-	if err := generate(tempDir); err != nil {
-		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-			ctx.Logger.Debug("failed to remove temporary site directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
-		}
+	if err := generate(staging.Site); err != nil {
+		staging.Discard(ctx.Logger)
 		return fmt.Errorf("failed to generate HTML site: %w", err)
 	}
-	if err := swapSiteDir(tempDir, outputDir, ctx.Logger); err != nil {
+	if err := swapSiteDir(staging, outputDir, ctx.Logger); err != nil {
 		// Rename can fail across devices; fall back to building in place.
 		ctx.Logger.Debug("atomic site swap failed, rebuilding in place", slog.Any("error", err))
 		if genErr := generate(outputDir); genErr != nil {
@@ -425,50 +461,82 @@ func ensureReplaceableSiteDir(dir string) error {
 	return fmt.Errorf("refusing to replace %s: the directory is not empty and does not look like a generated site (no index.html or search-index.json); remove it or choose another --output", dir)
 }
 
-// newSiteStagingDir creates the staging directory that the atomic swap renames
-// into place as the published site root.
+// siteStaging is the scratch area one site build stages into, created next to
+// the target directory. Site holds the freshly generated pages that the swap
+// renames into place; Root also ends up holding the previous site while the
+// swap runs.
 //
-// os.MkdirTemp always creates 0700 directories. That is right for a scratch
-// directory but wrong here: after the rename it *is* the site root, and a
-// 0700 site root is unreadable to the web server user (nginx/httpd → 403) and
-// is preserved by rsync -a, docker COPY and CI artifact upload. Everything
-// generated inside it is already world-readable, so make the root match.
-func newSiteStagingDir(parent, pattern string) (string, error) {
-	dir, err := os.MkdirTemp(parent, pattern)
-	if err != nil {
-		return "", err
-	}
-	if err := os.Chmod(dir, 0o755); err != nil { //nolint:gosec // G302: a published site root must be world-readable
-		if rmErr := os.RemoveAll(dir); rmErr != nil {
-			return "", fmt.Errorf("chmod staging dir: %w (cleanup also failed: %v)", err, rmErr)
-		}
-		return "", fmt.Errorf("chmod staging dir: %w", err)
-	}
-	return dir, nil
+// Both live under a single mdpress-owned Root on purpose. The swap used to
+// park the previous site at "<outputDir>.old", a sibling name that belongs to
+// the user — it is exactly what people call a hand-made backup of the last
+// release — and mdpress RemoveAll'd it before every swap, so
+// `build --format site -o ~/Sites/book` destroyed ~/Sites/book.old and still
+// reported success. Everything the swap deletes it now created itself.
+type siteStaging struct {
+	Root string
+	Site string
 }
 
-// swapSiteDir atomically replaces outputDir with tempDir: the previous output
-// is renamed aside, the fresh build renamed in, and the backup removed. On
-// failure the previous output is restored and an error is returned.
-func swapSiteDir(tempDir, outputDir string, logger *slog.Logger) error {
-	backupDir := outputDir + ".old"
-	if err := os.RemoveAll(backupDir); err != nil {
-		logger.Debug("failed to remove previous backup directory", slog.String("dir", backupDir), slog.Any("error", err))
+// newSiteStaging creates the staging area for one site build. pattern names
+// Root and must stay in sync with the serve file watcher's ignore rules, which
+// match on the directory name.
+//
+// os.MkdirTemp always creates 0700 directories. That is right for Root, which
+// is pure scratch, but wrong for Site: after the rename Site *is* the site
+// root, and a 0700 site root is unreadable to the web server user
+// (nginx/httpd → 403) and is preserved by rsync -a, docker COPY and CI
+// artifact upload. Everything generated inside it is already world-readable,
+// so make the root match.
+func newSiteStaging(parent, pattern string) (*siteStaging, error) {
+	root, err := os.MkdirTemp(parent, pattern)
+	if err != nil {
+		return nil, err
 	}
-	if err := os.Rename(outputDir, backupDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	site := filepath.Join(root, "site")
+	if err := os.Mkdir(site, 0o755); err != nil { //nolint:gosec // G301: a published site root must be world-readable
+		if rmErr := os.RemoveAll(root); rmErr != nil {
+			return nil, fmt.Errorf("create staging site dir: %w (cleanup also failed: %v)", err, rmErr)
+		}
+		return nil, fmt.Errorf("create staging site dir: %w", err)
+	}
+	// Mkdir applies the process umask, which on many CI images is 0022 but on
+	// developer machines can be 0077.
+	if err := os.Chmod(site, 0o755); err != nil { //nolint:gosec // G302: a published site root must be world-readable
+		if rmErr := os.RemoveAll(root); rmErr != nil {
+			return nil, fmt.Errorf("chmod staging site dir: %w (cleanup also failed: %v)", err, rmErr)
+		}
+		return nil, fmt.Errorf("chmod staging site dir: %w", err)
+	}
+	return &siteStaging{Root: root, Site: site}, nil
+}
+
+// Discard removes the whole staging area, including any previous site parked
+// inside it.
+func (s *siteStaging) Discard(logger *slog.Logger) {
+	if err := os.RemoveAll(s.Root); err != nil {
+		logger.Debug("failed to remove site staging directory", slog.String("dir", s.Root), slog.Any("error", err))
+	}
+}
+
+// swapSiteDir atomically replaces outputDir with the freshly staged site: the
+// previous output is parked inside the staging area, the fresh build is
+// renamed in, and the staging area is removed. On failure the previous output
+// is restored and an error is returned.
+//
+// The staging area is always discarded, so a caller that gets an error back
+// must rebuild in place rather than retry the swap.
+func swapSiteDir(staging *siteStaging, outputDir string, logger *slog.Logger) error {
+	defer staging.Discard(logger)
+
+	prevDir := filepath.Join(staging.Root, "prev")
+	if err := os.Rename(outputDir, prevDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Debug("failed to move previous site output aside", slog.Any("error", err))
 	}
-	if err := os.Rename(tempDir, outputDir); err != nil {
-		if restoreErr := os.Rename(backupDir, outputDir); restoreErr != nil && !errors.Is(restoreErr, fs.ErrNotExist) {
+	if err := os.Rename(staging.Site, outputDir); err != nil {
+		if restoreErr := os.Rename(prevDir, outputDir); restoreErr != nil && !errors.Is(restoreErr, fs.ErrNotExist) {
 			logger.Debug("failed to restore previous site output", slog.Any("error", restoreErr))
 		}
-		if rmErr := os.RemoveAll(tempDir); rmErr != nil {
-			logger.Debug("failed to remove temporary site directory", slog.String("dir", tempDir), slog.Any("error", rmErr))
-		}
 		return fmt.Errorf("swap site directory: %w", err)
-	}
-	if err := os.RemoveAll(backupDir); err != nil {
-		logger.Debug("failed to remove backup directory after swap", slog.String("dir", backupDir), slog.Any("error", err))
 	}
 	return nil
 }
