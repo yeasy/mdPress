@@ -94,12 +94,16 @@ func TestSidebarStopsRecursingOnCyclicChapters(t *testing.T) {
 	}
 }
 
-// TestSiteSearchHandlesQuotesAndCJK pins the query tokenizer that quoted
-// phrases and unspaced CJK queries depend on. Splitting the raw query on
-// whitespace and running indexOf per piece made "an exact phrase" match nothing
-// (the quote characters went into the search string) and made a CJK query match
-// only when it appeared as one contiguous run.
-func TestSiteSearchHandlesQuotesAndCJK(t *testing.T) {
+// TestSiteSearchJSKeepsHelpers is a source change-detector, NOT behavioral
+// coverage. It only asserts that siteScriptJS still contains the query-parsing
+// and matching helpers by name and wires them into doSearch; it cannot tell
+// whether search actually works. A regression that keeps every substring below
+// but breaks the logic — e.g. gutting the per-character CJK fallback inside
+// termMatches so an unspaced 数据库索引 query matches nothing — passes this test.
+// The real behavior (quoted phrases and unspaced CJK queries) is verified by the
+// Chrome-driven TestSiteSearchInBrowser. Read a green run here, in a Chrome-less
+// environment, as "the search source was not reverted", never as "search works".
+func TestSiteSearchJSKeepsHelpers(t *testing.T) {
 	js := siteScriptJS
 	if !strings.Contains(js, "function parseSearchTerms(raw)") {
 		t.Error("search should parse the query into terms, keeping quoted runs whole")
@@ -121,11 +125,15 @@ func TestSiteSearchHandlesQuotesAndCJK(t *testing.T) {
 	}
 }
 
-// TestSiteSearchIndexFailureIsReported covers the file:// preview: the fetch of
-// search-index.json is rejected as cross-origin, and loadIndex used to swallow
-// that into an empty index, so every query answered "No results" — telling the
-// reader their content was never indexed.
-func TestSiteSearchIndexFailureIsReported(t *testing.T) {
+// TestSiteSearchIndexFailureJSKeepsErrorPath is a source change-detector, NOT
+// behavioral coverage. It only asserts that loadIndex's failure-handling
+// substrings are still present in siteScriptJS; it never performs a failed index
+// load, so it cannot confirm the failure is actually surfaced. The behavior — a
+// file:// preview reporting the index as unavailable instead of silently
+// answering "No results" — is verified by the Chrome-driven
+// TestSiteSearchOverFileProtocol. A green run here, in a Chrome-less
+// environment, means only that the error-path source was not reverted.
+func TestSiteSearchIndexFailureJSKeepsErrorPath(t *testing.T) {
 	js := siteScriptJS
 	if strings.Contains(js, "searchIndex = [];") {
 		t.Error("a failed index load must not resolve as an empty index")
