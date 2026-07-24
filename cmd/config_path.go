@@ -8,14 +8,22 @@ import (
 )
 
 // defaultConfigName is the config file mdpress looks for when --config is not
-// given. It is also the flag's default value, which is how an explicit
-// --config is distinguished from the implicit one.
+// given. It is also the flag's default value.
 const defaultConfigName = "book.yaml"
 
-// configExplicitlySet reports whether the user passed --config. Comparing
-// against the flag default is enough here: passing --config book.yaml is
-// indistinguishable from omitting it, and means the same thing either way.
+// configExplicitlySet reports whether the user passed --config.
+//
+// It asks cobra whether the flag was seen on the command line rather than
+// comparing cfgFile against the flag default: `--config book.yaml ./docs` used
+// to be indistinguishable from omitting the flag, so it took the implicit
+// branch and quietly built ./docs's auto-discovered book instead of the
+// book.yaml the user pointed at — a different book, exit code 0, no warning.
 func configExplicitlySet() bool {
+	if f := rootCmd.PersistentFlags().Lookup("config"); f != nil && f.Changed {
+		return true
+	}
+	// Fall back to the value for callers that set cfgFile directly rather than
+	// through flag parsing (tests, and any future embedding of the commands).
 	return cfgFile != "" && cfgFile != defaultConfigName
 }
 

@@ -81,24 +81,29 @@ func Discover(ctx context.Context, dir string) (*BookConfig, error) {
 			// Extract rich metadata from README.md.
 			readmePath := filepath.Join(absDir, "README.md")
 			meta := ExtractReadmeMetadata(ctx, readmePath)
-			defaultTitle := DefaultConfig().Book.Title
-			if cfg.Book.Title == "" || cfg.Book.Title == defaultTitle {
+			if cfg.Book.Title == "" || cfg.Book.Title == DefaultBookTitle {
 				if meta.Title != "" {
 					cfg.Book.Title = meta.Title
 				} else {
 					cfg.Book.Title = filepath.Base(absDir)
 				}
 			}
-			if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
-				cfg.Book.Version = meta.Version
-			}
-			// Fallback: try git tag when version is still the default.
-			if cfg.Book.Version == DefaultConfig().Book.Version {
-				if tag := gitLatestTag(ctx, absDir); tag != "" {
+			// Guess a version only when the config source declared none:
+			// comparing against DefaultConfig's "1.0.0" made an explicitly
+			// pinned 1.0.0 look unset, so a git tag overwrote it.
+			if !cfg.IsSet("book.version") {
+				if meta.Version != "" {
+					cfg.Book.Version = meta.Version
+				} else if tag := gitLatestTag(ctx, absDir); tag != "" {
 					cfg.Book.Version = tag
 				}
 			}
-			if meta.Language != "" {
+			// The README language sniff is a last resort, not an override. It
+			// never returns "", so it used to discard book.json's declared
+			// `language` on every GitBook project (book.json + SUMMARY.md is
+			// the standard GitBook layout) — a Japanese book shipped with a
+			// Chinese search box.
+			if meta.Language != "" && !cfg.IsSet("book.language") {
 				cfg.Book.Language = meta.Language
 			}
 			if meta.Author != "" {

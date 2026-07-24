@@ -100,8 +100,12 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		// Only override the language code when none was explicitly set by the
 		// user. The previous logic also overwrote an explicit "zh-CN" when
 		// the directory name implied a different language, which was wrong.
-		if guessed := guessLanguageCode(lang.Dir); guessed != "" {
-			if langCfg.Book.Language == "" {
+		// The "explicitly set" test used to be `Book.Language == ""`, which no
+		// config can ever satisfy — Discover unmarshals over DefaultConfig's
+		// "en-US" — so a zh/ directory with a book.yaml published Chinese
+		// pages as <html lang="en-US"> with an English search UI.
+		if !langCfg.IsSet("book.language") {
+			if guessed := guessLanguageCode(lang.Dir); guessed != "" {
 				langCfg.Book.Language = guessed
 			}
 		}
