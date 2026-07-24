@@ -755,6 +755,16 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string,
 		}
 		headingIDs[linkrewrite.NormalizePath(flat.Def.File)] = ids
 
+		// The build silently drops a chapter that renders to nothing — no
+		// page, no sidebar entry — and the only trace is a WARN in the build
+		// log. A chapter truncated to 0 bytes by a bad merge therefore shipped
+		// past `validate --strict`, which is the gate that exists so nobody
+		// has to read build logs. Test emptiness exactly the way
+		// cmd/chapter_pipeline.go does so the two cannot drift apart.
+		if htmlContent == "" {
+			issues = append(issues, fmt.Sprintf("Empty chapter %s: it has no content, so it produces no page and no navigation entry", flat.Def.File))
+		}
+
 		if diag := validateChapterTitleSequence(flat.Def.Title, headings); diag != nil {
 			issues = append(issues, fmt.Sprintf("Chapter title numbering mismatch: %s (rule=%s)", flat.Def.File, diag.Rule))
 		}

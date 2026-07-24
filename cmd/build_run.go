@@ -8,8 +8,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +28,14 @@ import (
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/internal/toc"
 	"github.com/yeasy/mdpress/pkg/utils"
+)
+
+// The glossary appendix mdPress synthesizes from GLOSSARY.md. It is not a
+// chapter in the config, so every consumer that walks the chapter list or the
+// heading list has to be told about it explicitly.
+const (
+	glossaryChapterTitle = "Glossary"
+	glossaryChapterID    = "glossary"
 )
 
 type languageBuildSummary struct {
@@ -313,30 +323,22 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		coverHTML = cover.NewCoverGenerator(cfg.Book, orchestrator.Theme).RenderHTML()
 	}
 
+	var glossaryHTML string
+	if orchestrator.Gloss != nil && len(orchestrator.Gloss.Terms) > 0 {
+		glossaryHTML = orchestrator.Gloss.RenderHTML()
+	}
+
 	var tocHTML string
 	if cfg.Output.TOC {
-		tocHeadings := allHeadings
-		if maxDepth := cfg.Output.TOCMaxDepth; maxDepth > 0 && maxDepth < 6 {
-			filtered := make([]toc.HeadingInfo, 0, len(allHeadings))
-			for _, h := range allHeadings {
-				if h.Level <= maxDepth {
-					filtered = append(filtered, h)
-				}
-			}
-			tocHeadings = filtered
-		}
+		tocHeadings := tocHeadingsForBook(allHeadings, glossaryHTML != "", cfg.Output.TOCMaxDepth)
 		tocGen := toc.NewGeneratorForLanguage(cfg.Book.Language)
 		entries := tocGen.Generate(tocHeadings)
 		tocHTML = tocGen.RenderHTML(entries)
 		logger.Debug("TOC generated", slog.Int("entries", toc.CountEntries(entries)),
 			slog.Int("maxDepth", cfg.Output.TOCMaxDepth))
 	}
+	warnTOCSettingsIgnored(cfg, formats, logger)
 	progress.Done()
-
-	var glossaryHTML string
-	if orchestrator.Gloss != nil && len(orchestrator.Gloss.Terms) > 0 {
-		glossaryHTML = orchestrator.Gloss.RenderHTML()
-	}
 
 	singlePageChapters := rewriteChapterLinks(chaptersHTML, chapterFiles)
 
@@ -347,8 +349,8 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 	progress.Start("Assembling HTML")
 	if glossaryHTML != "" {
 		glossaryChapter := renderer.ChapterHTML{
-			Title:   "Glossary",
-			ID:      "glossary",
+			Title:   glossaryChapterTitle,
+			ID:      glossaryChapterID,
 			Content: glossaryHTML,
 		}
 		chaptersHTML = append(chaptersHTML, glossaryChapter)
@@ -1419,6 +1421,8 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 		markdown.HighlightCSSDark(thm.CodeTheme) + "\n" +
 		customCSS)
 
+	chapters, pageFilenames = resolveSiteGlossaryPage(chapters, chapterFiles, pageFilenames)
+
 	for _, ch := range buildSiteChapterTree(cfg.Chapters, chapters, chapterFiles, pageFilenames, chapterMarkdown) {
 		siteGen.AddChapter(ch)
 	}
@@ -1428,6 +1432,7 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 
 func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterHTML, chapterFiles []string, pageFilenames []string, chapterMarkdown []string) []output.SiteChapter {
 	type siteChapterData struct {
+		index    int
 		html     renderer.ChapterHTML
 		filename string
 		markdown string
@@ -1435,6 +1440,20 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 	// Map chapter data by file path using the aligned chapterFiles slice,
 	// which correctly accounts for any chapters skipped during processing.
 	byFile := make(map[string]siteChapterData, len(chapters))
+	toSiteChapter := func(data siteChapterData, def config.ChapterDef, children []output.SiteChapter) output.SiteChapter {
+		return output.SiteChapter{
+			Title:      data.html.Title,
+			ID:         data.html.ID,
+			Filename:   data.filename,
+			SourcePath: def.File,
+			Content:    data.html.Content,
+			Markdown:   data.markdown,
+			Section:    def.Section,
+			Depth:      data.html.Depth,
+			Headings:   rendererHeadingsToSiteHeadings(data.html.Headings),
+			Children:   children,
+		}
+	}
 	for i, ch := range chapters {
 		if i >= len(chapterFiles) {
 			break
@@ -1448,12 +1467,14 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 			markdown = chapterMarkdown[i]
 		}
 		byFile[linkrewrite.NormalizePath(chapterFiles[i])] = siteChapterData{
+			index:    i,
 			html:     ch,
 			filename: filename,
 			markdown: markdown,
 		}
 	}
 
+	placed := make(map[int]bool, len(chapters))
 	var build func([]config.ChapterDef) []output.SiteChapter
 	build = func(items []config.ChapterDef) []output.SiteChapter {
 		result := make([]output.SiteChapter, 0, len(items))
@@ -1462,22 +1483,162 @@ func buildSiteChapterTree(defs []config.ChapterDef, chapters []renderer.ChapterH
 			if !ok {
 				continue
 			}
-			result = append(result, output.SiteChapter{
-				Title:    data.html.Title,
-				ID:       data.html.ID,
-				Filename: data.filename,
-				Content:  data.html.Content,
-				Markdown: data.markdown,
-				Section:  def.Section,
-				Depth:    data.html.Depth,
-				Headings: rendererHeadingsToSiteHeadings(data.html.Headings),
-				Children: build(def.Sections),
-			})
+			placed[data.index] = true
+			result = append(result, toSiteChapter(data, def, build(def.Sections)))
 		}
 		return result
 	}
 
-	return build(defs)
+	tree := build(defs)
+
+	// Chapters synthesized after the config was parsed — today the glossary
+	// appendix — have no ChapterDef, so walking cfg.Chapters alone dropped
+	// them from the site: the build injected a "#glossary-term" link into
+	// every chapter and then never published the page those links point at.
+	// Append them as trailing top-level pages, which is where the other
+	// formats put them.
+	for i, ch := range chapters {
+		if placed[i] || i >= len(chapterFiles) || chapterFiles[i] != "" {
+			continue
+		}
+		filename := ""
+		if i < len(pageFilenames) {
+			filename = pageFilenames[i]
+		}
+		tree = append(tree, toSiteChapter(siteChapterData{
+			index:    i,
+			html:     ch,
+			filename: filename,
+		}, config.ChapterDef{}, nil))
+	}
+
+	return tree
+}
+
+// defaultTOCMaxDepth mirrors the value internal/config gives output.toc_max_depth.
+// Anything else was written by the user, which is what makes it worth
+// reporting when the requested formats cannot honor it.
+const defaultTOCMaxDepth = 2
+
+// warnTOCSettingsIgnored reports output.toc / output.toc_max_depth settings
+// the requested formats do not implement. Only the printed PDF contents is
+// built from them; the site sidebar, the standalone HTML sidebar, the ePub nav
+// document and the Typst outline are all generated from the chapter list. An
+// author who set "toc: false" to drop the contents panel from their site
+// rebuilt, got a byte-identical site, and had nothing at all to go on.
+func warnTOCSettingsIgnored(cfg *config.BookConfig, formats []string, logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+	var ignored []string
+	if !cfg.Output.TOC {
+		ignored = append(ignored, "output.toc")
+	}
+	if cfg.Output.TOCMaxDepth != defaultTOCMaxDepth {
+		ignored = append(ignored, "output.toc_max_depth")
+	}
+	if len(ignored) == 0 {
+		return
+	}
+	var affected []string
+	for _, f := range formats {
+		if name := strings.ToLower(strings.TrimSpace(f)); name != "" && name != "pdf" {
+			affected = append(affected, name)
+		}
+	}
+	if len(affected) == 0 {
+		return
+	}
+	logger.Warn("table-of-contents settings apply to the PDF only; these formats build their navigation from the chapter list and ignore them",
+		slog.String("settings", strings.Join(ignored, ", ")),
+		slog.Any("formats", affected))
+}
+
+// tocHeadingsForBook returns the headings the printed table of contents is
+// built from, capped at maxDepth when the book sets output.toc_max_depth.
+//
+// The glossary chapter is synthesized after the chapters are parsed, so its
+// heading is not in allHeadings and has to be added here. Without it the
+// printed contents stopped at the last real chapter while the PDF's bookmark
+// panel listed the glossary — the two navigations a printed book has,
+// disagreeing about a page that is in the book.
+func tocHeadingsForBook(allHeadings []toc.HeadingInfo, hasGlossary bool, maxDepth int) []toc.HeadingInfo {
+	headings := allHeadings
+	if hasGlossary {
+		headings = append(slices.Clone(headings),
+			toc.HeadingInfo{Level: 1, Text: glossaryChapterTitle, ID: glossaryChapterID})
+	}
+	if maxDepth <= 0 || maxDepth >= 6 {
+		return headings
+	}
+	filtered := make([]toc.HeadingInfo, 0, len(headings))
+	for _, h := range headings {
+		if h.Level <= maxDepth {
+			filtered = append(filtered, h)
+		}
+	}
+	return filtered
+}
+
+// siteGlossaryPageName is the page the synthesized glossary appendix is
+// published as. sitePageFilenames can only derive a name from a markdown
+// source path, and the glossary has none, so without this it landed on an
+// opaque "ch_007.html".
+const siteGlossaryPageName = "glossary.html"
+
+// glossarySelfLinkPattern matches the same-document links Glossary.ProcessHTML
+// injects into every chapter. They are correct for the PDF and the single-file
+// HTML, where the glossary shares the document, but on a site each chapter is
+// its own page.
+var glossarySelfLinkPattern = regexp.MustCompile(`href="#glossary-`)
+
+// resolveSiteGlossaryPage gives the synthesized glossary a readable page name
+// and re-points the glossary term links at it. Left alone, every linked term
+// on a published site was a link to nowhere: the anchor it names lives on the
+// glossary page, not on the chapter the reader is looking at.
+func resolveSiteGlossaryPage(chapters []renderer.ChapterHTML, chapterFiles, pageFilenames []string) ([]renderer.ChapterHTML, []string) {
+	glossaryIdx := -1
+	taken := make(map[string]bool, len(pageFilenames))
+	for i, ch := range chapters {
+		if i < len(pageFilenames) {
+			taken[pageFilenames[i]] = true
+		}
+		if i < len(chapterFiles) && chapterFiles[i] == "" && ch.ID == glossaryChapterID {
+			glossaryIdx = i
+		}
+	}
+	if glossaryIdx < 0 || glossaryIdx >= len(pageFilenames) {
+		return chapters, pageFilenames
+	}
+
+	pages := slices.Clone(pageFilenames)
+	if !taken[siteGlossaryPageName] {
+		pages[glossaryIdx] = siteGlossaryPageName
+	}
+
+	rewritten := slices.Clone(chapters)
+	for i := range rewritten {
+		if i == glossaryIdx || i >= len(pages) {
+			continue
+		}
+		href := `href="` + relativeSitePage(pages[i], pages[glossaryIdx]) + `#glossary-`
+		rewritten[i].Content = glossarySelfLinkPattern.ReplaceAllLiteralString(rewritten[i].Content, href)
+	}
+	return rewritten, pages
+}
+
+// relativeSitePage returns the link from one generated page to another, so a
+// chapter published under "guide/intro.html" reaches "../glossary.html". Both
+// arguments are slash-separated paths from the site root, and the result has
+// to stay relative: the site is served from GitHub Pages sub-directories and
+// opened over file:// as well as from a domain root.
+func relativeSitePage(fromPage, toPage string) string {
+	target := path.Clean(toPage)
+	fromDir := path.Dir(path.Clean(fromPage))
+	if fromDir == "." {
+		return target
+	}
+	return strings.Repeat("../", strings.Count(fromDir, "/")+1) + target
 }
 
 func rendererHeadingsToSiteHeadings(items []renderer.NavHeading) []output.SiteNavHeading {

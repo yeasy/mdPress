@@ -32,6 +32,10 @@ const (
 	pluginMetaQueryTimeout = 5 * time.Second
 	// Plugin hooks query timeout (--mdpress-hooks).
 	pluginHooksQueryTimeout = 5 * time.Second
+	// How long os/exec may wait for the plugin's output pipes to close after
+	// the plugin itself is gone. Without a cap the timeout above bounded
+	// nothing: see the WaitDelay comment in Execute.
+	pluginOutputDrainDelay = 2 * time.Second
 )
 
 // pluginMetaQueryFn and pluginHooksQueryFn are the functions used to query
@@ -394,6 +398,17 @@ func (p *ExternalPlugin) Execute(hookCtx *HookContext) (*HookResult, error) {
 	cmd := exec.CommandContext(ctx, p.execPath)
 	cmd.Stdin = bytes.NewReader(reqJSON)
 
+	// The context only SIGKILLs the plugin itself. Because the writers below
+	// are not *os.File, os/exec gives the child a pipe and Wait blocks until
+	// every inherited write end is closed — and a plugin that backgrounds
+	// anything ("curl … &", a notification, "python … &") leaves that write
+	// end open in the orphan. So the documented 30 s cap did not bound the
+	// hook at all: a plugin running "sleep 90" froze the build for 90 s with
+	// no output, and one that daemonized froze it forever. WaitDelay makes
+	// os/exec close the pipes shortly after the plugin is gone instead of
+	// waiting on whatever it left behind.
+	cmd.WaitDelay = pluginOutputDrainDelay
+
 	// Limit plugin output to 10 MB to prevent memory exhaustion from
 	// malicious or buggy plugins that write excessive output.
 	const maxPluginOutput = 10 * 1024 * 1024
@@ -401,12 +416,29 @@ func (p *ExternalPlugin) Execute(hookCtx *HookContext) (*HookResult, error) {
 	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginOutput}
 	cmd.Stderr = &utils.LimitedWriter{W: &stderr, N: maxPluginOutput}
 
-	if err := cmd.Run(); err != nil {
+	runErr := cmd.Run()
+	if runErr != nil && errors.Is(runErr, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		// The plugin ran to completion; only a process it left running in the
+		// background was still holding the pipe. Reporting that as a failed
+		// hook would blame the plugin for succeeding.
+		runErr = nil
+	}
+	if runErr != nil {
 		stderrStr := strings.TrimSpace(stderr.String())
-		if stderrStr != "" {
-			return nil, fmt.Errorf("plugin exited with error: %w\nstderr: %s", err, stderrStr)
+		// A killed process reports "signal: killed", which reads like a crash
+		// or an OOM and sends the plugin author after the wrong bug. Name the
+		// cap and what it means instead.
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			timedOut := fmt.Errorf("timed out after %s (the plugin, or a process it left running in the background, did not exit)", p.timeout)
+			if stderrStr != "" {
+				return nil, fmt.Errorf("%w\nstderr: %s", timedOut, stderrStr)
+			}
+			return nil, timedOut
 		}
-		return nil, fmt.Errorf("plugin exited with error: %w", err)
+		if stderrStr != "" {
+			return nil, fmt.Errorf("plugin exited with error: %w\nstderr: %s", runErr, stderrStr)
+		}
+		return nil, fmt.Errorf("plugin exited with error: %w", runErr)
 	}
 
 	respBytes := bytes.TrimSpace(stdout.Bytes())

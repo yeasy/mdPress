@@ -8,25 +8,54 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
+
+// resetCommandTree puts every flag in the Cobra tree back to its default and
+// drops the args/out/err a previous Execute left behind.
+//
+// The values live on the package-level commands, so they survive an Execute:
+// a test that ran `themes --help` left themesCmd's auto-generated help flag
+// set to true, and cobra then answered the *next* `themes lst` with the help
+// text and a nil error. That is why `go test -count=3 ./cmd/` reported a red
+// suite on a healthy tree while -count=1 was green.
+func resetCommandTree(c *cobra.Command) {
+	reset := func(f *pflag.Flag) {
+		if !f.Changed {
+			return
+		}
+		_ = f.Value.Set(f.DefValue)
+		f.Changed = false
+	}
+	c.Flags().VisitAll(reset)
+	c.PersistentFlags().VisitAll(reset)
+	c.SetArgs(nil)
+	c.SetOut(nil)
+	c.SetErr(nil)
+	for _, sub := range c.Commands() {
+		resetCommandTree(sub)
+	}
+}
 
 // restoreGlobalFlags snapshots the package-level flag variables the root
 // command writes into, so a test that runs a command through the Cobra tree
-// cannot leak its flags into the tests that follow.
+// cannot leak its flags into the tests that follow — and clears whatever the
+// tests that ran *before* it left on the shared tree.
 func restoreGlobalFlags(t *testing.T) {
 	t.Helper()
+	resetCommandTree(rootCmd)
 	origCfg, origQuiet, origVerbose := cfgFile, quiet, verbose
 	origFormat, origOutput, origSubDir, origBranch, origSummary := buildFormat, buildOutput, buildSubDir, buildBranch, buildSummary
 	origReport, origStrict := doctorReportPath, doctorStrict
 	origHandler := slog.Default().Handler()
 	t.Cleanup(func() {
+		resetCommandTree(rootCmd)
 		cfgFile, quiet, verbose = origCfg, origQuiet, origVerbose
 		buildFormat, buildOutput, buildSubDir, buildBranch, buildSummary = origFormat, origOutput, origSubDir, origBranch, origSummary
 		doctorReportPath, doctorStrict = origReport, origStrict
 		slog.SetDefault(slog.New(origHandler))
-		rootCmd.SetArgs(nil)
-		rootCmd.SetOut(nil)
-		rootCmd.SetErr(nil)
 	})
 }
 
