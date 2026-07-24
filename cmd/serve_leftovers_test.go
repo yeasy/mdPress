@@ -11,6 +11,10 @@ import (
 
 // TestCleanupServeLeftovers removes exactly the scratch directories the serve
 // rebuild swap creates, and nothing else.
+//
+// "<outputDir>.old" is explicitly in the keep list: it used to be swept, but
+// that name belongs to the user (it is the usual name for a hand-made backup
+// of the last release), and mdpress no longer creates it.
 func TestCleanupServeLeftovers(t *testing.T) {
 	root := t.TempDir()
 	outputDir := filepath.Join(root, "_book")
@@ -31,7 +35,6 @@ func TestCleanupServeLeftovers(t *testing.T) {
 	cleanupServeLeftovers(outputDir, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	for _, gone := range []string{
-		outputDir + ".old",
 		filepath.Join(root, "mdpress-serve-123456.tmp"),
 		filepath.Join(root, "mdpress-serve-abcdef.tmp"),
 	} {
@@ -41,6 +44,7 @@ func TestCleanupServeLeftovers(t *testing.T) {
 	}
 	for _, kept := range []string{
 		outputDir,
+		outputDir + ".old",
 		filepath.Join(root, "chapters"),
 		filepath.Join(root, "mdpress-site-999.tmp"),
 	} {
@@ -64,9 +68,8 @@ func TestExecuteServe_ClearsLeftoversFromAKilledRun(t *testing.T) {
 	}
 
 	outDir := filepath.Join(root, "_book")
-	staleBackup := outDir + ".old"
 	staleStaging := filepath.Join(root, "mdpress-serve-stale.tmp")
-	for _, dir := range []string{staleBackup, staleStaging} {
+	for _, dir := range []string{staleStaging} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +88,7 @@ func TestExecuteServe_ClearsLeftoversFromAKilledRun(t *testing.T) {
 		PortChanged: true,
 	})
 
-	for _, gone := range []string{staleBackup, staleStaging} {
+	for _, gone := range []string{staleStaging} {
 		if _, err := os.Stat(gone); err == nil {
 			t.Errorf("serve left %s behind", filepath.Base(gone))
 		}
