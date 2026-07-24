@@ -132,12 +132,17 @@ jobs:
         run: |
           mkdir -p ${{ env.OUTPUT_DIR }}
           # Build the multi-page site output only; Pages serves HTML files.
-          mdpress build --format site --output ${{ env.OUTPUT_DIR }}/book
+          # Since v0.8.0 "--format site --output X" writes the site into X itself.
+          # Only a --output shared with other formats pushes it to an "X_site"
+          # sibling, so this job builds into its own directory and uploads that
+          # exact path -- pointing Pages at "<output>_site/" uploaded nothing and
+          # failed the deploy with "No files were found with the provided path".
+          mdpress build --format site --output ${{ env.OUTPUT_DIR }}/site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ${{ env.BOOK_DIR }}/${{ env.OUTPUT_DIR }}/book_site/
+          path: ${{ env.BOOK_DIR }}/${{ env.OUTPUT_DIR }}/site/
 
       - name: Deploy to GitHub Pages
         id: deployment
