@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/variables"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
 
@@ -158,6 +160,44 @@ func TestExecuteMigrate_CreatesBookYAML(t *testing.T) {
 	}
 	if !strings.Contains(content, "Bob") {
 		t.Errorf("book.yaml should contain the author, got:\n%s", content)
+	}
+}
+
+// TestExecuteMigrate_VariablesResolveInMarkdown proves migrate stores GitBook
+// variables so the GitBook-syntax references they were written for actually
+// resolve at build time. GitBook Markdown reads a book.json
+// "variables": {"NAME": ...} entry as {{ book.NAME }}; storing the bare key
+// "NAME" (which mdpress matches only against {{ NAME }}) left every
+// {{ book.NAME }} reference as a literal "{{ book.NAME }}" in every built format.
+func TestExecuteMigrate_VariablesResolveInMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	bookJSON := `{"title":"Handbook","variables":{"productName":"WidgetPro","supportEmail":"help@example.com"}}`
+	if err := os.WriteFile(filepath.Join(dir, "book.json"), []byte(bookJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A chapter so the migrated book.yaml passes config.Load validation; the
+	// only assertion that may then fail is the variable-resolution check below.
+	if err := os.WriteFile(filepath.Join(dir, "SUMMARY.md"), []byte("# Summary\n\n* [Intro](README.md)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Intro\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := executeMigrate(dir, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfg, err := config.Load(filepath.Join(dir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("failed to load migrated book.yaml: %v", err)
+	}
+
+	// Expand the exact reference form GitBook emits for its variables.
+	got := string(variables.Expand([]byte("Use {{ book.productName }} — email {{ book.supportEmail }}."), cfg))
+	want := "Use WidgetPro — email help@example.com."
+	if got != want {
+		t.Errorf("migrated variables did not resolve GitBook {{ book.NAME }} references\n got: %q\nwant: %q", got, want)
 	}
 }
 
