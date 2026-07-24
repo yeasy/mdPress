@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.8.2] - 2026-07-24
+
 A follow-up audit swept the whole tool a third time — brute-forcing every `book.yaml` key against real output, mutation-checking the migration guide against the binary, and inspecting real PDFs/ePubs/sites byte for byte. It found two things that broke a user's own files or install, and a long tail of settings and documented behaviors that quietly did nothing. Everything below was reproduced against a real build before it was fixed.
 
 ### Upgrading
@@ -1151,7 +1155,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/yeasy/mdpress/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/yeasy/mdpress/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/yeasy/mdpress/compare/v0.7.15...v0.8.0
 [0.7.15]: https://github.com/yeasy/mdpress/compare/v0.7.14...v0.7.15

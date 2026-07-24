@@ -51,6 +51,7 @@ v0.7.14 ████████████████████████
 v0.7.15 ██████████████████████████████████████████ released (2026-07-22)
 v0.8.0 ██████████████████████████████████████████ released (2026-07-23)
 v0.8.1 ██████████████████████████████████████████ released (2026-07-23)
+v0.8.2 ██████████████████████████████████████████ released (2026-07-24)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1186,6 +1187,33 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | A released binary reports its own tag | `mdpress version` printed `0.8.0+dirty`, and `0.7.15+dirty` before it: the injected tag was discarded whenever it equalled the compiled-in default — which it does on every correctly prepared release — leaving Go's module version, stamped dirty by goreleaser's own pre-build hooks |
 | Windows chapter paths | Zero-config discovery wrote `guide\README.md` where `init` and every hand-written `book.yaml` write `guide/README.md` |
 | Windows test coverage | The CLI test binary was built without a `.exe` suffix, and an image-containment case named `/etc/passwd` as absolute — true on Unix, merely rooted on Windows |
+
+
+---
+
+## v0.8.2 — Third-Audit Fixes And A Real Upgrade Path
+
+**Release date**: 2026-07-24
+**Theme**: a third full audit — every config key brute-forced against real output, docs mutation-checked against the binary, PDFs/ePubs/sites inspected byte for byte — plus a verification pass over the fixes
+
+### Changes
+
+| Change | Description |
+| --- | --- |
+| `mdpress upgrade` works on Linux | It downloaded the `.apk` package instead of the archive and then failed to install it — impossible since v0.7.12; it now selects the archive and refuses any payload that is not a native executable |
+| `build --format site` stops deleting `<output>.old` | The atomic swap used that sibling name as scratch and removed it up front — exactly a user's manual backup; `serve` deleted it before even the safety check |
+| PDF table of contents | Repeated headings across chapters got each other's page numbers; the two-pass render now namespaces anchors like the standalone HTML already did |
+| `build --format typst` | Produced no output for any book with a fenced code block or emphasis wrapped across a line — including the project's own manual, which now builds to a 214-page PDF |
+| Data-loss fixes | A chapter with lone-CR line endings lost its whole body silently; links with spaces or query strings, and image paths with `%20`, resolve; an image that cannot be embedded is reported |
+| Ctrl+C interrupts a PDF build | It was ignored for the whole 40–90 s render; time-to-exit went from ~55 s (unkillable) to 0.1 s, with no orphaned Chrome |
+| Header/footer off the cover | Chrome draws them on every page from the print params where no CSS reaches page one; the cover's running head is now removed while the outline and tagged structure stay intact |
+| ePub | Keeps its table of contents under empty parents; a chapter titled "Cover"/"Nav"/"Glossary" no longer overwrites generated files; glossary term links resolve to glossary.xhtml; ids are valid XML |
+| Config honored, not guessed | The defaults-as-sentinel defect found five more times (theme page size/margins, a language directory's language, book.json language/version, `--config` path spelling); loading now tracks which keys the user actually wrote |
+| Chrome found on Windows | The search list was Unix-only, so PDF could never work on a stock Windows install |
+| Site | Deeply nested chapters are linked; quoted-phrase and CJK search work; dark-mode h5/h6 contrast; shared CSS/JS cut per-page weight from ~110 KB to ~9 KB |
+| `mdpress migrate` | Resolves GitBook `{{ book.x }}` variables instead of shipping literal text, and says so in its report |
+| Release safety | `make bump VERSION=x.y.z` replaces nine hand-edited files; the pipeline now downloads a published artifact and asserts it reports its own tag — the hole that shipped `<tag>+dirty` twice |
+| Docs match the binary | Removed keys that do not exist, corrected stale defaults, and documented every 0.8.0 feature the manual never mentioned, in both languages |
 
 ---
 
