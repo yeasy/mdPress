@@ -190,6 +190,57 @@ func TestStandaloneMetadataRendering(t *testing.T) {
 	}
 }
 
+// TestStandaloneDescriptionMeta covers a single-file HTML book that carried no
+// description meta tag at all: book.description is documented as metadata for
+// "EPUB and HTML" and reached the site, the ePub and the PDF /Info dictionary,
+// but never the format meant for emailing or dropping on a static host, so link
+// previews fell back to scraped body text.
+func TestStandaloneDescriptionMeta(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Book.Description = "A book about <testing> & things"
+	thm := newTestTheme(t)
+
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	html, err := r.Render(&RenderParts{
+		ChaptersHTML: []ChapterHTML{{Title: "Ch1", ID: "ch1", Content: "content"}},
+	})
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if !strings.Contains(html, `<meta name="description" content="A book about &lt;testing&gt; &amp; things">`) {
+		t.Errorf("book.description should reach the standalone <head> as an escaped meta description")
+	}
+}
+
+// TestStandaloneNoDescriptionMeta keeps the tag out when nothing was configured,
+// so an empty description does not advertise an empty page.
+func TestStandaloneNoDescriptionMeta(t *testing.T) {
+	cfg := newTestConfig()
+	cfg.Book.Description = ""
+	thm := newTestTheme(t)
+
+	r, err := NewStandaloneHTMLRenderer(cfg, thm)
+	if err != nil {
+		t.Fatalf("NewStandaloneHTMLRenderer failed: %v", err)
+	}
+
+	html, err := r.Render(&RenderParts{
+		ChaptersHTML: []ChapterHTML{{Title: "Ch1", ID: "ch1", Content: "content"}},
+	})
+	if err != nil {
+		t.Fatalf("Render failed: %v", err)
+	}
+
+	if strings.Contains(html, `name="description"`) {
+		t.Error("an unset book.description should not emit an empty meta description")
+	}
+}
+
 // TestStandaloneEmptyChapters tests rendering with empty chapters list.
 func TestStandaloneEmptyChapters(t *testing.T) {
 	cfg := newTestConfig()

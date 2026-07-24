@@ -107,12 +107,17 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 		LineHeight: cfg.Style.LineHeight,
 	})
 
-	// Initialize the Markdown parser.
-	codeTheme := cfg.Style.CodeTheme
-	if codeTheme == "" {
-		codeTheme = thm.CodeTheme
+	// style.code_theme has to land on the theme for the same reason. Every
+	// stylesheet emitter — site, standalone HTML, ePub and PDF — reads
+	// thm.CodeTheme, so an override kept in a local variable reached only the
+	// parser: `code_theme: monokai` tagged the block "chroma dark" while still
+	// painting it the theme's light github palette, in every format.
+	if cfg.Style.CodeTheme != "" {
+		thm.CodeTheme = cfg.Style.CodeTheme
 	}
-	parser := markdown.NewParser(markdownParserOptions(cfg, codeTheme)...)
+
+	// Initialize the Markdown parser.
+	parser := markdown.NewParser(markdownParserOptions(cfg, thm.CodeTheme)...)
 
 	// Load the glossary when configured.
 	var gloss *glossary.Glossary

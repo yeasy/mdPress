@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/markdown"
 )
 
 // TestNewBuildOrchestrator_BasicInitialization tests basic orchestrator creation with valid config
@@ -53,7 +54,13 @@ func TestNewBuildOrchestrator_BasicInitialization(t *testing.T) {
 	}
 }
 
-// TestNewBuildOrchestrator_WithCodeThemeFromConfig tests that code theme is taken from config when set
+// TestNewBuildOrchestrator_WithCodeThemeFromConfig tests that code theme is taken from config when set.
+//
+// The override has to land on the theme, not just on the parser: every
+// stylesheet emitter (site, standalone HTML, ePub, PDF) reads Theme.CodeTheme,
+// so while the merge lived in a local variable `code_theme: monokai` tagged the
+// block "chroma dark" and then painted it the theme's light github palette, in
+// every format at once.
 func TestNewBuildOrchestrator_WithCodeThemeFromConfig(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
@@ -76,7 +83,37 @@ func TestNewBuildOrchestrator_WithCodeThemeFromConfig(t *testing.T) {
 	if orchestrator.Parser == nil {
 		t.Error("Parser should be initialized")
 	}
-	// The parser's code theme would be set to "monokai" from config
+	if orchestrator.Theme.CodeTheme != "monokai" {
+		t.Errorf("style.code_theme should override the theme's own: got %q, want %q",
+			orchestrator.Theme.CodeTheme, "monokai")
+	}
+	// Assert the whole chain, not just the field: the stylesheet the renderers
+	// build from the theme must be monokai's, not the built-in's github.
+	if got := markdown.HighlightCSSLight(orchestrator.Theme.CodeTheme); got != markdown.HighlightCSSLight("monokai") {
+		t.Error("the emitted syntax-highlighting stylesheet should be monokai's")
+	}
+}
+
+// TestNewBuildOrchestrator_WithoutCodeTheme tests that an unset style.code_theme
+// leaves the theme's own palette alone.
+func TestNewBuildOrchestrator_WithoutCodeTheme(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	cfg := &config.BookConfig{
+		Book:     config.BookMeta{Title: "Test Book"},
+		Style:    config.StyleConfig{Theme: "minimal"},
+		Chapters: []config.ChapterDef{},
+	}
+
+	orchestrator, err := newBuildOrchestrator(cfg, logger)
+	if err != nil {
+		t.Fatalf("NewBuildOrchestrator failed: %v", err)
+	}
+
+	if orchestrator.Theme.CodeTheme != "bw" {
+		t.Errorf("unset style.code_theme should inherit the theme's own: got %q, want %q",
+			orchestrator.Theme.CodeTheme, "bw")
+	}
 }
 
 // TestNewBuildOrchestrator_WithThemeFallback tests fallback to default theme when specified theme doesn't exist
