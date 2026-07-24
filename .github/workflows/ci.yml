@@ -31,6 +31,13 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    # An untidy go.mod used to surface only at release time, where goreleaser's
+    # `go mod tidy` before-hook rewrote it mid-run and built the release from a
+    # different module graph than CI tested.
+    - name: Check go.mod is tidy
+      if: matrix.os == 'ubuntu-latest'
+      run: go mod tidy -diff
+
     - name: Run go vet
       run: go vet ./...
 
@@ -85,12 +92,23 @@ jobs:
         target: minimal
         load: true
         push: false
+        # Pass a recognisable VERSION so the smoke test proves the build-arg is
+        # wired to the ldflags. Without it the image compiles with the
+        # Dockerfile default ("dev") and could not catch a version-stamping
+        # regression -- which is how two releases shipped a wrong version.
+        build-args: |
+          VERSION=ci-test
         tags: mdpress:test-minimal
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Verify minimal image
-      run: docker run --rm mdpress:test-minimal --help
+      run: |
+        set -euo pipefail
+        docker run --rm mdpress:test-minimal --help
+        got="$(docker run --rm mdpress:test-minimal version --json | jq -re .version)"
+        echo "image reports version $got"
+        [ "$got" = "ci-test" ] || { echo "::error::VERSION build-arg is not reaching the binary (got '$got')"; exit 1; }
 
     - name: Build full Docker image
       uses: docker/build-push-action@v6
@@ -99,12 +117,19 @@ jobs:
         target: full
         load: true
         push: false
+        build-args: |
+          VERSION=ci-test
         tags: mdpress:test-full
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
     - name: Verify full image
-      run: docker run --rm mdpress:test-full --help
+      run: |
+        set -euo pipefail
+        docker run --rm mdpress:test-full --help
+        got="$(docker run --rm mdpress:test-full version --json | jq -re .version)"
+        echo "image reports version $got"
+        [ "$got" = "ci-test" ] || { echo "::error::VERSION build-arg is not reaching the binary (got '$got')"; exit 1; }
 
   lint:
     name: Lint

@@ -4,7 +4,11 @@ project_name: mdpress
 
 before:
   hooks:
-    - go mod tidy
+    # -diff reports an untidy go.mod instead of rewriting it. A plain `go mod
+    # tidy` here edited go.mod/go.sum after goreleaser had already validated the
+    # git state, so releases were built from a module graph that differed from
+    # the tag, and the dirty tree stamped two releases as "<tag>+dirty".
+    - go mod tidy -diff
     - go test ./...
 
 builds:
@@ -45,10 +49,13 @@ nfpms:
       - deb
       - rpm
       - apk
-    maintainer: "Baohua Yang <yeasy.github.com>"
+    # Must be an RFC822 address: Debian policy requires it, and lintian rejects
+    # a package whose Maintainer field cannot be mailed.
+    maintainer: "Baohua Yang <yangbaohua@gmail.com>"
     homepage: "https://github.com/yeasy/mdpress"
     description: "Markdown publishing CLI for book-style and documentation-style projects"
     license: MIT
+    section: utils
 
 source:
   enabled: true
@@ -56,6 +63,35 @@ source:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
+
+# An unsigned checksums.txt was the only trust anchor for both the documented
+# `sha256sum -c` recipe and `mdpress upgrade`: anyone able to replace an asset
+# could replace the checksums too. The signature over checksums.txt makes that
+# tampering detectable, and the SBOMs let dependency scanners ingest a release.
+# Both need tools on the runner (see .github/workflows/release.yml).
+sboms:
+  - id: archive-sboms
+    artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.sbom.spdx.json"
+  - id: package-sboms
+    artifacts: package
+    documents:
+      - "{{ .ArtifactName }}.sbom.spdx.json"
+
+signs:
+  - id: checksums
+    cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
 
 changelog:
   sort: asc

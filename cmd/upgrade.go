@@ -314,6 +314,13 @@ func installNewVersion(ctx context.Context, release *gitHubRelease, newVersion s
 		return fmt.Errorf("failed to unpack %s: %w", assetName, err)
 	}
 
+	// Checksums prove the download is intact, not that it is a program. Refuse
+	// to install anything that is not a native executable rather than leave the
+	// user with an unrunnable mdpress.
+	if err := verifyExecutablePayload(assetName, binaryData); err != nil {
+		return fmt.Errorf("refusing to install: %w", err)
+	}
+
 	// Find the current mdpress executable.
 	currentPath, err := os.Executable()
 	if err != nil {
@@ -544,11 +551,17 @@ var platformArch = runtime.GOARCH
 
 // findAssetForPlatform finds the appropriate release asset for the current OS/arch.
 // Returns empty strings if no suitable asset is found.
+//
+// Archives are preferred over bare assets. Releases ship distro packages next to
+// the archive for the same os/arch (mdpress_X_linux_amd64.apk/.deb/.rpm beside
+// mdpress_X_linux_amd64.tar.gz); the bare-asset pass used to run first, so every
+// Linux upgrade downloaded the .apk and installed an Alpine package as the
+// mdpress executable.
 func findAssetForPlatform(release *gitHubRelease) (url string, name string) {
 	goos := strings.ToLower(platformOS)
 	archAliases := platformArchAliases(platformArch)
 
-	for _, archivesOnly := range []bool{false, true} {
+	for _, archivesOnly := range []bool{true, false} {
 		for _, asset := range release.Assets {
 			assetName := strings.ToLower(asset.Name)
 			if shouldSkipReleaseAsset(assetName) || isArchiveAsset(assetName) != archivesOnly {
@@ -560,7 +573,7 @@ func findAssetForPlatform(release *gitHubRelease) (url string, name string) {
 		}
 	}
 
-	for _, archivesOnly := range []bool{false, true} {
+	for _, archivesOnly := range []bool{true, false} {
 		for _, asset := range release.Assets {
 			assetName := strings.ToLower(asset.Name)
 			if shouldSkipReleaseAsset(assetName) || isArchiveAsset(assetName) != archivesOnly {
@@ -586,7 +599,22 @@ func platformArchAliases(goarch string) []string {
 	}
 }
 
+// nonBinaryAssetSuffixes are release-asset extensions that never contain a
+// directly runnable mdpress binary: distro/installer packages that only a
+// package manager can unpack, plus signature and metadata files. A package has a
+// published checksum like every other asset, so without this list the checksum
+// gate happily waves it through and it lands on disk as the mdpress executable.
+var nonBinaryAssetSuffixes = []string{
+	".apk", ".deb", ".rpm", ".pkg", ".msi", ".dmg", ".snap",
+	".sig", ".pem", ".asc", ".sbom", ".json", ".jsonl", ".txt", ".md", ".rb",
+}
+
 func shouldSkipReleaseAsset(assetName string) bool {
+	for _, suffix := range nonBinaryAssetSuffixes {
+		if strings.HasSuffix(assetName, suffix) {
+			return true
+		}
+	}
 	return strings.Contains(assetName, ".sha256") ||
 		strings.Contains(assetName, ".sig") ||
 		strings.Contains(assetName, "checksum") ||
@@ -654,6 +682,48 @@ func extractBinaryData(assetName string, data []byte) ([]byte, error) {
 	default:
 		return data, nil
 	}
+}
+
+// executableMagics returns the byte prefixes a native executable for the target
+// platform may start with.
+func executableMagics() [][]byte {
+	switch strings.ToLower(platformOS) {
+	case "windows":
+		return [][]byte{{'M', 'Z'}} // PE/COFF (also covers DOS stubs)
+	case "darwin":
+		return [][]byte{
+			{0xFE, 0xED, 0xFA, 0xCE}, // Mach-O 32-bit
+			{0xFE, 0xED, 0xFA, 0xCF}, // Mach-O 64-bit
+			{0xCE, 0xFA, 0xED, 0xFE}, // Mach-O 32-bit, byte-swapped
+			{0xCF, 0xFA, 0xED, 0xFE}, // Mach-O 64-bit, byte-swapped
+			{0xCA, 0xFE, 0xBA, 0xBE}, // universal ("fat") binary
+			{0xBE, 0xBA, 0xFE, 0xCA}, // universal binary, byte-swapped
+		}
+	default:
+		return [][]byte{{0x7F, 'E', 'L', 'F'}}
+	}
+}
+
+// verifyExecutablePayload rejects a payload that is not a native executable for
+// the running platform, before it can replace the mdpress binary.
+//
+// A matching checksum only proves the download was not corrupted -- it says
+// nothing about the bytes being a program. mdpress once picked the published
+// mdpress_<ver>_linux_amd64.apk over the tar.gz; its checksum matched, "Checksum
+// verified" was printed, and the gzip'd Alpine package was installed as the
+// user's mdpress, which then failed with "exec format error".
+func verifyExecutablePayload(assetName string, data []byte) error {
+	for _, magic := range executableMagics() {
+		if bytes.HasPrefix(data, magic) {
+			return nil
+		}
+	}
+	prefix := data
+	if len(prefix) > 4 {
+		prefix = prefix[:4]
+	}
+	return fmt.Errorf("%s does not contain an executable for %s/%s (payload starts with %x)",
+		assetName, platformOS, platformArch, prefix)
 }
 
 func expectedBinaryNames() []string {

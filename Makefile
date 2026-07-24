@@ -86,6 +86,11 @@ fmt:
 
 .PHONY: check
 check:
+	@echo ">>> [check] go mod tidy -diff"
+	@$(GO_RUN_ENV) $(GO) mod tidy -diff || { \
+		echo "go.mod/go.sum are not tidy. Run 'go mod tidy' and re-stage the changes."; \
+		echo "An untidy go.mod is rewritten by goreleaser mid-release, so the release"; \
+		echo "builds from a different module graph than CI tested."; exit 1; }
 	@echo ">>> [check] gofmt"
 	@UNFMT=$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*' -not -path './.cache/*')); \
 	if [ -n "$$UNFMT" ]; then \
@@ -107,6 +112,20 @@ _build:
 _test:
 	@echo ">>> [check] go test -short"
 	@$(GO_RUN_ENV) $(GOTEST) -short -count=1 -timeout 120s ./...
+
+# ---------- Release ----------
+
+# Bump every hand-maintained copy of the release version in one command:
+#   make bump VERSION=0.8.2
+# The alternative is editing cmd/root.go, cmd/version_test.go, both READMEs,
+# both ARCHITECTURE docs and CHANGELOG.md from memory -- two of the last three
+# releases shipped a wrong version string that way.
+.PHONY: bump
+bump:
+	@if [ "$(origin VERSION)" != "command line" ]; then \
+		echo "usage: make bump VERSION=x.y.z"; exit 2; \
+	fi
+	@./scripts/bump-version.sh "$(VERSION)"
 
 # Install git hooks (pre-commit runs make check)
 .PHONY: hooks
@@ -131,15 +150,26 @@ clean:
 	find . \( -path ./.git -o -path ./.cache \) -prune -o -type d \
 		\( -name '_book' -o -name '_book.old' -o -name '_output' -o -name '*_site' -o -name 'mdpress-serve-*.tmp' \) \
 		-prune -exec rm -rf {} +
-	@echo ">>> Done. Go caches under .cache/ were kept (run 'make clean-cache' to remove them)."
+	@# .cache/ is gitignored and survives 'clean', so it is invisible until the
+	@# disk fills (it reaches gigabytes). Print its size instead of only naming it.
+	@if [ -d .cache ]; then \
+		echo ">>> Done. Go caches under .cache/ were kept ($$(du -sh .cache 2>/dev/null | cut -f1 | tr -d ' ') -- run 'make clean-cache' to remove them)."; \
+	else \
+		echo ">>> Done."; \
+	fi
 
 # Removes the repo-local Go module/build caches created by running targets
 # with CACHE_DIR=$(CURDIR)/.cache (they can grow to gigabytes). The module
 # cache is written read-only, so restore write permission before deleting.
+# gocache/ and gopath/ are from an older CACHE_DIR layout: no current target
+# writes them, so they are dead weight nothing else would ever reclaim.
 .PHONY: clean-cache
 clean-cache:
 	@echo ">>> Removing repo-local Go caches (.cache/)..."
-	@if [ -d .cache ]; then chmod -R u+w .cache 2>/dev/null || true; rm -rf .cache; fi
+	@if [ -d .cache ]; then \
+		echo "    freeing $$(du -sh .cache 2>/dev/null | cut -f1 | tr -d ' ')"; \
+		chmod -R u+w .cache 2>/dev/null || true; rm -rf .cache; \
+	fi
 	@echo ">>> Done."
 
 # ---------- Docker ----------
@@ -187,7 +217,8 @@ help:
 	@echo "  make coverage   Generate a test coverage report"
 	@echo "  make lint       Run static checks (vet + golangci-lint)"
 	@echo "  make fmt        Format code"
-	@echo "  make check      Pre-commit quality gate (gofmt check + lint + build + test)"
+	@echo "  make check      Pre-commit quality gate (tidy + gofmt check + lint + build + test)"
+	@echo "  make bump VERSION=x.y.z  Bump the release version everywhere it is written"
 	@echo "  make hooks      Install pre-commit git hooks"
 	@echo "  make clean      Remove build artifacts and generated output (_book, *_site, tmp, coverage)"
 	@echo "  make clean-cache Remove the repo-local Go caches under .cache/"

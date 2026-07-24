@@ -102,6 +102,116 @@ func TestParseVersion(t *testing.T) {
 	}
 }
 
+// releaseAssetsV081 is the exact asset list published for v0.8.1
+// (gh release view v0.8.1 --json assets). Hand-written fixtures hid the fact
+// that goreleaser publishes .deb/.rpm/.apk next to the tar.gz for the same
+// os/arch, so the picker is exercised against the real thing here.
+var releaseAssetsV081 = []string{
+	"checksums.txt",
+	"mdpress-0.8.1.tar.gz",
+	"mdpress_0.8.1_darwin_amd64.tar.gz",
+	"mdpress_0.8.1_darwin_arm64.tar.gz",
+	"mdpress_0.8.1_linux_amd64.apk",
+	"mdpress_0.8.1_linux_amd64.deb",
+	"mdpress_0.8.1_linux_amd64.rpm",
+	"mdpress_0.8.1_linux_amd64.tar.gz",
+	"mdpress_0.8.1_linux_arm64.apk",
+	"mdpress_0.8.1_linux_arm64.deb",
+	"mdpress_0.8.1_linux_arm64.rpm",
+	"mdpress_0.8.1_linux_arm64.tar.gz",
+	"mdpress_0.8.1_windows_amd64.zip",
+	"mdpress_0.8.1_windows_arm64.zip",
+}
+
+// newReleaseWithAssetNames builds a gitHubRelease carrying the given asset names.
+func newReleaseWithAssetNames(tag string, assetNames []string) *gitHubRelease {
+	release := &gitHubRelease{
+		TagName: tag,
+		Assets: make([]struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		}, len(assetNames)),
+	}
+	for i, name := range assetNames {
+		release.Assets[i].Name = name
+		release.Assets[i].URL = fmt.Sprintf("https://github.com/yeasy/mdpress/releases/download/%s/%s", tag, name)
+	}
+	return release
+}
+
+// TestFindAssetForPlatformRealRelease pins the picker against the real v0.8.1
+// asset list. Until v0.8.2 the non-archive pass ran first, so every Linux user
+// downloaded mdpress_<ver>_linux_<arch>.apk -- an Alpine package -- and had it
+// installed as their mdpress executable.
+func TestFindAssetForPlatformRealRelease(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	t.Cleanup(func() { platformOS, platformArch = origOS, origArch })
+
+	tests := []struct {
+		goos, goarch string
+		want         string
+	}{
+		{"linux", "amd64", "mdpress_0.8.1_linux_amd64.tar.gz"},
+		{"linux", "arm64", "mdpress_0.8.1_linux_arm64.tar.gz"},
+		{"darwin", "amd64", "mdpress_0.8.1_darwin_amd64.tar.gz"},
+		{"darwin", "arm64", "mdpress_0.8.1_darwin_arm64.tar.gz"},
+		{"windows", "amd64", "mdpress_0.8.1_windows_amd64.zip"},
+		{"windows", "arm64", "mdpress_0.8.1_windows_arm64.zip"},
+	}
+
+	release := newReleaseWithAssetNames("v0.8.1", releaseAssetsV081)
+	for _, tt := range tests {
+		t.Run(tt.goos+"/"+tt.goarch, func(t *testing.T) {
+			platformOS, platformArch = tt.goos, tt.goarch
+			_, name := findAssetForPlatform(release)
+			if name != tt.want {
+				t.Errorf("findAssetForPlatform() = %q, want %q", name, tt.want)
+			}
+		})
+	}
+}
+
+// TestFindAssetForPlatformSkipsPackages asserts distro packages are never
+// selectable, even when no archive exists for the platform: installing a
+// .deb/.rpm/.apk as the binary is worse than reporting "no binary found".
+func TestFindAssetForPlatformSkipsPackages(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	platformOS, platformArch = "linux", "amd64"
+	t.Cleanup(func() { platformOS, platformArch = origOS, origArch })
+
+	release := newReleaseWithAssetNames("v0.8.1", []string{
+		"checksums.txt",
+		"mdpress_0.8.1_linux_amd64.apk",
+		"mdpress_0.8.1_linux_amd64.deb",
+		"mdpress_0.8.1_linux_amd64.rpm",
+	})
+
+	if _, name := findAssetForPlatform(release); name != "" {
+		t.Errorf("findAssetForPlatform() = %q, want no asset (packages are not executables)", name)
+	}
+}
+
+// TestFindAssetForPlatformIgnoresSupplyChainAssets covers the assets the
+// release now publishes alongside the archives (SBOMs and the cosign signature
+// and certificate over checksums.txt): none of them is a binary, and the picker
+// must still land on the archive.
+func TestFindAssetForPlatformIgnoresSupplyChainAssets(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	platformOS, platformArch = "linux", "amd64"
+	t.Cleanup(func() { platformOS, platformArch = origOS, origArch })
+
+	release := newReleaseWithAssetNames("v0.8.2", append([]string{
+		"checksums.txt.sig",
+		"checksums.txt.pem",
+		"mdpress_0.8.2_linux_amd64.tar.gz.sbom.spdx.json",
+		"mdpress_0.8.2_linux_amd64.deb.sbom.spdx.json",
+	}, releaseAssetsV081...))
+
+	if _, name := findAssetForPlatform(release); name != "mdpress_0.8.1_linux_amd64.tar.gz" {
+		t.Errorf("findAssetForPlatform() = %q, want the linux amd64 archive", name)
+	}
+}
+
 // TestFindAssetForPlatform tests asset selection logic.
 func TestFindAssetForPlatform(t *testing.T) {
 	// Override platform to linux/amd64 for deterministic tests.
@@ -139,10 +249,13 @@ func TestFindAssetForPlatform(t *testing.T) {
 			shouldFind: false,
 		},
 		{
-			name:         "prefer raw binary over archive",
+			// Was "prefer raw binary over archive" until v0.8.2. That preference
+			// made the picker choose the published .apk over the .tar.gz for
+			// every Linux user, so archives now win.
+			name:         "prefer archive over bare asset",
 			assetNames:   []string{"mdpress_1.0.0_linux_amd64.tar.gz", "mdpress-linux-amd64"},
 			shouldFind:   true,
-			expectedName: "mdpress-linux-amd64",
+			expectedName: "mdpress_1.0.0_linux_amd64.tar.gz",
 		},
 		{
 			name:       "empty assets",
@@ -793,6 +906,67 @@ func TestDownloadBinaryMock(t *testing.T) {
 			t.Errorf("expected non-200 status code, got %d", resp.StatusCode)
 		}
 	})
+}
+
+// TestVerifyExecutablePayload guards the last line of defense before the
+// running mdpress is overwritten: a matching checksum does not make a payload a
+// program. v0.8.1 installed a gzip'd .apk this way and left users with
+// "exec format error".
+func TestVerifyExecutablePayload(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	t.Cleanup(func() { platformOS, platformArch = origOS, origArch })
+
+	gzipPackage := []byte{0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88}
+
+	tests := []struct {
+		name      string
+		goos      string
+		payload   []byte
+		wantError bool
+	}{
+		{"linux accepts ELF", "linux", []byte{0x7f, 'E', 'L', 'F', 0x02}, false},
+		{"linux rejects gzip package", "linux", gzipPackage, true},
+		{"linux rejects Mach-O", "linux", []byte{0xCF, 0xFA, 0xED, 0xFE}, true},
+		{"linux rejects empty payload", "linux", nil, true},
+		{"darwin accepts Mach-O", "darwin", []byte{0xCF, 0xFA, 0xED, 0xFE, 0x0c}, false},
+		{"darwin accepts universal binary", "darwin", []byte{0xCA, 0xFE, 0xBA, 0xBE, 0x00}, false},
+		{"darwin rejects gzip package", "darwin", gzipPackage, true},
+		{"windows accepts PE", "windows", []byte{'M', 'Z', 0x90, 0x00}, false},
+		{"windows rejects shell script", "windows", []byte("#!/bin/sh\n"), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			platformOS, platformArch = tt.goos, "amd64"
+			err := verifyExecutablePayload("mdpress-asset", tt.payload)
+			if tt.wantError && err == nil {
+				t.Errorf("verifyExecutablePayload() = nil, want an error")
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("verifyExecutablePayload() = %v, want nil", err)
+			}
+		})
+	}
+}
+
+// TestExtractedPackagePayloadIsRefused walks the exact bytes of the upgrade
+// path: an .apk survives extractBinaryData untouched (it is neither tar.gz nor
+// zip), so the executable check must stop it.
+func TestExtractedPackagePayloadIsRefused(t *testing.T) {
+	origOS, origArch := platformOS, platformArch
+	platformOS, platformArch = "linux", "amd64"
+	t.Cleanup(func() { platformOS, platformArch = origOS, origArch })
+
+	assetName := "mdpress_0.8.1_linux_amd64.apk"
+	packageData := append([]byte{0x1f, 0x8b, 0x08}, []byte("alpine package payload")...)
+
+	payload, err := extractBinaryData(assetName, packageData)
+	if err != nil {
+		t.Fatalf("extractBinaryData() failed: %v", err)
+	}
+	if err := verifyExecutablePayload(assetName, payload); err == nil {
+		t.Fatal("verifyExecutablePayload() accepted an Alpine package as the mdpress binary")
+	}
 }
 
 func TestExtractBinaryData(t *testing.T) {
