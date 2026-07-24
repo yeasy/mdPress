@@ -81,6 +81,20 @@ func namedDestinationPages(data []byte) (map[string]int, error) {
 // pageNumbersByObject walks the catalog's page tree and returns the 1-based
 // page number of every page object, keyed by object number.
 func pageNumbersByObject(data []byte, offsets map[int]int, catalog []byte) (map[int]int, error) {
+	ordered, err := orderedPageObjects(data, offsets, catalog)
+	if err != nil {
+		return nil, err
+	}
+	numbers := make(map[int]int, len(ordered))
+	for i, num := range ordered {
+		numbers[num] = i + 1
+	}
+	return numbers, nil
+}
+
+// orderedPageObjects returns the object numbers of the document's pages in
+// reading order.
+func orderedPageObjects(data []byte, offsets map[int]int, catalog []byte) ([]int, error) {
 	pagesNum, pagesGen, ok := dictObjectRef(catalog, "Pages")
 	if !ok {
 		return nil, errors.New("pdf: document catalog has no /Pages reference")
@@ -93,11 +107,7 @@ func pageNumbersByObject(data []byte, offsets map[int]int, catalog []byte) (map[
 	if len(ordered) == 0 {
 		return nil, errors.New("pdf: page tree contains no pages")
 	}
-	numbers := make(map[int]int, len(ordered))
-	for i, num := range ordered {
-		numbers[num] = i + 1
-	}
-	return numbers, nil
+	return ordered, nil
 }
 
 // collectPageObjects appends the object numbers of the leaf pages under the

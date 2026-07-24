@@ -42,6 +42,12 @@ output:
 
 Both default to `true`.
 
+## The Cover Page
+
+A cover is artwork printed to the edge of the sheet, so mdPress prints no header and no footer on it. Nothing needs configuring: with `output.cover: true` (the default), page one comes out clean.
+
+The cover still counts as page one, so the first page of the table of contents reads `2`, and the page numbers printed in the table of contents count it too. Set `output.cover: false` if you want the folio to start at the table of contents instead.
+
 ## Supported Tokens
 
 | Token | Replaced with |

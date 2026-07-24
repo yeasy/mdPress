@@ -148,6 +148,10 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	if footerTmpl != "" {
 		marginOpts = append(marginOpts, pdf.WithFooterTemplate(footerTmpl))
 	}
+	// A cover bleeds to the edge of the sheet, so a header or footer printed on
+	// page one lands on top of the artwork. Chrome cannot be told to skip a
+	// page, so the generator removes them from the cover once the file exists.
+	marginOpts = append(marginOpts, pdf.WithCoverPage(parts.CoverHTML != ""))
 
 	// Add custom margins if provided in config, otherwise use defaults
 	if ctx.Config.Output.MarginLeft != "" || ctx.Config.Output.MarginRight != "" ||
