@@ -339,6 +339,7 @@ type Generator struct {
 	footerTemplate          string
 	generateDocumentOutline bool // Generate clickable PDF bookmarks from heading hierarchy.
 	generateTaggedPDF       bool // Generate tagged (accessible) PDF.
+	coverPage               bool // Page one is full-bleed cover artwork.
 	metadata                DocumentMetadata
 }
 
@@ -571,6 +572,15 @@ func WithHeaderTemplate(tmpl string) GeneratorOption {
 		g.headerTemplate = tmpl
 		g.displayHeaderFooter = true
 	}
+}
+
+// WithCoverPage declares that page one is a cover — artwork printed to the
+// edge of the sheet — so the print header and footer are taken back off it
+// after printing. Chrome draws them from the PrintToPDF parameters rather than
+// from the page box, so nothing in the document can keep them off the cover;
+// see StripCoverHeaderFooter.
+func WithCoverPage(cover bool) GeneratorOption {
+	return func(g *Generator) { g.coverPage = cover }
 }
 
 // WithDocumentOutline toggles PDF bookmark/outline generation from heading hierarchy.
@@ -907,6 +917,7 @@ func (g *Generator) generateFromSource(ctx context.Context, src documentSource, 
 		return ctxErr
 	}
 
+	pdfBuf = g.clearCoverHeaderFooter(pdfBuf)
 	pdfBuf = g.stampMetadata(pdfBuf)
 
 	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
@@ -1126,6 +1137,23 @@ func (g *Generator) printOnce(browserCtx context.Context, pageURL string) ([]byt
 		return nil, err
 	}
 	return pdfBuf, nil
+}
+
+// clearCoverHeaderFooter removes the running head and folio Chrome printed on
+// the cover. Like the metadata rewrite below it is a finishing touch, so a
+// document it cannot confidently edit is returned untouched with a debug note:
+// a cover carrying a stray "Page 1 of 17" is a blemish, while a mis-edited
+// content stream would be a broken book.
+func (g *Generator) clearCoverHeaderFooter(data []byte) []byte {
+	if !g.coverPage || !g.displayHeaderFooter {
+		return data
+	}
+	stripped, err := StripCoverHeaderFooter(data)
+	if err != nil {
+		slog.Debug("Kept the print header and footer on the cover page", slog.Any("error", err))
+		return data
+	}
+	return stripped
 }
 
 // stampMetadata rewrites the /Info dictionary of a freshly printed PDF.
