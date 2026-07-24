@@ -17,6 +17,7 @@ import (
 	"github.com/yeasy/mdpress/internal/pdf"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/theme"
+	"github.com/yeasy/mdpress/internal/toc"
 	"github.com/yeasy/mdpress/internal/typst"
 	"github.com/yeasy/mdpress/pkg/utils"
 )
@@ -124,6 +125,16 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 
 	headerTmpl, footerTmpl := pdfHeaderFooterTemplates(ctx.Config)
 
+	// A printed table of contents may only cite page numbers the reader can
+	// actually turn to. With output.footer:false (and no {page} in the header)
+	// no sheet carries a folio, yet the contents still read "Deep Dive .... 10"
+	// — a number that appears nowhere in the document. Drop the page-number
+	// slots so the two halves of the feature agree; internal/pdf then also
+	// skips its numbering print pass, which halves the render.
+	if !pdfPrintsPageNumbers(headerTmpl, footerTmpl) {
+		fullHTML = stripTOCPageSlots(fullHTML)
+	}
+
 	// Prepare margin options from config, with fallback defaults
 	marginOpts := []pdf.GeneratorOption{
 		pdf.WithTimeout(pdfTimeout),
@@ -195,9 +206,16 @@ func pdfDocumentMetadata(cfg *config.BookConfig) pdf.DocumentMetadata {
 	}
 }
 
+// pdfPageNumberSpan is the markup Chrome replaces with the current page number
+// when it renders a print header/footer template.
+const pdfPageNumberSpan = `<span class='pageNumber'></span>`
+
+// pdfTotalPagesSpan is the markup Chrome replaces with the page count.
+const pdfTotalPagesSpan = `<span class='totalPages'></span>`
+
 // defaultPDFFooterTemplate is the out-of-the-box PDF footer: a centered page
 // number in subtle small print.
-const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;'><span class='pageNumber'></span></div>`
+const defaultPDFFooterTemplate = `<div style='width:100%;text-align:center;font-size:9px;color:#9aa5b1;font-family:-apple-system,Arial,sans-serif;'>` + pdfPageNumberSpan + `</div>`
 
 // pdfHeaderFooterTemplates derives the Chrome print header/footer templates
 // from the book configuration. The output.header/output.footer booleans act
@@ -220,6 +238,26 @@ func pdfHeaderFooterTemplates(cfg *config.BookConfig) (headerTmpl, footerTmpl st
 		}
 	}
 	return headerTmpl, footerTmpl
+}
+
+// pdfPrintsPageNumbers reports whether any sheet of the printed document will
+// carry a page number, i.e. whether a rendered header or footer expands
+// Chrome's page-number placeholder.
+func pdfPrintsPageNumbers(headerTmpl, footerTmpl string) bool {
+	return strings.Contains(headerTmpl, pdfPageNumberSpan) ||
+		strings.Contains(footerTmpl, pdfPageNumberSpan)
+}
+
+// tocPageSlotAttrPattern matches the attribute that marks a table-of-contents
+// page-number slot, e.g. ` data-toc-page="deep-dive"`.
+var tocPageSlotAttrPattern = regexp.MustCompile(`\s` + regexp.QuoteMeta(toc.PageSlotAttr) + `="[^"]*"`)
+
+// stripTOCPageSlots removes the page-number slot markers from the document.
+// internal/pdf keys its second print pass off their presence, so dropping them
+// leaves every slot empty — and the TOC stylesheet already renders an entry
+// with an empty slot without a dot leader, so it reads as a plain list.
+func stripTOCPageSlots(htmlContent string) string {
+	return tocPageSlotAttrPattern.ReplaceAllString(htmlContent, "")
 }
 
 // isCustomHeaderFooterStyle reports whether the user configured a
@@ -258,8 +296,8 @@ func expandPDFTemplateTokens(text string, book config.BookMeta) string {
 	if text == "" {
 		return ""
 	}
-	const pageSpan = "<span class='pageNumber'></span>"
-	const totalPagesSpan = "<span class='totalPages'></span>"
+	const pageSpan = pdfPageNumberSpan
+	const totalPagesSpan = pdfTotalPagesSpan
 	escapedTitle := html.EscapeString(book.Title)
 	escapedAuthor := html.EscapeString(book.Author)
 	replacer := strings.NewReplacer(
