@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -147,6 +148,14 @@ func TestBuildCanceled(t *testing.T) {
 func TestSIGINTStopsBuildAndRemovesOutput(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the CLI and renders with Chromium; skipped in -short mode")
+	}
+	// Windows has no SIGINT that one process can deliver to another:
+	// os.Process.Signal(os.Interrupt) returns "not supported by windows", and a
+	// real Ctrl+C there arrives via GenerateConsoleCtrlEvent to a shared console
+	// group, an entirely different mechanism. The signal handling this test
+	// exercises is Unix-only, so the test is too.
+	if runtime.GOOS == "windows" {
+		t.Skip("SIGINT cannot be delivered to another process on Windows")
 	}
 	if err := pdf.CheckChromiumAvailable(); err != nil {
 		t.Skipf("Chromium is not available: %v", err)
