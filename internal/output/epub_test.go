@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1744,5 +1745,269 @@ func TestValidateXHTMLRejectsMalformedDocument(t *testing.T) {
 	}
 	if err := validateXHTML("OEBPS/ok.xhtml", `<p>text<hr /></p>`); err != nil {
 		t.Errorf("well-formed XHTML should be accepted: %v", err)
+	}
+}
+
+// TestEpubChapterNamedNavDoesNotOverwriteGeneratedDocuments guards the archive
+// against chapters whose title slug lands on one of the packager's own entry
+// names. A book with a front-matter chapter called "Cover" or "Nav" used to
+// write a second OEBPS/cover.xhtml and OEBPS/nav.xhtml, and because readers
+// take the last entry the navigation document became a chapter body: the book
+// opened with no table of contents at all.
+func TestEpubChapterNamedNavDoesNotOverwriteGeneratedDocuments(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "collide.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Collide", Language: "en", IncludeCover: true})
+	gen.AddChapter(EpubChapter{Title: "Cover", ID: "cover", Filename: "cover.xhtml", HTML: "<p>Author cover</p>"})
+	gen.AddChapter(EpubChapter{Title: "Nav", ID: "nav", Filename: "nav.xhtml", HTML: "<p>Author nav</p>"})
+	gen.AddChapter(EpubChapter{Title: "Real", ID: "real", Filename: "real.xhtml", HTML: "<p>Real</p>"})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	names := readEpubFileNames(t, outputPath)
+	seen := make(map[string]int, len(names))
+	for _, name := range names {
+		seen[name]++
+	}
+	for name, count := range seen {
+		if count > 1 {
+			t.Errorf("duplicate archive entry %s (%d times); OCF forbids it", name, count)
+		}
+	}
+
+	nav := readEpubFile(t, outputPath, "OEBPS/nav.xhtml")
+	if !strings.Contains(nav, `<nav epub:type="toc"`) {
+		t.Errorf("nav.xhtml was overwritten by a chapter body:\n%s", nav)
+	}
+	if strings.Contains(nav, "Author nav") {
+		t.Errorf("nav.xhtml still holds the chapter body:\n%s", nav)
+	}
+	cover := readEpubFile(t, outputPath, "OEBPS/cover.xhtml")
+	if strings.Contains(cover, "Author cover") {
+		t.Errorf("cover.xhtml was overwritten by a chapter body:\n%s", cover)
+	}
+
+	// Every chapter must still be packaged and reachable from the manifest.
+	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
+	for _, want := range []string{"cover-2.xhtml", "nav-2.xhtml", "real.xhtml"} {
+		if !strings.Contains(opf, `href="`+want+`"`) {
+			t.Errorf("manifest is missing %s:\n%s", want, opf)
+		}
+		if !slices.Contains(names, "OEBPS/"+want) {
+			t.Errorf("archive is missing OEBPS/%s (entries: %v)", want, names)
+		}
+	}
+}
+
+// TestEpubDuplicateChapterIDsGetDistinctNavPoints covers the second way the
+// collision showed up: the auto-appended glossary chapter carries the fixed id
+// "glossary", so a hand-written Glossary chapter produced two NCX navPoints
+// with the same id, which is invalid XML.
+func TestEpubDuplicateChapterIDsGetDistinctNavPoints(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "glossary.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Glossary Clash", Language: "en"})
+	gen.AddChapter(EpubChapter{Title: "Glossary", ID: "glossary", Filename: "glossary.xhtml", HTML: "<p>Hand written</p>"})
+	gen.AddChapter(EpubChapter{Title: "Glossary", ID: "glossary", Filename: "glossary.xhtml", HTML: "<p>Generated</p>"})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	ncx := readEpubFile(t, outputPath, "OEBPS/toc.ncx")
+	if strings.Count(ncx, `id="nav-glossary"`) != 1 {
+		t.Errorf("expected a single nav-glossary navPoint:\n%s", ncx)
+	}
+	if !strings.Contains(ncx, `id="nav-glossary-2"`) {
+		t.Errorf("second glossary chapter did not get a distinct navPoint id:\n%s", ncx)
+	}
+	if err := validateXHTML("OEBPS/toc.ncx", ncx); err != nil {
+		t.Errorf("toc.ncx is not well-formed: %v", err)
+	}
+}
+
+// TestEpubNavKeepsChaptersWhoseParentWasDropped covers a book whose
+// part-introduction file is still empty: the pipeline drops the parent but
+// keeps its children at depth 1, and both nav writers used to skip every entry
+// that did not match the level they were walking. Those chapters were packaged
+// and in the spine but listed nowhere, and a one-part book lost its whole table
+// of contents.
+func TestEpubNavKeepsChaptersWhoseParentWasDropped(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "orphan.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Two Parts", Language: "en"})
+	// "Part One" was dropped as empty; Chapter A keeps its original depth.
+	gen.AddChapter(EpubChapter{Title: "Chapter A", ID: "a", Filename: "a.xhtml", HTML: "<p>A</p>", Depth: 1})
+	gen.AddChapter(EpubChapter{Title: "Part Two", ID: "p2", Filename: "p2.xhtml", HTML: "<p>P2</p>", Depth: 0})
+	gen.AddChapter(EpubChapter{Title: "Chapter B", ID: "b", Filename: "b.xhtml", HTML: "<p>B</p>", Depth: 1})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	nav := readEpubFile(t, outputPath, "OEBPS/nav.xhtml")
+	ncx := readEpubFile(t, outputPath, "OEBPS/toc.ncx")
+	for _, want := range []string{"a.xhtml", "p2.xhtml", "b.xhtml"} {
+		if !strings.Contains(nav, `href="`+want+`"`) {
+			t.Errorf("nav.xhtml does not list %s:\n%s", want, nav)
+		}
+		if !strings.Contains(ncx, `src="`+want+`"`) {
+			t.Errorf("toc.ncx does not list %s:\n%s", want, ncx)
+		}
+	}
+	// Chapter B is still nested under Part Two; only the orphan was promoted.
+	if !strings.Contains(nav, "<ol>\n") || !strings.Contains(nav, `<li><a href="b.xhtml">`) {
+		t.Errorf("nav.xhtml lost its hierarchy:\n%s", nav)
+	}
+	if err := validateXHTML("OEBPS/nav.xhtml", nav); err != nil {
+		t.Errorf("nav.xhtml is not well-formed: %v", err)
+	}
+}
+
+// TestEpubSingleEmptyPartStillProducesNavigation is the one-part variant, where
+// the table of contents came out as an empty <ol>/<navMap> — invalid on top of
+// leaving the reader with no way to reach any chapter.
+func TestEpubSingleEmptyPartStillProducesNavigation(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "one-part.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "One Part", Language: "en"})
+	gen.AddChapter(EpubChapter{Title: "Chapter A", ID: "a", Filename: "a.xhtml", HTML: "<p>A</p>", Depth: 1})
+	gen.AddChapter(EpubChapter{Title: "Chapter B", ID: "b", Filename: "b.xhtml", HTML: "<p>B</p>", Depth: 1})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+
+	nav := readEpubFile(t, outputPath, "OEBPS/nav.xhtml")
+	if strings.Contains(strings.Join(strings.Fields(nav), " "), "<ol> </ol>") {
+		t.Errorf("nav.xhtml has an empty table of contents:\n%s", nav)
+	}
+	ncx := readEpubFile(t, outputPath, "OEBPS/toc.ncx")
+	if !strings.Contains(ncx, "<navPoint") {
+		t.Errorf("toc.ncx has an empty navMap:\n%s", ncx)
+	}
+}
+
+// TestEpubUnreachableRemoteImageDoesNotFailBuild covers the one backend that
+// turned a network problem into a red build: pdf, html and site warn and keep
+// the original URL for an image they cannot fetch, while the ePub packager
+// aborted and wrote no file at all. The URL below is refused by the SSRF guard,
+// which is the same failure path as an unreachable host without needing one.
+func TestEpubUnreachableRemoteImageDoesNotFailBuild(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "remote.epub")
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Remote", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title:    "Images",
+		ID:       "images",
+		Filename: "images.xhtml",
+		HTML:     `<p><img src="http://127.0.0.1:9/pic.png" alt="badge"></p><p>Body text.</p>`,
+	})
+
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("an unfetchable remote image must not fail the ePub build: %v", err)
+	}
+	if _, err := os.Stat(outputPath); err != nil {
+		t.Fatalf("no .epub was written: %v", err)
+	}
+	chapter := readEpubFile(t, outputPath, "OEBPS/images.xhtml")
+	if !strings.Contains(chapter, "http://127.0.0.1:9/pic.png") {
+		t.Errorf("original image URL was not kept:\n%s", chapter)
+	}
+	if !strings.Contains(chapter, "Body text.") {
+		t.Errorf("chapter content was lost:\n%s", chapter)
+	}
+}
+
+// TestEpubSanitizesInvalidXMLIDs covers the ids two everyday constructs produce
+// — goldmark footnotes ("fn:1") and a heading written "## 1. Install" — both of
+// which are rejected by the xsd:ID type the XHTML content-document schema gives
+// @id, so a store running epubcheck refuses the book.
+func TestEpubSanitizesInvalidXMLIDs(t *testing.T) {
+	got := normalizeHTMLForXHTML(
+		`<h3 id="1-install">1. Install</h3>` +
+			`<p>text<sup id="fnref:1"><a href="#fn:1">1</a></sup></p>` +
+			`<li id="fn:1"><a href="#fnref:1" class="footnote-backref">back</a></li>`)
+
+	for _, bad := range []string{`id="fn:1"`, `id="fnref:1"`, `id="1-install"`, `href="#fn:1"`, `href="#fnref:1"`} {
+		if strings.Contains(got, bad) {
+			t.Errorf("invalid id/fragment %s survived normalization:\n%s", bad, got)
+		}
+	}
+	for _, want := range []string{`id="id-1-install"`, `id="fnref-1"`, `id="fn-1"`, `href="#fn-1"`, `href="#fnref-1"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %s in normalized chapter:\n%s", want, got)
+		}
+	}
+}
+
+// TestEpubKeepsValidUnicodeIDsAndFragments guards the sanitizer against
+// over-reach: a CJK heading id is a perfectly valid XML name, and the links to
+// it arrive percent-encoded, so neither may be rewritten.
+func TestEpubKeepsValidUnicodeIDsAndFragments(t *testing.T) {
+	got := normalizeHTMLForXHTML(
+		`<h2 id="信任模型">信任模型</h2>` +
+			`<h2 id="1-安装">1. 安装</h2>` +
+			`<p><a href="#%E4%BF%A1%E4%BB%BB%E6%A8%A1%E5%9E%8B">jump</a></p>`)
+
+	if !strings.Contains(got, `id="信任模型"`) {
+		t.Errorf("valid CJK id was rewritten:\n%s", got)
+	}
+	if !strings.Contains(got, `href="#%E4%BF%A1%E4%BB%BB%E6%A8%A1%E5%9E%8B"`) {
+		t.Errorf("percent-encoded fragment to a valid id was rewritten:\n%s", got)
+	}
+	if !strings.Contains(got, `id="id-1-安装"`) {
+		t.Errorf("digit-initial CJK id was not sanitized:\n%s", got)
+	}
+}
+
+// TestEpubLanguageIsWellFormedBCP47 covers "zh_CN", a common way to spell the
+// tag: written verbatim it matches nothing, so a reading system falls back to
+// its default font and line breaking for a Chinese book, and the package fails
+// EPUB validation on the dc:language pattern.
+func TestEpubLanguageIsWellFormedBCP47(t *testing.T) {
+	cases := map[string]string{
+		"zh_CN":              "zh-CN",
+		"en-us":              "en-US",
+		"Simplified Chinese": "en",
+		"":                   "en",
+		"zh-Hans-CN":         "zh-Hans-CN",
+		"en":                 "en",
+	}
+	for in, want := range cases {
+		if got := languageOrDefault(in); got != want {
+			t.Errorf("languageOrDefault(%q) = %q, want %q", in, got, want)
+		}
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "lang.epub")
+	gen := NewEpubGenerator(EpubMeta{Title: "Meta", Language: "zh_CN"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>T</p>"})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
+	if !strings.Contains(opf, "<dc:language>zh-CN</dc:language>") {
+		t.Errorf("dc:language was not normalized:\n%s", opf)
+	}
+	if !strings.Contains(readEpubFile(t, outputPath, "OEBPS/one.xhtml"), `lang="zh-CN"`) {
+		t.Error("chapter lang attribute was not normalized")
+	}
+}
+
+// TestEpubOmitsEmptyCreator: a book with no author shipped
+// <dc:creator></dc:creator>, which catalogs index as a book by someone with a
+// blank name.
+func TestEpubOmitsEmptyCreator(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "anon.epub")
+	gen := NewEpubGenerator(EpubMeta{Title: "Anon", Language: "en"})
+	gen.AddChapter(EpubChapter{Title: "One", ID: "one", Filename: "one.xhtml", HTML: "<p>T</p>"})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("Generate() failed: %v", err)
+	}
+	if opf := readEpubFile(t, outputPath, "OEBPS/content.opf"); strings.Contains(opf, "<dc:creator") {
+		t.Errorf("an unset author should omit dc:creator entirely:\n%s", opf)
 	}
 }

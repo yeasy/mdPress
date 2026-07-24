@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -73,9 +74,207 @@ func normalizeHTMLForXHTML(fragment string) string {
 	var b strings.Builder
 	for _, n := range nodes {
 		rewriteMermaidBlocks(n)
+	}
+	rewriteInvalidIDs(nodes)
+	for _, n := range nodes {
 		writeXHTMLNode(&b, n)
 	}
 	return b.String()
+}
+
+// rewriteInvalidIDs replaces id values that XML cannot accept and repoints the
+// fragments that referenced them.
+//
+// The XHTML content-document schema types @id as xsd:ID, i.e. an XML NCName, so
+// the ids two everyday constructs produce are invalid: goldmark's footnotes
+// ("fn:1", "fnref:1" — a colon is not allowed in an NCName) and any heading
+// written "## 1. Install" (an id may not start with a digit). mdPress reported a
+// clean build and the store that runs epubcheck on submission rejected the file.
+func rewriteInvalidIDs(nodes []*html.Node) {
+	renamed := make(map[string]string)
+	taken := make(map[string]bool)
+	for _, n := range nodes {
+		forEachElement(n, func(el *html.Node) {
+			if id, ok := attrValue(el, "id"); ok {
+				taken[id] = true
+			}
+		})
+	}
+	for _, n := range nodes {
+		forEachElement(n, func(el *html.Node) {
+			id, ok := attrValue(el, "id")
+			if !ok || isValidXMLID(id) {
+				return
+			}
+			replacement, seen := renamed[id]
+			if !seen {
+				replacement = uniqueXMLID(sanitizeXMLID(id), taken)
+				renamed[id] = replacement
+				taken[replacement] = true
+			}
+			setAttrValue(el, "id", replacement)
+		})
+	}
+	if len(renamed) == 0 {
+		return
+	}
+	for _, n := range nodes {
+		forEachElement(n, func(el *html.Node) {
+			href, ok := attrValue(el, "href")
+			if !ok {
+				return
+			}
+			if rewritten, changed := rewriteFragment(href, renamed); changed {
+				setAttrValue(el, "href", rewritten)
+			}
+		})
+	}
+}
+
+// rewriteFragment points a link at an id's new spelling. Links into another
+// chapter are covered too: sanitizeXMLID is deterministic, so the fragment of
+// `other.xhtml#1-install` maps to the same id that chapter now carries.
+func rewriteFragment(href string, renamed map[string]string) (string, bool) {
+	base, fragment, found := strings.Cut(href, "#")
+	if !found || fragment == "" {
+		return href, false
+	}
+	// Fragments are percent-encoded while ids are not, so a CJK anchor arrives
+	// here as %E4%BF%A1… and has to be decoded before it can be compared with
+	// an id — otherwise a perfectly valid link looks invalid and gets mangled.
+	decoded, err := url.PathUnescape(fragment)
+	if err != nil || isValidXMLID(decoded) {
+		return href, false
+	}
+	replacement, ok := renamed[decoded]
+	if !ok {
+		replacement = sanitizeXMLID(decoded)
+	}
+	if replacement == decoded {
+		return href, false
+	}
+	return base + "#" + (&url.URL{Fragment: replacement}).EscapedFragment(), true
+}
+
+// sanitizeXMLID turns an arbitrary id into a valid XML NCName: characters XML
+// does not accept in a name become "-", and a value that cannot start a name
+// (a digit, a hyphen) gains an "id-" prefix.
+func sanitizeXMLID(id string) string {
+	var b strings.Builder
+	for _, r := range id {
+		if isXMLNameRune(r) {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteRune('-')
+	}
+	sanitized := b.String()
+	if sanitized == "" {
+		return "id"
+	}
+	if first := []rune(sanitized)[0]; !isXMLNameStartRune(first) {
+		return "id-" + sanitized
+	}
+	return sanitized
+}
+
+// uniqueXMLID keeps a sanitized id from landing on an id the document already
+// uses, which would swap one invalid document for a document with two elements
+// sharing an ID.
+func uniqueXMLID(id string, taken map[string]bool) string {
+	if !taken[id] {
+		return id
+	}
+	for n := 2; ; n++ {
+		candidate := fmt.Sprintf("%s-%d", id, n)
+		if !taken[candidate] {
+			return candidate
+		}
+	}
+}
+
+// isValidXMLID reports whether s is an XML NCName, the type the XHTML schema
+// gives @id.
+func isValidXMLID(s string) bool {
+	for i, r := range s {
+		if i == 0 {
+			if !isXMLNameStartRune(r) {
+				return false
+			}
+			continue
+		}
+		if !isXMLNameRune(r) {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// isXMLNameStartRune implements XML 1.0 NameStartChar minus ":", which NCName
+// excludes.
+func isXMLNameStartRune(r rune) bool {
+	switch {
+	case r == '_':
+		return true
+	case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z':
+		return true
+	case r >= 0xC0 && r <= 0xD6, r >= 0xD8 && r <= 0xF6, r >= 0xF8 && r <= 0x2FF:
+		return true
+	case r >= 0x370 && r <= 0x37D, r >= 0x37F && r <= 0x1FFF:
+		return true
+	case r >= 0x200C && r <= 0x200D, r >= 0x2070 && r <= 0x218F:
+		return true
+	case r >= 0x2C00 && r <= 0x2FEF, r >= 0x3001 && r <= 0xD7FF:
+		return true
+	case r >= 0xF900 && r <= 0xFDCF, r >= 0xFDF0 && r <= 0xFFFD:
+		return true
+	case r >= 0x10000 && r <= 0xEFFFF:
+		return true
+	default:
+		return false
+	}
+}
+
+// isXMLNameRune implements XML 1.0 NameChar minus ":".
+func isXMLNameRune(r rune) bool {
+	switch {
+	case isXMLNameStartRune(r):
+		return true
+	case r == '-' || r == '.' || (r >= '0' && r <= '9'):
+		return true
+	case r == 0xB7, r >= 0x300 && r <= 0x36F, r >= 0x203F && r <= 0x2040:
+		return true
+	default:
+		return false
+	}
+}
+
+// forEachElement visits n and every element below it.
+func forEachElement(n *html.Node, visit func(*html.Node)) {
+	if n.Type == html.ElementNode {
+		visit(n)
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		forEachElement(c, visit)
+	}
+}
+
+func attrValue(n *html.Node, key string) (string, bool) {
+	for _, a := range n.Attr {
+		if a.Namespace == "" && strings.EqualFold(a.Key, key) {
+			return a.Val, true
+		}
+	}
+	return "", false
+}
+
+func setAttrValue(n *html.Node, key, value string) {
+	for i, a := range n.Attr {
+		if a.Namespace == "" && strings.EqualFold(a.Key, key) {
+			n.Attr[i].Val = value
+			return
+		}
+	}
 }
 
 // rewriteMermaidBlocks converts Mermaid containers into <pre> elements.
