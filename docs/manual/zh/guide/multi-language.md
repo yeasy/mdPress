@@ -19,10 +19,10 @@ book/
     └── guide.md
 ```
 
-**不要**在根目录放 `book.yaml`。mdPress 会先加载根配置再去看 `LANGS.md`，而一个自身没有章节的根 `book.yaml` 会让构建失败：
+根目录的 `book.yaml` 是可选的。如果放了一个，它不需要有自己的章节 —— 旁边存在 `LANGS.md` 时章节要求会被豁免。如果没有 `LANGS.md`，同样这份没有章节的配置就只是一个普通的、坏掉的项目：
 
 ```
-Error: failed to load config: config validation failed: at least one chapter is required
+Error: failed to load config: config validation failed: at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)
 ```
 
 ## LANGS.md
@@ -125,7 +125,7 @@ output:
 
 目录名取自 `LANGS.md` 而不是书名，所以标题里的空格或中文永远不会进入 URL 路径。切换栏里的链接都做了百分号编码。
 
-`LANGS.md` 旁边可以有一个根 `book.yaml`，用来放共享元数据；它不需要 `chapters`，因为每个语言目录都有自己的。
+`LANGS.md` 旁边可以有一个根 `book.yaml`，它不需要 `chapters`，因为每个语言目录都有自己的。但它**不是**放共享元数据的地方：每个语言只根据自己目录下的配置构建，因此在根目录设置的标题、作者或主题不会被任何一本书继承。根配置仍然会被加载和校验，所以那里的非法取值（例如未知主题）会让整个构建失败。
 
 ### 构建单一语言
 
@@ -176,8 +176,8 @@ https://docs.example.com/zh/
 
 | 现象 | 原因 |
 | --- | --- |
-| 根目录报 `at least one chapter is required` | 根目录有 `book.yaml` 但旁边没有 `LANGS.md`。有 `LANGS.md` 时根 `book.yaml` 是允许的，用来放共享元数据。 |
+| 根目录报 `at least one chapter is required` | 根目录有 `book.yaml` 但旁边没有 `LANGS.md`。有 `LANGS.md` 时，没有章节的根 `book.yaml` 是允许的。 |
 | `no language definitions found in LANGS.md` | `LANGS.md` 里没有任何一行包含 Markdown 链接。 |
-| 书名显示为 "Untitled Book" | 语言目录的 `book.yaml` 用了顶层 `title:` 而不是 `book: { title: … }`。 |
+| 书名显示为 "Untitled Book" | 语言目录的 `book.yaml` 用了顶层 `title:` 而不是 `book: { title: … }`。在*根* `book.yaml` 里设置标题没有用，它不会被继承。 |
 | 站点界面语言不对 | 在该语言的 `book.yaml` 里设置 `book.language`（`en-US`、`zh-CN` 等）。 |
 | 产物落在了意料之外的位置 | `--output` 指定的是整棵树的根。`./dist` 和 `./dist/` 都构建到 `dist/`；像文件的路径会解析成它所在的目录，`./dist/book.html` 构建到 `dist/book/`。 |

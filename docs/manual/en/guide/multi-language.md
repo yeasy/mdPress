@@ -19,10 +19,10 @@ book/
     └── guide.md
 ```
 
-Do **not** put a `book.yaml` at the root. mdPress loads the root config before it looks at `LANGS.md`, and a root `book.yaml` with no chapters of its own fails the build:
+A root `book.yaml` is optional. If you add one, it does not need chapters of its own — the chapter requirement is waived when `LANGS.md` sits beside it. Without `LANGS.md`, the same chapter-less config is an ordinary broken project:
 
 ```
-Error: failed to load config: config validation failed: at least one chapter is required
+Error: failed to load config: config validation failed: at least one chapter is required (add chapters in book.yaml or create SUMMARY.md)
 ```
 
 ## LANGS.md
@@ -125,7 +125,7 @@ Each generated site page also gets a language-switcher bar injected at the top, 
 
 Directory names come from `LANGS.md`, not from the book title, so a title containing spaces or CJK characters never becomes part of a URL path. The switcher's links are percent-encoded.
 
-A root `book.yaml` alongside `LANGS.md` is allowed and is the place for shared metadata; its chapters are not required, because each language directory has its own.
+A root `book.yaml` alongside `LANGS.md` is allowed, and its chapters are not required because each language directory has its own. It is **not** a place for shared metadata: each language is built from its own directory's config alone, so a title, author or theme set at the root is inherited by nothing. The root config is still loaded and validated, so an invalid value there (an unknown theme, say) fails the whole build.
 
 ### Building one language on its own
 
@@ -168,8 +168,8 @@ The switcher at the root is a real `index.html`, so a web server serves it witho
 
 | Symptom | Cause |
 | --- | --- |
-| `at least one chapter is required` at the root | A root `book.yaml` without `LANGS.md` beside it. With `LANGS.md` present a root `book.yaml` is allowed and holds shared metadata. |
+| `at least one chapter is required` at the root | A root `book.yaml` without `LANGS.md` beside it. With `LANGS.md` present a chapter-less root `book.yaml` is fine. |
 | `no language definitions found in LANGS.md` | No line in `LANGS.md` contains a Markdown link. |
-| Book is titled "Untitled Book" | The language `book.yaml` uses top-level `title:` instead of `book: { title: … }`. |
+| Book is titled "Untitled Book" | The language `book.yaml` uses top-level `title:` instead of `book: { title: … }`. Setting the title in the *root* `book.yaml` does not help; it is not inherited. |
 | Site UI is in the wrong language | Set `book.language` (`en-US`, `zh-CN`, …) in that language's `book.yaml`. |
 | Output landed somewhere unexpected | `--output` names the root of the whole tree. `./dist` and `./dist/` build into `dist/`; a file-like path names its directory, so `./dist/book.html` builds into `dist/book/`. |

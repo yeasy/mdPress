@@ -49,8 +49,9 @@ Both default to `true`.
 | `{page}` | Current page number |
 | `{pages}` | Total number of pages |
 | `{title}` | The book title from `book.yaml` |
+| `{author}` | The author from `book.author` |
 
-Legacy Go-template-style tokens from older scaffolded configs are also accepted: `{{.PageNum}}` (= `{page}`), `{{.TotalPages}}` (= `{pages}`), and `{{.Book.Title}}` (= `{title}`). `{{.Chapter.Title}}` is accepted for compatibility but expands to nothing — Chrome print templates have no per-chapter context.
+Legacy Go-template-style tokens from older scaffolded configs are also accepted: `{{.PageNum}}` (= `{page}`), `{{.TotalPages}}` (= `{pages}`), `{{.Book.Title}}` (= `{title}`), and `{{.Book.Author}}` (= `{author}`). `{{.Chapter.Title}}` is accepted for compatibility but expands to nothing — Chrome print templates have no per-chapter context.
 
 Everything else is treated as literal text (HTML-escaped for safety), so you can freely combine tokens with fixed text:
 
@@ -100,7 +101,7 @@ Header and footer text uses a fixed, deliberately subtle style (9px, muted gray,
 
 ### Tokens Appear Literally in the PDF
 
-1. Check the spelling — supported tokens are exactly `{page}`, `{pages}`, and `{title}` (case-sensitive).
+1. Check the spelling — supported tokens are exactly `{page}`, `{pages}`, `{title}`, and `{author}` (case-sensitive).
 2. Check that you are generating PDF output; headers/footers do not apply to other formats.
 
 ### No Header Appears

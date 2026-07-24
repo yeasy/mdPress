@@ -248,10 +248,19 @@ mdPress 搜索功能用于文档内搜索，而非网页搜索引擎优化。
 
 帮助 Google 等外部搜索引擎索引你的文档：
 
-1. 确保你的网站有站点地图（自动生成 `sitemap.xml`）
-2. 在 `book.yaml` 配置中添加适当的元标签
-3. 向 Google Search Console 提交你的站点地图
-4. 确保你的托管允许搜索引擎爬虫
+1. 在 `book.yaml` 中把 `output.site_url` 设为已部署站点的公开基础 URL。这正是让 mdPress
+   写出 `sitemap.xml` 的开关；**不设置它就不会生成任何 sitemap**，下面提交的 URL 会 404：
+
+   ```yaml
+   output:
+     site_url: "https://docs.example.com"
+   ```
+
+   设置它还会给每个页面加上 `<link rel="canonical">`，并在生成的 `robots.txt` 中加上
+   `Sitemap:` 一行。
+2. 设置 `book.description` —— 它会成为每个页面的 `<meta name="description">`。
+3. 向 Google Search Console 提交 `<site_url>/sitemap.xml`。
+4. 确保你的托管允许搜索引擎爬虫。
 
 ## 最佳实践
 

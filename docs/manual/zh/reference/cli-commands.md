@@ -72,10 +72,63 @@ mdpress quickstart [directory] [--force]
 ### `validate`
 
 ```bash
-mdpress validate [directory] [--report path]
+mdpress validate [directory] [flags]
 ```
 
-验证配置、被引用的文件、图像和章节链接。`--report` 写入 `.json` 或 `.md` 报告。
+验证配置、被引用的文件、图像、章节链接以及页内锚点。它还会报告没有被任何章节列表收录的
+Markdown 文件，以及被列为多个章节的文件。
+
+| 标志 | 默认值 | 用途 |
+| --- | --- | --- |
+| `--report <path>` | — | 将校验报告写入 `.json` 或 `.md` 文件 |
+| `--strict` | off | 只要出现任何告警（而不只是错误）就以非零状态退出 |
+
+不加 `--strict` 时只有错误会让运行失败，因此告警 —— 重复的章节条目、无法识别的配置键 ——
+仍然以 0 退出。把 validate 用作 CI 门禁时请加上 `--strict`：
+
+```bash
+mdpress validate --strict
+```
+
+### `config show`
+
+```bash
+mdpress config show [directory] [flags]
+```
+
+打印这个项目在构建时实际会使用的配置：应用默认值之后的 `book.yaml` 设置（没有 `book.yaml`
+时则是自动发现推断出的设置），外加一个 `resolved` 小节，说明加载了哪个配置文件、主题来自
+哪里、样式覆盖之后渲染器收到的排版参数，以及每种请求的格式将写入哪个文件。
+
+遇到“我明明设置了却没生效”时就用这个命令。
+
+| 标志 | 默认值 | 用途 |
+| --- | --- | --- |
+| `-f, --format <yaml\|json>` | `yaml` | 输出编码 |
+
+```bash
+mdpress config show
+mdpress config show ./my-book
+mdpress config show --config release.yaml
+
+# 脚本化
+mdpress config show --format json | jq -r .style.theme
+mdpress config show --format json | jq -r .resolved.artifacts.pdf
+```
+
+### `cache info` / `cache clear`
+
+```bash
+mdpress cache info
+mdpress cache clear
+```
+
+mdPress 会缓存解析后的章节以及其他构建中间产物，使未改动的章节不必重新渲染。`cache info`
+打印缓存位置、条目数和占用大小；`cache clear` 删除全部条目。两周未使用的条目会被自动清理，
+所以这个命令用于立刻回收空间，或强制一次完全冷启动的重建。
+
+缓存位置由 `--cache-dir` 或 `MDPRESS_CACHE_DIR` 决定；`--no-cache` 只让单次命令绕过缓存，
+不会删除任何东西。
 
 ## doctor
 
@@ -87,7 +140,7 @@ mdpress doctor [directory] [flags]
 
 | 标志 | 默认值 | 用途 |
 | --- | --- | --- |
-| `-o, --report <path>` | — | 将诊断报告写入 `.json` 或 `.md` 文件 |
+| `-r, --report <path>` | — | 将诊断报告写入 `.json` 或 `.md` 文件 |
 | `--strict` | off | 当任何错误级检查失败时以非零状态退出（可用作 CI 门禁） |
 
 ```bash
@@ -229,6 +282,16 @@ mdpress version
 mdpress --version
 ```
 
+| 标志 | 默认值 | 用途 |
+| --- | --- | --- |
+| `--json` | off | 以 JSON 打印构建信息 |
+
+```bash
+mdpress version --json | jq -r .version
+```
+
+该 JSON 对象包含 `version`、`commit`、`built_at`、`go_version`、`os` 和 `arch`。
+
 ## 环境变量
 
 ### MDPRESS_CHROME_PATH
@@ -238,4 +301,13 @@ Chrome 或 Chromium 二进制文件的路径：
 ```bash
 export MDPRESS_CHROME_PATH=/usr/bin/chromium
 mdpress build --format pdf
+```
+
+### MDPRESS_CACHE_DIR
+
+构建缓存所在目录，等价于 `--cache-dir`。在 CI 中很有用 —— 缓存需要放在任务能够恢复的位置：
+
+```bash
+export MDPRESS_CACHE_DIR=.mdpress-cache
+mdpress build --format site
 ```

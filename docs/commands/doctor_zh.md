@@ -22,7 +22,7 @@ mdpress doctor [directory] [flags]
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `-o, --report <path>` | 空 | 将检查结果写入 `.json` 或 `.md` 报告文件。 |
+| `-r, --report <path>` | 空 | 将检查结果写入 `.json` 或 `.md` 报告文件。 |
 | `--strict` | 关闭 | 当任何错误级检查失败时以非零状态退出，可用作 CI 门禁。 |
 | `-v, --verbose` | 关闭 | 输出详细日志。 |
 | `-q, --quiet` | 关闭 | 只输出错误。 |

@@ -49,8 +49,9 @@ output:
 | `{page}` | 当前页码 |
 | `{pages}` | 总页数 |
 | `{title}` | `book.yaml` 中的书名 |
+| `{author}` | 来自 `book.author` 的作者 |
 
-旧版本脚手架配置使用的 Go 模板风格占位符也仍然接受：`{{.PageNum}}`（= `{page}`）、`{{.TotalPages}}`（= `{pages}`）、`{{.Book.Title}}`（= `{title}`）。`{{.Chapter.Title}}` 出于兼容会被接受，但会展开为空 —— Chrome 打印模板没有逐章上下文。
+旧版本脚手架配置使用的 Go 模板风格占位符也仍然接受：`{{.PageNum}}`（= `{page}`）、`{{.TotalPages}}`（= `{pages}`）、`{{.Book.Title}}`（= `{title}`）、`{{.Book.Author}}`（= `{author}`）。`{{.Chapter.Title}}` 出于兼容会被接受，但会展开为空 —— Chrome 打印模板没有逐章上下文。
 
 其余内容一律作为字面文本处理（并进行 HTML 转义以保证安全），因此可以自由地把占位符和固定文本组合：
 
@@ -100,7 +101,7 @@ style:
 
 ### 占位符在 PDF 中按字面显示
 
-1. 检查拼写 —— 支持的占位符只有 `{page}`、`{pages}` 和 `{title}`（区分大小写）。
+1. 检查拼写 —— 支持的占位符只有 `{page}`、`{pages}`、`{title}` 和 `{author}`（区分大小写）。
 2. 确认你在生成 PDF 输出；页眉页脚不适用于其他格式。
 
 ### 没有出现页眉

@@ -17,6 +17,8 @@ flowchart TD
     root --> migrate["migrate [directory]<br/>GitBook → mdPress"]
     root --> validate["validate [directory]<br/>Check config"]
     root --> doctor["doctor [directory]<br/>Check environment"]
+    root --> config["config<br/>Inspect resolved config"]
+    root --> cache["cache<br/>Build cache"]
     root --> upgrade["upgrade<br/>Update mdpress"]
     root --> themes["themes<br/>Theme management"]
     root --> completion["completion &lt;shell&gt;<br/>Shell completion"]
@@ -25,6 +27,10 @@ flowchart TD
     themes --> list["list"]
     themes --> show["show &lt;name&gt;"]
     themes --> preview["preview"]
+
+    config --> configshow["show"]
+    cache --> cacheinfo["info"]
+    cache --> cacheclear["clear"]
 
     build --> pdf["--format pdf"]
     build --> html["--format html"]
@@ -45,12 +51,15 @@ flowchart TD
 | `mdpress migrate [directory]` | Convert a GitBook/HonKit project to mdPress format | [migrate](commands/migrate.md) |
 | `mdpress validate [directory]` | Validate config, chapter files, and referenced assets | [validate](commands/validate.md) |
 | `mdpress doctor [directory]` | Check environment readiness and project buildability | [doctor](commands/doctor.md) |
+| `mdpress config show [directory]` | Print the effective configuration a build would use | [config](commands/config.md) |
+| `mdpress cache info` | Show the cache location, entry count, and size | [cache](commands/cache.md) |
+| `mdpress cache clear` | Delete every cached entry | [cache](commands/cache.md) |
 | `mdpress upgrade [flags]` | Check for and install a newer version of mdpress | [upgrade](commands/upgrade.md) |
 | `mdpress themes list` | List built-in themes | [themes](commands/themes.md) |
 | `mdpress themes show <theme-name>` | Show theme details and config hints | [themes](commands/themes.md) |
 | `mdpress themes preview` | Generate an HTML preview of built-in themes | [themes](commands/themes.md) |
 | `mdpress completion <shell>` | Generate shell completion scripts | [completion](commands/completion.md) |
-| `mdpress version` | Print the version and build information | — |
+| `mdpress version` | Print the version and build information (`--json` for scripts) | — |
 
 ## Global Flags
 
@@ -147,12 +156,30 @@ Any GitHub personal access token or fine-grained token with `contents:read` scop
 | --- | --- | --- |
 | `output.site_url` | unset | Public base URL of the deployed site (e.g. `https://user.github.io/repo`). When set, a spec-compliant `sitemap.xml` is generated; without it no sitemap is written. |
 | `output.edit_base` | unset | Base URL for "edit this page" links (e.g. `https://github.com/user/repo/edit/main/`). |
+| `output.footer_html` | unset | Replaces the site's default "Built with mdPress" footer line. An explicit empty string removes the line entirely. Emitted as raw HTML. |
+| `output.show_theme_badge` | `false` | Render the theme name as a badge in the site sidebar. |
+| `book.favicon` | unset | Site icon: a project-relative image path or an absolute URL. Unset keeps the built-in book emoji. |
+| `book.logo` | unset | Image above the title in the site sidebar. |
+| `book.copyright` | unset | Short notice rendered in each site page's footer, e.g. `© 2026 Acme Inc.`. |
+
+Anything in a `static/` directory beside `book.yaml` is copied verbatim into the site root.
+That is how a project ships `CNAME`, `.nojekyll`, a custom `robots.txt` or any other file
+mdPress does not generate. Do not place such files in `_book/` by hand — the next build
+replaces that directory atomically and destroys them.
+
+### Markdown and Variables
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `markdown.allow_html` | `true` | Whether raw HTML written in Markdown reaches the output. Set `false` for projects that render Markdown they did not write; each HTML block becomes an `<!-- raw HTML omitted -->` comment. |
+| `variables` | empty | User-defined template variables, usable in Markdown as `{{ key }}`. Substitution skips fenced and inline code. |
 
 ### Environment Variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `MDPRESS_CHROME_PATH` | auto-detect | Absolute path to a Chrome or Chromium binary. When set, mdPress skips auto-detection and uses this path directly. |
+| `MDPRESS_CACHE_DIR` | OS temp dir | Build cache location; equivalent to `--cache-dir`. Point it inside the workspace in CI so the job can restore it. |
 
 Example `book.yaml` snippet:
 

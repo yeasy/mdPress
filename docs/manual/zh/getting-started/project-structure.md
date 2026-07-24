@@ -13,6 +13,9 @@ my-documentation/
 ├── SUMMARY.md               # 目录结构
 ├── GLOSSARY.md              # 术语定义（可选）
 ├── LANGS.md                 # 多语言支持（可选）
+├── static/                  # 原样复制到站点根目录（可选）
+│   ├── CNAME
+│   └── .nojekyll
 ├── assets/                  # 图像、图表、文件
 │   ├── images/
 │   │   ├── logo.png
@@ -106,6 +109,21 @@ assets/
 ```
 
 mdPress 自动处理图像并为网页输出优化它们。
+
+## `static/` 目录
+
+`static/` 里的所有内容都会被原样复制到 `site` 输出的根目录，保留文件名和子目录结构。项目
+就是靠它来携带 mdPress 不会生成的文件：
+
+```
+static/
+├── CNAME          -> _book/CNAME
+├── .nojekyll      -> _book/.nojekyll
+└── robots.txt     -> _book/robots.txt   （替换掉自动生成的那个）
+```
+
+不要改为手工把这类文件放进 `_book/`。构建会原子地替换那个目录，你放进去的东西会被下一次
+运行销毁。
 
 ## 可选特殊文件
 

@@ -248,10 +248,20 @@ The mdPress search feature is for in-documentation search, not web search engine
 
 To help external search engines like Google index your documentation:
 
-1. Ensure your site has a sitemap (`sitemap.xml` is generated automatically)
-2. Add proper meta tags in your `book.yaml` configuration
-3. Submit your sitemap to Google Search Console
-4. Ensure your hosting allows search engine crawling
+1. Set `output.site_url` in `book.yaml` to the public base URL of the deployed site. This
+   is what makes mdPress write `sitemap.xml`; **without it no sitemap is generated**, and
+   the URL submitted below would 404:
+
+   ```yaml
+   output:
+     site_url: "https://docs.example.com"
+   ```
+
+   Setting it also adds a `<link rel="canonical">` to every page and a `Sitemap:` line to
+   the generated `robots.txt`.
+2. Set `book.description` — it becomes each page's `<meta name="description">`.
+3. Submit `<site_url>/sitemap.xml` to Google Search Console.
+4. Ensure your hosting allows search engine crawling.
 
 ## Best Practices
 

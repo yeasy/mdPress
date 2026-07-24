@@ -62,18 +62,22 @@ ENTRYPOINT ["mdpress"]
 
 **问：** 我能将自定义字体应用到我的 PDF 吗？
 
-**答：** 是的，通过自定义 CSS：
+**答：** 是的，通过自定义 CSS。`style.custom_css` 填写的是**样式表路径**，而不是内联 CSS：
 
 ```yaml
 style:
-  custom_css: |
-    @font-face {
-      font-family: 'MyFont';
-      src: url('assets/myfont.ttf') format('truetype');
-    }
-    body {
-      font-family: 'MyFont', sans-serif;
-    }
+  custom_css: styles/fonts.css
+```
+
+```css
+/* styles/fonts.css */
+@font-face {
+  font-family: 'MyFont';
+  src: url('assets/myfont.ttf') format('truetype');
+}
+body {
+  font-family: 'MyFont', sans-serif;
+}
 ```
 
 将字体文件放在 `assets/` 中并在 CSS 中引用。对于 PDF 输出，使用 TrueType (.ttf) 或 OpenType (.otf) 字体。
@@ -106,28 +110,28 @@ output:
 
 **问：** 我能添加自定义文本到页眉和页脚吗？
 
-**答：** 是的，使用模板变量：
+**答：** 是的，使用模板标记（仅 PDF 输出）：
 
 ```yaml
 style:
   header:
-    left: "{{.Book.Title}}"
-    center: "{{.Chapter.Title}}"
-    right: "{{.PageNum}}"
+    left: "{title}"
+    right: "{author}"
   footer:
-    left: "©{{.Year}} {{.Book.Author}}"
+    left: "© 2026 Acme Corporation"
     center: ""
-    right: "Page {{.PageNum}}"
+    right: "Page {page} of {pages}"
 ```
 
-可用变量：
-- `{{.Book.Title}}` - 书籍标题
-- `{{.Book.Author}}` - 书籍作者
-- `{{.Book.Version}}` - 书籍版本
-- `{{.Chapter.Title}}` - 当前章节标题
-- `{{.PageNum}}` - 当前页号
-- `{{.Date}}` - 构建日期
-- 通过插件的自定义变量
+可用标记 —— 以下就是全部：
+- `{title}` - 来自 `book.title` 的书籍标题
+- `{author}` - 来自 `book.author` 的书籍作者
+- `{page}` - 当前页号
+- `{pages}` - 总页数
+
+没有表示构建日期、版本或当前章节标题的标记，请把这些内容写成字面文本。其他任何
+`{{...}}` 标记都会被从页面上删除，并给出 `unsupported header/footer token removed`
+告警，只留下周围的文本（`©{{.Year}} Acme` 会打印成孤零零的 `© Acme`）。
 
 参见 [template-variables.md](../reference/template-variables.md) 了解完整引用。
 
@@ -135,18 +139,23 @@ style:
 
 **问：** 我能在页眉/页脚文本中使用 Markdown 格式吗？
 
-**答：** 不能，仅支持纯文本或模板变量。对于复杂的页眉，使用自定义 CSS：
+**答：** 不能，仅支持纯文本或上面那四个模板标记；标记语法会被 HTML 转义。对于复杂的页眉，
+让 `style.custom_css` 指向一个样式表：
 
 ```yaml
 style:
-  custom_css: |
-    @page {
-      @top-center {
-        content: "Chapter " var(--chapter-num);
-        font-size: 12pt;
-        font-weight: bold;
-      }
-    }
+  custom_css: styles/print.css
+```
+
+```css
+/* styles/print.css */
+@page {
+  @top-center {
+    content: "Chapter " var(--chapter-num);
+    font-size: 12pt;
+    font-weight: bold;
+  }
+}
 ```
 
 ## 输出格式

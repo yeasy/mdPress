@@ -331,12 +331,14 @@ Set `style.theme` in `book.yaml` to switch themes. Custom themes are supported t
 | `mdpress quickstart [directory]` | Create a complete sample project |
 | `mdpress migrate [directory]` | Migrate from GitBook/HonKit to mdPress |
 | `mdpress init [directory]` | Generate `book.yaml` from existing Markdown files |
-| `mdpress validate [directory]` | Check your config and files for errors |
+| `mdpress validate [directory]` | Check your config and files for errors (`--strict` fails on warnings too, for CI) |
 | `mdpress doctor [directory]` | Verify your environment is set up correctly |
+| `mdpress config show [directory]` | Print the configuration a build would actually use |
+| `mdpress cache info\|clear` | Inspect or delete the build cache |
 | `mdpress upgrade` | Check for and install a newer version of mdpress |
 | `mdpress completion <shell>` | Generate shell completion scripts |
 | `mdpress themes list\|show\|preview` | Explore built-in themes |
-| `mdpress version` | Print the current version |
+| `mdpress version` | Print the current version (`--json` for scripts) |
 
 ## Requirements
 

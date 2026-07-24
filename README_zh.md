@@ -333,12 +333,14 @@ Example: mdpress themes show elegant
 | `mdpress quickstart [directory]` | 创建完整示例项目 |
 | `mdpress migrate [directory]` | 从 GitBook/HonKit 迁移到 mdPress |
 | `mdpress init [directory]` | 从已有 Markdown 生成 `book.yaml` |
-| `mdpress validate [directory]` | 检查配置和文件是否有错误 |
+| `mdpress validate [directory]` | 检查配置和文件是否有错误（加 `--strict` 让告警也失败，可用作 CI 门禁） |
 | `mdpress doctor [directory]` | 检查环境是否配置正确 |
+| `mdpress config show [directory]` | 打印构建时实际生效的配置 |
+| `mdpress cache info\|clear` | 查看或清空构建缓存 |
 | `mdpress upgrade` | 检查并安装 mdpress 的新版本 |
 | `mdpress completion <shell>` | 生成 Shell 补全脚本 |
 | `mdpress themes list\|show\|preview` | 浏览内置主题 |
-| `mdpress version` | 打印当前版本 |
+| `mdpress version` | 打印当前版本（加 `--json` 供脚本使用） |
 
 ## 环境要求
 

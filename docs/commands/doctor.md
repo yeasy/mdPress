@@ -22,7 +22,7 @@ mdpress doctor [directory] [flags]
 
 | Flag | Default | Description |
 | --- | --- | --- |
-| `-o, --report <path>` | empty | Write the check results to a `.json` or `.md` report file. |
+| `-r, --report <path>` | empty | Write the check results to a `.json` or `.md` report file. |
 | `--strict` | off | Exit with a non-zero status when any error-level check fails. Useful as a CI gate. |
 | `-v, --verbose` | off | Print detailed logs. |
 | `-q, --quiet` | off | Print errors only. |

@@ -4,31 +4,37 @@
 
 ## 添加自定义 CSS
 
-在 `book.yaml` 中使用 `style.custom_css` 选项指定自定义 CSS：
+`style.custom_css` 接受的是**样式表的路径**，而不是 CSS 内容本身。请把规则写进一个 `.css`
+文件，然后填写相对于 `book.yaml` 的路径：
 
 ```yaml
 style:
   theme: technical
-  custom_css: |
-    :root {
-      --primary-color: #0056b3;
-      --secondary-color: #6c757d;
-    }
-
-    .content h1 {
-      color: var(--primary-color);
-      border-bottom: 3px solid var(--primary-color);
-      padding-bottom: 0.5em;
-    }
+  custom_css: styles/custom.css
 ```
 
-对于较大的 CSS 文件，引用外部文件：
+```css
+/* styles/custom.css */
+:root {
+  --primary-color: #0056b3;
+  --secondary-color: #6c757d;
+}
 
-```yaml
-style:
-  theme: technical
-  custom_css_file: ./styles/custom.css
+.content h1 {
+  color: var(--primary-color);
+  border-bottom: 3px solid var(--primary-color);
+  padding-bottom: 0.5em;
+}
 ```
+
+无法在 `book.yaml` 中内联书写 CSS。如果你把一段 CSS 直接粘贴在 `custom_css:` 后面，
+mdPress 会把整段内容当作文件名，找不到该文件，并在告警后回退到主题自带的样式：
+
+```text
+WARN failed to stat custom CSS file, falling back to default theme styles path=":root {..."
+```
+
+`mdpress validate` 会报告同样的问题：`✗ Custom CSS not found`。
 
 ## CSS 变量（自定义属性）
 
@@ -499,50 +505,55 @@ mdPress 使用标准响应式断点。为移动、平板电脑和桌面布局定
 这是自定义 Technical 主题的完整示例：
 
 ```yaml
+# book.yaml
 book:
   title: "API Documentation"
   author: "Development Team"
 
 style:
   theme: technical
-  custom_css: |
-    :root {
-      --primary-color: #0056b3;
-      --accent-color: #fd7e14;
-      --font-family-base: "Inter", sans-serif;
-      --font-size-base: 17px;
-    }
+  custom_css: styles/custom.css
+```
 
-    .content {
-      font-feature-settings: "kern" 1;
-      text-rendering: optimizeLegibility;
-    }
+```css
+/* styles/custom.css */
+:root {
+  --primary-color: #0056b3;
+  --accent-color: #fd7e14;
+  --font-family-base: "Inter", sans-serif;
+  --font-size-base: 17px;
+}
 
-    .content h1 {
-      background: linear-gradient(135deg, var(--primary-color) 0%, #004085 100%);
-      color: white;
-      padding: 0.5em 1em;
-      border-radius: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+.content {
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+}
 
-    .content code {
-      background: #f8f9fa;
-      color: #d63384;
-      border: 1px solid #dee2e6;
-    }
+.content h1 {
+  background: linear-gradient(135deg, var(--primary-color) 0%, #004085 100%);
+  color: white;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
-    .callout {
-      background: linear-gradient(90deg, var(--background-alt) 0%, white 100%);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
+.content code {
+  background: #f8f9fa;
+  color: #d63384;
+  border: 1px solid #dee2e6;
+}
 
-    @media (max-width: 767px) {
-      .content h1 {
-        font-size: 1.5em;
-      }
-    }
+.callout {
+  background: linear-gradient(90deg, var(--background-alt) 0%, white 100%);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+@media (max-width: 767px) {
+  .content h1 {
+    font-size: 1.5em;
+  }
+}
 ```
 
 参见 [内置主题](./builtin-themes.md) 了解默认主题变量和结构。

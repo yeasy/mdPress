@@ -17,6 +17,8 @@ flowchart TD
     root --> migrate["migrate [directory]<br/>GitBook 转 mdPress"]
     root --> validate["validate [directory]<br/>校验配置"]
     root --> doctor["doctor [directory]<br/>环境检查"]
+    root --> config["config<br/>查看解析后的配置"]
+    root --> cache["cache<br/>构建缓存"]
     root --> upgrade["upgrade<br/>更新 mdpress"]
     root --> themes["themes<br/>主题管理"]
     root --> completion["completion &lt;shell&gt;<br/>补全脚本"]
@@ -25,6 +27,10 @@ flowchart TD
     themes --> list["list"]
     themes --> show["show &lt;name&gt;"]
     themes --> preview["preview"]
+
+    config --> configshow["show"]
+    cache --> cacheinfo["info"]
+    cache --> cacheclear["clear"]
 
     build --> pdf["--format pdf"]
     build --> html["--format html"]
@@ -45,12 +51,15 @@ flowchart TD
 | `mdpress migrate [directory]` | 将 GitBook/HonKit 项目转换为 mdPress 格式 | [migrate](commands/migrate_zh.md) |
 | `mdpress validate [directory]` | 校验配置、章节文件和引用资源 | [validate](commands/validate_zh.md) |
 | `mdpress doctor [directory]` | 检查运行环境和项目可构建性 | [doctor](commands/doctor_zh.md) |
+| `mdpress config show [directory]` | 打印构建时实际生效的配置 | [config](commands/config_zh.md) |
+| `mdpress cache info` | 查看缓存位置、条目数和占用大小 | [cache](commands/cache_zh.md) |
+| `mdpress cache clear` | 删除全部缓存条目 | [cache](commands/cache_zh.md) |
 | `mdpress upgrade [flags]` | 检查并安装 mdpress 的新版本 | [upgrade](commands/upgrade_zh.md) |
 | `mdpress themes list` | 列出内置主题 | [themes](commands/themes_zh.md) |
 | `mdpress themes show <theme-name>` | 查看主题详情和配置提示 | [themes](commands/themes_zh.md) |
 | `mdpress themes preview` | 生成内置主题的 HTML 预览页 | [themes](commands/themes_zh.md) |
 | `mdpress completion <shell>` | 生成自动补全脚本 | [completion](commands/completion_zh.md) |
-| `mdpress version` | 打印版本号和构建信息 | — |
+| `mdpress version` | 打印版本号和构建信息（加 `--json` 供脚本使用） | — |
 
 ## 全局参数
 
@@ -147,12 +156,29 @@ Token 不会被嵌入 clone URL。mdPress 始终 clone 普通的 `https://github
 | --- | --- | --- |
 | `output.site_url` | 未设置 | 部署站点的公开基础 URL（如 `https://user.github.io/repo`）。设置后生成符合规范的 `sitemap.xml`；不设置则不生成。 |
 | `output.edit_base` | 未设置 | "编辑此页"链接的基础 URL（如 `https://github.com/user/repo/edit/main/`）。 |
+| `output.footer_html` | 未设置 | 替换站点页脚默认的 "Built with mdPress" 一行。显式设为空字符串会彻底移除该行。按原始 HTML 输出。 |
+| `output.show_theme_badge` | `false` | 在站点侧边栏中把主题名渲染成一个徽章。 |
+| `book.favicon` | 未设置 | 站点图标：项目相对的图片路径或绝对 URL。不设置则使用内置的书本 emoji。 |
+| `book.logo` | 未设置 | 站点侧边栏标题上方的图片。 |
+| `book.copyright` | 未设置 | 渲染在每个站点页面页脚的简短声明，如 `© 2026 Acme Inc.`。 |
+
+与 `book.yaml` 并列的 `static/` 目录中的内容会被原样复制到站点根目录。项目就是靠它来携带
+`CNAME`、`.nojekyll`、自定义的 `robots.txt` 以及其他 mdPress 不会生成的文件。不要手工把这类
+文件放进 `_book/` —— 下一次构建会原子地替换那个目录并销毁它们。
+
+### Markdown 与变量
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `markdown.allow_html` | `true` | Markdown 中书写的原始 HTML 是否进入输出。对于渲染他人所写 Markdown 的项目请设为 `false`；此时每个 HTML 块都会变成 `<!-- raw HTML omitted -->` 注释。 |
+| `variables` | 空 | 用户自定义的模板变量，可在 Markdown 中以 `{{ key }}` 使用。替换会跳过围栏代码块和行内代码。 |
 
 ### 环境变量
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `MDPRESS_CHROME_PATH` | 自动检测 | Chrome 或 Chromium 二进制文件的绝对路径。设置后，mdPress 会跳过自动检测直接使用此路径。 |
+| `MDPRESS_CACHE_DIR` | 系统临时目录 | 构建缓存位置，等价于 `--cache-dir`。在 CI 中把它指向工作区内部，任务才能恢复缓存。 |
 
 `book.yaml` 配置示例：
 

@@ -72,10 +72,67 @@ Create a sample project. `--force` allows scaffolding into a non-empty directory
 ### `validate`
 
 ```bash
-mdpress validate [directory] [--report path]
+mdpress validate [directory] [flags]
 ```
 
-Validate config, referenced files, images, and chapter links. `--report` writes a `.json` or `.md` report.
+Validate config, referenced files, images, chapter links and in-page anchors. It also
+reports Markdown files no chapter list includes, and a file listed as more than one
+chapter.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--report <path>` | — | Write a validation report to a `.json` or `.md` file |
+| `--strict` | off | Exit non-zero when any warning is reported, not just an error |
+
+Without `--strict` only errors fail the run, so warnings — a duplicate chapter entry, an
+unknown config key — exit 0. Use `--strict` when validate is a CI gate:
+
+```bash
+mdpress validate --strict
+```
+
+### `config show`
+
+```bash
+mdpress config show [directory] [flags]
+```
+
+Print the configuration a build of this project would use: the `book.yaml` settings after
+defaults have been applied (or what auto-discovery inferred when there is no `book.yaml`),
+plus a `resolved` section naming the config file that was loaded, where the theme came
+from, the typography renderers receive after style overrides, and the file each requested
+format would be written to.
+
+This is the command for "I set it and nothing happened".
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `-f, --format <yaml\|json>` | `yaml` | Output encoding |
+
+```bash
+mdpress config show
+mdpress config show ./my-book
+mdpress config show --config release.yaml
+
+# Scripting
+mdpress config show --format json | jq -r .style.theme
+mdpress config show --format json | jq -r .resolved.artifacts.pdf
+```
+
+### `cache info` / `cache clear`
+
+```bash
+mdpress cache info
+mdpress cache clear
+```
+
+mdPress caches parsed chapters and other build intermediates so unchanged chapters are not
+re-rendered. `cache info` prints the location, entry count and size; `cache clear` deletes
+every entry. Entries unused for two weeks are pruned automatically, so this is for
+reclaiming space now or forcing a fully cold rebuild.
+
+The location is `--cache-dir` or `MDPRESS_CACHE_DIR`; `--no-cache` bypasses the cache for a
+single command without deleting anything.
 
 ## doctor
 
@@ -87,7 +144,7 @@ mdpress doctor [directory] [flags]
 
 | Flag | Default | Purpose |
 | --- | --- | --- |
-| `-o, --report <path>` | — | Write diagnostic report to a `.json` or `.md` file |
+| `-r, --report <path>` | — | Write diagnostic report to a `.json` or `.md` file |
 | `--strict` | off | Exit non-zero when any error-level check fails (useful as a CI gate) |
 
 ```bash
@@ -229,6 +286,16 @@ mdpress version
 mdpress --version
 ```
 
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--json` | off | Print build information as JSON |
+
+```bash
+mdpress version --json | jq -r .version
+```
+
+The JSON object carries `version`, `commit`, `built_at`, `go_version`, `os` and `arch`.
+
 ## Environment Variables
 
 ### MDPRESS_CHROME_PATH
@@ -238,4 +305,14 @@ Path to the Chrome or Chromium binary:
 ```bash
 export MDPRESS_CHROME_PATH=/usr/bin/chromium
 mdpress build --format pdf
+```
+
+### MDPRESS_CACHE_DIR
+
+Directory for the build cache; equivalent to `--cache-dir`. Useful in CI, where the cache
+has to live somewhere the job can restore:
+
+```bash
+export MDPRESS_CACHE_DIR=.mdpress-cache
+mdpress build --format site
 ```

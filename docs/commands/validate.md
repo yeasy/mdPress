@@ -23,6 +23,11 @@ mdpress validate [directory] [flags]
 | Flag | Short | Default | Description |
 | --- | --- | --- | --- |
 | `--report` | | (none) | Write validation report to `.json` or `.md` file |
+| `--strict` | | off | Exit with a non-zero status when any warning is reported |
+
+Without `--strict`, only errors fail the run — a duplicate chapter entry or an unknown
+config key is reported and the command still exits 0. Pass `--strict` when `validate` is a
+CI gate.
 
 `validate` also uses global flags:
 

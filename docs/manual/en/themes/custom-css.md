@@ -4,31 +4,38 @@ Beyond the built-in themes, mdPress allows extensive customization through custo
 
 ## Adding Custom CSS
 
-Specify custom CSS in your `book.yaml` using the `style.custom_css` option:
+`style.custom_css` takes the **path to a stylesheet**, not the CSS itself. Put your rules in
+a `.css` file and point at it, relative to `book.yaml`:
 
 ```yaml
 style:
   theme: technical
-  custom_css: |
-    :root {
-      --primary-color: #0056b3;
-      --secondary-color: #6c757d;
-    }
-
-    .content h1 {
-      color: var(--primary-color);
-      border-bottom: 3px solid var(--primary-color);
-      padding-bottom: 0.5em;
-    }
+  custom_css: styles/custom.css
 ```
 
-For larger CSS files, reference an external file:
+```css
+/* styles/custom.css */
+:root {
+  --primary-color: #0056b3;
+  --secondary-color: #6c757d;
+}
 
-```yaml
-style:
-  theme: technical
-  custom_css_file: ./styles/custom.css
+.content h1 {
+  color: var(--primary-color);
+  border-bottom: 3px solid var(--primary-color);
+  padding-bottom: 0.5em;
+}
 ```
+
+There is no way to write CSS inline in `book.yaml`. If you paste a CSS block after
+`custom_css:`, mdPress treats the whole block as a filename, cannot find it, and falls back
+to the theme's own styles with a warning:
+
+```text
+WARN failed to stat custom CSS file, falling back to default theme styles path=":root {..."
+```
+
+`mdpress validate` reports the same problem as `✗ Custom CSS not found`.
 
 ## CSS Variables (Custom Properties)
 
@@ -499,50 +506,55 @@ Customize syntax highlighting colors for code blocks:
 Here's a complete example customizing the Technical theme:
 
 ```yaml
+# book.yaml
 book:
   title: "API Documentation"
   author: "Development Team"
 
 style:
   theme: technical
-  custom_css: |
-    :root {
-      --primary-color: #0056b3;
-      --accent-color: #fd7e14;
-      --font-family-base: "Inter", sans-serif;
-      --font-size-base: 17px;
-    }
+  custom_css: styles/custom.css
+```
 
-    .content {
-      font-feature-settings: "kern" 1;
-      text-rendering: optimizeLegibility;
-    }
+```css
+/* styles/custom.css */
+:root {
+  --primary-color: #0056b3;
+  --accent-color: #fd7e14;
+  --font-family-base: "Inter", sans-serif;
+  --font-size-base: 17px;
+}
 
-    .content h1 {
-      background: linear-gradient(135deg, var(--primary-color) 0%, #004085 100%);
-      color: white;
-      padding: 0.5em 1em;
-      border-radius: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+.content {
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+}
 
-    .content code {
-      background: #f8f9fa;
-      color: #d63384;
-      border: 1px solid #dee2e6;
-    }
+.content h1 {
+  background: linear-gradient(135deg, var(--primary-color) 0%, #004085 100%);
+  color: white;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
-    .callout {
-      background: linear-gradient(90deg, var(--background-alt) 0%, white 100%);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
+.content code {
+  background: #f8f9fa;
+  color: #d63384;
+  border: 1px solid #dee2e6;
+}
 
-    @media (max-width: 767px) {
-      .content h1 {
-        font-size: 1.5em;
-      }
-    }
+.callout {
+  background: linear-gradient(90deg, var(--background-alt) 0%, white 100%);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+@media (max-width: 767px) {
+  .content h1 {
+    font-size: 1.5em;
+  }
+}
 ```
 
 See [Built-in Themes](./builtin-themes.md) for the default theme variables and structure.

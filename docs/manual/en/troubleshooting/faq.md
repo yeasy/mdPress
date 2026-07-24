@@ -62,18 +62,22 @@ ENTRYPOINT ["mdpress"]
 
 **Q:** Can I apply custom fonts to my PDF?
 
-**A:** Yes, via custom CSS:
+**A:** Yes, via custom CSS. `style.custom_css` is a **path to a stylesheet**, not inline CSS:
 
 ```yaml
 style:
-  custom_css: |
-    @font-face {
-      font-family: 'MyFont';
-      src: url('assets/myfont.ttf') format('truetype');
-    }
-    body {
-      font-family: 'MyFont', sans-serif;
-    }
+  custom_css: styles/fonts.css
+```
+
+```css
+/* styles/fonts.css */
+@font-face {
+  font-family: 'MyFont';
+  src: url('assets/myfont.ttf') format('truetype');
+}
+body {
+  font-family: 'MyFont', sans-serif;
+}
 ```
 
 Place font files in `assets/` and reference in CSS. For PDF output, use TrueType (.ttf) or OpenType (.otf) fonts.
@@ -106,28 +110,29 @@ The background color is used if image doesn't fully cover the page.
 
 **Q:** Can I add custom text to page headers and footers?
 
-**A:** Yes, use template variables:
+**A:** Yes, use template tokens (PDF output only):
 
 ```yaml
 style:
   header:
-    left: "{{.Book.Title}}"
-    center: "{{.Chapter.Title}}"
-    right: "{{.PageNum}}"
+    left: "{title}"
+    right: "{author}"
   footer:
-    left: "©{{.Year}} {{.Book.Author}}"
+    left: "© 2026 Acme Corporation"
     center: ""
-    right: "Page {{.PageNum}}"
+    right: "Page {page} of {pages}"
 ```
 
-Available variables:
-- `{{.Book.Title}}` - Book title
-- `{{.Book.Author}}` - Book author
-- `{{.Book.Version}}` - Book version
-- `{{.Chapter.Title}}` - Current chapter title
-- `{{.PageNum}}` - Current page number
-- `{{.Date}}` - Build date
-- Custom variables via plugins
+Available tokens — this is the complete list:
+- `{title}` - Book title from `book.title`
+- `{author}` - Book author from `book.author`
+- `{page}` - Current page number
+- `{pages}` - Total page count
+
+There are no tokens for the build date, a version, or the current chapter title; write
+those as literal text. Any other `{{...}}` token is removed from the page with a
+`unsupported header/footer token removed` warning, which leaves the surrounding text
+stranded (`©{{.Year}} Acme` prints as a bare `© Acme`).
 
 See [template-variables.md](../reference/template-variables.md) for complete reference.
 
@@ -135,18 +140,23 @@ See [template-variables.md](../reference/template-variables.md) for complete ref
 
 **Q:** Can I use Markdown formatting in header/footer text?
 
-**A:** No, only plain text or template variables. For complex headers, use custom CSS:
+**A:** No, only plain text or the four template tokens above; markup is HTML-escaped. For
+complex headers, point `style.custom_css` at a stylesheet:
 
 ```yaml
 style:
-  custom_css: |
-    @page {
-      @top-center {
-        content: "Chapter " var(--chapter-num);
-        font-size: 12pt;
-        font-weight: bold;
-      }
-    }
+  custom_css: styles/print.css
+```
+
+```css
+/* styles/print.css */
+@page {
+  @top-center {
+    content: "Chapter " var(--chapter-num);
+    font-size: 12pt;
+    font-weight: bold;
+  }
+}
 ```
 
 ## Output Formats

@@ -13,6 +13,9 @@ my-documentation/
 ├── SUMMARY.md               # Table of contents structure
 ├── GLOSSARY.md              # Term definitions (optional)
 ├── LANGS.md                 # Multi-language support (optional)
+├── static/                  # Copied verbatim into the site root (optional)
+│   ├── CNAME
+│   └── .nojekyll
 ├── assets/                  # Images, diagrams, files
 │   ├── images/
 │   │   ├── logo.png
@@ -106,6 +109,22 @@ Reference assets in your markdown:
 ```
 
 mdPress automatically processes images and optimizes them for web output.
+
+## The `static/` Directory
+
+Everything inside `static/` is copied verbatim into the root of the `site` output, keeping
+its name and its subdirectory layout. It is how a project ships files mdPress does not
+generate:
+
+```
+static/
+├── CNAME          -> _book/CNAME
+├── .nojekyll      -> _book/.nojekyll
+└── robots.txt     -> _book/robots.txt   (replaces the generated one)
+```
+
+Do not place such files in `_book/` by hand instead. The build replaces that directory
+atomically, so anything you put there is destroyed by the next run.
 
 ## Optional Special Files
 
