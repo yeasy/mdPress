@@ -1253,3 +1253,82 @@ func TestChapterPipelineTOCHeadingsMatchTheRenderedPages(t *testing.T) {
 		t.Errorf("both chapters share the TOC anchor #%s", idByTitle["Getting Started"])
 	}
 }
+
+// TestNormalizeLineEndings covers the byte-level normalization directly.
+func TestNormalizeLineEndings(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"lf is untouched", "# A\n\nbody\n", "# A\n\nbody\n"},
+		{"crlf becomes lf", "# A\r\n\r\nbody\r\n", "# A\n\nbody\n"},
+		{"lone cr becomes lf", "# A\r\rbody\r", "# A\n\nbody\n"},
+		{"mixed cr and crlf", "# A\r\n\rbody\r\n", "# A\n\nbody\n"},
+		{"no line endings at all", "abc", "abc"},
+		{"empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := string(normalizeLineEndings([]byte(tt.input)))
+			if got != tt.want {
+				t.Errorf("normalizeLineEndings(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestChapterPipelineLoneCRLineEndings guards against the silent data loss a
+// classic-Mac (CR-only) chapter used to cause: goldmark saw one long line, so
+// the whole body was swallowed into the leading heading and the page shipped
+// blank apart from its title, with no warning and a successful build.
+func TestChapterPipelineLoneCRLineEndings(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("MDPRESS_CACHE_DIR", filepath.Join(tmpDir, "cache"))
+
+	chapterFile := filepath.Join(tmpDir, "chapter1.md")
+	crContent := "# Chapter One\r\rSome text here.\r\r## Section Two\r\rMore text.\r"
+	if err := os.WriteFile(chapterFile, []byte(crContent), 0o644); err != nil {
+		t.Fatalf("Failed to write chapter file: %v", err)
+	}
+
+	cfg := &config.BookConfig{
+		Book: config.BookMeta{Title: "Test Book", Author: "Test Author"},
+		Chapters: []config.ChapterDef{
+			{Title: "Chapter One", File: "chapter1.md"},
+		},
+	}
+	cfg.SetBaseDir(tmpDir)
+
+	themeManager := theme.NewThemeManager()
+	thm, err := themeManager.Get("technical")
+	if err != nil {
+		t.Fatalf("Failed to get theme: %v", err)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	pipeline := newChapterPipeline(cfg, thm, markdown.NewParser(), nil, logger, nil)
+	result, err := pipeline.Process(context.Background())
+	if err != nil {
+		t.Fatalf("Pipeline process failed: %v", err)
+	}
+	if len(result.Chapters) != 1 {
+		t.Fatalf("Expected 1 chapter, got %d", len(result.Chapters))
+	}
+
+	content := result.Chapters[0].Content
+	for _, want := range []string{"Some text here.", "More text."} {
+		if !strings.Contains(content, want) {
+			t.Errorf("Chapter body lost %q; CR-only line endings collapsed the file.\ngot: %q", want, content)
+		}
+	}
+	if !strings.Contains(content, "<h2") {
+		t.Errorf("Expected '## Section Two' to render as an h2, got: %q", content)
+	}
+	if strings.Contains(content, "\r") {
+		t.Errorf("Chapter HTML still carries a raw CR: %q", content)
+	}
+	if len(result.Chapters[0].Headings) == 0 {
+		t.Error("Expected at least one heading; the TOC and search index would be empty")
+	}
+}
