@@ -582,6 +582,10 @@ func (b *epubBuilder) Build(ctx context.Context, bc *buildContext, baseName stri
 	// Cross-chapter .md links must point at the packaged .xhtml documents;
 	// the raw chapter HTML still carries the Markdown hrefs.
 	epubChapters := rewriteChapterLinksForEpub(bc.ChaptersHTML, bc.ChapterFiles)
+	// Glossary term links are same-document "#glossary-<term>" anchors that only
+	// exist in glossary.xhtml; in a per-file ePub they must be re-pointed there
+	// or every highlighted term is a dead link.
+	epubChapters = rewriteEpubGlossaryLinks(epubChapters, bc.ChapterFiles)
 	for i, ch := range epubChapters {
 		sourceDir := ""
 		if i < len(bc.ChapterFiles) && bc.ChapterFiles[i] != "" {
