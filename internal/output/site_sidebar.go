@@ -9,7 +9,7 @@ import (
 // buildSidebar renders the sidebar navigation HTML.
 func (g *SiteGenerator) buildSidebar(chapters []SiteChapter, activeFile string) string {
 	var b strings.Builder
-	g.renderSidebarItems(&b, sidebarChapters(chapters, g.Meta.Title), activeFile)
+	g.renderSidebarItems(&b, sidebarChapters(chapters, g.Meta.Title), activeFile, 0)
 	return b.String()
 }
 
@@ -28,7 +28,13 @@ func sidebarChapters(chapters []SiteChapter, siteTitle string) []SiteChapter {
 // renderSidebarItems recursively renders sidebar chapter navigation items as HTML.
 // It processes the chapters list and their children, generating nested navigation
 // elements with appropriate classes and states.
-func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteChapter, activeFile string) {
+// The depth argument counts nesting levels actually rendered so far; it only
+// guards against a malformed chapter tree recursing forever, it is not a
+// display limit.
+func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteChapter, activeFile string, depth int) {
+	if depth >= maxSidebarChapterDepth {
+		return
+	}
 	for _, ch := range chapters {
 		// A group label starts a new run of chapters. Without this a long book
 		// renders as one flat, unscannable list.
@@ -45,7 +51,7 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 		}
 		groupClass := "nav-group"
 		hasChildren := (maxSidebarHeadingDepth > 0 && len(ch.Headings) > 0) ||
-			(ch.Depth < maxSidebarChapterDepth && len(ch.Children) > 0)
+			(depth+1 < maxSidebarChapterDepth && len(ch.Children) > 0)
 		if hasChildren {
 			if g.isChapterBranchActive(ch, activeFile) {
 				groupClass += " expanded"
@@ -81,7 +87,7 @@ func (g *SiteGenerator) renderSidebarItems(b *strings.Builder, chapters []SiteCh
 				g.renderSidebarHeadings(b, activeFile, ch.Filename, ch.Headings, 0)
 			}
 			if len(ch.Children) > 0 {
-				g.renderSidebarItems(b, ch.Children, activeFile)
+				g.renderSidebarItems(b, ch.Children, activeFile, depth+1)
 			}
 			b.WriteString(`</div>`)
 			b.WriteString(`</div>`)
@@ -130,12 +136,15 @@ func (g *SiteGenerator) buildBreadcrumbs(chapters []SiteChapter, filename string
 	return walk(chapters, nil, 0)
 }
 
-// maxSidebarChapterDepth limits how deep chapter nesting goes in the sidebar.
-// Chapters at this depth or deeper are rendered as flat links without expand
-// triangles, and their Children are not shown.  A value of 1 means only
-// top-level groups (e.g. "Chapter 2") expand to show their direct children
-// (2.1, 2.2, …); those children appear as plain links without further nesting.
-const maxSidebarChapterDepth = 1
+// maxSidebarChapterDepth is a runaway-recursion guard, not a display budget.
+// It used to be 1, which meant a book with the ordinary three-level structure
+// (Part > Chapter > Section) generated the section pages, listed them in
+// sitemap.xml and indexed them for search, but never linked them from the
+// sidebar on any page — the reader could only reach them by walking prev/next
+// or guessing the URL, and the build said nothing.  Real books nest three or
+// four levels; the limit only exists so a malformed chapter tree cannot make
+// the renderer recurse forever.  It matches the breadcrumb walker's cap.
+const maxSidebarChapterDepth = 20
 
 // maxSidebarHeadingDepth limits how many levels of headings appear in the
 // sidebar navigation.  Set to 0 to show only chapter titles — no in-page

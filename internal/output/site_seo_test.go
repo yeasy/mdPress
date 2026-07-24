@@ -135,11 +135,11 @@ func TestSiteHostingFilesYieldToStaticDir(t *testing.T) {
 func TestSiteIndexHighlightsFirstChapterInSidebar(t *testing.T) {
 	dir := seoTestSite(t, SiteMeta{Title: "Test Book", Language: "en-US"})
 	index := readSiteFile(t, dir, "index.html")
-	if !strings.Contains(index, `var navFile = 'preface.html'`) {
+	if !strings.Contains(index, `navFile: "preface.html"`) {
 		t.Error("index.html should highlight the first chapter it re-serves, not a non-existent index.html nav entry")
 	}
 	preface := readSiteFile(t, dir, "preface.html")
-	if !strings.Contains(preface, `var navFile = ''`) {
+	if !strings.Contains(preface, `navFile: ""`) {
 		t.Error("content pages should fall back to their own file for nav highlighting")
 	}
 }

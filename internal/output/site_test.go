@@ -175,8 +175,8 @@ func TestSiteGeneratorCurrentFileUsesRelativePath(t *testing.T) {
 		t.Fatalf("read nested page failed: %v", err)
 	}
 
-	if !strings.Contains(string(pageData), `var currentFile = 'chapter-1\/index.html';`) {
-		t.Error("page script should keep the full relative path for currentFile")
+	if !strings.Contains(string(pageData), `activeFile: "chapter-1\/index.html"`) {
+		t.Error("page script should keep the full relative path for the active file")
 	}
 }
 
@@ -510,12 +510,7 @@ graph TD
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pagePath := filepath.Join(dir, "ch1.html")
-	data, err := os.ReadFile(pagePath)
-	if err != nil {
-		t.Fatalf("read page failed: %v", err)
-	}
-	html := string(data)
+	html := readSiteBundle(t, dir, "ch1.html")
 
 	// Verify the mermaid script loading code is present
 	if !strings.Contains(html, "ensureMermaid") {
@@ -563,11 +558,7 @@ func TestSiteGeneratorMarkdownAndLLMSOutputs(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pageHTML, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read ch1.html failed: %v", err)
-	}
-	html := string(pageHTML)
+	html := readSiteBundle(t, dir, "ch1.html")
 	if !strings.Contains(html, `class="sidebar-home-link"`) {
 		t.Error("sidebar title should be a home link")
 	}
@@ -629,11 +620,7 @@ func TestSiteGeneratorCDNScriptDedupingAndReplay(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read page failed: %v", err)
-	}
-	html := string(data)
+	html := readSiteBundle(t, dir, "ch1.html")
 
 	if !strings.Contains(html, "existing.dataset.mdpressLoaded === 'true'") {
 		t.Error("page should replay CDN callbacks after the script has loaded")
@@ -1500,11 +1487,13 @@ func TestSiteGeneratorRelativeLinksFromNestedPage(t *testing.T) {
 	}
 
 	// The SPA router resolves relative links against a computed site root and
-	// rewrites the static sidebar links to absolute URLs at load time.
-	if !strings.Contains(html, "var siteRoot") {
+	// rewrites the static sidebar links to absolute URLs at load time. That
+	// code lives in the shared script the page links to.
+	script := readSiteBundle(t, dir, "part1/ch1.html")
+	if !strings.Contains(script, "var siteRoot") {
 		t.Error("page script should compute the site root for the SPA router")
 	}
-	if !strings.Contains(html, "resolveSiteHref") {
+	if !strings.Contains(script, "resolveSiteHref") {
 		t.Error("page script should resolve site-relative hrefs against the site root")
 	}
 }
@@ -1729,11 +1718,7 @@ func TestSiteGeneratorDarkModeTableOverrides(t *testing.T) {
 	if err := gen.Generate(dir); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read ch1.html failed: %v", err)
-	}
-	html := string(data)
+	html := readSiteBundle(t, dir, "ch1.html")
 	if !strings.Contains(html, "html.dark .content table tbody tr:nth-child(even) td") {
 		t.Error("dark mode CSS should override zebra-row TD backgrounds set by theme CSS")
 	}
@@ -1752,11 +1737,7 @@ func TestSiteGeneratorTocCollapse(t *testing.T) {
 	if err := gen.Generate(dir); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read ch1.html failed: %v", err)
-	}
-	html := string(data)
+	html := readSiteBundle(t, dir, "ch1.html")
 	if !strings.Contains(html, ".main-body.toc-collapsed") {
 		t.Error("CSS should collapse the TOC rail via the JS-managed .toc-collapsed class")
 	}
@@ -1784,11 +1765,7 @@ func TestSiteGeneratorCaptionSelector(t *testing.T) {
 	if err := gen.Generate(dir); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read ch1.html failed: %v", err)
-	}
-	html := string(data)
+	html := readSiteBundle(t, dir, "ch1.html")
 	if strings.Contains(html, ".content p:has(> img) + p,") ||
 		strings.Contains(html, ".content p:has(> img) + p {") {
 		t.Error("broad image-caption selector should be removed")
