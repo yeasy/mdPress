@@ -6,6 +6,41 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+A follow-up audit swept the whole tool a third time — brute-forcing every `book.yaml` key against real output, mutation-checking the migration guide against the binary, and inspecting real PDFs/ePubs/sites byte for byte. It found two things that broke a user's own files or install, and a long tail of settings and documented behaviors that quietly did nothing. Everything below was reproduced against a real build before it was fixed.
+
+### Upgrading
+
+- **`mdpress upgrade` works on Linux again.** It preferred the raw-package asset over the archive, so it downloaded `…_linux_amd64.apk` instead of `…_linux_amd64.tar.gz`, printed `✓ Checksum verified`, and then failed with `new binary verification failed (backup restored)` — the upgrade has been impossible on Linux since v0.7.12. It now selects the archive, and refuses outright to install a payload that is not a native executable for the target platform
+- **Per-page CSS/JS moved into shared files.** A site inlined the same ~105 KB of CSS and JS into every page; it is now emitted once under `_book/assets/` and linked, so a page dropped from ~110 KB to ~9 KB. If you publish a subset of `_book/`, include the `assets/` directory
+- **The runtime cache moved out of the shared system temp directory** to a per-user location, so a second local user can no longer pre-create or tamper with it. An old `…/mdpress-cache` under the system temp dir is now stale and can be deleted
+
+### Fixed
+
+- **`mdpress build --format site -o X` no longer deletes the sibling directory `X.old`.** The atomic swap used `<output>.old` as its own scratch name and removed it up front — exactly the name people give a manual backup of the previous release. `serve` was worse: the deletion ran before the safety check, so it destroyed the backup and then refused to run. The staging area now lives inside a directory mdpress owns
+- **PDF table of contents shows the right page for repeated headings.** Heading slugs were minted per chapter, so when two chapters both contained `## Overview` the printed contents gave the second one the first one's page number, and its link went there too — the PDF disagreed with its own bookmarks. On mdPress's own manual, 30 entries pointed at the wrong page. The standalone-HTML anchor-namespacing added in the previous release now covers the PDF too
+- **A chapter body with lone-CR (classic Mac) line endings is no longer lost.** The whole body vanished with no warning and the build reported success
+- **Chapter links with a space or a query string in the path resolve.** `[x](My Chapter.md)` and `[x](page.md?foo=1)` shipped as dead `.md` hrefs on the site
+- **Image paths containing `%20` resolve** instead of reporting "file not found" for a file that exists; an image that exists but cannot be embedded is now reported instead of silently left broken in the "self-contained" HTML
+- **Ctrl+C interrupts PDF generation.** A build spent the entire 40–90 s Chrome render ignoring SIGINT — repeated Ctrl+C and even SIGTERM did nothing, and it ran to completion leaving a finished-looking artifact. Time-to-exit after Ctrl+C went from ~55 s (unkillable) to 0.1 s; a second Ctrl+C now exits immediately with code 130, and neither path leaves an orphaned Chrome process
+- **The header and footer no longer print on top of a full-bleed cover page.** Chrome draws them on every page from the print parameters, where no CSS or `@page` rule can reach page one; mdPress now removes that one running head from the cover while leaving every other page, the outline, named destinations and the tagged structure tree intact
+- **ePub keeps its table of contents.** A book whose chapters nested under an empty parent produced a one-item ToC; a chapter titled "Cover", "Nav" or "Glossary" overwrote the generated navigation or cover with a second ZIP entry of the same name; one unreachable remote image aborted the whole build where every other format warns and continues; heading and footnote ids that are not legal XML IDs are now sanitized
+- **The glossary is published on sites.** `GLOSSARY.md` terms linked to `#glossary-<term>`, but the site format never emitted the glossary page, so every one of those links was dead
+- **PDF honors more of the theme and config.** A theme's `page_size`/`margins` reached nothing (an `A5` theme still produced A4); `style.code_theme` rendered the same palette for every value; `style.font_family` was discarded in PDF output; `output.cover: false` doubled every page margin; a blown `output.pdf_timeout` failed with a bare "context canceled" that never named the setting
+- **Settings the user actually wrote are honored instead of guessed from their value.** The recurring defaults-as-sentinel defect, found five more times: a language directory's `language:` (so `zh/` built an English UI), `book.json`'s `language` and `version`, and `--config book.yaml <src>` silently building a different book than `--config ./book.yaml <src>`. Config loading now tracks which keys were present in the user's YAML rather than comparing values against their own defaults
+- **Chrome is found on Windows.** The executable search list was Unix-only with `/Applications` as its sole filesystem fallback, so PDF — the flagship format, and part of `--format all` — could never work on a stock Windows install. The standard Windows install locations for Chrome and Edge are now searched
+- **`validate --strict` fails on an empty chapter** that the build then drops, instead of reporting "all checks passed"; the documented plugin timeout now bounds a hook even when the plugin leaves a child process behind; the parsed-chapter cache has a size cap (`serve` on a 20 MB chapter had grown it 24 MB per save); and a build whose formats do not include `site` no longer prints a bogus warning about a site directory it will never create
+- **Site fixes.** Chapters nested three or more levels deep were generated but never linked from the sidebar; the documented quoted-phrase search returned nothing; CJK search matched only contiguous substrings; dark-mode `h5`/`h6` kept the light heading color (1.27:1 contrast); opening a site over `file://` reported "No results" instead of admitting the index could not load
+- **Custom heading IDs work.** `## Heading {#custom-id}` was documented in four places but not implemented — the literal braces rendered as heading text and every documented anchor link was dead. The standard Markdown heading-attribute syntax is now parsed, and a custom id shares the same uniqueness handling as derived slugs
+
+### Added
+
+- **`make bump VERSION=x.y.z`** rewrites every file that carries the version (previously nine hand-edited files) and fails loudly on any it cannot update; a consistency test wired into a release preflight job fails the release if they ever drift
+- **The release pipeline verifies a published artifact reports its own tag** — it downloads the built archive and package, checks the checksums, installs, and asserts `mdpress version` equals the tag. This closes the hole that shipped `<tag>+dirty` binaries in v0.7.15 and v0.8.0, which CI structurally could not catch
+
+### Changed
+
+- **Documentation matches the binary.** Removed a documented `glossary:` key and a `style.custom_css_file` key that do not exist; corrected `style.custom_css` (a file path, shown holding inline CSS); rewrote the GitBook migration guide's output example, which contained keys mdpress rejects; corrected the header/footer variable list in the FAQ; fixed two stale defaults in the configuration reference and `doctor`'s `-r`/`--report` flag; and documented every feature added in 0.8.0 that the manual never mentioned — `config show`, `cache info`/`clear`, `validate --strict`, `version --json`, `static/`, site branding, `markdown.allow_html`, `variables:` and `section:` — in both languages
+
 ---
 
 ## [0.8.1] - 2026-07-23
