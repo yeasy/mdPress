@@ -32,6 +32,14 @@ A follow-up audit swept the whole tool a third time — brute-forcing every `boo
 - **Site fixes.** Chapters nested three or more levels deep were generated but never linked from the sidebar; the documented quoted-phrase search returned nothing; CJK search matched only contiguous substrings; dark-mode `h5`/`h6` kept the light heading color (1.27:1 contrast); opening a site over `file://` reported "No results" instead of admitting the index could not load
 - **Custom heading IDs work.** `## Heading {#custom-id}` was documented in four places but not implemented — the literal braces rendered as heading text and every documented anchor link was dead. The standard Markdown heading-attribute syntax is now parsed, and a custom id shares the same uniqueness handling as derived slugs
 
+A verification pass over the fixes above — mutation-testing the new tests, hunting for damage the merge could have done, and walking the end-to-end journeys — turned up a further round, all reproduced and fixed:
+
+- **`build --format typst` builds a book that documents code, or wraps emphasis across a line.** The Chromium-free Typst backend produced *no output at all* for any book containing a fenced code block (an inner ` ``` ` closed the raw block early) or an inline span that wrapped across a source newline (each half carried an unbalanced delimiter) — mdPress's own manual hit both and could not be built to Typst; it now produces a 214-page PDF
+- **ePub glossary term links resolve.** In an ePub each chapter is its own file, but term links pointed at a same-document `#glossary-<term>` anchor that lives only in `glossary.xhtml`, so tapping a highlighted term jumped nowhere — the same repair the site format already had
+- **`mdpress migrate` resolves GitBook variables** instead of shipping literal `{{ book.name }}` text in every format; the migration report now says it did
+- **The shipped manual passes `mdpress validate`.** Two dead cross-reference links made the project's own docs fail the validate step of its own example GitHub Pages workflow
+- **Two regression guards that could not fail were rewritten** to assert the behavior they name — a glossary tag-skipping test that checked an impossible markup shape, and a search test that only grepped the bundled JS source string
+
 ### Added
 
 - **`make bump VERSION=x.y.z`** rewrites every file that carries the version (previously nine hand-edited files) and fails loudly on any it cannot update; a consistency test wired into a release preflight job fails the release if they ever drift
