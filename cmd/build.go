@@ -444,6 +444,43 @@ func rewriteChapterLinksForEpub(chapters []renderer.ChapterHTML, chapterFiles []
 	return rewritten
 }
 
+// rewriteEpubGlossaryLinks re-points the glossary term links Glossary.ProcessHTML
+// injects into every chapter at the glossary's own packaged document. Those links
+// are same-document "#glossary-<term>" anchors — correct for the single-file HTML
+// and PDF where the glossary shares one document — but in an ePub each chapter is
+// its own flat OEBPS/<id>.xhtml file and the "glossary-<term>" anchors live only
+// in glossary.xhtml, so left alone every highlighted term jumped nowhere. This
+// mirrors resolveSiteGlossaryPage, which does the same for the site layout.
+func rewriteEpubGlossaryLinks(chapters []renderer.ChapterHTML, chapterFiles []string) []renderer.ChapterHTML {
+	glossaryIdx := -1
+	for i, ch := range chapters {
+		// The synthesized glossary appendix is the one chapter with no source
+		// file and the reserved glossary ID.
+		if i < len(chapterFiles) && chapterFiles[i] == "" && ch.ID == glossaryChapterID {
+			glossaryIdx = i
+			break
+		}
+	}
+	if glossaryIdx < 0 {
+		return chapters
+	}
+
+	// ePub documents are flat under OEBPS and the glossary is packaged as
+	// <id>.xhtml (see epubBuilder.Build), so a bare filename reaches it from any
+	// chapter.
+	href := `href="` + chapters[glossaryIdx].ID + `.xhtml#glossary-`
+	rewritten := make([]renderer.ChapterHTML, len(chapters))
+	for i, ch := range chapters {
+		rewritten[i] = ch
+		// Leave the glossary chapter's own cross-term links alone: their
+		// same-document anchors already resolve within glossary.xhtml.
+		if i != glossaryIdx {
+			rewritten[i].Content = glossarySelfLinkPattern.ReplaceAllLiteralString(ch.Content, href)
+		}
+	}
+	return rewritten
+}
+
 // rewriteMarkdownLinksInHTML is a backward-compatible wrapper around linkrewrite.RewriteLinks
 // that accepts the legacy map[string]string target format. Used by build_links_test.go.
 func rewriteMarkdownLinksInHTML(htmlContent string, currentFile string, targets map[string]string) string {
