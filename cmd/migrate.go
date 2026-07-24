@@ -88,12 +88,14 @@ type migrateReport struct {
 	created  []string
 	modified []string
 	skipped  []string
+	notes    []string
 	warnings []string
 }
 
 func (r *migrateReport) addCreated(msg string)  { r.created = append(r.created, msg) }
 func (r *migrateReport) addModified(msg string) { r.modified = append(r.modified, msg) }
 func (r *migrateReport) addSkipped(msg string)  { r.skipped = append(r.skipped, msg) }
+func (r *migrateReport) addNote(msg string)     { r.notes = append(r.notes, msg) }
 func (r *migrateReport) addWarning(msg string)  { r.warnings = append(r.warnings, msg) }
 
 func (r *migrateReport) print() {
@@ -114,6 +116,12 @@ func (r *migrateReport) print() {
 		fmt.Println("\nSkipped:")
 		for _, m := range r.skipped {
 			fmt.Println("  - " + m)
+		}
+	}
+	if len(r.notes) > 0 {
+		fmt.Println("\nNotes:")
+		for _, m := range r.notes {
+			fmt.Println("  * " + m)
 		}
 	}
 	if len(r.warnings) > 0 {
@@ -219,13 +227,21 @@ func migrateBookJSON(bookJSONPath, projectDir string, dryRun, force bool, report
 		},
 	}
 
-	// GitBook variables map directly onto mdpress's own `variables:` block.
+	// GitBook references a book.json "variables": {"NAME": ...} entry from
+	// Markdown as {{ book.NAME }}, so the key must be stored under the
+	// book.-prefixed "book.NAME" for mdpress to resolve it. Storing the bare
+	// "NAME" (which mdpress matches only against {{ NAME }}) left every
+	// {{ book.NAME }} reference as literal braces in every built format.
 	if len(gb.Variables) > 0 {
 		vars := make(map[string]any, len(gb.Variables))
 		for k, v := range gb.Variables {
-			vars[k] = v
+			vars["book."+k] = v
 		}
 		bookYAML["variables"] = vars
+		report.addNote(fmt.Sprintf(
+			"%d GitBook variable(s) stored under book.* keys so existing {{ book.NAME }} references resolve",
+			len(gb.Variables),
+		))
 	}
 
 	// Anything that has no mdpress equivalent is called out rather than
