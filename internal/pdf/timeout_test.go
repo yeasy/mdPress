@@ -91,7 +91,7 @@ func TestGenerateReportsTimeoutWhenChromeNeverStarts(t *testing.T) {
 	t.Setenv("CHROME_BIN", "")
 
 	g := NewGenerator(WithTimeout(500 * time.Millisecond))
-	err := g.Generate("<html><head></head><body>hello</body></html>", filepath.Join(dir, "out.pdf"))
+	err := g.Generate(context.Background(), "<html><head></head><body>hello</body></html>", filepath.Join(dir, "out.pdf"))
 	if err == nil {
 		t.Fatal("expected an error when Chrome never comes up")
 	}

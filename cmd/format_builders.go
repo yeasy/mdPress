@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -53,7 +54,7 @@ type formatBuilder interface {
 	// Name returns the format name (e.g. "pdf", "html", "site", "epub").
 	Name() string
 	// Build generates the output file(s) at the given base path.
-	Build(ctx *buildContext, baseName string) error
+	Build(ctx context.Context, bc *buildContext, baseName string) error
 }
 
 // formatBuilderRegistry manages registered format builders.
@@ -91,14 +92,14 @@ type pdfBuilder struct{}
 
 func (b *pdfBuilder) Name() string { return "pdf" }
 
-func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
-	htmlRenderer, err := renderer.NewHTMLRenderer(ctx.Config, ctx.Theme)
+func (b *pdfBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
+	htmlRenderer, err := renderer.NewHTMLRenderer(bc.Config, bc.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create HTML renderer: %w", err)
 	}
-	parts := ctx.SinglePageParts
-	if ctx.PDFSinglePageParts != nil {
-		parts = ctx.PDFSinglePageParts
+	parts := bc.SinglePageParts
+	if bc.PDFSinglePageParts != nil {
+		parts = bc.PDFSinglePageParts
 	}
 	fullHTML, err := htmlRenderer.Render(parts)
 	if err != nil {
@@ -111,19 +112,19 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := utils.EnsureDir(filepath.Dir(outputPath)); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	ctx.Logger.Info("Generating PDF", slog.String("output", outputPath))
+	bc.Logger.Info("Generating PDF", slog.String("output", outputPath))
 
 	// Warn early if the content contains CJK characters but the system lacks CJK fonts.
-	pdf.WarnIfCJKFontsMissing(fullHTML, ctx.Logger)
+	pdf.WarnIfCJKFontsMissing(fullHTML, bc.Logger)
 
-	pageDims := utils.GetPageDimensions(ctx.Config.Style.PageSize)
+	pageDims := utils.GetPageDimensions(bc.Config.Style.PageSize)
 	pageWidth, pageHeight := pageDims.Width, pageDims.Height
-	pdfTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
+	pdfTimeout := time.Duration(bc.Config.Output.PDFTimeout) * time.Second
 	if pdfTimeout <= 0 {
 		pdfTimeout = defaultPDFTimeout
 	}
 
-	headerTmpl, footerTmpl := pdfHeaderFooterTemplates(ctx.Config)
+	headerTmpl, footerTmpl := pdfHeaderFooterTemplates(bc.Config)
 
 	// A printed table of contents may only cite page numbers the reader can
 	// actually turn to. With output.footer:false (and no {page} in the header)
@@ -140,7 +141,7 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 		pdf.WithTimeout(pdfTimeout),
 		pdf.WithPageSize(pageWidth, pageHeight),
 		pdf.WithPrintBackground(true),
-		pdf.WithMetadata(pdfDocumentMetadata(ctx.Config)),
+		pdf.WithMetadata(pdfDocumentMetadata(bc.Config)),
 	}
 	if headerTmpl != "" {
 		marginOpts = append(marginOpts, pdf.WithHeaderTemplate(headerTmpl))
@@ -150,13 +151,13 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 	}
 
 	// Add custom margins if provided in config, otherwise use defaults
-	if ctx.Config.Output.MarginLeft != "" || ctx.Config.Output.MarginRight != "" ||
-		ctx.Config.Output.MarginTop != "" || ctx.Config.Output.MarginBottom != "" {
+	if bc.Config.Output.MarginLeft != "" || bc.Config.Output.MarginRight != "" ||
+		bc.Config.Output.MarginTop != "" || bc.Config.Output.MarginBottom != "" {
 		marginOpts = append(marginOpts, pdf.WithMarginStrings(
-			ctx.Config.Output.MarginLeft,
-			ctx.Config.Output.MarginRight,
-			ctx.Config.Output.MarginTop,
-			ctx.Config.Output.MarginBottom,
+			bc.Config.Output.MarginLeft,
+			bc.Config.Output.MarginRight,
+			bc.Config.Output.MarginTop,
+			bc.Config.Output.MarginBottom,
 		))
 	} else {
 		// Default margins: 0 on the sides, with space reserved at the top and
@@ -174,18 +175,18 @@ func (b *pdfBuilder) Build(ctx *buildContext, baseName string) error {
 
 	// Always pass the document outline option so that generate_bookmarks: false
 	// actually disables bookmarks (the generator defaults to true).
-	marginOpts = append(marginOpts, pdf.WithDocumentOutline(ctx.Config.Output.GenerateBookmarks))
+	marginOpts = append(marginOpts, pdf.WithDocumentOutline(bc.Config.Output.GenerateBookmarks))
 
 	// tagged_pdf: false trades accessibility metadata for noticeably smaller
 	// files; unset keeps the accessible default.
-	taggedPDF := ctx.Config.Output.TaggedPDF == nil || *ctx.Config.Output.TaggedPDF
+	taggedPDF := bc.Config.Output.TaggedPDF == nil || *bc.Config.Output.TaggedPDF
 	marginOpts = append(marginOpts, pdf.WithTaggedPDF(taggedPDF))
 
 	pdfGen := pdf.NewGenerator(marginOpts...)
-	if err := pdfGen.Generate(fullHTML, outputPath); err != nil {
+	if err := pdfGen.Generate(ctx, fullHTML, outputPath); err != nil {
 		return fmt.Errorf("failed to generate PDF: %w", err)
 	}
-	ctx.Logger.Info("Output ready", slog.String("format", "PDF"), slog.String("path", outputPath))
+	bc.Logger.Info("Output ready", slog.String("format", "PDF"), slog.String("path", outputPath))
 	return nil
 }
 
@@ -339,15 +340,15 @@ type htmlBuilder struct{}
 
 func (b *htmlBuilder) Name() string { return "html" }
 
-func (b *htmlBuilder) Build(ctx *buildContext, baseName string) error {
+func (b *htmlBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
 	outputPath := baseName + ".html"
-	ctx.Logger.Info("Generating standalone HTML", slog.String("output", outputPath))
+	bc.Logger.Info("Generating standalone HTML", slog.String("output", outputPath))
 
-	standaloneRenderer, err := renderer.NewStandaloneHTMLRenderer(ctx.Config, ctx.Theme)
+	standaloneRenderer, err := renderer.NewStandaloneHTMLRenderer(bc.Config, bc.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to create standalone HTML renderer: %w", err)
 	}
-	standaloneHTML, err := standaloneRenderer.Render(ctx.SinglePageParts)
+	standaloneHTML, err := standaloneRenderer.Render(bc.SinglePageParts)
 	if err != nil {
 		return fmt.Errorf("failed to generate standalone HTML: %w", err)
 	}
@@ -357,7 +358,7 @@ func (b *htmlBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := os.WriteFile(outputPath, []byte(standaloneHTML), 0o644); err != nil {
 		return fmt.Errorf("failed to write HTML file: %w", err)
 	}
-	ctx.Logger.Info("Output ready", slog.String("format", "HTML"), slog.String("path", outputPath))
+	bc.Logger.Info("Output ready", slog.String("format", "HTML"), slog.String("path", outputPath))
 	return nil
 }
 
@@ -368,28 +369,28 @@ type siteBuilder struct{}
 
 func (b *siteBuilder) Name() string { return "site" }
 
-func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
-	outputDir := ctx.SiteDir
+func (b *siteBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
+	outputDir := bc.SiteDir
 	if outputDir == "" {
 		outputDir = baseName + "_site"
 	}
-	ctx.Logger.Info("Generating HTML site", slog.String("output", outputDir))
+	bc.Logger.Info("Generating HTML site", slog.String("output", outputDir))
 
 	// Migration hint: the default site directory moved from "<name>_site" to
 	// "_book" in v0.7.13. Surface the old location so stale deploys pointing
 	// at it do not go unnoticed.
 	if filepath.Base(outputDir) == "_book" {
 		if info, err := os.Stat(baseName + "_site"); err == nil && info.IsDir() {
-			ctx.Logger.Info("site output moved to _book/ in v0.7.13; the legacy directory is no longer updated and can be removed",
+			bc.Logger.Info("site output moved to _book/ in v0.7.13; the legacy directory is no longer updated and can be removed",
 				slog.String("legacy", baseName+"_site"),
 				slog.String("current", outputDir))
 		}
 	}
 
-	pageNames := sitePageFilenames(ctx.ChapterFiles)
-	siteChapters := rewriteChapterLinksForSite(ctx.ChaptersHTML, ctx.ChapterFiles, pageNames)
+	pageNames := sitePageFilenames(bc.ChapterFiles)
+	siteChapters := rewriteChapterLinksForSite(bc.ChaptersHTML, bc.ChapterFiles, pageNames)
 	generate := func(dir string) error {
-		return generateSiteOutput(ctx.Config, ctx.Theme, ctx.CustomCSS, dir, siteChapters, ctx.ChapterFiles, pageNames, ctx.ChapterMarkdown)
+		return generateSiteOutput(bc.Config, bc.Theme, bc.CustomCSS, dir, siteChapters, bc.ChapterFiles, pageNames, bc.ChapterMarkdown)
 	}
 
 	// When the site shares its directory with the other output files (an
@@ -400,7 +401,7 @@ func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 		if err := generate(outputDir); err != nil {
 			return fmt.Errorf("failed to generate HTML site: %w", err)
 		}
-		ctx.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
+		bc.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
 		return nil
 	}
 
@@ -419,17 +420,17 @@ func (b *siteBuilder) Build(ctx *buildContext, baseName string) error {
 		return fmt.Errorf("failed to create temporary site directory: %w", err)
 	}
 	if err := generate(staging.Site); err != nil {
-		staging.Discard(ctx.Logger)
+		staging.Discard(bc.Logger)
 		return fmt.Errorf("failed to generate HTML site: %w", err)
 	}
-	if err := swapSiteDir(staging, outputDir, ctx.Logger); err != nil {
+	if err := swapSiteDir(staging, outputDir, bc.Logger); err != nil {
 		// Rename can fail across devices; fall back to building in place.
-		ctx.Logger.Debug("atomic site swap failed, rebuilding in place", slog.Any("error", err))
+		bc.Logger.Debug("atomic site swap failed, rebuilding in place", slog.Any("error", err))
 		if genErr := generate(outputDir); genErr != nil {
 			return fmt.Errorf("failed to generate HTML site: %w", genErr)
 		}
 	}
-	ctx.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
+	bc.Logger.Info("Output ready", slog.String("format", "site"), slog.String("path", outputDir))
 	return nil
 }
 
@@ -548,39 +549,39 @@ type epubBuilder struct{}
 
 func (b *epubBuilder) Name() string { return "epub" }
 
-func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
+func (b *epubBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
 	outputPath := baseName + ".epub"
-	ctx.Logger.Info("Generating ePub", slog.String("output", outputPath))
+	bc.Logger.Info("Generating ePub", slog.String("output", outputPath))
 
 	coverImagePath := ""
-	if ctx.Config.Book.Cover.Image != "" {
-		coverImagePath = ctx.Config.ResolvePath(ctx.Config.Book.Cover.Image)
+	if bc.Config.Book.Cover.Image != "" {
+		coverImagePath = bc.Config.ResolvePath(bc.Config.Book.Cover.Image)
 	}
 	epubGen := output.NewEpubGenerator(output.EpubMeta{
-		Title:           ctx.Config.Book.Title,
-		Subtitle:        ctx.Config.Book.Subtitle,
-		Author:          ctx.Config.Book.Author,
-		Language:        ctx.Config.Book.Language,
-		Version:         ctx.Config.Book.Version,
-		Description:     ctx.Config.Book.Description,
-		IncludeCover:    ctx.Config.Output.Cover,
+		Title:           bc.Config.Book.Title,
+		Subtitle:        bc.Config.Book.Subtitle,
+		Author:          bc.Config.Book.Author,
+		Language:        bc.Config.Book.Language,
+		Version:         bc.Config.Book.Version,
+		Description:     bc.Config.Book.Description,
+		IncludeCover:    bc.Config.Output.Cover,
 		CoverImagePath:  coverImagePath,
-		CoverBackground: ctx.Config.Book.Cover.Background,
+		CoverBackground: bc.Config.Book.Cover.Background,
 	})
 	// Use the book root as the image-containment base so chapters can reference
 	// shared assets above their own directory (e.g. ../images/pic.png).
-	epubGen.SetBookRoot(ctx.Config.BaseDir())
+	epubGen.SetBookRoot(bc.Config.BaseDir())
 	// EPUB styling contract: SetCSS carries only the user's custom CSS; the
 	// generator derives its own reader-friendly stylesheet from the theme.
-	epubGen.SetCSS(ctx.CustomCSS)
-	epubGen.SetTheme(ctx.Theme)
+	epubGen.SetCSS(bc.CustomCSS)
+	epubGen.SetTheme(bc.Theme)
 	// Cross-chapter .md links must point at the packaged .xhtml documents;
 	// the raw chapter HTML still carries the Markdown hrefs.
-	epubChapters := rewriteChapterLinksForEpub(ctx.ChaptersHTML, ctx.ChapterFiles)
+	epubChapters := rewriteChapterLinksForEpub(bc.ChaptersHTML, bc.ChapterFiles)
 	for i, ch := range epubChapters {
 		sourceDir := ""
-		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {
-			sourceDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
+		if i < len(bc.ChapterFiles) && bc.ChapterFiles[i] != "" {
+			sourceDir = filepath.Dir(bc.Config.ResolvePath(bc.ChapterFiles[i]))
 		}
 		epubGen.AddChapter(output.EpubChapter{
 			Depth:     ch.Depth,
@@ -594,7 +595,7 @@ func (b *epubBuilder) Build(ctx *buildContext, baseName string) error {
 	if err := epubGen.Generate(outputPath); err != nil {
 		return fmt.Errorf("failed to generate ePub: %w", err)
 	}
-	ctx.Logger.Info("Output ready", slog.String("format", "ePub"), slog.String("path", outputPath))
+	bc.Logger.Info("Output ready", slog.String("format", "ePub"), slog.String("path", outputPath))
 	return nil
 }
 
@@ -605,16 +606,16 @@ type typstBuilder struct{}
 
 func (b *typstBuilder) Name() string { return "typst" }
 
-func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
+func (b *typstBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
 	// For Typst, we work directly with Markdown content rather than HTML.
 
 	outputPath := baseName + "-typst.pdf"
-	ctx.Logger.Info("Generating PDF via Typst", slog.String("output", outputPath))
+	bc.Logger.Info("Generating PDF via Typst", slog.String("output", outputPath))
 
 	// Determine the Typst project root: the book source directory, made
 	// absolute. Image paths are rewritten to be root-relative against this
 	// directory so that "typst compile --root <root>" can resolve them.
-	typstRoot, err := filepath.Abs(ctx.Config.BaseDir())
+	typstRoot, err := filepath.Abs(bc.Config.BaseDir())
 	if err != nil {
 		return fmt.Errorf("failed to resolve book root directory: %w", err)
 	}
@@ -623,9 +624,9 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 	var markdownContent strings.Builder
 
 	// Add title
-	if ctx.Config.Book.Title != "" {
+	if bc.Config.Book.Title != "" {
 		markdownContent.WriteString("# ")
-		markdownContent.WriteString(ctx.Config.Book.Title)
+		markdownContent.WriteString(bc.Config.Book.Title)
 		markdownContent.WriteString("\n\n")
 	}
 
@@ -634,18 +635,18 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 	// already starts with a level-1 or level-2 heading, to avoid
 	// duplicate headings in the output.  Lower-level headings (###, etc.)
 	// do not conflict with the injected ## title and are kept as-is.
-	for i, ch := range ctx.ChaptersHTML {
+	for i, ch := range bc.ChaptersHTML {
 		md := ""
-		if i < len(ctx.ChapterMarkdown) {
-			md = ctx.ChapterMarkdown[i]
+		if i < len(bc.ChapterMarkdown) {
+			md = bc.ChapterMarkdown[i]
 		}
 		// Rewrite chapter-relative image paths to root-relative paths that
 		// resolve under typstRoot, skipping images that do not exist.
 		chapterDir := ""
-		if i < len(ctx.ChapterFiles) && ctx.ChapterFiles[i] != "" {
-			chapterDir = filepath.Dir(ctx.Config.ResolvePath(ctx.ChapterFiles[i]))
+		if i < len(bc.ChapterFiles) && bc.ChapterFiles[i] != "" {
+			chapterDir = filepath.Dir(bc.Config.ResolvePath(bc.ChapterFiles[i]))
 		}
-		md = rewriteTypstImagePaths(md, chapterDir, typstRoot, ctx.Logger)
+		md = rewriteTypstImagePaths(md, chapterDir, typstRoot, bc.Logger)
 
 		mdTrimmed := strings.TrimSpace(md)
 		startsWithH1orH2 := (strings.HasPrefix(mdTrimmed, "# ") || strings.HasPrefix(mdTrimmed, "#\t") ||
@@ -663,39 +664,39 @@ func (b *typstBuilder) Build(ctx *buildContext, baseName string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	typstTimeout := time.Duration(ctx.Config.Output.PDFTimeout) * time.Second
+	typstTimeout := time.Duration(bc.Config.Output.PDFTimeout) * time.Second
 	if typstTimeout <= 0 {
 		typstTimeout = defaultTypstTimeout
 	}
 
 	typstGen := typst.NewGenerator(
 		typst.WithTimeout(typstTimeout),
-		typst.WithPageSize(ctx.Config.Style.PageSize),
-		typst.WithTitle(ctx.Config.Book.Title),
-		typst.WithAuthor(ctx.Config.Book.Author),
-		typst.WithDescription(ctx.Config.Book.Description),
-		typst.WithVersion(ctx.Config.Book.Version),
-		typst.WithLanguage(ctx.Config.Book.Language),
+		typst.WithPageSize(bc.Config.Style.PageSize),
+		typst.WithTitle(bc.Config.Book.Title),
+		typst.WithAuthor(bc.Config.Book.Author),
+		typst.WithDescription(bc.Config.Book.Description),
+		typst.WithVersion(bc.Config.Book.Version),
+		typst.WithLanguage(bc.Config.Book.Language),
 		// Read the resolved theme, not the raw config: the theme already
 		// carries the built-in values with the user's style overlaid, so all
 		// backends render the same typography.
-		typst.WithFontFamily(ctx.Theme.FontFamily),
-		typst.WithFontSize(ctx.Theme.ResolvedFontSize()),
-		typst.WithLineHeight(ctx.Theme.LineHeight),
+		typst.WithFontFamily(bc.Theme.FontFamily),
+		typst.WithFontSize(bc.Theme.ResolvedFontSize()),
+		typst.WithLineHeight(bc.Theme.LineHeight),
 		typst.WithRootDir(typstRoot),
 		typst.WithMargins(
-			typst.ConvertMarginToTypst(ctx.Config.Output.MarginLeft, "20mm"),
-			typst.ConvertMarginToTypst(ctx.Config.Output.MarginRight, "20mm"),
-			typst.ConvertMarginToTypst(ctx.Config.Output.MarginTop, "20mm"),
-			typst.ConvertMarginToTypst(ctx.Config.Output.MarginBottom, "20mm"),
+			typst.ConvertMarginToTypst(bc.Config.Output.MarginLeft, "20mm"),
+			typst.ConvertMarginToTypst(bc.Config.Output.MarginRight, "20mm"),
+			typst.ConvertMarginToTypst(bc.Config.Output.MarginTop, "20mm"),
+			typst.ConvertMarginToTypst(bc.Config.Output.MarginBottom, "20mm"),
 		),
 	)
 
-	if err := typstGen.Generate(markdownContent.String(), outputPath); err != nil {
+	if err := typstGen.Generate(ctx, markdownContent.String(), outputPath); err != nil {
 		return fmt.Errorf("failed to generate PDF via Typst: %w", err)
 	}
 
-	ctx.Logger.Info("Output ready", slog.String("format", "Typst PDF"), slog.String("path", outputPath))
+	bc.Logger.Info("Output ready", slog.String("format", "Typst PDF"), slog.String("path", outputPath))
 	return nil
 }
 

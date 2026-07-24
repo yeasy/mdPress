@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -972,10 +973,10 @@ func newSiteBuildContext(t *testing.T, siteDir string, logger *slog.Logger) *bui
 func TestSiteBuilderSwapPrunesStalePages(t *testing.T) {
 	root := t.TempDir()
 	siteDir := filepath.Join(root, "_book")
-	ctx := newSiteBuildContext(t, siteDir, nil)
+	bc := newSiteBuildContext(t, siteDir, nil)
 	base := filepath.Join(root, "book")
 
-	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+	if err := (&siteBuilder{}).Build(context.Background(), bc, base); err != nil {
 		t.Fatalf("first site build failed: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(siteDir, "index.html")); err != nil {
@@ -987,7 +988,7 @@ func TestSiteBuilderSwapPrunesStalePages(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(siteDir, "stale.html"), []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+	if err := (&siteBuilder{}).Build(context.Background(), bc, base); err != nil {
 		t.Fatalf("rebuild failed: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(siteDir, "stale.html")); !os.IsNotExist(err) {
@@ -1020,9 +1021,9 @@ func TestSiteBuilderOutputIsWorldReadable(t *testing.T) {
 	}
 	root := t.TempDir()
 	siteDir := filepath.Join(root, "_book")
-	ctx := newSiteBuildContext(t, siteDir, nil)
+	bc := newSiteBuildContext(t, siteDir, nil)
 
-	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err != nil {
+	if err := (&siteBuilder{}).Build(context.Background(), bc, filepath.Join(root, "book")); err != nil {
 		t.Fatalf("site build failed: %v", err)
 	}
 	info, err := os.Stat(siteDir)
@@ -1045,8 +1046,8 @@ func TestSiteBuilderRefusesForeignDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := newSiteBuildContext(t, siteDir, nil)
-	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err == nil {
+	bc := newSiteBuildContext(t, siteDir, nil)
+	if err := (&siteBuilder{}).Build(context.Background(), bc, filepath.Join(root, "book")); err == nil {
 		t.Fatal("expected the site build to refuse replacing a directory with user data")
 	}
 	if data, err := os.ReadFile(userFile); err != nil || string(data) != "keep me" {
@@ -1064,8 +1065,8 @@ func TestSiteBuilderInPlaceWhenSharingOutputDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := newSiteBuildContext(t, root, nil)
-	if err := (&siteBuilder{}).Build(ctx, filepath.Join(root, "book")); err != nil {
+	bc := newSiteBuildContext(t, root, nil)
+	if err := (&siteBuilder{}).Build(context.Background(), bc, filepath.Join(root, "book")); err != nil {
 		t.Fatalf("in-place site build failed: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "index.html")); err != nil {
@@ -1086,8 +1087,8 @@ func TestSiteBuilderLegacySiteDirHint(t *testing.T) {
 
 	var buf strings.Builder
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
-	ctx := newSiteBuildContext(t, siteDir, logger)
-	if err := (&siteBuilder{}).Build(ctx, base); err != nil {
+	bc := newSiteBuildContext(t, siteDir, logger)
+	if err := (&siteBuilder{}).Build(context.Background(), bc, base); err != nil {
 		t.Fatalf("site build failed: %v", err)
 	}
 	if !strings.Contains(buf.String(), "moved to _book/") {

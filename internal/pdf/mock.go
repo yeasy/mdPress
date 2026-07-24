@@ -1,6 +1,7 @@
 package pdf
 
 import (
+	"context"
 	"fmt"
 	"os"
 )
@@ -19,10 +20,15 @@ type mockGenerator struct {
 }
 
 // Generate records the call arguments and writes a minimal PDF file.
-func (m *mockGenerator) Generate(htmlContent string, outputPath string) error {
+func (m *mockGenerator) Generate(ctx context.Context, htmlContent string, outputPath string) error {
 	m.GenerateCalled = true
 	m.LastHTMLContent = htmlContent
 	m.LastOutputPath = outputPath
+	// Honor cancellation the way the real generator does, so a test that cancels
+	// gets the same shape of failure it would get from Chrome.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if m.GenerateError != nil {
 		return m.GenerateError
 	}
@@ -31,10 +37,10 @@ func (m *mockGenerator) Generate(htmlContent string, outputPath string) error {
 }
 
 // GenerateFromFile reads the HTML file and calls Generate with its content.
-func (m *mockGenerator) GenerateFromFile(htmlFilePath string, outputPath string) error {
+func (m *mockGenerator) GenerateFromFile(ctx context.Context, htmlFilePath string, outputPath string) error {
 	content, err := os.ReadFile(htmlFilePath)
 	if err != nil {
 		return fmt.Errorf("read HTML for mock PDF: %w", err)
 	}
-	return m.Generate(string(content), outputPath)
+	return m.Generate(ctx, string(content), outputPath)
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"testing"
 )
 
@@ -79,6 +80,6 @@ func (m *mockFormatBuilder) Name() string {
 	return m.name
 }
 
-func (m *mockFormatBuilder) Build(ctx *buildContext, baseName string) error {
+func (m *mockFormatBuilder) Build(ctx context.Context, bc *buildContext, baseName string) error {
 	return nil
 }

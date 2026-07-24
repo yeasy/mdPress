@@ -703,8 +703,9 @@ func (fs *fontServer) Close() {
 	}
 }
 
-// Generate renders an HTML string to a PDF file.
-func (g *Generator) Generate(htmlContent string, outputPath string) error {
+// Generate renders an HTML string to a PDF file. Canceling ctx kills Chrome and
+// returns without writing anything.
+func (g *Generator) Generate(ctx context.Context, htmlContent string, outputPath string) error {
 	if outputPath == "" {
 		return errors.New("generate: output path cannot be empty")
 	}
@@ -736,11 +737,11 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 		// Fall back to file-based approach if HTTP server fails.
 		slog.Warn("Failed to start font server, falling back to file:// approach",
 			slog.Any("error", err))
-		return g.generateFromString(htmlContent, outputPath)
+		return g.generateFromString(ctx, htmlContent, outputPath)
 	}
 	defer srv.Close() //nolint:errcheck
 
-	return g.generateFromSource(documentSource{
+	return g.generateFromSource(ctx, documentSource{
 		url:     srv.baseURL,
 		html:    htmlContent,
 		rewrite: srv.setDocument,
@@ -748,7 +749,7 @@ func (g *Generator) Generate(htmlContent string, outputPath string) error {
 }
 
 // generateFromString writes HTML to a temp file and generates PDF from it.
-func (g *Generator) generateFromString(htmlContent string, outputPath string) error {
+func (g *Generator) generateFromString(ctx context.Context, htmlContent string, outputPath string) error {
 	tmpFile, err := os.CreateTemp("", "mdpress-*.html")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary file: %w", err)
@@ -764,11 +765,12 @@ func (g *Generator) generateFromString(htmlContent string, outputPath string) er
 		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
-	return g.GenerateFromFile(tmpPath, outputPath)
+	return g.GenerateFromFile(ctx, tmpPath, outputPath)
 }
 
-// GenerateFromFile renders a local HTML file to PDF.
-func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) error {
+// GenerateFromFile renders a local HTML file to PDF. Canceling ctx kills Chrome
+// and returns without writing anything.
+func (g *Generator) GenerateFromFile(ctx context.Context, htmlFilePath string, outputPath string) error {
 	absHTMLPath, err := filepath.Abs(htmlFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to resolve HTML file path: %w", err)
@@ -782,7 +784,7 @@ func (g *Generator) GenerateFromFile(htmlFilePath string, outputPath string) err
 		Path:   filepath.ToSlash(absHTMLPath),
 	}).String()
 
-	return g.generateFromURL(fileURL, outputPath)
+	return g.generateFromURL(ctx, fileURL, outputPath)
 }
 
 // documentSource describes where Chrome loads the document from. rewrite is
@@ -795,13 +797,19 @@ type documentSource struct {
 }
 
 // generateFromURL opens pageURL in Chrome and prints it to PDF.
-func (g *Generator) generateFromURL(pageURL string, outputPath string) error {
-	return g.generateFromSource(documentSource{url: pageURL}, outputPath)
+func (g *Generator) generateFromURL(ctx context.Context, pageURL string, outputPath string) error {
+	return g.generateFromSource(ctx, documentSource{url: pageURL}, outputPath)
 }
 
 // generateFromSource prints src to outputPath, optionally printing a second
 // time to fill in the table of contents' page numbers.
-func (g *Generator) generateFromSource(src documentSource, outputPath string) error {
+//
+// ctx bounds the whole render. It is the allocator's parent, so canceling it
+// makes os/exec SIGKILL the browser: printing a 400-chapter book keeps Chrome
+// busy for over a minute, and building the allocator from context.Background()
+// meant Ctrl+C could not touch it — the interrupt was recorded, the render ran
+// to completion regardless, and only then did the CLI print "build canceled".
+func (g *Generator) generateFromSource(ctx context.Context, src documentSource, outputPath string) error {
 	chromePath, err := resolveChromiumPath()
 	if err != nil {
 		return fmt.Errorf("resolve Chrome path: %w", err)
@@ -814,7 +822,7 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 	defer runtimeDirs.cleanup()
 
 	var chromeOutput bytes.Buffer
-	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
 	defer allocCancel()
 
 	browserCtx, ctxCancel := chromedp.NewContext(allocCtx)
@@ -834,8 +842,19 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 	defer startTimer.Stop()
 	select {
 	case err = <-startErr:
+	case <-ctx.Done():
+		err = ctx.Err()
 	case <-startTimer.C:
 		err = &printTimeoutError{stage: "starting Chrome", limit: g.timeout}
+	}
+
+	// Remember which process chromedp started so a hard exit — a user pressing
+	// Ctrl+C a second time — can take Chrome down with it instead of leaving a
+	// headless browser running against a book nobody is waiting for.
+	if err == nil {
+		if release := trackBrowser(browserCtx); release != nil {
+			defer release()
+		}
 	}
 
 	var pdfBuf []byte
@@ -843,6 +862,14 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 		pdfBuf, err = g.printOnce(browserCtx, src.url)
 	}
 	if err != nil {
+		// An interrupt is not a Chrome failure. Report it as itself, before the
+		// fallback and the diagnostics below: retrying through the CLI would
+		// start a second browser the user has already said they do not want, and
+		// wrapping ctx.Err() in "failed to generate PDF with Chrome at ..." made
+		// a deliberate Ctrl+C read like a broken installation.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		// A blown pdf_timeout is not something a second attempt can fix, and the
 		// CLI fallback below would make the user wait out the same limit again.
 		// Return the message that names the setting, unburied by the Chrome path
@@ -858,7 +885,7 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 		// path in a url.URL, which would then double-encode % as %25 and break
 		// the fallback for paths containing spaces or non-ASCII characters.
 		if u, parseErr := url.Parse(src.url); parseErr == nil && u.Scheme == "file" {
-			if fallbackErr := generatePDFViaChromeCLI(chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
+			if fallbackErr := generatePDFViaChromeCLI(ctx, chromePath, runtimeDirs, u.Path, outputPath); fallbackErr == nil {
 				g.stampMetadataFile(outputPath)
 				return nil
 			}
@@ -871,6 +898,15 @@ func (g *Generator) generateFromSource(src documentSource, outputPath string) er
 	}
 
 	pdfBuf = g.printWithTOCPageNumbers(browserCtx, src, pdfBuf)
+
+	// The page-number pass swallows its own errors by design, so a cancellation
+	// during it would otherwise fall through and write the PDF anyway. A file on
+	// disk looks current to make, to a deploy step and to the reader, so an
+	// interrupted build must not leave one.
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+
 	pdfBuf = g.stampMetadata(pdfBuf)
 
 	if err := os.WriteFile(outputPath, pdfBuf, 0o644); err != nil {
@@ -1353,7 +1389,10 @@ func chromiumRuntimeEnv(runtime chromiumRuntimeDirs) []string {
 	}
 }
 
-func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htmlFilePath, outputPath string) error {
+// generatePDFViaChromeCLI is the last-resort path when chromedp cannot drive
+// Chrome. It inherits ctx so the fallback is as interruptible as the main
+// render: exec.CommandContext kills the browser when the caller cancels.
+func generatePDFViaChromeCLI(ctx context.Context, chromePath string, runtime chromiumRuntimeDirs, htmlFilePath, outputPath string) error {
 	fileURL := (&url.URL{
 		Scheme: "file",
 		Path:   filepath.ToSlash(htmlFilePath),
@@ -1376,9 +1415,9 @@ func generatePDFViaChromeCLI(chromePath string, runtime chromiumRuntimeDirs, htm
 	args = append(args, filterChromiumCLIFlags(os.Getenv("CHROME_FLAGS"))...)
 	args = append(args, fileURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), chromiumPrintTimeout)
+	runCtx, cancel := context.WithTimeout(ctx, chromiumPrintTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, chromePath, args...)
+	cmd := exec.CommandContext(runCtx, chromePath, args...)
 	cmd.Env = append(os.Environ(), chromiumRuntimeEnv(runtime)...)
 	// Limit captured output to prevent OOM from misbehaving Chrome process.
 	const maxChromeOutput = 10 << 20 // 10 MB

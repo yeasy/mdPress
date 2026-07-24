@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ func TestMockGeneratorWritesPDF(t *testing.T) {
 	mock := &mockGenerator{}
 	htmlContent := "<html><body>Test</body></html>"
 
-	err := mock.Generate(htmlContent, outputPath)
+	err := mock.Generate(context.Background(), htmlContent, outputPath)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -44,7 +45,7 @@ func TestMockGeneratorRecordsArgs(t *testing.T) {
 	htmlContent := "<html><body>Test Content</body></html>"
 
 	mock := &mockGenerator{}
-	err := mock.Generate(htmlContent, outputPath)
+	err := mock.Generate(context.Background(), htmlContent, outputPath)
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestMockGeneratorSimulatesError(t *testing.T) {
 		GenerateError: &mockError{message: testError},
 	}
 
-	err := mock.Generate("<html></html>", outputPath)
+	err := mock.Generate(context.Background(), "<html></html>", outputPath)
 	if err == nil {
 		t.Fatal("Expected error, but got nil")
 	}

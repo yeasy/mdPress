@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ func TestNewGeneratorWithOptions(t *testing.T) {
 // TestGenerateEmptyContent tests empty content
 func TestGenerateEmptyContent(t *testing.T) {
 	g := NewGenerator()
-	err := g.Generate("", "output.pdf")
+	err := g.Generate(context.Background(), "", "output.pdf")
 	if err == nil {
 		t.Error("empty HTML content should return an error")
 	}
@@ -76,7 +77,7 @@ func TestGenerateEmptyContent(t *testing.T) {
 // TestGenerateEmptyOutput tests empty output path
 func TestGenerateEmptyOutput(t *testing.T) {
 	g := NewGenerator()
-	err := g.Generate("<html></html>", "")
+	err := g.Generate(context.Background(), "<html></html>", "")
 	if err == nil {
 		t.Error("empty output path should return an error")
 	}
@@ -85,7 +86,7 @@ func TestGenerateEmptyOutput(t *testing.T) {
 // TestGenerateFromNonExistentFile tests non-existent HTML file
 func TestGenerateFromNonExistentFile(t *testing.T) {
 	g := NewGenerator()
-	err := g.GenerateFromFile("/nonexistent/file.html", "output.pdf")
+	err := g.GenerateFromFile(context.Background(), "/nonexistent/file.html", "output.pdf")
 	if err == nil {
 		t.Error("non-existent file should return an error")
 	}

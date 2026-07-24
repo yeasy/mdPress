@@ -1,6 +1,7 @@
 package typst
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -853,7 +854,7 @@ func TestConvertCodeBlocksComprehensive(t *testing.T) {
 func TestCheckTypstAvailable(t *testing.T) {
 	// This test verifies the function does not panic and returns appropriate result
 	// In environments where typst is not installed, it should return an error
-	err := checkTypstAvailable()
+	err := checkTypstAvailable(context.Background())
 	if err != nil {
 		// It's acceptable for typst to not be installed in test environment
 		// Just verify the error message is informative
@@ -1016,7 +1017,7 @@ func TestRenderTypstDocumentEmptyFontFallback(t *testing.T) {
 // against a project root, verifying that root-relative image paths resolve.
 // It is skipped when the typst binary is unavailable.
 func TestGenerateImageDocumentGolden(t *testing.T) {
-	if err := checkTypstAvailable(); err != nil {
+	if err := checkTypstAvailable(context.Background()); err != nil {
 		t.Skipf("typst not available: %v", err)
 	}
 
@@ -1042,7 +1043,7 @@ func TestGenerateImageDocumentGolden(t *testing.T) {
 	// The image path is root-relative so it resolves against --root.
 	md := "# Chapter\n\nHere is a picture:\n\n![alt](/images/pic.png)\n\nAnd prose with $5 and #tag.\n"
 	out := filepath.Join(t.TempDir(), "out.pdf")
-	if err := gen.Generate(md, out); err != nil {
+	if err := gen.Generate(context.Background(), md, out); err != nil {
 		t.Fatalf("Generate with image failed: %v", err)
 	}
 	if _, err := os.Stat(out); err != nil {
@@ -1080,7 +1081,7 @@ func TestGenerateValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := gen.Generate(tt.content, tt.output)
+			err := gen.Generate(context.Background(), tt.content, tt.output)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("expected error=%v, got %v", tt.wantErr, err)
 			}

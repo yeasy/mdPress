@@ -162,8 +162,11 @@ func WithRootDir(dir string) GeneratorOption {
 	return func(g *Generator) { g.rootDir = dir }
 }
 
-// Generate converts Markdown content to a PDF file via Typst.
-func (g *Generator) Generate(markdownContent string, outputPath string) error {
+// Generate converts Markdown content to a PDF file via Typst. Canceling ctx
+// kills the typst process and returns without writing a PDF; this generator
+// implements the same shape as internal/pdf so `build --format typst` is as
+// interruptible as `--format pdf`.
+func (g *Generator) Generate(ctx context.Context, markdownContent string, outputPath string) error {
 	if outputPath == "" {
 		return errors.New("output path cannot be empty")
 	}
@@ -172,7 +175,7 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	}
 
 	// Check if typst command is available
-	if err := g.checkTypstAvailable(); err != nil {
+	if err := g.checkTypstAvailable(ctx); err != nil {
 		return fmt.Errorf("check typst: %w", err)
 	}
 
@@ -235,9 +238,14 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 	}
 
 	// Compile the Typst file to PDF using 'typst compile'
-	if err := g.compileToPDF(tmpTypFile, outputPath); err != nil {
+	if err := g.compileToPDF(ctx, tmpTypFile, outputPath); err != nil {
 		// Remove any partial PDF that typst may have created before failing.
 		_ = os.Remove(outputPath)
+		// An interrupt is not a typst failure; report it as itself so the CLI
+		// prints "build canceled" rather than a compiler error the user cannot act on.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		return fmt.Errorf("compile typst to PDF: %w", err)
 	}
 
@@ -245,17 +253,17 @@ func (g *Generator) Generate(markdownContent string, outputPath string) error {
 }
 
 // GenerateFromFile reads a Markdown file and generates a PDF.
-func (g *Generator) GenerateFromFile(markdownFilePath string, outputPath string) error {
+func (g *Generator) GenerateFromFile(ctx context.Context, markdownFilePath string, outputPath string) error {
 	content, err := utils.ReadFile(markdownFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read markdown file: %w", err)
 	}
 
-	return g.Generate(string(content), outputPath)
+	return g.Generate(ctx, string(content), outputPath)
 }
 
 // compileToPDF runs 'typst compile' to convert .typ to PDF.
-func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
+func (g *Generator) compileToPDF(ctx context.Context, typFilePath, outputPath string) error {
 	absTypPath, err := filepath.Abs(typFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to resolve Typst file path: %w", err)
@@ -269,7 +277,7 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 	// Run: typst compile [--root <root>] <input.typ> <output.pdf>
 	// The --root flag lets root-relative image paths ("/images/x.png") in the
 	// document resolve against the book source tree.
-	ctx, cancel := context.WithTimeout(context.Background(), g.timeout)
+	runCtx, cancel := context.WithTimeout(ctx, g.timeout)
 	defer cancel()
 	args := []string{"compile"}
 	if g.rootDir != "" {
@@ -280,7 +288,7 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 		}
 	}
 	args = append(args, absTypPath, absOutputPath)
-	cmd := exec.CommandContext(ctx, "typst", args...)
+	cmd := exec.CommandContext(runCtx, "typst", args...)
 
 	// Limit captured output to prevent OOM from malicious/buggy Typst documents.
 	var stdout, stderr bytes.Buffer
@@ -305,7 +313,7 @@ func (g *Generator) compileToPDF(typFilePath, outputPath string) error {
 }
 
 // checkTypstAvailable verifies that the 'typst' command is available.
-func (g *Generator) checkTypstAvailable() error {
+func (g *Generator) checkTypstAvailable(ctx context.Context) error {
 	path, err := exec.LookPath("typst")
 	if err != nil {
 		return errors.New(
@@ -315,9 +323,9 @@ func (g *Generator) checkTypstAvailable() error {
 		)
 	}
 	// Verify it's actually a working typst binary by checking version
-	ctx, cancel := context.WithTimeout(context.Background(), typstCheckTimeout)
+	runCtx, cancel := context.WithTimeout(ctx, typstCheckTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, path, "--version")
+	cmd := exec.CommandContext(runCtx, path, "--version")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("typst command found at %s but failed to run: %w", path, err)
 	}
@@ -325,8 +333,8 @@ func (g *Generator) checkTypstAvailable() error {
 }
 
 // checkTypstAvailable checks Typst availability.
-func checkTypstAvailable() error {
-	return NewGenerator().checkTypstAvailable()
+func checkTypstAvailable(ctx context.Context) error {
+	return NewGenerator().checkTypstAvailable(ctx)
 }
 
 // maxTypstOutput is the maximum bytes captured from typst's stdout/stderr.

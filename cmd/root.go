@@ -8,9 +8,12 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/spf13/cobra"
+
+	"github.com/yeasy/mdpress/internal/pdf"
 )
 
 // defaultVersion is the compiled-in version. When mdpress is built via
@@ -180,10 +183,61 @@ Common commands:
 	rootCmd.AddCommand(versionCmd)
 }
 
+// interruptExitCode is what a shell reports for a process killed by SIGINT
+// (128 + SIGINT). The second Ctrl+C stands in for the default signal death that
+// signal.NotifyContext disabled, so it exits with the status that death has.
+const interruptExitCode = 130
+
+// watchForRepeatInterrupt exits the process on the second interrupt.
+//
+// signal.NotifyContext turns the first SIGINT into a context cancellation and,
+// in doing so, replaces Go's default "die on signal" behavior for every signal
+// after it. So Ctrl+C during a long Chrome render used to be a one-way door:
+// the first press was recorded, and every press after that was swallowed, with
+// no way out short of another terminal and `kill -9`. Restore the conventional
+// contract — the first signal asks the build to stop, the second one means it.
+//
+// The returned function stops the watcher; call it when the command finishes so
+// a signal arriving during a normal exit does not report an interrupt.
+func watchForRepeatInterrupt() func() {
+	// Buffered: the first signal is consumed here as well as by NotifyContext,
+	// and a double press can land before this goroutine is scheduled.
+	sigs := make(chan os.Signal, 4)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-sigs: // first signal: NotifyContext is canceling the build
+		case <-done:
+			return
+		}
+		select {
+		case <-sigs:
+			fmt.Fprintln(os.Stderr, "\nInterrupted again — exiting now.")
+			// os.Exit runs no deferred cleanup, and Chrome is a separate process
+			// tree that nothing else would reap. Kill it here so giving up on a
+			// render does not leave a headless browser behind.
+			pdf.KillRunningBrowsers()
+			os.Exit(interruptExitCode)
+		case <-done:
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			signal.Stop(sigs)
+			close(done)
+		})
+	}
+}
+
 // Execute runs the root command.
 func Execute() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	stopRepeatWatch := watchForRepeatInterrupt()
+	defer stopRepeatWatch()
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

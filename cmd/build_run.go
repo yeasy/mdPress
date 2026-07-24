@@ -564,7 +564,7 @@ func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry
 					logger.Warn("unsupported output format, skipping", slog.String("format", format))
 					return
 				}
-				record(format, builder.Build(buildCtx, baseName))
+				record(format, builder.Build(ctx, buildCtx, baseName))
 			}(format)
 		}
 		wg.Wait()
@@ -581,7 +581,7 @@ func buildFormatsInParallel(ctx context.Context, registry *formatBuilderRegistry
 			logger.Warn("unsupported output format, skipping", slog.String("format", format))
 			continue
 		}
-		record(format, builder.Build(buildCtx, baseName))
+		record(format, builder.Build(ctx, buildCtx, baseName))
 	}
 
 	var failures []error
