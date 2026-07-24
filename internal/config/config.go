@@ -64,6 +64,11 @@ type BookConfig struct {
 
 	// baseDir is the directory that contains the config file.
 	baseDir string `yaml:"-"`
+
+	// setKeys holds the dotted paths the project's own config actually
+	// contained, so "the user chose this" can be told apart from "this is
+	// what DefaultConfig put here". See set_keys.go and IsSet.
+	setKeys map[string]bool `yaml:"-"`
 }
 
 // PluginConfig describes a single plugin entry in book.yaml.
@@ -222,7 +227,12 @@ func DefaultConfig() *BookConfig {
 			Language: "en-US",
 		},
 		Style: StyleConfig{
-			Theme:    "technical",
+			Theme: "technical",
+			// Page geometry is a last-resort fallback for a theme that
+			// declares none — the theme's own page_size/margins are merged in
+			// by ApplyThemeLayout. Never test a loaded value against these to
+			// decide whether the user configured it; Load unmarshals over this
+			// struct, so the answer is always wrong. Use IsSet instead.
 			PageSize: "A4",
 			// Typography defaults live in the theme, not here: an empty value
 			// means "inherit from the theme", which is what lets `elegant`
@@ -305,6 +315,11 @@ func Load(path string) (*BookConfig, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w (check the YAML syntax in %s)", err, path)
 	}
+	// Remember which keys the document actually carried. Unmarshalling happens
+	// over DefaultConfig, so afterwards nothing in cfg can tell a value the
+	// user wrote from one mdpress supplied; every later "did they configure
+	// this?" decision reads cfg.IsSet instead.
+	cfg.setKeys = collectSetKeys(data)
 	// A key mdpress does not recognize is almost always a typo or wrong
 	// nesting, and silently dropping it is the worst outcome: the user edits
 	// book.yaml, rebuilds, sees no change, and has nothing to go on. Report it

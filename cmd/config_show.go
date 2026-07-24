@@ -224,6 +224,11 @@ func newConfigShowReport(cfg *config.BookConfig, configPath string, discovered b
 		formats = []string{"pdf"}
 	}
 
+	// Resolve the theme first: it also merges the theme's page_size/margins
+	// into cfg.Style, so the reported page geometry is the one a build uses
+	// and not DefaultConfig's placeholder.
+	themeInfo := resolveConfigShowTheme(cfg)
+
 	artifacts := map[string]string{}
 	if baseOutput, err := resolveBuildBaseOutput(cfg, ""); err == nil {
 		siteDir := resolveSiteOutputDir(cfg.BaseDir(), "", formats, nil)
@@ -245,7 +250,7 @@ func newConfigShowReport(cfg *config.BookConfig, configPath string, discovered b
 			ChapterCount: len(config.FlattenChapters(cfg.Chapters)),
 			GlossaryFile: cfg.GlossaryFile,
 			LangsFile:    cfg.LangsFile,
-			Theme:        resolveConfigShowTheme(cfg),
+			Theme:        themeInfo,
 			Formats:      formats,
 			Artifacts:    artifacts,
 		},
@@ -256,6 +261,10 @@ func newConfigShowReport(cfg *config.BookConfig, configPath string, discovered b
 // resolution order of newBuildOrchestrator (custom file, then built-in, then
 // the default) so the answer is the one builds act on, and it degrades to the
 // configured name when the theme cannot be loaded at all.
+//
+// Like newBuildOrchestrator it also merges the theme's page geometry into cfg,
+// so the `style` block the report prints carries the page_size and margins the
+// build will really use.
 func resolveConfigShowTheme(cfg *config.BookConfig) configShowTheme {
 	info := configShowTheme{Name: cfg.Style.Theme, Source: "built-in"}
 	if info.Name == "" {
@@ -291,6 +300,12 @@ func resolveConfigShowTheme(cfg *config.BookConfig) configShowTheme {
 		FontFamily: cfg.Style.FontFamily,
 		FontSize:   cfg.Style.FontSize,
 		LineHeight: cfg.Style.LineHeight,
+	})
+	cfg.ApplyThemeLayout(thm.PageSize, config.MarginConfig{
+		Top:    thm.Margins.Top,
+		Bottom: thm.Margins.Bottom,
+		Left:   thm.Margins.Left,
+		Right:  thm.Margins.Right,
 	})
 	info.Name = thm.Name
 	info.FontFamily = thm.FontFamily

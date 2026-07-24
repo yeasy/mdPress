@@ -110,9 +110,11 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 	}
 	if raw.Language != "" {
 		cfg.Book.Language = normalizeLanguage(raw.Language)
+		cfg.markSet("book.language")
 	}
 	if raw.Version != "" {
 		cfg.Book.Version = strings.TrimPrefix(raw.Version, "v")
+		cfg.markSet("book.version")
 	}
 
 	// Convert plugins: skip entries prefixed with "-" (GitBook disables them).
@@ -132,12 +134,15 @@ func LoadBookJSON(ctx context.Context, path string) (*BookConfig, error) {
 		return nil, fmt.Errorf("invalid structure.readme: %w", err)
 	}
 	meta := ExtractReadmeMetadata(ctx, readmePath)
-	if cfg.Book.Version == DefaultConfig().Book.Version && meta.Version != "" {
-		cfg.Book.Version = meta.Version
-	}
-	// Fallback: try git tag when version is still the default.
-	if cfg.Book.Version == DefaultConfig().Book.Version {
-		if tag := gitLatestTag(ctx, dir); tag != "" {
+	// Only guess a version when book.json declared none. Testing the value
+	// against DefaultConfig's "1.0.0" treated the single most common version
+	// string — the one `mdpress init` scaffolds — as "unset", so a book pinned
+	// at 1.0.0 had the enclosing repository's newest git tag printed on its
+	// cover and no way to see why.
+	if !cfg.IsSet("book.version") {
+		if meta.Version != "" {
+			cfg.Book.Version = meta.Version
+		} else if tag := gitLatestTag(ctx, dir); tag != "" {
 			cfg.Book.Version = tag
 		}
 	}

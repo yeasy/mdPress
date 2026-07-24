@@ -107,6 +107,18 @@ func newBuildOrchestrator(cfg *config.BookConfig, logger *slog.Logger) (*buildOr
 		LineHeight: cfg.Style.LineHeight,
 	})
 
+	// Page geometry travels the other way: every renderer reads it off the
+	// config, so the theme's page_size/margins have to be merged in here or
+	// they reach nothing. Before this, a themes/<name>.yaml saying
+	// `page_size: A5` still produced an A4 PDF, and `themes show technical`
+	// advertised 20 mm margins that no build ever used.
+	cfg.ApplyThemeLayout(thm.PageSize, config.MarginConfig{
+		Top:    thm.Margins.Top,
+		Bottom: thm.Margins.Bottom,
+		Left:   thm.Margins.Left,
+		Right:  thm.Margins.Right,
+	})
+
 	// Initialize the Markdown parser.
 	codeTheme := cfg.Style.CodeTheme
 	if codeTheme == "" {
