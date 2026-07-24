@@ -152,13 +152,9 @@ func TestSiteGeneratorInteractiveSidebar(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	pagePath := filepath.Join(dir, "ch2-1.html")
-	data, err := os.ReadFile(pagePath)
-	if err != nil {
-		t.Fatalf("read page failed: %v", err)
-	}
-
-	html := string(data)
+	// The CSS and JS asserted below are in the shared assets/ files the page
+	// links to, not inlined in the page itself.
+	html := readSiteBundle(t, dir, "ch2-1.html")
 	if strings.Contains(html, "function collapseOtherGroups(currentGroup)") {
 		t.Error("generated page should not include accordion-only sidebar helpers")
 	}
@@ -760,16 +756,9 @@ func TestSiteGeneratorCSSInjection(t *testing.T) {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
-	// Verify CSS appears in generated page
-	pagePath := filepath.Join(dir, "ch1.html")
-	data, err := os.ReadFile(pagePath)
-	if err != nil {
-		t.Fatalf("read page failed: %v", err)
-	}
-
-	html := string(data)
-	if !strings.Contains(html, customCSS) {
-		t.Error("generated page should contain custom CSS")
+	// Verify CSS reaches the page through the stylesheet it links to.
+	if html := readSiteBundle(t, dir, "ch1.html"); !strings.Contains(html, customCSS) {
+		t.Error("generated page should pull in the custom CSS")
 	}
 }
 

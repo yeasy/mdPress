@@ -1,8 +1,6 @@
 package output
 
 import (
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -32,11 +30,9 @@ func buildCDNTestSite(t *testing.T, language string) string {
 	if err := gen.Generate(dir); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, "ch1.html"))
-	if err != nil {
-		t.Fatalf("read page: %v", err)
-	}
-	return string(data)
+	// The CDN references live in the shared script the page links to, not in
+	// the page itself, so read the bundle.
+	return readSiteBundle(t, dir, "ch1.html")
 }
 
 // TestSiteCDNAssetsArePinnedAndIntegrityChecked guards the supply chain of the

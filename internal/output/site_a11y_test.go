@@ -149,7 +149,9 @@ func TestContrastRatioMatchesWCAGReference(t *testing.T) {
 // sidebar metadata: none of them is large text, so none of them qualifies for
 // the relaxed 3:1 bar.
 func TestSiteMutedTextMeetsAA(t *testing.T) {
-	rules := parseCSSRules(styleSection(sitePageTemplate))
+	// The stylesheet is no longer inlined in sitePageTemplate; siteCSSSource
+	// returns the shared assets/*.css body the pages link to.
+	rules := parseCSSRules(siteCSSSource())
 
 	const (
 		lightPage    = "#ffffff"
@@ -196,7 +198,7 @@ func TestSiteMutedTextMeetsAA(t *testing.T) {
 
 func TestSitePrintStylesKeepSyntaxHighlighting(t *testing.T) {
 	var printCSS string
-	for _, rule := range parseCSSRules(styleSection(sitePageTemplate)) {
+	for _, rule := range parseCSSRules(siteCSSSource()) {
 		if strings.Contains(rule.AtRule, "print") {
 			printCSS += rule.Selector + "{" + rule.Body + "}\n"
 		}
@@ -220,7 +222,7 @@ func TestSitePrintStylesKeepSyntaxHighlighting(t *testing.T) {
 
 func TestSiteMobileHeaderStaysCompact(t *testing.T) {
 	var mobileCSS string
-	for _, rule := range parseCSSRules(styleSection(sitePageTemplate)) {
+	for _, rule := range parseCSSRules(siteCSSSource()) {
 		if strings.Contains(rule.AtRule, "max-width: 768px") {
 			mobileCSS += rule.Selector + "{" + rule.Body + "}\n"
 		}
@@ -239,25 +241,25 @@ func TestSiteMobileHeaderStaysCompact(t *testing.T) {
 }
 
 func TestSiteAnchorOffsetTracksHeaderHeight(t *testing.T) {
-	if !strings.Contains(sitePageTemplate, "scroll-margin-top: var(--header-h, 64px)") {
+	if !strings.Contains(siteSourceBundle, "scroll-margin-top: var(--header-h, 64px)") {
 		t.Error("anchor scroll offset should follow the measured header height, not a fixed 64px")
 	}
-	if !strings.Contains(sitePageTemplate, "setProperty('--header-h'") {
+	if !strings.Contains(siteSourceBundle, "setProperty('--header-h'") {
 		t.Error("the page script should measure the header and publish --header-h")
 	}
-	if !strings.Contains(sitePageTemplate, "ResizeObserver") {
+	if !strings.Contains(siteSourceBundle, "ResizeObserver") {
 		t.Error("--header-h should be re-measured when the header resizes")
 	}
 }
 
 func TestSiteCodeBlocksShowLanguageLabel(t *testing.T) {
-	if !strings.Contains(sitePageTemplate, ".code-wrapper[data-lang]::before") {
+	if !strings.Contains(siteSourceBundle, ".code-wrapper[data-lang]::before") {
 		t.Error("site code blocks should render a language label like the standalone HTML build does")
 	}
-	if !strings.Contains(sitePageTemplate, "content: attr(data-lang)") {
+	if !strings.Contains(siteSourceBundle, "content: attr(data-lang)") {
 		t.Error("the language label should come from the data-lang attribute")
 	}
-	if !strings.Contains(sitePageTemplate, "wrapper.setAttribute('data-lang', lang)") {
+	if !strings.Contains(siteSourceBundle, "wrapper.setAttribute('data-lang', lang)") {
 		t.Error("addCopyButtons should copy the fence language onto the wrapper")
 	}
 }

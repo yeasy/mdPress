@@ -1,8 +1,24 @@
 package output
 
-import "github.com/yeasy/mdpress/pkg/utils"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
 
-var sitePageTemplate = `<!DOCTYPE html>
+	"github.com/yeasy/mdpress/pkg/utils"
+)
+
+// sitePageTemplate is stitched together from two halves because what used to
+// sit between them — the whole stylesheet — and what used to sit inside the
+// second half — the whole site script — are now written once to assets/ and
+// linked, not pasted into every page. Inlining them cost ~105 KB per page:
+// mdPress's own 30-page manual built a 4.4 MB site out of 268 KB of Markdown,
+// 75% of it the same bytes repeated, none of it cacheable across pages.
+var sitePageTemplate = sitePageHead + sitePageBody
+
+var sitePageHead = `<!DOCTYPE html>
 <html lang="{{.Language}}">
 <head>
 <meta charset="UTF-8">
@@ -19,8 +35,13 @@ var sitePageTemplate = `<!DOCTYPE html>
 {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}
 {{if .FaviconHref}}<link rel="icon" href="{{.FaviconHref}}">{{else}}<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' font-weight='bold' fill='%234285f4'>📚</text></svg>">{{end}}
 {{if .SitemapLink}}<link rel="sitemap" type="application/xml" href="{{.SitemapLink}}">{{end}}
-<style>
-/* ===== Reset & Base ===== */
+<link rel="stylesheet" href="{{.StylesheetLink}}">
+`
+
+// siteBaseCSS is the site-wide stylesheet, written once per build to
+// assets/mdpress-<hash>.css.  The theme CSS is appended to it — see
+// siteStylesheet.
+var siteBaseCSS = `/* ===== Reset & Base ===== */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; scroll-behavior: smooth; }
 body {
@@ -151,9 +172,10 @@ body.sidebar-resizing .main { transition: none; }
 .nav-row:not(:has(.nav-toggle)) .nav-chapter { padding-left: 14px; font-weight: 400; }
 .nav-heading { padding: 5px 12px; font-size: 0.84rem; margin-left: 26px; }
 .nav-depth-1 { padding-left: 8px; }
-.nav-depth-2 { padding-left: 22px; }
-.nav-depth-3 { padding-left: 36px; }
-.nav-depth-4 { padding-left: 50px; }
+/* Every extra nesting level already gets its indent from the enclosing
+   .nav-children-inner, so depth 3+ must not keep adding padding on top of it:
+   a four-level book ellipsized its section titles down to "Level four …". */
+.nav-depth-2, .nav-depth-3, .nav-depth-4, .nav-depth-5, .nav-depth-6 { padding-left: 22px; }
 .nav-heading-depth-1 { padding-left: 12px; }
 .nav-heading-depth-2 { padding-left: 26px; }
 .nav-heading-depth-3 { padding-left: 40px; font-size: 0.8rem; }
@@ -170,6 +192,9 @@ body.sidebar-resizing .main { transition: none; }
   padding-bottom: 2px;
   padding-left: 26px;
 }
+/* Indent the third level and below more gently — 26px per level compounds to
+   more than a third of the 280px sidebar by level five. */
+.nav-children-inner .nav-children-inner { padding-left: 14px; }
 .nav-group.expanded > .nav-children {
   grid-template-rows: 1fr;
   opacity: 1;
@@ -845,6 +870,17 @@ select:focus-visible {
   color: #6a6a6a;
   font-size: 0.9rem;
 }
+.search-empty-hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.search-empty-hint code {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.06);
+  font-size: 0.95em;
+}
 .search-jump-notice {
   margin: 0 0 14px;
   padding: 10px 12px;
@@ -896,7 +932,12 @@ html.dark .bc-sep { color: #9399b2; }
 html.dark .chapter-title { color: #cdd6f4; border-bottom-color: #313244; }
 html.dark .content { color: #cdd6f4; }
 html.dark .content h1 { color: #cdd6f4; border-bottom-color: #89b4fa; }
-html.dark .content h2, html.dark .content h3, html.dark .content h4 { color: #bac2de; }
+/* Every level the theme CSS colors (h1..h6) needs a dark counterpart. Stopping
+   at h4 left h5/h6 on the light theme's near-black heading color over the dark
+   background - 1.27:1 contrast, i.e. invisible - and an author working in light
+   mode never saw it. */
+html.dark .content h2, html.dark .content h3, html.dark .content h4,
+html.dark .content h5, html.dark .content h6 { color: #bac2de; }
 html.dark .content h2 { border-bottom-color: #313244; }
 html.dark .content a { color: #89b4fa; }
 html.dark .content a:hover { color: #b4d0fb; }
@@ -941,6 +982,7 @@ html.dark .search-result-snippet { color: #a6adc8; }
 html.dark .search-result-path { color: #9399b2; }
 html.dark .search-result-snippet mark { background: #45475a; color: #f9e2af; }
 html.dark .search-empty { color: #9399b2; }
+html.dark .search-empty-hint code { background: rgba(255,255,255,0.08); }
 html.dark .search-jump-notice { background: #262637; color: #bac2de; }
 html.dark .search-status { color: #9399b2; }
 html.dark .search-footer { border-top-color: #313244; color: #9399b2; }
@@ -1066,15 +1108,60 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
 }
 
 /* ===== Custom Theme CSS ===== */
-{{safeCSS .CSS}}
+`
 
+// siteLayoutOverridesCSS closes the stylesheet after the theme CSS, so the
+// site's own layout rules keep winning over whatever the theme sets.
+var siteLayoutOverridesCSS = `
 /* ===== Site Layout Overrides ===== */
 body {
   margin: 0 !important;
   padding: 0 !important;
 }
-</style>
-<script>
+`
+
+// siteStylesheet assembles the single stylesheet every page links to.
+func siteStylesheet(themeCSS string) string {
+	return siteBaseCSS + themeCSS + siteLayoutOverridesCSS
+}
+
+// sharedSiteAssets holds the site-root-relative paths of the stylesheet and
+// script that every page links to.
+type sharedSiteAssets struct {
+	stylesheet string
+	script     string
+}
+
+// writeSharedSiteAssets writes the stylesheet and the site script into the
+// output's assets/ directory.  Their names carry a hash of their contents so a
+// host can cache them indefinitely and a reader never gets last build's script
+// against this build's markup — the same trick the image extractor uses.
+func writeSharedSiteAssets(outputDir, themeCSS string) (sharedSiteAssets, error) {
+	dir := filepath.Join(outputDir, siteAssetDir)
+	if err := utils.EnsureDir(dir); err != nil {
+		return sharedSiteAssets{}, fmt.Errorf("failed to create site asset directory: %w", err)
+	}
+	var shared sharedSiteAssets
+	files := []struct {
+		suffix string
+		body   string
+		dest   *string
+	}{
+		{".css", siteStylesheet(themeCSS), &shared.stylesheet},
+		{".js", siteScriptJS, &shared.script},
+	}
+	for _, f := range files {
+		sum := sha256.Sum256([]byte(f.body))
+		name := "mdpress-" + hex.EncodeToString(sum[:8]) + f.suffix
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(f.body), 0o644); err != nil {
+			return sharedSiteAssets{}, fmt.Errorf("failed to write %s: %w", name, err)
+		}
+		*f.dest = siteAssetDir + "/" + name
+	}
+	return shared, nil
+}
+
+var sitePageBody = `<script>
 /* Prevent flash of wrong theme */
 (function(){var t=localStorage.getItem('mdpress-theme');if(t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})();
 </script>
@@ -1198,7 +1285,20 @@ body {
     assetsMermaidFailed: "{{.UIassetsMermaidFailed}}",
     assetsKatexFailed: "{{.UIassetsKatexFailed}}"
   };
-  /* ===== Theme Management ===== */
+  /* The only genuinely per-page state.  It stays inline — and is read by the
+     shared script below — so that the ~55 KB of behavior can be one cached
+     file instead of a copy per page that differs by these two strings. */
+  var __mdpressPage = { activeFile: "{{.ActiveFile}}", navFile: "{{.NavFile}}" };
+  </script>
+  <script src="{{.ScriptLink}}"></script>
+</body>
+</html>`
+
+// siteScriptJS is the site behavior — theme toggle, SPA router, sidebar,
+// search, code copy — written once per build to assets/mdpress-<hash>.js.
+// It carries no per-page state; it reads __mdpressPage, which each page sets
+// inline just before loading this file.
+var siteScriptJS = `  /* ===== Theme Management ===== */
   (function() {
     var stored = localStorage.getItem('mdpress-theme');
     var prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -1303,11 +1403,12 @@ body {
   var pendingNavigation = null;
   var internalNavStateKey = 'mdpress-site-nav';
   var scrollStoreKey = 'mdpress-site-scroll';
-  var currentFile = '{{.ActiveFile}}';
+  var __page = window.__mdpressPage || {};
+  var currentFile = __page.activeFile || '';
   /* index.html re-serves the first chapter, so sidebar highlighting has to
      match that chapter's entry while URL resolution keeps using index.html's
      own depth. navFile follows currentFile everywhere else. */
-  var navFile = '{{.NavFile}}' || currentFile;
+  var navFile = __page.navFile || currentFile;
   var navLinksByCurrentFile = [];
   var navChapterLinks = [];
   var navHeadingLinks = [];
@@ -2427,11 +2528,15 @@ body {
     var recentPagesKey = 'mdpress-recent-pages';
     var searchJumpKey = 'mdpress-search-jump';
     var searchIndex = null;
+    var searchIndexError = null;
     var activeIdx = -1;
     var debounceTimer = null;
 
     function loadIndex() {
       if (searchIndex) return Promise.resolve(searchIndex);
+      // Remember the failure instead of refetching on every keystroke; under
+      // file:// the fetch is guaranteed to keep failing.
+      if (searchIndexError) return Promise.reject(searchIndexError);
       return fetch(resolveSiteHref('search-index.json')).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
@@ -2439,10 +2544,21 @@ body {
         searchIndex = data;
         return data;
       }).catch(function(err) {
+        // Reject rather than resolving with an empty index. Swallowing this
+        // meant that opening _book/index.html straight off disk — where the
+        // fetch is rejected as a cross-origin request — answered every query
+        // with "No results", telling the reader their content was never
+        // indexed when in truth the index was never loaded.
         console.warn('[mdpress] Failed to load search index:', err);
-        searchIndex = [];
-        return searchIndex;
+        searchIndexError = err;
+        throw err;
       });
+    }
+
+    // Whether the page was opened straight off disk. The search index cannot be
+    // fetched from a file:// page, so the failure message names the fix.
+    function isFileProtocol() {
+      return window.location.protocol === 'file:';
     }
 
     function updateSearchStatus(count) {
@@ -2600,19 +2716,67 @@ body {
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function buildSnippet(text, query, maxLen) {
+    // parseSearchTerms splits a raw query into the terms that must all match.
+    // A double-quoted run stays whole, so the exact-phrase syntax the manual
+    // documents narrows a search instead of killing it: the quote characters
+    // used to survive into the indexOf, so a quoted word searched for a literal
+    // string with the quote characters in it that no page can contain. Stray
+    // quotes are dropped rather than left to poison the term.
+    function parseSearchTerms(raw) {
+      var terms = [];
+      var re = /"([^"]*)"|(\S+)/g;
+      var m;
+      while ((m = re.exec(raw)) !== null) {
+        var t = (m[1] !== undefined ? m[1] : m[2]).replace(/"/g, '').trim();
+        if (t) { terms.push(t); }
+      }
+      return terms;
+    }
+
+    // Han, kana and Hangul - the scripts written without spaces between words.
+    var cjkChar = /[㐀-䶿一-鿿豈-﫿぀-ヿ가-힯]/;
+
+    // termMatches reports whether one query term is present in a haystack.
+    // A CJK reader types 数据库索引 as one unbroken run, because the script has
+    // no spaces to type; requiring that run to appear contiguously returned
+    // nothing even when both words were plainly on the page, and there was no
+    // way for the reader to guess that inserting ASCII spaces would help. So a
+    // term made only of CJK characters also matches when every one of its
+    // characters is present - the per-character behavior the manual promises.
+    function termMatches(haystack, term) {
+      if (haystack.indexOf(term) >= 0) { return true; }
+      if (/[a-z0-9]/.test(term) || !cjkChar.test(term)) { return false; }
+      for (var i = 0; i < term.length; i++) {
+        var c = term.charAt(i);
+        if (c !== ' ' && haystack.indexOf(c) < 0) { return false; }
+      }
+      return true;
+    }
+
+    function buildSnippet(text, query, terms) {
       var lower = text.toLowerCase();
-      var qLower = query.toLowerCase();
-      var idx = lower.indexOf(qLower);
+      // Prefer the whole query, but fall back to the first term that is really
+      // there. A multi-word or CJK match whose words sit apart in the text used
+      // to render with no snippet and nothing highlighted.
+      var needle = query.toLowerCase();
+      var idx = lower.indexOf(needle);
+      for (var n = 0; idx < 0 && terms && n < terms.length; n++) {
+        needle = terms[n];
+        idx = lower.indexOf(needle);
+        if (idx < 0 && cjkChar.test(needle)) {
+          needle = needle.charAt(0);
+          idx = lower.indexOf(needle);
+        }
+      }
       if (idx < 0) return '';
       var start = Math.max(0, idx - 40);
-      var end = Math.min(text.length, idx + query.length + 80);
+      var end = Math.min(text.length, idx + needle.length + 80);
       var snippet = (start > 0 ? '\u2026' : '') + text.slice(start, end) + (end < text.length ? '\u2026' : '');
       // Highlight matches — escape both snippet and query so HTML entities
       // in the query (e.g. & -> &amp;) still match their escaped counterparts.
       var escaped = escapeHTML(snippet);
-      var escapedQuery = escapeHTML(query);
-      var re = new RegExp('(' + escapedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+      var escapedNeedle = escapeHTML(needle);
+      var re = new RegExp('(' + escapedNeedle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       return escaped.replace(re, '<mark>$1</mark>');
     }
 
@@ -2626,15 +2790,14 @@ body {
         var qLower = query.toLowerCase();
         // Split into terms and require all of them. A single indexOf on the
         // whole query meant any multi-word search ("plugin hooks") returned
-        // nothing, because the words never appear adjacent. CJK has no spaces,
-        // so a term with no ASCII letters is also matched per character run.
-        var terms = qLower.split(/\s+/).filter(function(t) { return t.length > 0; });
+        // nothing, because the words never appear adjacent.
+        var terms = parseSearchTerms(qLower);
         if (!terms.length) { terms = [qLower]; }
         function hasAll(haystack) {
           if (!haystack) { return false; }
           var h = haystack.toLowerCase();
           for (var t = 0; t < terms.length; t++) {
-            if (h.indexOf(terms[t]) < 0) { return false; }
+            if (!termMatches(h, terms[t])) { return false; }
           }
           return true;
         }
@@ -2649,7 +2812,7 @@ body {
               title: entry.t,
               filename: entry.f,
               path: entry.p || '',
-              snippet: buildSnippet(entry.x, query),
+              snippet: buildSnippet(entry.x, query, terms),
               titleMatch: titleMatch,
               pathMatch: pathMatch
             });
@@ -2699,7 +2862,13 @@ body {
         activeIdx = 0;
         updateActive(resultsBox.querySelectorAll('.search-result'));
       }).catch(function() {
-        resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchUnavailable + '</div>';
+        // The only routine cause is a page opened straight off disk, so name it
+        // with the two symbols that need no translation: the protocol that
+        // cannot fetch the index, and the command that serves it over http.
+        var hint = isFileProtocol()
+          ? '<div class="search-empty-hint">file:// → <code>mdpress serve</code></div>'
+          : '';
+        resultsBox.innerHTML = '<div class="search-empty">' + __ui.searchUnavailable + hint + '</div>';
         updateSearchStatus(-1);
       });
     }
@@ -2947,9 +3116,7 @@ body {
       if (debounceTimer) clearTimeout(debounceTimer);
     };
   })();
-  </script>
-</body>
-</html>`
+`
 
 // site404Template renders the "page not found" fallback page served by hosts
 // such as GitHub Pages and Netlify for unknown URLs.  It is a small

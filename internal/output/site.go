@@ -212,6 +212,14 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	// must run after the static/ copy, which is where a favicon may live.
 	branding := g.resolveBranding(assets)
 
+	// The stylesheet and the site script are written once and linked, so a
+	// reader downloads them for the first page and the browser serves the rest
+	// from cache.
+	shared, err := writeSharedSiteAssets(outputDir, g.CSS)
+	if err != nil {
+		return err
+	}
+
 	// Render every page.
 	for i, page := range flatPages {
 		pageContent, err := assets.Extract(page.Content, page.Filename)
@@ -261,6 +269,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			NextLink:         relativeSiteHref(page.Filename, nextLink),
 			NextTitle:        nextTitle,
 			EditLink:         g.editPageLink(page),
+			StylesheetLink:   relativeSiteHref(page.Filename, shared.stylesheet),
+			ScriptLink:       relativeSiteHref(page.Filename, shared.script),
 			ActiveFile:       page.Filename,
 			HeadTitle:        siteHeadTitle(page.Title, g.Meta.Title),
 			CanonicalURL:     canonical,
@@ -330,6 +340,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 			NextLink:         relativeSiteHref("index.html", nextLink),
 			NextTitle:        nextTitle,
 			EditLink:         g.editPageLink(firstPage),
+			StylesheetLink:   shared.stylesheet,
+			ScriptLink:       shared.script,
 			ActiveFile:       "index.html",
 			NavFile:          firstPage.Filename,
 			// The site root is the book, not its first chapter: titling it
@@ -474,7 +486,11 @@ type pageData struct {
 	NextLink         string
 	NextTitle        string
 	EditLink         string // "Edit this page" URL; empty disables the link.
-	ActiveFile       string
+	// StylesheetLink and ScriptLink point at the shared assets/ files, relative
+	// to this page.
+	StylesheetLink string
+	ScriptLink     string
+	ActiveFile     string
 	// NavFile is the chapter filename the sidebar should highlight. It differs
 	// from ActiveFile only on index.html, which re-serves the first chapter.
 	NavFile string
