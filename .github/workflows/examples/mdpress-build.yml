@@ -13,6 +13,15 @@
 # 4. (Optional) Deploys the static site to GitHub Pages when pushing to the
 #    default branch.
 #
+# A NOTE ON ACTION VERSIONS
+# -------------------------
+# The steps below reference actions by tag (@v4) because this file is meant to
+# be read and copied. A tag is mutable: whoever controls the action can repoint
+# it at new code, which then runs with your workflow's token. For a repository
+# that publishes anything, pin each action to a full commit SHA instead --
+#   uses: actions/checkout@<40-char-sha> # v6
+# and let Dependabot keep the SHAs current. mdPress's own workflows do this.
+#
 # REQUIREMENTS
 # ------------
 # - A book.yaml (or SUMMARY.md) at the repository root (or set BOOK_DIR below).
