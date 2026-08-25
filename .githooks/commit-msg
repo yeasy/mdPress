@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# mdpress commit-msg hook
+#
+# Rejects AI attribution trailers. Commit authorship in this repository names
+# the people responsible for the change; a tool trailer adds no reviewable
+# information and, once pushed, cannot be removed from a published tag without
+# rewriting history that release artifacts, signatures and provenance
+# attestations are pinned to. Ten such commits survive on the v0.7.14 tag for
+# exactly that reason.
+#
+# Install with: make hooks     Skip once (not for this rule): git commit --no-verify
+
+set -euo pipefail
+
+msg_file="$1"
+
+# Ignore comment lines: `git commit -v` embeds the whole diff below a comment
+# marker, and a diff that legitimately touches this hook would otherwise match.
+if grep -vE '^\s*#' "$msg_file" | grep -qiE \
+    'co-authored-by:[[:space:]]*(claude|anthropic|copilot|chatgpt|gpt-|gemini|cursor|devin)|generated with \[?(claude|chatgpt|copilot)|🤖[[:space:]]*generated'; then
+    cat >&2 <<'ERR'
+commit-msg: refusing an AI attribution trailer.
+
+  This repository does not carry Co-Authored-By / "Generated with" lines for
+  AI tools. Remove the trailer and commit again.
+
+  The offending line(s):
+ERR
+    grep -vE '^\s*#' "$msg_file" | grep -inE \
+        'co-authored-by:[[:space:]]*(claude|anthropic|copilot|chatgpt|gpt-|gemini|cursor|devin)|generated with \[?(claude|chatgpt|copilot)|🤖[[:space:]]*generated' >&2
+    exit 1
+fi

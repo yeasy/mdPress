@@ -132,8 +132,9 @@ bump:
 hooks:
 	@echo ">>> Installing git hooks..."
 	git config core.hooksPath .githooks
-	@echo ">>> Done. Pre-commit hook will run 'make check' before each commit."
-	@echo ">>> To skip once: git commit --no-verify"
+	@echo ">>> Done. Pre-commit hook runs 'make check' before each commit;"
+	@echo ">>> commit-msg hook rejects AI attribution trailers."
+	@echo ">>> To skip the pre-commit check once: git commit --no-verify"
 
 # ---------- Clean ----------
 
