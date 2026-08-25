@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file. The format 
 
 A follow-up audit fanned twelve expert lenses across the tree and adversarially verified every finding against a real build. These are the confirmed fixes.
 
+### Security
+
+- **The pinned Go toolchain moved from 1.26.3 to 1.26.7.** `govulncheck` — newly wired into CI — reports seven standard-library vulnerabilities in 1.26.3 that mdPress actually reaches, including an unbounded recursion in `encoding/asn1` reached from the dev server and the `golang.org/x/net/idna` Punycode issue reached from remote-image downloads. The `toolchain` directive selects that release for anyone building from source or via `go install`, regardless of the Go installed locally. No reachable vulnerabilities remain after the bump
+- **CI now fails on a known vulnerability and on a coverage regression.** A `govulncheck` job runs on every push and pull request plus a weekly schedule, so an advisory disclosed after the last commit still surfaces; coverage is enforced through `codecov.yml` against a pull request's base commit, replacing an 80% threshold that lived in a script no workflow ever invoked
+- **Every GitHub Action is pinned to a commit SHA.** Floating tags are mutable, and the release job's token carries `contents:write`, `packages:write`, an OIDC identity and a cross-repo PAT
+
 ### Fixed
 
 - **`mdpress build --format typst` no longer fails to compile on an escaped dollar.** The prose escaper handled `$ # @ < >` and backticks but not the backslash, so the spec-valid CommonMark escape `\$` (the standard way to write a literal dollar) became `\\$` — Typst read that as a literal backslash plus an unclosed math delimiter and aborted the entire document with `error: unclosed delimiter`. A backslash before a backtick broke the same way. Backslashes are now escaped first, so `\$` compiles cleanly; the same source already built via `--format pdf`
