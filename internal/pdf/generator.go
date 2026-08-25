@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -831,7 +832,7 @@ func (g *Generator) generateFromSource(ctx context.Context, src documentSource, 
 	}
 	defer runtimeDirs.cleanup()
 
-	var chromeOutput bytes.Buffer
+	var chromeOutput syncBuffer
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, chromiumAllocatorOptions(chromePath, runtimeDirs, &chromeOutput)...)
 	defer allocCancel()
 
@@ -1000,6 +1001,28 @@ func (e *printTimeoutError) Error() string {
 // CDP code ("content area is empty (-32602)") that names neither the setting
 // nor the arithmetic behind it, so the reader had no way to know which value to
 // change.
+// syncBuffer is a bytes.Buffer guarded by a mutex. chromedp forwards the
+// browser's merged stdout/stderr into this writer from a goroutine that lives
+// as long as the browser process, so reading the collected diagnostics while
+// Chrome is still running is a concurrent read/write. bytes.Buffer is not safe
+// for that, and the race detector flags it.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 func (g *Generator) describePrintError(err error) error {
 	if strings.Contains(err.Error(), "content area is empty") {
 		return fmt.Errorf("page margins leave no room for content: "+
@@ -1258,7 +1281,7 @@ func resolveChromiumPath() (string, error) {
 			"  Or set MDPRESS_CHROME_PATH to a custom Chrome/Chromium path")
 }
 
-func chromiumAllocatorOptions(execPath string, runtime chromiumRuntimeDirs, output *bytes.Buffer) []chromedp.ExecAllocatorOption {
+func chromiumAllocatorOptions(execPath string, runtime chromiumRuntimeDirs, output io.Writer) []chromedp.ExecAllocatorOption {
 	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
 	opts = append(opts,
 		chromedp.ExecPath(execPath),
