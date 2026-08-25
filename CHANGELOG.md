@@ -14,6 +14,10 @@ A follow-up audit fanned twelve expert lenses across the tree and adversarially 
 - **CI now fails on a known vulnerability and on a coverage regression.** A `govulncheck` job runs on every push and pull request plus a weekly schedule, so an advisory disclosed after the last commit still surfaces; coverage is enforced through `codecov.yml` against a pull request's base commit, replacing an 80% threshold that lived in a script no workflow ever invoked
 - **Every GitHub Action is pinned to a commit SHA.** Floating tags are mutable, and the release job's token carries `contents:write`, `packages:write`, an OIDC identity and a cross-repo PAT
 
+### Performance
+
+- **Site builds are 2.6x faster on books with images, and the `serve` writing loop twice as fast.** Profiling a 200-chapter book sharing one 315 KB banner put two thirds of the build in two places that each did the same work twice over strings the size of the images: the asset extractor re-ran its pattern over every match (a match being an entire base64 image), and the search index stripped tags from the pre-extraction HTML although the extracted content was already at hand. Measured end to end: site build 6.54s → 2.51s, and `serve` rebuild-to-reload 8.10s → 4.07s. Output is byte-identical, search index included
+
 ### Fixed
 
 - **`mdpress build --format typst` no longer fails to compile on an escaped dollar.** The prose escaper handled `$ # @ < >` and backticks but not the backslash, so the spec-valid CommonMark escape `\$` (the standard way to write a literal dollar) became `\\$` — Typst read that as a literal backslash plus an unclosed math delimiter and aborted the entire document with `error: unclosed delimiter`. A backslash before a backtick broke the same way. Backslashes are now escaped first, so `\$` compiles cleanly; the same source already built via `--format pdf`
