@@ -2,7 +2,7 @@ module github.com/yeasy/mdpress
 
 go 1.26
 
-toolchain go1.26.3
+toolchain go1.26.7
 
 require (
 	github.com/alecthomas/chroma/v2 v2.26.1
