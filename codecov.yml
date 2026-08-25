@@ -1,0 +1,33 @@
+# Codecov configuration for mdPress.
+#
+# The repository used to carry a coverage threshold that nothing enforced:
+# scripts/ci-test.sh calls itself the "CI test runner" and exits 1 below 80%,
+# but no workflow ever invoked it, and the upload step below reports coverage
+# without gating on it. A threshold that only exists in an unused script reads
+# as enforcement while allowing coverage to regress on any green PR.
+#
+# Enforcement lives here instead, and is deliberately RELATIVE rather than a
+# fixed percentage: coverage is measured on ubuntu-latest, where Chrome- and
+# typst-dependent tests skip themselves, so the absolute number legitimately
+# differs from a developer's machine. Comparing a pull request against its base
+# commit is stable under that difference; a hard 80% line is not.
+coverage:
+  status:
+    project:
+      default:
+        # Fail only on a real regression, not on the noise of a few statements
+        # moving between covered and uncovered files.
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+    patch:
+      default:
+        # New and changed lines should arrive tested. Kept slightly below the
+        # project level so a small refactor is not blocked by an untestable line.
+        target: 70%
+        threshold: 5%
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: true
