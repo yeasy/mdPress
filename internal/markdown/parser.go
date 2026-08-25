@@ -74,9 +74,12 @@ func (p *Parser) initGoldmark() {
 		// Syntax highlighting. Class-based output (WithClasses) keeps token
 		// colors out of inline style attributes; the matching stylesheets come
 		// from HighlightCSSLight/HighlightCSSDark so code stays readable when
-		// the reader toggles light/dark mode. Unknown theme names are resolved
-		// to defaultCodeTheme so the emitted mode class ("chroma light"/"chroma
-		// dark") always matches the generated stylesheets.
+		// the reader toggles light/dark mode. Light/dark is selected by
+		// mdpress's own html[data-theme] selectors, never by chroma's style
+		// mode: chroma < 2.27 appended a mode class ("chroma light") to the
+		// <pre>, which chromaCSS had to strip back out to keep the rules
+		// matching; 2.27 made that class opt-in, so both sides now agree on a
+		// bare ".chroma" without the workaround doing anything.
 		highlighting.NewHighlighting(
 			highlighting.WithStyle(resolveCodeTheme(p.codeTheme)),
 			highlighting.WithFormatOptions(

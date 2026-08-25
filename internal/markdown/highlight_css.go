@@ -94,9 +94,13 @@ func darkBaseTextColor(styleName string) string {
 	return ""
 }
 
-// chromaCSS renders the class-based stylesheet for a registered chroma style
-// and strips the style's mode class (".chroma.light" -> ".chroma") so the
-// rules match the parser's output regardless of the style's light/dark mode.
+// chromaCSS renders the class-based stylesheet for a registered chroma style.
+//
+// It also strips a style mode class (".chroma.light" -> ".chroma") so the rules
+// match the parser's output regardless of the style's light/dark mode. Since
+// chroma 2.27 that substitution is a no-op — mode classes became opt-in via
+// WithModeClasses, which mdpress does not enable — but it is kept so a style
+// that reintroduces one cannot silently stop matching the emitted markup.
 func chromaCSS(styleName string) string {
 	style := styles.Get(styleName)
 	formatter := chromahtml.New(
