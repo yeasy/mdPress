@@ -2031,3 +2031,33 @@ func TestEpubOmitsEmptyCreator(t *testing.T) {
 		t.Errorf("an unset author should omit dc:creator entirely:\n%s", opf)
 	}
 }
+
+// TestEpubRemoteResourcePropertyOnDegradedImage pins that a chapter which kept
+// a remote <img> — the documented fallback when the download fails — declares
+// properties="remote-resources" in the OPF manifest. Without it epubcheck
+// reports OPF-014 on a book mdpress just reported as built.
+func TestEpubRemoteResourceManifestProperty(t *testing.T) {
+	if got := epubChapterHasRemoteResource(`<p><img src="https://example.com/x.png"></p>`); !got {
+		t.Error("a remote img src should be detected as a remote resource")
+	}
+	if got := epubChapterHasRemoteResource(`<p><a href='http://example.com'>x</a></p>`); !got {
+		t.Error("a remote href should be detected as a remote resource")
+	}
+	if got := epubChapterHasRemoteResource(`<p><img src="images/local.png"> and text</p>`); got {
+		t.Error("a purely local chapter must not be marked as carrying remote resources")
+	}
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Remote"})
+	chapters := []EpubChapter{
+		{Title: "R", ID: "r", Filename: "r.xhtml",
+			HTML: `<p><img src="https://unreachable.invalid/x.png" alt="b"></p>`},
+		{Title: "L", ID: "l", Filename: "l.xhtml", HTML: `<p>purely local</p>`},
+	}
+	opf := gen.generateOPF(chapters, nil, nil)
+	if !strings.Contains(opf, `href="r.xhtml" media-type="application/xhtml+xml" properties="remote-resources"`) {
+		t.Errorf("chapter with a remote image is missing remote-resources:\n%s", opf)
+	}
+	if strings.Contains(opf, `href="l.xhtml" media-type="application/xhtml+xml" properties=`) {
+		t.Errorf("local-only chapter must not declare remote-resources:\n%s", opf)
+	}
+}

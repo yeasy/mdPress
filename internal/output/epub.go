@@ -442,9 +442,18 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 		// Chapters containing math embed KaTeX <script> tags and remote CDN
 		// resources; EPUB 3 requires those manifest items to declare the
 		// "scripted" and "remote-resources" properties to validate.
-		props := ""
-		if epubChapterHasMath(ch.HTML) {
+		//
+		// A chapter can also reference a remote resource without any math: when
+		// an image cannot be downloaded the build degrades by keeping the
+		// original <img src="https://…">, and that chapter must declare
+		// remote-resources too or epubcheck reports OPF-014 on a book mdpress
+		// just called successful.
+		var props string
+		switch {
+		case epubChapterHasMath(ch.HTML):
 			props = ` properties="scripted remote-resources"`
+		case epubChapterHasRemoteResource(ch.HTML):
+			props = ` properties="remote-resources"`
 		}
 		fmt.Fprintf(&b, "    <item id=\"ch%d\" href=\"%s\" media-type=\"application/xhtml+xml\"%s/>\n",
 			i, epubHref(ch.Filename), props)
@@ -797,6 +806,17 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 
 // epubChapterHasMath reports whether chapter HTML contains math markup
 // (Goldmark math extension output), which is rendered via KaTeX scripts.
+// epubRemoteResourcePattern matches an http(s) URL in a src/href/poster
+// attribute — what is left in a chapter when a remote asset could not be
+// packaged locally.
+var epubRemoteResourcePattern = regexp.MustCompile(`(?i)\s(?:src|href|poster)\s*=\s*["']https?://`)
+
+// epubChapterHasRemoteResource reports whether a chapter still points at a
+// resource outside the container.
+func epubChapterHasRemoteResource(html string) bool {
+	return epubRemoteResourcePattern.MatchString(html)
+}
+
 func epubChapterHasMath(html string) bool {
 	return strings.Contains(html, `class="math `)
 }
