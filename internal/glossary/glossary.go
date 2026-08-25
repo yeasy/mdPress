@@ -28,13 +28,21 @@ import (
 const maxGlossaryLineSize = 1024 * 1024
 
 // Package-level compiled regexps to avoid recompilation in hot paths.
-// The skip pattern covers every region a term must not be rewritten in: an
-// existing anchor (a term already linked, or a term appearing inside the
-// author's own link — nesting <a> there would be invalid HTML) and any tag,
-// so terms are never matched inside attribute values.
+// The skip pattern covers every region a term must not be rewritten in:
+//
+//   - code, block and inline: a sample is meant to be read verbatim, and
+//     splicing an <a> into it changes the very text the page is displaying;
+//   - headings: the heading is already a link target, and nesting an anchor
+//     inside it makes the rendered heading disagree with the table of contents
+//     entry derived from the same text;
+//   - an existing anchor (a term already linked, or a term appearing inside the
+//     author's own link — nesting <a> there would be invalid HTML);
+//   - any tag, so terms are never matched inside attribute values.
+//
+// The container alternatives come first so they win over the bare-tag branch.
 var (
 	slugifyRegexp       = regexp.MustCompile(`[^a-z0-9\-\p{L}]`)
-	glossarySkipPattern = regexp.MustCompile(`(?s)<a\b[^>]*>.*?</a>|<[^>]+>`)
+	glossarySkipPattern = regexp.MustCompile(`(?is)<pre\b[^>]*>.*?</pre>|<code\b[^>]*>.*?</code>|<h[1-6]\b[^>]*>.*?</h[1-6]>|<a\b[^>]*>.*?</a>|<[^>]+>`)
 )
 
 // Term represents a single glossary entry.

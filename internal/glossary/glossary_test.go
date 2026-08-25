@@ -265,3 +265,37 @@ func TestProcessHTMLMatchingRules(t *testing.T) {
 		t.Errorf("expected 2 linked occurrences, got %d: %s", got, result)
 	}
 }
+
+// TestProcessHTMLSkipsCodeAndHeadings pins that auto-linking never rewrites a
+// term inside a code block, an inline code span, or a heading. Splicing an <a>
+// into a code sample changes the very text the page is displaying, and a link
+// nested in a heading makes the rendered heading disagree with the table of
+// contents entry derived from the same text.
+func TestProcessHTMLSkipsCodeAndHeadings(t *testing.T) {
+	g := &Glossary{Terms: []Term{{Name: "API", Definition: "An interface."}}}
+	g.prepare()
+
+	cases := []struct {
+		name string
+		in   string
+	}{
+		{"fenced code", `<pre><code>API in fence</code></pre>`},
+		{"inline code", `<p>Use <code>API</code> here.</p>`},
+		{"highlighted code", `<pre class="chroma"><code><span>API</span></code></pre>`},
+		{"heading h2", `<h2 id="x">API in a heading</h2>`},
+		{"existing link", `<p><a href="/x">API</a></p>`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := g.ProcessHTML(tc.in); strings.Contains(got, "glossary-term") {
+				t.Errorf("term linked where it must not be:\n in:  %s\n out: %s", tc.in, got)
+			}
+		})
+	}
+
+	// Ordinary prose must still be linked.
+	prose := `<p>The API is documented.</p>`
+	if got := g.ProcessHTML(prose); !strings.Contains(got, "glossary-term") {
+		t.Errorf("prose term stopped being linked: %s", got)
+	}
+}
