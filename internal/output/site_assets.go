@@ -70,20 +70,40 @@ func newAssetExtractor(outputDir string) *assetExtractor {
 // the page at pageFilename. Images it cannot decode or name are left inline,
 // so a page never loses an image to this pass.
 func (a *assetExtractor) Extract(html, pageFilename string) (string, error) {
+	// One pass with explicit match indices, rather than ReplaceAllStringFunc.
+	// The callback form hands back only the matched text, so recovering the
+	// media type and payload meant running the same pattern a second time over
+	// that match -- and a match here is an entire base64 image, hundreds of
+	// kilobytes of it. On a book with one banner repeated across 200 chapters
+	// that second scan was the single most expensive thing in a site build.
+	locs := dataURIPattern.FindAllStringSubmatchIndex(html, -1)
+	if len(locs) == 0 {
+		return html, nil
+	}
+
 	var firstErr error
-	result := dataURIPattern.ReplaceAllStringFunc(html, func(match string) string {
-		parts := dataURIPattern.FindStringSubmatch(match)
-		if len(parts) != 3 {
-			return match
+	var b strings.Builder
+	b.Grow(len(html))
+	last := 0
+	for _, m := range locs {
+		b.WriteString(html[last:m[0]])
+		match := html[m[0]:m[1]]
+		last = m[1]
+
+		if m[2] < 0 || m[4] < 0 {
+			b.WriteString(match)
+			continue
 		}
-		mediaType, payload := parts[1], parts[2]
+		mediaType, payload := html[m[2]:m[3]], html[m[4]:m[5]]
 		ext, known := dataURIExtensions[strings.ToLower(mediaType)]
 		if !known {
-			return match
+			b.WriteString(match)
+			continue
 		}
 		data, err := base64.StdEncoding.DecodeString(payload)
 		if err != nil {
-			return match // not something we can write out; keep it inline
+			b.WriteString(match) // not something we can write out; keep it inline
+			continue
 		}
 
 		sum := sha256.Sum256(data)
@@ -95,13 +115,17 @@ func (a *assetExtractor) Extract(html, pageFilename string) (string, error) {
 				if firstErr == nil {
 					firstErr = err
 				}
-				return match
+				b.WriteString(match)
+				continue
 			}
 			a.names[hash] = name
 		}
-		return `src="` + relativeSiteHref(pageFilename, siteAssetDir+"/"+name) + `"`
-	})
-	return result, firstErr
+		b.WriteString(`src="`)
+		b.WriteString(relativeSiteHref(pageFilename, siteAssetDir+"/"+name))
+		b.WriteString(`"`)
+	}
+	b.WriteString(html[last:])
+	return b.String(), firstErr
 }
 
 // write stores one asset under the output directory's asset folder.

@@ -220,12 +220,19 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		return err
 	}
 
-	// Render every page.
+	// Render every page. Each page's extracted content is kept so the search
+	// index below can reuse it instead of re-scanning the original: before
+	// extraction the HTML still carries every image inline as base64, and
+	// stripping tags from that is the same work over a string orders of
+	// magnitude larger, for an identical result (the base64 lives inside an
+	// <img> tag and is discarded either way).
+	extracted := make([]string, len(flatPages))
 	for i, page := range flatPages {
 		pageContent, err := assets.Extract(page.Content, page.Filename)
 		if err != nil {
 			return err
 		}
+		extracted[i] = pageContent
 		var prevLink, nextLink, prevTitle, nextTitle string
 		if i > 0 {
 			prevLink = flatPages[i-1].Filename
@@ -408,8 +415,8 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 	// Generate search-index.json for client-side full-text search.
 	if len(flatPages) > 0 {
 		entries := make([]searchEntry, 0, len(flatPages))
-		for _, page := range flatPages {
-			plainText := htmlTagPattern.ReplaceAllString(page.Content, " ")
+		for i, page := range flatPages {
+			plainText := htmlTagPattern.ReplaceAllString(extracted[i], " ")
 			plainText = html.UnescapeString(plainText)
 			plainText = strings.Join(strings.Fields(plainText), " ")
 			if utf8.RuneCountInString(plainText) > maxSearchTextLength {
