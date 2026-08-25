@@ -207,20 +207,37 @@ func (c *MarkdownToTypstConverter) convertInline(text string) string {
 	})
 }
 
-// typstProseReplacer escapes Typst control characters that appear in ordinary
-// prose and would otherwise break compilation (\, $, #, @, <, >, `). It
-// deliberately does NOT touch '*' or '_' (used for bold/italic conversion) or
-// brackets/parens.
+// typstProseSpecials are the characters that must be escaped when they appear
+// BARE in prose, because Typst gives them syntactic meaning: $ opens math, #
+// starts code, @ a reference, < > a label, and a backtick a raw block. '*' and
+// '_' are deliberately absent — the bold/italic passes below consume those.
+var typstProseSpecials = [256]bool{'$': true, '#': true, '@': true, '<': true, '>': true, '`': true}
+
+// isASCIIPunct reports whether c is one of CommonMark's ASCII punctuation
+// characters, i.e. the set a backslash may legally escape.
+func isASCIIPunct(c byte) bool {
+	return (c >= '!' && c <= '/') || (c >= ':' && c <= '@') ||
+		(c >= '[' && c <= '`') || (c >= '{' && c <= '~')
+}
+
+// escapeTypstProse escapes Typst control characters in a plain-text prose
+// segment. It runs after image/link markup has been protected so that Typst
+// markup and URLs (which may legitimately contain '#', '@', etc.) are untouched.
 //
-// The backslash rule comes first and matters most: a backslash already present
-// in the prose (e.g. the CommonMark escape "\$", the spec-valid way to write a
-// literal dollar) would otherwise combine with the escape we add for the next
-// character. strings.NewReplacer scans left to right without re-processing its
-// own output, so "\$" becomes "\\\$" — Typst reads that as a literal backslash
-// followed by a literal dollar. Without this rule "\$" became "\\$", where
-// Typst reads "\\" as a literal backslash and the trailing "$" as an unclosed
-// math delimiter, aborting compilation of the whole document; "\`" broke the
-// same way via an unclosed raw block.
+// A backslash already present in the prose must be handled together with the
+// character it precedes, not independently. CommonMark says a backslash before
+// ASCII punctuation escapes that character, and Typst spells the very same
+// escape identically, so such a pair is passed through verbatim: "\$" stays
+// "\$" (a literal dollar, no math) and "\*" stays "\*" (a literal asterisk).
+// Escaping the two characters independently is what broke compilation in both
+// directions — leaving the backslash alone turned "\$" into "\\$", a literal
+// backslash plus an unclosed math delimiter, while doubling every backslash
+// turned "\*" into "\\*", a literal backslash plus an unclosed strong-emphasis
+// marker. Either aborts the whole document with "unclosed delimiter".
+//
+// A backslash that is not part of such a pair (before a letter, or at the end
+// of the input) is a literal backslash and is doubled, so a Windows path like
+// C:\Users\alice survives.
 //
 // Backticks are escaped here even though matched code spans are extracted
 // upstream: an UNMATCHED backtick run still reaches prose escaping (e.g. the
@@ -228,21 +245,29 @@ func (c *MarkdownToTypstConverter) convertInline(text string) string {
 // and a bare ``` run left verbatim opens a Typst raw block that swallows the
 // rest of the document — the compile then fails with "unclosed raw text". A
 // literal backtick in Typst is written "\`".
-var typstProseReplacer = strings.NewReplacer(
-	"\\", "\\\\",
-	"$", "\\$",
-	"#", "\\#",
-	"@", "\\@",
-	"<", "\\<",
-	">", "\\>",
-	"`", "\\`",
-)
-
-// escapeTypstProse escapes Typst control characters in a plain-text prose
-// segment. It runs after image/link markup has been protected so that Typst
-// markup and URLs (which may legitimately contain '#', '@', etc.) are untouched.
 func escapeTypstProse(text string) string {
-	return typstProseReplacer.Replace(text)
+	var b strings.Builder
+	b.Grow(len(text) + len(text)/8)
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		if c == '\\' {
+			if i+1 < len(text) && isASCIIPunct(text[i+1]) {
+				// Already a valid escape in both CommonMark and Typst.
+				b.WriteByte('\\')
+				b.WriteByte(text[i+1])
+				i++
+				continue
+			}
+			// A lone backslash means a literal backslash.
+			b.WriteString(`\\`)
+			continue
+		}
+		if typstProseSpecials[c] {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
 }
 
 // typstMarkupPattern matches the markup emitted by convertImages/convertLinks
@@ -295,9 +320,25 @@ func (c *MarkdownToTypstConverter) processOutsideCodeSpans(text string, fn func(
 
 		if backtickLen == 0 {
 			// Not a backtick — accumulate regular text until next backtick or end.
+			// A backslash consumes the character after it, so an ESCAPED backtick
+			// (\`) stays inside this prose run instead of being taken for a code
+			// span delimiter. CommonMark agrees: an escaped backtick cannot open a
+			// code span. Splitting the pair here used to strand the backslash at
+			// the end of one segment and the backtick at the start of the next, so
+			// each was escaped on its own and the reader saw a stray backslash.
 			start := i
-			for i < len(text) && text[i] != '`' {
+			for i < len(text) {
+				if text[i] == '\\' && i+1 < len(text) {
+					i += 2
+					continue
+				}
+				if text[i] == '`' {
+					break
+				}
 				i++
+			}
+			if i > len(text) {
+				i = len(text)
 			}
 			result.WriteString(fn(text[start:i]))
 			continue

@@ -893,25 +893,37 @@ func TestEdgeCasesWithSpecialCharacters(t *testing.T) {
 	}
 }
 
-// TestTypstProseEscapesBackslash pins the escaping of a backslash that precedes
-// a Typst-special character. The CommonMark escape `\$` (the spec-valid way to
-// write a literal dollar) must not degrade into `\\$`, which Typst reads as a
-// literal backslash followed by an unclosed math delimiter — a whole-document
-// compile failure. See internal/typst/converter.go typstProseReplacer.
+// TestTypstProseEscapesBackslash pins how a backslash already present in the
+// prose is handled. It must be processed together with the character it
+// precedes: CommonMark and Typst spell a punctuation escape identically, so a
+// valid pair passes through verbatim. Escaping the two independently broke
+// compilation in both directions — "\$" became "\\$" (literal backslash + an
+// unclosed math delimiter) when the backslash was ignored, and "\*" became
+// "\\*" (literal backslash + an unclosed strong-emphasis marker) when every
+// backslash was doubled. See internal/typst/converter.go escapeTypstProse.
 func TestTypstProseEscapesBackslash(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string
 		want string
 	}{
-		// `\$` -> literal backslash + literal dollar: `\\` then `\$`.
-		{"escaped dollar", `\$`, `\\\$`},
-		// `\` + backtick: `\\` then `` \` ``.
-		{"escaped backtick", "\\`", "\\\\\\`"},
-		// A lone backslash is doubled so Typst renders it literally.
+		// Valid CommonMark escapes are already valid Typst escapes.
+		{"escaped dollar", `\$`, `\$`},
+		{"escaped hash", `\#`, `\#`},
+		{"escaped asterisk", `\*`, `\*`},
+		{"escaped underscore", `\_`, `\_`},
+		{"escaped bracket", `\[`, `\[`},
+		{"escaped backtick", "\\`", "\\`"},
+		{"escaped backslash", `\\`, `\\`},
+		// A backslash that escapes nothing is a literal backslash.
 		{"lone backslash", `\`, `\\`},
-		// Backslash before a non-special char: only the backslash is escaped.
 		{"backslash before letter", `\n`, `\\n`},
+		{"windows path", `C:\Users\alice`, `C:\\Users\\alice`},
+		// Bare specials still get escaped.
+		{"bare dollar", `$5`, `\$5`},
+		{"bare hash", `#tag`, `\#tag`},
+		// Bare emphasis markers are left for the bold/italic passes.
+		{"bare asterisk untouched", `*bold*`, `*bold*`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -921,12 +933,43 @@ func TestTypstProseEscapesBackslash(t *testing.T) {
 		})
 	}
 
-	// End-to-end: a prose sentence with an escaped dollar must not emit the
-	// broken `\\$` sequence that opens unclosed math mode.
+	// End-to-end: neither an escaped dollar nor an escaped asterisk may emit a
+	// doubled backslash, which is what opened the unclosed delimiter.
 	conv := &MarkdownToTypstConverter{}
-	out := conv.Convert(`You owe me \$100.`)
-	if !strings.Contains(out, `\\\$100`) {
-		t.Errorf("expected escaped `\\\\\\$100` in output, got %q", out)
+	for _, in := range []string{`You owe me \$100.`, `A literal \* asterisk.`} {
+		if out := conv.Convert(in); strings.Contains(out, `\\`) {
+			t.Errorf("Convert(%q) emitted a doubled backslash: %q", in, out)
+		}
+	}
+}
+
+// TestTypstEscapedBacktickNotACodeSpan pins that an escaped backtick stays in
+// the prose run instead of being taken for a code-span delimiter. Splitting the
+// pair stranded the backslash at the end of one segment and the backtick at the
+// start of the next, so each was escaped separately and the reader saw a stray
+// backslash before the tick.
+func TestTypstEscapedBacktickNotACodeSpan(t *testing.T) {
+	conv := &MarkdownToTypstConverter{}
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"escaped backtick", "a \\` b", "a \\` b"},
+		{"escaped dollar and backtick", "owe \\$1 and \\`tick", "owe \\$1 and \\`tick"},
+		// A real code span is still preserved verbatim.
+		{"code span intact", "code `x` span", "code `x` span"},
+		// A bare, unmatched backtick is still escaped so it cannot open a raw block.
+		{"bare backtick escaped", "plain ` unmatched", "plain \\` unmatched"},
+		// An escaped backslash does not swallow the following code span.
+		{"escaped backslash then span", "a \\\\ `code` b", "a \\\\ `code` b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := conv.Convert(tt.in); !strings.Contains(got, tt.want) {
+				t.Errorf("Convert(%q) = %q, want it to contain %q", tt.in, got, tt.want)
+			}
+		})
 	}
 }
 
