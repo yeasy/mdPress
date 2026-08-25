@@ -280,7 +280,50 @@ func mathProcessOutsideCodeSpans(text string, fn func(string) string) string {
 //
 // KaTeX auto-render is configured with $$ and $ delimiters, so it scans the
 // text nodes inside these spans and renders the LaTeX.
+// postprocess restores math placeholders in the rendered HTML.
+//
+// Restoration is split by context. Outside code, a placeholder becomes the
+// KaTeX-recognizable span. Inside a <pre> block it becomes the ORIGINAL source
+// text instead: goldmark turns a CommonMark indented (4-space) code block into
+// <pre><code>, and the preprocessor — which only knows about fenced blocks —
+// had already tokenized any $...$ on those lines, so a blind replacement
+// injected a rendered formula into a code sample that is supposed to be
+// verbatim. Deciding this here, after goldmark has classified the blocks, is
+// what keeps a list-continuation paragraph (also indented, but not code) from
+// losing its math.
 func (m *mathPreprocessor) postprocess(htmlStr string) string {
+	if len(m.blocks) == 0 && len(m.inlines) == 0 {
+		return htmlStr
+	}
+	var out strings.Builder
+	out.Grow(len(htmlStr))
+	rest := htmlStr
+	for {
+		open := strings.Index(rest, "<pre")
+		if open < 0 {
+			out.WriteString(m.restoreHTML(rest, false))
+			break
+		}
+		closeIdx := strings.Index(rest[open:], "</pre>")
+		if closeIdx < 0 {
+			out.WriteString(m.restoreHTML(rest, false))
+			break
+		}
+		end := open + closeIdx + len("</pre>")
+		out.WriteString(m.restoreHTML(rest[:open], false))
+		out.WriteString(m.restoreHTML(rest[open:end], true))
+		rest = rest[end:]
+	}
+	return out.String()
+}
+
+// restoreHTML swaps placeholders in one region. When inCode is true the
+// original "$...$" source is written back verbatim (HTML-escaped) rather than a
+// math span, so a code sample keeps showing the characters the author typed.
+func (m *mathPreprocessor) restoreHTML(region string, inCode bool) string {
+	if !strings.Contains(region, "MDPMATH") {
+		return region
+	}
 	for i, content := range m.blocks {
 		placeholder := fmt.Sprintf(mathBlockFmt, i)
 		// HTML-escape the formula content to prevent XSS injection.
@@ -288,13 +331,19 @@ func (m *mathPreprocessor) postprocess(htmlStr string) string {
 		// browser-decoded text still contains the original LaTeX.
 		escaped := html.EscapeString(content)
 		replacement := `<span class="math math-display">$$` + escaped + `$$</span>`
-		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)
+		if inCode {
+			replacement = "$$" + escaped + "$$"
+		}
+		region = strings.ReplaceAll(region, placeholder, replacement)
 	}
 	for i, content := range m.inlines {
 		placeholder := fmt.Sprintf(mathInlineFmt, i)
 		escaped := html.EscapeString(content)
 		replacement := `<span class="math math-inline">$` + escaped + `$</span>`
-		htmlStr = strings.ReplaceAll(htmlStr, placeholder, replacement)
+		if inCode {
+			replacement = "$" + escaped + "$"
+		}
+		region = strings.ReplaceAll(region, placeholder, replacement)
 	}
-	return htmlStr
+	return region
 }

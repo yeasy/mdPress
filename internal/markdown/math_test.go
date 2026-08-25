@@ -232,3 +232,36 @@ func TestParserWithMath(t *testing.T) {
 		t.Errorf("expected display math span in output, got: %q", html)
 	}
 }
+
+// TestMathNotRenderedInsideIndentedCode pins that a CommonMark indented
+// (4-space) code block keeps its dollar expressions verbatim. The preprocessor
+// only knows about fenced blocks, so it tokenizes $...$ on indented lines too;
+// restoring those as a KaTeX span injected a rendered formula into a code
+// sample that must stay literal. The same test guards the other direction: an
+// indented list continuation is NOT code, and its math must still render.
+func TestMathNotRenderedInsideIndentedCode(t *testing.T) {
+	src := "# T\n\nIndented code:\n\n    total = $x_1$ + tax\n    echo $x_1$\n\n" +
+		"A list:\n\n- item one\n\n    Continuation with math $y_2$ here.\n"
+	out, _, err := NewParser().Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	start := strings.Index(out, "<pre")
+	end := strings.Index(out, "</pre>")
+	if start < 0 || end < start {
+		t.Fatalf("expected a <pre> block in output:\n%s", out)
+	}
+	code := out[start : end+len("</pre>")]
+	if strings.Contains(code, `class="math`) {
+		t.Errorf("math span injected into an indented code block:\n%s", code)
+	}
+	if !strings.Contains(code, "$x_1$") {
+		t.Errorf("indented code lost its literal $x_1$:\n%s", code)
+	}
+
+	body := out[:start] + out[end:]
+	if !strings.Contains(body, `class="math`) || !strings.Contains(body, "y_2") {
+		t.Errorf("math outside code stopped rendering (list continuation regressed):\n%s", body)
+	}
+}
