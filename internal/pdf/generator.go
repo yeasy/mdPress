@@ -995,6 +995,22 @@ func (e *printTimeoutError) Error() string {
 
 // timeoutError returns a printTimeoutError when ctx died of its deadline rather
 // than of an actual cancellation, and nil otherwise.
+// describePrintError turns Chrome's print failures into something a book
+// author can act on. Margins that leave no room for content come back as a bare
+// CDP code ("content area is empty (-32602)") that names neither the setting
+// nor the arithmetic behind it, so the reader had no way to know which value to
+// change.
+func (g *Generator) describePrintError(err error) error {
+	if strings.Contains(err.Error(), "content area is empty") {
+		return fmt.Errorf("page margins leave no room for content: "+
+			"left+right = %gmm and top+bottom = %gmm on a %g x %gmm page "+
+			"(check output.margin_* and style.margin in book.yaml): %w",
+			g.marginLeft+g.marginRight, g.marginTop+g.marginBottom,
+			g.pageWidth, g.pageHeight, err)
+	}
+	return fmt.Errorf("chromedp print to PDF: %w", err)
+}
+
 func (g *Generator) timeoutError(ctx context.Context, stage string) error {
 	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return nil
@@ -1128,7 +1144,10 @@ func (g *Generator) printOnce(browserCtx context.Context, pageURL string) ([]byt
 			}
 			pdfBuf, _, err = cmd.Do(ctx)
 			if err != nil {
-				return fmt.Errorf("chromedp print to PDF: %w", err)
+				// Chrome reports margins that leave no room for content as a
+				// bare CDP code. Name the settings and the arithmetic instead,
+				// so the reader knows which value to change.
+				return g.describePrintError(err)
 			}
 			return nil
 		}),

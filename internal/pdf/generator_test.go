@@ -957,3 +957,33 @@ func TestFilterChromiumCLIFlags(t *testing.T) {
 		})
 	}
 }
+
+// TestDescribePrintErrorNamesMargins pins that Chrome's bare "content area is
+// empty" CDP code is translated into a message naming the settings and the
+// arithmetic, instead of leaving the author with an error code and no idea
+// which value to change.
+func TestDescribePrintErrorNamesMargins(t *testing.T) {
+	g := &Generator{
+		pageWidth: 210, pageHeight: 297,
+		marginLeft: 999, marginRight: 20, marginTop: 20, marginBottom: 20,
+	}
+	got := g.describePrintError(errors.New("invalid print parameters: content area is empty (-32602)")).Error()
+	for _, want := range []string{
+		"page margins leave no room for content",
+		"left+right = 1019mm",
+		"top+bottom = 40mm",
+		"210 x 297mm",
+		"output.margin_*",
+		"content area is empty",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("describePrintError message missing %q; got: %s", want, got)
+		}
+	}
+
+	// An unrelated print failure keeps its original wrapping.
+	other := g.describePrintError(errors.New("some other cdp failure")).Error()
+	if !strings.Contains(other, "chromedp print to PDF") {
+		t.Errorf("unrelated error lost its wrapping: %s", other)
+	}
+}

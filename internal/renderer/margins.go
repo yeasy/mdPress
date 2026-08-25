@@ -9,6 +9,7 @@
 package renderer
 
 import (
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -34,16 +35,27 @@ func resolveMargins(cfg *config.BookConfig) pageMargins {
 		Left:   cfg.Style.Margin.Left,
 	}
 	for _, edge := range []struct {
+		key string
 		raw string
 		dst *float64
 	}{
-		{cfg.Output.MarginTop, &m.Top},
-		{cfg.Output.MarginRight, &m.Right},
-		{cfg.Output.MarginBottom, &m.Bottom},
-		{cfg.Output.MarginLeft, &m.Left},
+		{"output.margin_top", cfg.Output.MarginTop, &m.Top},
+		{"output.margin_right", cfg.Output.MarginRight, &m.Right},
+		{"output.margin_bottom", cfg.Output.MarginBottom, &m.Bottom},
+		{"output.margin_left", cfg.Output.MarginLeft, &m.Left},
 	} {
 		if mm, ok := parseLengthMM(edge.raw); ok {
 			*edge.dst = mm
+			continue
+		}
+		// Keeping the style.margin value is the safe fallback, but doing it
+		// silently left the reader with a page that ignored a setting they had
+		// written down and could still see in `mdpress config show`. Name the
+		// key and the value so the typo is findable.
+		if strings.TrimSpace(edge.raw) != "" {
+			slog.Warn("invalid page margin; ignoring it and keeping style.margin",
+				slog.String("key", edge.key), slog.String("value", edge.raw),
+				slog.String("expected", "a non-negative CSS absolute length such as 20mm, 0.8in, 2cm, 24pt, or a bare number of millimeters"))
 		}
 	}
 	return m

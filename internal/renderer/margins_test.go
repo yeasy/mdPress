@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"bytes"
+	"log/slog"
 	"math"
 	"strings"
 	"testing"
@@ -151,4 +153,42 @@ func TestFirstPageKeepsMarginsWithoutACover(t *testing.T) {
 			t.Errorf("the first page lost its margins:\n%s", r.buildPrintCSS())
 		}
 	})
+}
+
+// TestResolveMarginsWarnsOnInvalidValue pins that a margin the user wrote but
+// mdpress cannot parse is reported. Keeping the style.margin value is the safe
+// fallback, but doing it silently left the author with a page that ignored a
+// setting they could still see in `mdpress config show`.
+func TestResolveMarginsWarnsOnInvalidValue(t *testing.T) {
+	capture := func(cfg *config.BookConfig) string {
+		var buf bytes.Buffer
+		prev := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+		defer slog.SetDefault(prev)
+		resolveMargins(cfg)
+		return buf.String()
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Style.Margin.Top = 25
+	cfg.Output.MarginTop = "banana"
+	out := capture(cfg)
+	for _, want := range []string{"invalid page margin", "output.margin_top", "banana"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("warning missing %q; got: %s", want, out)
+		}
+	}
+	// The safe fallback still applies.
+	if got := resolveMargins(cfg).Top; got != 25 {
+		t.Errorf("Top = %v, want the style.margin fallback 25", got)
+	}
+
+	// A valid value and an empty value must not warn.
+	for _, v := range []string{"", "20mm", "0.8in", "24pt", "15"} {
+		c := config.DefaultConfig()
+		c.Output.MarginTop = v
+		if out := capture(c); strings.Contains(out, "invalid page margin") {
+			t.Errorf("value %q should not warn; got: %s", v, out)
+		}
+	}
 }
