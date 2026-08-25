@@ -8,10 +8,21 @@ updates:
     target-branch: main
     open-pull-requests-limit: 5
 
-  # GitHub Actions scanning
+  # GitHub Actions scanning. Actions are pinned to commit SHAs in the
+  # workflows; this updater is what keeps those SHAs current, so the pinning
+  # costs no ongoing effort.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     target-branch: main
     open-pull-requests-limit: 5
+    ignore:
+      # cosign 4.x is not a drop-in replacement here: it was adopted once and
+      # reverted, because sign-blob no longer matched the signing configuration
+      # the release uses. Without this rule Dependabot re-proposes the same
+      # known-broken major bump every week, and merging it breaks release
+      # signing rather than failing loudly in CI. Minor and patch updates to
+      # the 3.x line still come through.
+      - dependency-name: "sigstore/cosign-installer"
+        update-types: ["version-update:semver-major"]
