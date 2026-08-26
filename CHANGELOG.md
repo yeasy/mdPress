@@ -16,7 +16,7 @@ A follow-up audit fanned twelve expert lenses across the tree and adversarially 
 
 ### Performance
 
-- **Site builds are 2.6x faster on books with images, and the `serve` writing loop twice as fast.** Profiling a 200-chapter book sharing one 315 KB banner put two thirds of the build in two places that each did the same work twice over strings the size of the images: the asset extractor re-ran its pattern over every match (a match being an entire base64 image), and the search index stripped tags from the pre-extraction HTML although the extracted content was already at hand. Measured end to end: site build 6.54s → 2.51s, and `serve` rebuild-to-reload 8.10s → 4.07s. Output is byte-identical, search index included
+- **Site builds are roughly 16x faster on books with images, and the `serve` writing loop follows.** Profiling a 200-chapter book sharing one 315 KB banner found two thirds of the build doing the same work twice over strings the size of the images themselves: the asset extractor re-ran its pattern over every match (a match being an entire base64 image), and the search index stripped tags from the pre-extraction HTML although the extracted content was already at hand. Removing that left one regexp accounting for 81% of what remained — it walked each base64 payload a byte at a time, decoding every byte as a rune though base64 is ASCII — so the data-URI scan is now a literal search. End to end: site build 6.54s → 0.4s, and `serve` rebuild-to-reload 8.10s → 4.07s after the first change alone. Output is byte-identical throughout, search index included
 
 ### Fixed
 
