@@ -20,7 +20,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -37,8 +36,72 @@ const siteAssetDir = "assets"
 // the next build's atomic swap.
 const staticSourceDir = "static"
 
-// dataURIPattern matches a base64 image data URI inside a src attribute.
-var dataURIPattern = regexp.MustCompile(`src="data:(image/[a-zA-Z0-9.+-]+);base64,([^"]+)"`)
+// dataURIPrefix opens the only construct findDataURIs matches.
+const dataURIPrefix = `src="data:image/`
+
+// dataURISpan locates one base64 image data URI inside a src attribute:
+// src="data:<mediaType>;base64,<payload>"
+type dataURISpan struct {
+	start, end               int // the whole src="..." attribute
+	typeStart, typeEnd       int // the media type, including the "image/" prefix
+	payloadStart, payloadEnd int // the base64 payload
+}
+
+// findDataURIs returns every data-URI span in html, leftmost first and
+// non-overlapping.
+//
+// This replaces the equivalent regexp
+//
+//	src="data:(image/[a-zA-Z0-9.+-]+);base64,([^"]+)"
+//
+// which cost 81% of a site build. The payload is the bulk of the input and the
+// regexp engine walked it a byte at a time, decoding each one as a rune even
+// though base64 is ASCII by definition. Scanning for the fixed opening literal
+// lets strings.Index skip whole pages at memory speed, and the payload is then
+// bounded by a single quote search rather than a per-byte character-class test.
+func findDataURIs(html string) []dataURISpan {
+	var spans []dataURISpan
+	for pos := 0; pos < len(html); {
+		rel := strings.Index(html[pos:], dataURIPrefix)
+		if rel < 0 {
+			break
+		}
+		start := pos + rel
+		// Media type: "image/" plus at least one [a-zA-Z0-9.+-] character.
+		typeStart := start + len(`src="data:`)
+		i := typeStart + len("image/")
+		for i < len(html) && isMediaTypeByte(html[i]) {
+			i++
+		}
+		// A failed candidate must not consume the text it looked at: the next
+		// match may start inside it, exactly as the regexp engine would retry
+		// from the following byte.
+		if i == typeStart+len("image/") || !strings.HasPrefix(html[i:], ";base64,") {
+			pos = start + 1
+			continue
+		}
+		payloadStart := i + len(";base64,")
+		q := strings.IndexByte(html[payloadStart:], '"')
+		if q <= 0 { // no closing quote, or an empty payload
+			pos = start + 1
+			continue
+		}
+		payloadEnd := payloadStart + q
+		spans = append(spans, dataURISpan{
+			start: start, end: payloadEnd + 1,
+			typeStart: typeStart, typeEnd: i,
+			payloadStart: payloadStart, payloadEnd: payloadEnd,
+		})
+		pos = payloadEnd + 1
+	}
+	return spans
+}
+
+// isMediaTypeByte reports whether c may appear in the media subtype.
+func isMediaTypeByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' ||
+		c == '.' || c == '+' || c == '-'
+}
 
 // dataURIExtensions maps the media types the pipeline emits to file
 // extensions. Anything else keeps its data URI rather than being written out
@@ -76,8 +139,8 @@ func (a *assetExtractor) Extract(html, pageFilename string) (string, error) {
 	// that match -- and a match here is an entire base64 image, hundreds of
 	// kilobytes of it. On a book with one banner repeated across 200 chapters
 	// that second scan was the single most expensive thing in a site build.
-	locs := dataURIPattern.FindAllStringSubmatchIndex(html, -1)
-	if len(locs) == 0 {
+	spans := findDataURIs(html)
+	if len(spans) == 0 {
 		return html, nil
 	}
 
@@ -85,16 +148,12 @@ func (a *assetExtractor) Extract(html, pageFilename string) (string, error) {
 	var b strings.Builder
 	b.Grow(len(html))
 	last := 0
-	for _, m := range locs {
-		b.WriteString(html[last:m[0]])
-		match := html[m[0]:m[1]]
-		last = m[1]
+	for _, m := range spans {
+		b.WriteString(html[last:m.start])
+		match := html[m.start:m.end]
+		last = m.end
 
-		if m[2] < 0 || m[4] < 0 {
-			b.WriteString(match)
-			continue
-		}
-		mediaType, payload := html[m[2]:m[3]], html[m[4]:m[5]]
+		mediaType, payload := html[m.typeStart:m.typeEnd], html[m.payloadStart:m.payloadEnd]
 		ext, known := dataURIExtensions[strings.ToLower(mediaType)]
 		if !known {
 			b.WriteString(match)

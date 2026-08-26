@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -97,4 +98,49 @@ func TestAssetExtractorExtract(t *testing.T) {
 			t.Errorf("content without a data URI was modified:\n got: %s\nwant: %s", out, in)
 		}
 	})
+}
+
+// TestFindDataURIsMatchesRegexp is a differential test against the regexp the
+// scanner replaced. Scanning for a fixed literal is far faster than letting the
+// regexp engine walk each base64 payload byte by byte, but only if it accepts
+// exactly the same inputs -- so the two are compared directly on the awkward
+// cases: a missing subtype, a wrong encoding, an empty or unterminated payload,
+// one candidate nested inside another, and multibyte text either side.
+func TestFindDataURIsMatchesRegexp(t *testing.T) {
+	old := regexp.MustCompile(`src="data:(image/[a-zA-Z0-9.+-]+);base64,([^"]+)"`)
+	cases := []string{
+		``,
+		`no images at all`,
+		`src="data:image/png;base64,AAAA"`,
+		`<img src="data:image/png;base64,AAAA"><img src="data:image/jpeg;base64,BBBB">`,
+		`src="data:image/svg+xml;base64,QQ=="`,
+		`src="data:image/x-icon;base64,ZZ"`,
+		`src="data:image/vnd.microsoft.icon;base64,YY"`,
+		`src="data:image/;base64,AAAA"`,                    // no subtype
+		`src="data:image/png,AAAA"`,                        // missing ;base64,
+		`src="data:image/png;base32,AAAA"`,                 // wrong encoding
+		`src="data:image/png;base64,"`,                     // empty payload
+		`src="data:image/png;base64,AAAA`,                  // unterminated
+		`src="data:image/src="data:image/png;base64,AAAA"`, // candidate inside a candidate
+		`prefix src="data:image/png;base64,AA"suffix src="data:image/gif;base64,BB"`,
+		`src="data:image/PNG2;base64,CC"`,   // uppercase and digits in the subtype
+		`src="data:image/png;base64,AA"BB"`, // a quote ends the payload
+		`中文 src="data:image/png;base64,AAAA" 中文`,
+	}
+	for _, in := range cases {
+		want := old.FindAllStringSubmatchIndex(in, -1)
+		got := findDataURIs(in)
+		if len(want) != len(got) {
+			t.Errorf("input %q: regexp found %d matches, scanner found %d", in, len(want), len(got))
+			continue
+		}
+		for i := range want {
+			w, g := want[i], got[i]
+			if w[0] != g.start || w[1] != g.end || w[2] != g.typeStart ||
+				w[3] != g.typeEnd || w[4] != g.payloadStart || w[5] != g.payloadEnd {
+				t.Errorf("input %q match %d:\n regexp  = %v\n scanner = [%d %d %d %d %d %d]",
+					in, i, w[:6], g.start, g.end, g.typeStart, g.typeEnd, g.payloadStart, g.payloadEnd)
+			}
+		}
+	}
 }
