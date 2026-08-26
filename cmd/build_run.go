@@ -438,7 +438,11 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 		ChapterMarkdown:    chapterMarkdown,
 		CustomCSS:          customCSS,
 		SiteDir:            siteDir,
-		Logger:             logger,
+		// Any format other than the site itself writes its file into the base
+		// output directory, which is what makes an in-place site build
+		// necessary there.
+		SharesOutputDir: len(formats) > 1,
+		Logger:          logger,
 	}
 	registry := newFormatBuilderRegistry()
 

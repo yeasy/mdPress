@@ -1011,6 +1011,37 @@ func TestSiteBuilderSwapPrunesStalePages(t *testing.T) {
 	}
 }
 
+// TestSiteBuilderPrunesStalePagesInExplicitOutputDir covers `build --format
+// site -o dist`, where the site directory and the base output directory are the
+// same path. That coincidence used to force an in-place build -- a rule meant
+// for a directory a sibling format also writes into -- so a chapter dropped
+// from book.yaml kept its published page at the old URL for good. With the site
+// as the only format nothing else writes there, so the directory is replaced.
+func TestSiteBuilderPrunesStalePagesInExplicitOutputDir(t *testing.T) {
+	root := t.TempDir()
+	dist := filepath.Join(root, "dist")
+	bc := newSiteBuildContext(t, dist, nil)
+	bc.SharesOutputDir = false // site is the only requested format
+	base := filepath.Join(dist, "book")
+
+	if err := (&siteBuilder{}).Build(context.Background(), bc, base); err != nil {
+		t.Fatalf("first site build failed: %v", err)
+	}
+	stale := filepath.Join(dist, "stale.html")
+	if err := os.WriteFile(stale, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&siteBuilder{}).Build(context.Background(), bc, base); err != nil {
+		t.Fatalf("rebuild failed: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Error("a page removed from the book survived a rebuild into an explicit --output directory")
+	}
+	if _, err := os.Stat(filepath.Join(dist, "index.html")); err != nil {
+		t.Errorf("index.html missing after rebuild: %v", err)
+	}
+}
+
 // TestSiteBuilderOutputIsWorldReadable guards the published site root's mode.
 // The atomic swap renames a staging directory into place, and os.MkdirTemp
 // creates those at 0700 — a site root nobody but the owner can traverse means
@@ -1056,9 +1087,10 @@ func TestSiteBuilderRefusesForeignDirectory(t *testing.T) {
 }
 
 func TestSiteBuilderInPlaceWhenSharingOutputDir(t *testing.T) {
-	// --output <dir> makes the site share its directory with the other
-	// formats' files; the builder must generate in place without deleting
-	// sibling outputs.
+	// When another format writes into the same --output directory, the site
+	// must be generated in place: swapping the whole directory in would take
+	// the sibling's file with it. Sharing is what selects that path, so the
+	// context has to declare it.
 	root := t.TempDir()
 	sibling := filepath.Join(root, "book.pdf")
 	if err := os.WriteFile(sibling, []byte("pdf"), 0o644); err != nil {
@@ -1066,6 +1098,7 @@ func TestSiteBuilderInPlaceWhenSharingOutputDir(t *testing.T) {
 	}
 
 	bc := newSiteBuildContext(t, root, nil)
+	bc.SharesOutputDir = true
 	if err := (&siteBuilder{}).Build(context.Background(), bc, filepath.Join(root, "book")); err != nil {
 		t.Fatalf("in-place site build failed: %v", err)
 	}

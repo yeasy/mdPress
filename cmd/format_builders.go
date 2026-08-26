@@ -46,7 +46,13 @@ type buildContext struct {
 	// builds set this to "_book" (matching `mdpress serve`) or to an explicit
 	// --output directory.
 	SiteDir string
-	Logger  *slog.Logger
+	// SharesOutputDir reports whether another format writes files into the
+	// directory the site is generated in. It decides whether the site may be
+	// swapped in as a whole directory (which removes pages deleted since the
+	// last build) or has to be written in place (which cannot, but leaves a
+	// sibling format's files alone).
+	SharesOutputDir bool
+	Logger          *slog.Logger
 }
 
 // formatBuilder generates output in a specific format.
@@ -398,11 +404,15 @@ func (b *siteBuilder) Build(ctx context.Context, bc *buildContext, baseName stri
 		return generateSiteOutput(bc.Config, bc.Theme, bc.CustomCSS, dir, siteChapters, bc.ChapterFiles, pageNames, bc.ChapterMarkdown)
 	}
 
-	// When the site shares its directory with the other output files (an
-	// explicit "--output <dir>"), other format builders may be writing into
-	// the same directory concurrently, so generate in place instead of
-	// swapping the whole directory out.
-	if filepath.Clean(outputDir) == filepath.Dir(baseName) {
+	// When the site shares its directory with other output files (an explicit
+	// "--output <dir>" that a sibling format also writes into), swapping the
+	// whole directory would take that format's files with it, so generate in
+	// place. Sharing is what makes this necessary, not the explicit --output:
+	// applying it whenever the paths coincided meant `build --format site -o
+	// dist` -- where nothing else writes to dist -- never replaced the
+	// directory, so a chapter deleted from book.yaml kept its published page
+	// at the old URL indefinitely.
+	if bc.SharesOutputDir && filepath.Clean(outputDir) == filepath.Dir(baseName) {
 		if err := generate(outputDir); err != nil {
 			return fmt.Errorf("failed to generate HTML site: %w", err)
 		}
