@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -1178,5 +1179,73 @@ func TestExpandPDFTemplateTokensStripsUnknown(t *testing.T) {
 	}
 	if !strings.Contains(got, "T") {
 		t.Errorf("known token was lost: %q", got)
+	}
+}
+
+// TestInjectBannerIntoSiteUsesEachPagesOwnDepth pins that the language switcher
+// resolves from every page, not just the ones sitting at the site root. The
+// banner's links are relative, so injecting one pre-rendered copy into the whole
+// site left every page in a subdirectory pointing a level too high — on
+// mdpress's own manual that was 28 of 31 pages in each language.
+func TestInjectBannerIntoSiteUsesEachPagesOwnDepth(t *testing.T) {
+	root := t.TempDir()
+	enSite := filepath.Join(root, "en")
+	if err := os.MkdirAll(filepath.Join(enSite, "guide"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "zh"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The page the switcher must be able to reach, and two pages at different
+	// depths that link to it.
+	zhIndex := filepath.Join(root, "zh", "index.html")
+	if err := os.WriteFile(zhIndex, []byte("<html><body>zh</body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rootPage := filepath.Join(enSite, "index.html")
+	deepPage := filepath.Join(enSite, "guide", "topic.html")
+	for _, p := range []string{rootPage, deepPage} {
+		if err := os.WriteFile(p, []byte("<html><body>en</body></html>"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	summaries := []languageBuildSummary{
+		{Dir: "en", Name: "English", Outputs: map[string]string{"site": rootPage}},
+		{Dir: "zh", Name: "中文", Outputs: map[string]string{"site": zhIndex}},
+	}
+	landing := filepath.Join(root, "index.html")
+	if err := os.WriteFile(landing, []byte("<html><body>languages</body></html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	perPage := func(pageDir string) (string, error) {
+		return buildLanguageSwitcherHTML(pageDir, landing, summaries, "en")
+	}
+	if err := injectBannerIntoSite(enSite, perPage); err != nil {
+		t.Fatalf("injectBannerIntoSite: %v", err)
+	}
+
+	// Every href the banner adds must resolve from the page that carries it.
+	hrefRe := regexp.MustCompile(`<nav class="mdpress-lang-switcher".*?</nav>`)
+	linkRe := regexp.MustCompile(`href="([^"]+)"`)
+	for _, page := range []string{rootPage, deepPage} {
+		data, err := os.ReadFile(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nav := hrefRe.FindString(string(data))
+		if nav == "" {
+			t.Fatalf("%s: no language switcher injected", page)
+		}
+		links := linkRe.FindAllStringSubmatch(nav, -1)
+		if len(links) == 0 {
+			t.Fatalf("%s: switcher has no links", page)
+		}
+		for _, m := range links {
+			target := filepath.Join(filepath.Dir(page), filepath.FromSlash(m[1]))
+			if _, err := os.Stat(target); err != nil {
+				t.Errorf("%s: switcher link %q does not resolve (%s)", page, m[1], target)
+			}
+		}
 	}
 }

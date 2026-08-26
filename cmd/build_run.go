@@ -1164,7 +1164,11 @@ func injectMultilingualSwitchers(outputRoot string, summaries []languageBuildSum
 		}
 		if siteIndex, ok := summary.Outputs["site"]; ok {
 			siteDir := filepath.Dir(siteIndex)
-			if err := injectBannerIntoSite(siteDir, switcherHTML); err != nil {
+			langDir := summary.Dir
+			perPage := func(pageDir string) (string, error) {
+				return buildLanguageSwitcherHTML(pageDir, landingPath, summaries, langDir)
+			}
+			if err := injectBannerIntoSite(siteDir, perPage); err != nil {
 				return fmt.Errorf("inject banner into site %s: %w", siteDir, err)
 			}
 		}
@@ -1243,13 +1247,23 @@ func injectBannerIntoOutput(targetPath string, bannerHTML string) error {
 	return os.WriteFile(targetPath, []byte(updated), 0o644)
 }
 
-func injectBannerIntoSite(siteDir string, bannerHTML string) error {
+// injectBannerIntoSite adds the language switcher to every page of one
+// language's site. The banner is rendered per page directory rather than once
+// for the whole site: its links are relative, so a banner built for the site
+// root points one level too high from a page in a subdirectory. Injecting a
+// single pre-rendered banner everywhere left the switcher dead on every nested
+// page -- 28 of the 31 pages of mdpress's own manual, in both languages.
+func injectBannerIntoSite(siteDir string, banner func(pageDir string) (string, error)) error {
 	return filepath.WalkDir(siteDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walking site dir %s: %w", path, err)
 		}
 		if d.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
 			return nil
+		}
+		bannerHTML, buildErr := banner(filepath.Dir(path))
+		if buildErr != nil {
+			return fmt.Errorf("build language switcher for %s: %w", path, buildErr)
 		}
 		return injectBannerIntoOutput(path, bannerHTML)
 	})
