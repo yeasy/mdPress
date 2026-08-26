@@ -1404,11 +1404,20 @@ func buildImageAssetFromSource(src string, sourceDir string, containBase string,
 		return "", nil, nil
 	}
 	if sourceDir != "" && src != "" && !strings.HasPrefix(src, "#") {
+		// goldmark percent-encodes image destinations, so a screenshot named
+		// "my pic.png" arrives as "my%20pic.png". Resolving that literally
+		// misses a file that is sitting right there, and the image is then left
+		// out of the package while the build reports success. A stray "%" that
+		// is not a valid escape keeps the value as written.
+		decoded := src
+		if unescaped, err := url.PathUnescape(src); err == nil {
+			decoded = unescaped
+		}
 		// Resolve the image relative to the chapter's own directory, but use
 		// the book root (containBase) as the containment boundary so that a
 		// shared image referenced above the chapter directory (e.g.
 		// ../images/pic.png from a chapter in docs/) is still packaged.
-		resolved := filepath.Clean(filepath.Join(sourceDir, filepath.FromSlash(src)))
+		resolved := filepath.Clean(filepath.Join(sourceDir, filepath.FromSlash(decoded)))
 		// Fall back to the chapter directory when no wider containment base is
 		// available (preserves the previous, stricter behavior).
 		base := containBase

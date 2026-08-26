@@ -942,3 +942,52 @@ func TestNormalizeHTMLForXHTMLBooleanAttrEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestEpubGeneratorPackagesPercentEncodedImagePath covers an image whose file
+// name contains a space. goldmark percent-encodes image destinations, so
+// ![x](my pic.png) reaches the generator as "my%20pic.png"; resolving that
+// literally misses a file that exists, and the image was then left out of the
+// package while the build reported success.
+func TestEpubGeneratorPackagesPercentEncodedImagePath(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "encoded-images.epub")
+	onePixelPNG, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wn2lXQAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatalf("decode png fixture failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "my pic.png"), onePixelPNG, 0o644); err != nil {
+		t.Fatalf("write image fixture failed: %v", err)
+	}
+
+	gen := NewEpubGenerator(EpubMeta{Title: "Encoded", Author: "A", Language: "en-US"})
+	gen.AddChapter(EpubChapter{
+		Title:     "Chapter 1",
+		ID:        "ch1",
+		Filename:  "ch1.xhtml",
+		HTML:      `<p><img alt="pic" src="my%20pic.png"></p>`,
+		SourceDir: dir,
+	})
+	if err := gen.Generate(outPath); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	reader, err := zip.OpenReader(outPath)
+	if err != nil {
+		t.Fatalf("open epub zip failed: %v", err)
+	}
+	defer reader.Close() //nolint:errcheck
+
+	chapter := readZipEntry(t, reader.File, "OEBPS/ch1.xhtml")
+	if strings.Contains(chapter, "my%20pic.png") {
+		t.Errorf("chapter still references the unresolved source path: %s", chapter)
+	}
+	var packaged bool
+	for _, f := range reader.File {
+		if strings.HasPrefix(f.Name, "OEBPS/assets/") && strings.HasSuffix(f.Name, ".png") {
+			packaged = true
+		}
+	}
+	if !packaged {
+		t.Error("epub should package an image whose file name contains a space")
+	}
+}
