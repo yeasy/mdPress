@@ -272,6 +272,10 @@ func runPluginQuery(execPath, flag string, timeout time.Duration) ([]byte, error
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, execPath, flag)
+	// Same reason as Execute: killing the plugin does not close a pipe an
+	// orphan it left behind still holds, and Wait blocks on that pipe. Without
+	// this the timeout above bounds nothing.
+	cmd.WaitDelay = pluginOutputDrainDelay
 	var stdout bytes.Buffer
 	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
 	if err := cmd.Run(); err != nil {
@@ -296,6 +300,7 @@ func queryPluginMeta(execPath string) (version, description string) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, execPath, "--mdpress-info")
+	cmd.WaitDelay = pluginOutputDrainDelay
 	var stdout bytes.Buffer
 	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
 	if err := cmd.Run(); err != nil {
@@ -327,6 +332,7 @@ func queryPluginHooks(execPath string) []Phase {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, execPath, "--mdpress-hooks")
+	cmd.WaitDelay = pluginOutputDrainDelay
 	var stdout bytes.Buffer
 	cmd.Stdout = &utils.LimitedWriter{W: &stdout, N: maxPluginMetaOutput}
 	if err := cmd.Run(); err != nil {

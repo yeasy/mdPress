@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -929,5 +930,45 @@ func TestWindowsExecutableExtensions_TableDriven(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestPluginMetadataQueriesAreBoundedByTheirTimeout covers capability
+// discovery, not hook execution. Killing the plugin does not close an output
+// pipe that a process it left behind still holds, and os/exec's Wait blocks on
+// that pipe — so without a WaitDelay the documented 5s query timeouts bounded
+// nothing, and a plugin that hung during discovery froze the whole build for as
+// long as its orphan lived. Measured before the fix: a build sat for over six
+// minutes on a plugin that slept in --mdpress-hooks.
+func TestPluginMetadataQueriesAreBoundedByTheirTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script syntax required; skipping on Windows")
+	}
+	dir := t.TempDir()
+	// The plugin leaves a child holding the output pipe and exits itself, which
+	// is what makes Wait hang rather than the plugin's own runtime.
+	script := writeScript(t, dir, "orphan", "sleep 30 &\nsleep 30")
+
+	// Both discovery calls must return promptly rather than waiting on the
+	// orphan. The generous bound keeps the test stable on a loaded machine
+	// while still failing outright on the unbounded behavior.
+	const bound = 20 * time.Second
+
+	// Both paths are exercised concurrently: each is independently bounded, so
+	// running them in parallel keeps the test near one timeout rather than two.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); queryPluginMeta(script) }()
+		go func() { defer wg.Done(); queryPluginHooks(script) }()
+		wg.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(bound):
+		t.Fatalf("plugin metadata queries did not return within %s; the query timeout is not bounding a plugin that leaves a child holding its output pipe", bound)
 	}
 }
