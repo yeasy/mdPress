@@ -105,6 +105,22 @@ func NewSiteGenerator(meta SiteMeta) *SiteGenerator {
 	return &SiteGenerator{Meta: meta}
 }
 
+// chapterSourceDir returns the directory, relative to the book root, that a
+// chapter's relative image paths resolve against. SourcePath is the chapter's
+// markdown file; when it is absent the output filename is the best available
+// stand-in, since the two mirror each other for every generated layout.
+func chapterSourceDir(page SiteChapter) string {
+	src := strings.TrimSpace(page.SourcePath)
+	if src == "" {
+		src = page.Filename
+	}
+	dir := path.Dir(filepath.ToSlash(src))
+	if dir == "." || dir == "/" {
+		return ""
+	}
+	return dir
+}
+
 // validateFilename ensures that filename does not escape outputDir via path traversal.
 // It rejects absolute paths and paths containing ".." to prevent writing outside the
 // intended output directory. This is critical when filenames come from user-controlled
@@ -232,6 +248,10 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		if err != nil {
 			return err
 		}
+		// Images the pipeline left as authored paths (the site does not need
+		// them inlined) are published here, resolved against the chapter that
+		// wrote them and contained within the project.
+		pageContent = assets.ExtractLocalFiles(pageContent, page.Filename, g.BookRoot, chapterSourceDir(page))
 		extracted[i] = pageContent
 		var prevLink, nextLink, prevTitle, nextTitle string
 		if i > 0 {
@@ -316,6 +336,7 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		if err != nil {
 			return err
 		}
+		firstContent = assets.ExtractLocalFiles(firstContent, "index.html", g.BookRoot, chapterSourceDir(firstPage))
 		// index.html shows the first chapter content with the sidebar active on
 		// that chapter.  The "previous" nav link is omitted; "next" points to
 		// the second page when it exists.

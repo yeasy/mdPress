@@ -605,6 +605,30 @@ func defaultEmbeddedChapterImageOptions() utils.ImageProcessingOptions {
 	}
 }
 
+// fileRefChapterImageOptions keeps local images as files instead of inlining
+// them.
+//
+// Formats that publish images as files -- the site and ePub -- used to receive
+// every image base64-encoded into the chapter HTML and then immediately decode
+// it back out to disk. The round trip's net effect on the output is nil, but
+// base64 is 4/3 the size and each reference carries its own copy: a
+// 200-chapter book sharing 4.4 MB of images held 1.16 GB of encoded image data
+// in memory at once and peaked at 5 GB, against 32 MB for the same book with
+// the images removed. Leaving the authored path in place lets each consumer
+// read the file once, when it writes it.
+//
+// Remote images are unchanged: they are still downloaded and inlined, since
+// nothing downstream would otherwise fetch them.
+func fileRefChapterImageOptions() utils.ImageProcessingOptions {
+	return utils.ImageProcessingOptions{
+		EmbedLocalAsBase64:     false,
+		EmbedRemoteAsBase64:    true,
+		DownloadRemote:         true,
+		CacheDir:               filepath.Join(utils.CacheRootDir(), "images"),
+		MaxConcurrentDownloads: utils.DefaultMaxConcurrentDownloads,
+	}
+}
+
 // pdfChapterImageOptions returns image options for PDF output.
 // PDF HTML is served via a local HTTP server for font loading.
 // Chrome blocks file:// URLs from HTTP pages, so images must be

@@ -17,9 +17,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -185,6 +187,76 @@ func (a *assetExtractor) Extract(html, pageFilename string) (string, error) {
 	}
 	b.WriteString(html[last:])
 	return b.String(), firstErr
+}
+
+// localImgSrcPattern matches an <img> whose src is neither a data URI nor an
+// absolute/remote reference, i.e. a path relative to the chapter that authored
+// it.
+var localImgSrcPattern = regexp.MustCompile(`<img([^>]*?)src="([^"]+)"([^>]*)>`)
+
+// ExtractLocalFiles rewrites images that are still plain relative paths into
+// site assets, resolving them against the chapter's own source directory and
+// publishing them under the asset folder exactly as Extract does for inlined
+// images. It is the counterpart to that path for builds where the pipeline was
+// asked to keep files rather than inline them.
+//
+// chapterDir is the chapter's directory relative to bookRoot; an image is only
+// published when it resolves inside bookRoot, so a chapter cannot pull in a
+// file from elsewhere on the machine.
+func (a *assetExtractor) ExtractLocalFiles(html, pageFilename, bookRoot, chapterDir string) string {
+	if bookRoot == "" || !strings.Contains(html, "<img") {
+		return html
+	}
+	return localImgSrcPattern.ReplaceAllStringFunc(html, func(match string) string {
+		m := localImgSrcPattern.FindStringSubmatch(match)
+		if len(m) != 4 {
+			return match
+		}
+		prefix, src, suffix := m[1], m[2], m[3]
+		if src == "" || strings.HasPrefix(src, "data:") || strings.HasPrefix(src, "#") ||
+			utils.IsExternalAssetRef(src) || path.IsAbs(src) || filepath.IsAbs(src) {
+			return match
+		}
+		decoded := src
+		if d, err := url.PathUnescape(src); err == nil {
+			decoded = d
+		}
+		// Resolve relative to the chapter, but contain within the book root.
+		rel := path.Join(filepath.ToSlash(chapterDir), filepath.ToSlash(decoded))
+		source, err := utils.SafeJoin(bookRoot, rel)
+		if err != nil {
+			slog.Warn("skipping site image that resolves outside the project",
+				slog.String("src", src), slog.String("chapter_dir", chapterDir))
+			return match
+		}
+		info, statErr := os.Stat(source)
+		if statErr != nil || !info.Mode().IsRegular() {
+			return match
+		}
+		data, readErr := os.ReadFile(source) //nolint:gosec // G304: confined to the project by SafeJoin
+		if readErr != nil {
+			slog.Warn("cannot read site image; leaving the reference as authored",
+				slog.String("src", src), slog.Any("error", readErr))
+			return match
+		}
+		ext := strings.ToLower(filepath.Ext(source))
+		if ext == "" {
+			return match
+		}
+		sum := sha256.Sum256(data)
+		hash := hex.EncodeToString(sum[:])
+		name, seen := a.names[hash]
+		if !seen {
+			name = "img-" + hash[:16] + ext
+			if err := a.write(name, data); err != nil {
+				slog.Warn("cannot write site image; leaving the reference as authored",
+					slog.String("src", src), slog.Any("error", err))
+				return match
+			}
+			a.names[hash] = name
+		}
+		return `<img` + prefix + `src="` + relativeSiteHref(pageFilename, siteAssetDir+"/"+name) + `"` + suffix + `>`
+	})
 }
 
 // write stores one asset under the output directory's asset folder.

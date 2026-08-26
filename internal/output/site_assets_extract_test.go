@@ -144,3 +144,57 @@ func TestFindDataURIsMatchesRegexp(t *testing.T) {
 		}
 	}
 }
+
+// TestExtractLocalFilesPublishesChapterImages covers the path used when the
+// pipeline leaves images as authored paths rather than inlining them: the file
+// has to be resolved against the chapter that wrote it, published under the
+// asset directory, deduplicated by content, and referenced at the right depth.
+// It must also refuse to reach outside the project.
+func TestExtractLocalFilesPublishesChapterImages(t *testing.T) {
+	book := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(book, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := []byte("\x89PNG\r\n\x1a\nchapter-image-bytes")
+	if err := os.WriteFile(filepath.Join(book, "images", "banner.png"), img, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("publishes and dedups, href tracks page depth", func(t *testing.T) {
+		out := t.TempDir()
+		a := newAssetExtractor(out)
+		in := `<p><img src="../images/banner.png" alt="a"><img src="../images/banner.png" alt="b"></p>`
+		got := a.ExtractLocalFiles(in, "chapters/ch1.html", book, "chapters")
+		if strings.Contains(got, "../images/banner.png") {
+			t.Errorf("image was not published: %s", got)
+		}
+		if n := strings.Count(got, "../assets/img-"); n != 2 {
+			t.Errorf("expected 2 depth-relative asset refs, got %d: %s", n, got)
+		}
+		if len(a.names) != 1 {
+			t.Errorf("identical images should share one asset, got %d", len(a.names))
+		}
+		if !strings.Contains(got, `alt="a"`) {
+			t.Errorf("surrounding attributes were lost: %s", got)
+		}
+		// A root-level page reaches the same asset without "../".
+		rootGot := a.ExtractLocalFiles(`<img src="images/banner.png">`, "index.html", book, "")
+		if strings.Contains(rootGot, "../") {
+			t.Errorf("root page should not use a parent path: %s", rootGot)
+		}
+	})
+
+	t.Run("leaves references it must not publish", func(t *testing.T) {
+		a := newAssetExtractor(t.TempDir())
+		for name, in := range map[string]string{
+			"escapes the project": `<img src="../../../../etc/passwd">`,
+			"remote":              `<img src="https://example.com/a.png">`,
+			"data uri":            `<img src="data:image/png;base64,AAAA">`,
+			"missing file":        `<img src="../images/absent.png">`,
+		} {
+			if got := a.ExtractLocalFiles(in, "chapters/ch1.html", book, "chapters"); got != in {
+				t.Errorf("%s: expected the reference untouched\n got: %s\nwant: %s", name, got, in)
+			}
+		}
+	})
+}

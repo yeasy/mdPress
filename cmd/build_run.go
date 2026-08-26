@@ -280,6 +280,14 @@ func executeBuildForConfig(ctx context.Context, cfg *config.BookConfig, formats 
 			opts := pdfChapterImageOptions()
 			return &opts
 		}
+		// Portable HTML is the one format that genuinely needs the bytes
+		// inlined -- it is a single self-contained file. The site and ePub
+		// write images out as files, so inlining them only to decode them
+		// again costs memory proportional to (images x references).
+		if !containsBuildFormat(formats, "html") {
+			opts := fileRefChapterImageOptions()
+			return &opts
+		}
 		opts := defaultEmbeddedChapterImageOptions()
 		return &opts
 	}()}
