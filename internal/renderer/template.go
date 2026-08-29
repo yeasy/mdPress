@@ -466,6 +466,14 @@ const htmlTemplate = `<!DOCTYPE html>
       tr, li, figure, .alert {
         page-break-inside: avoid;
       }
+      /* The bounded-by-construction assumption above does not hold in the
+         table of contents: a chapter's li nests every one of its sub-entries,
+         so it can be taller than a page, and avoid then ejects the whole
+         group — the manual's contents came out as 24 ragged pages, one of
+         them holding a single line. Let TOC entries flow. */
+      .toc li {
+        page-break-inside: auto;
+      }
       /* Repeat table headers when a table does spill across pages. */
       thead {
         display: table-header-group;
