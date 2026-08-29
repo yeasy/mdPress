@@ -2426,6 +2426,13 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
         var isOpen = sidebar.classList.toggle('open');
         body.classList.toggle('sidebar-open', isOpen);
       }
+      // A desktop-collapse preference persisted from a wide viewport must not
+      // pin the drawer off-screen here: body.sidebar-collapsed's
+      // translateX(-100%) outranks .sidebar.open, so the reader would get the
+      // backdrop with no sidebar and no way out.
+      if (sidebar.classList.contains('open')) {
+        body.classList.remove('sidebar-collapsed');
+      }
     } else {
       var shouldCollapse = typeof forceState === 'boolean' ? forceState : !body.classList.contains('sidebar-collapsed');
       body.classList.toggle('sidebar-collapsed', shouldCollapse);
@@ -2687,7 +2694,11 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
     });
 
     modalInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') { closeSearch(); return; }
+      // Closing the overlay must consume the keystroke: without
+      // stopPropagation the document-level Escape handler fires next, sees
+      // the overlay already closed, and collapses the sidebar — persisting
+      // that state across visits.
+      if (e.key === 'Escape') { e.stopPropagation(); closeSearch(); return; }
       var items = resultsBox.querySelectorAll('.search-result');
       if (e.key === 'ArrowDown') {
         e.preventDefault();

@@ -461,3 +461,88 @@ func parseRGB(t *testing.T, css string) string {
 	}
 	return hex
 }
+
+// TestSiteEscapeAndMobileSidebarStateTrap pins two coupled sidebar-state
+// defects. Pressing Escape to close the search overlay used to fall through to
+// the document-level handler, which collapsed the sidebar and persisted that
+// choice to localStorage; on a phone that persisted flag then pinned the
+// drawer off-screen forever, because body.sidebar-collapsed's
+// translateX(-100%) outranks .sidebar.open — the reader got the dark backdrop
+// with no sidebar and no way out.
+func TestSiteEscapeAndMobileSidebarStateTrap(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := browserTestSite(t)
+	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	defer srv.Close()
+
+	const escProbe = `(async function() {
+      try { localStorage.clear(); } catch (e) {}
+      window.openSearch();
+      var input = document.getElementById('search-input');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise(function(r) { setTimeout(r, 150); });
+      var ls = null;
+      try { ls = localStorage.getItem('mdpress-sidebar-collapsed'); } catch (e) {}
+      return JSON.stringify({
+        collapsed: document.body.classList.contains('sidebar-collapsed'),
+        persisted: ls
+      });
+    })()`
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(srv.URL+"/intro.html"),
+		chromedp.WaitReady("#search-input", chromedp.ByQuery),
+		chromedp.Evaluate(escProbe, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+			return p.WithAwaitPromise(true)
+		}),
+	); err != nil {
+		t.Fatalf("escape probe failed: %v", err)
+	}
+	var esc struct {
+		Collapsed bool    `json:"collapsed"`
+		Persisted *string `json:"persisted"`
+	}
+	if err := json.Unmarshal([]byte(raw), &esc); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if esc.Collapsed || (esc.Persisted != nil && *esc.Persisted == "1") {
+		t.Errorf("closing search with Escape collapsed the sidebar (collapsed=%v persisted=%v)", esc.Collapsed, esc.Persisted)
+	}
+
+	// Mobile: with the trap state pre-seeded, opening the drawer must clear it.
+	const mobileProbe = `(async function() {
+      try { localStorage.setItem('mdpress-sidebar-collapsed', '1'); } catch (e) {}
+      document.body.classList.add('sidebar-collapsed');
+      document.querySelector('.sidebar-toggle').click();
+      await new Promise(function(r) { setTimeout(r, 350); });
+      var sb = document.querySelector('.sidebar');
+      var x = new DOMMatrixReadOnly(getComputedStyle(sb).transform).m41;
+      return JSON.stringify({ open: sb.classList.contains('open'), x: x,
+        collapsed: document.body.classList.contains('sidebar-collapsed') });
+    })()`
+	if err := chromedp.Run(ctx,
+		chromedp.EmulateViewport(375, 812),
+		chromedp.Navigate(srv.URL+"/intro.html"),
+		chromedp.WaitReady(".sidebar-toggle", chromedp.ByQuery),
+		chromedp.Evaluate(mobileProbe, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+			return p.WithAwaitPromise(true)
+		}),
+		chromedp.EmulateViewport(0, 0),
+	); err != nil {
+		t.Fatalf("mobile probe failed: %v", err)
+	}
+	var mob struct {
+		Open      bool    `json:"open"`
+		X         float64 `json:"x"`
+		Collapsed bool    `json:"collapsed"`
+	}
+	if err := json.Unmarshal([]byte(raw), &mob); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if !mob.Open {
+		t.Fatal("tapping the toggle did not mark the drawer open")
+	}
+	if mob.X < 0 {
+		t.Errorf("drawer is open but still translated off-screen (x=%v, sidebar-collapsed=%v)", mob.X, mob.Collapsed)
+	}
+}
