@@ -40,6 +40,7 @@ A follow-up audit fanned twelve expert lenses across the tree and adversarially 
 - **The Chrome diagnostic buffer is race-safe.** chromedp forwards the browser's output into it from a goroutine that outlives the read on the error path, an unsynchronized `bytes.Buffer` access the race detector flags
 
 ### Changed
+- **Site pages carry social-share card metadata.** A link shared into Slack, X or a chat app used to render a bare text preview; pages now emit `og:site_name`, `twitter:card`, and — when the logo can be resolved to an absolute URL (a full-URL logo, or a copied one addressable through `output.site_url`) — `og:image`. With no absolute image available the tag is omitted rather than emitted broken
 
 - **The generated site localizes its accessibility labels.** The skip link and the `aria-label`s a screen reader announces for the first controls a keyboard user reaches (navigation toggle, breadcrumb, page navigation) were hardcoded English even on a fully translated `zh`/`ja` site; they now track `book.language` through the existing UI-string table
 - **The release workflow defaults its token to read-only.** The top-level `GITHUB_TOKEN` granted `contents: write` + `packages: write` to every job, including the read-only preflight; it now defaults to `contents: read` and each publishing job (goreleaser, docker) elevates its own scope
