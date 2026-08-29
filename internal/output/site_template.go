@@ -30,6 +30,9 @@ var sitePageHead = `<!DOCTYPE html>
 <meta property="og:description" content="{{.Description}}">
 <meta property="og:type" content="article">
 {{if .CanonicalURL}}<meta property="og:url" content="{{.CanonicalURL}}">{{end}}
+<meta property="og:site_name" content="{{.SiteTitle}}">
+{{if .OGImageURL}}<meta property="og:image" content="{{.OGImageURL}}">{{end}}
+<meta name="twitter:card" content="summary">
 {{if .Author}}<meta name="author" content="{{.Author}}">{{end}}
 <title>{{.HeadTitle}}</title>
 {{if .CanonicalURL}}<link rel="canonical" href="{{.CanonicalURL}}">{{end}}

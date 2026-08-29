@@ -524,6 +524,13 @@ type pageData struct {
 	NavFile string
 	// HeadTitle is the full <title>/og:title text.
 	HeadTitle string
+	// OGImageURL is the absolute image URL for social-share cards (og:image).
+	// Link previews on Slack, X and chat apps show a bare text card without
+	// one, while every comparable generator ships an image when it has one.
+	// Empty when no image can be resolved to an absolute URL, in which case
+	// the template omits the tag rather than emitting a relative URL that
+	// crawlers reject.
+	OGImageURL string
 	// CanonicalURL is the absolute URL crawlers should treat as this page's
 	// address. Empty when output.site_url is not configured.
 	CanonicalURL string
@@ -680,6 +687,7 @@ func (g *SiteGenerator) resolveBranding(assets *assetExtractor) siteBranding {
 func (g *SiteGenerator) applyBranding(d *pageData, b siteBranding, pageFilename string) {
 	d.FaviconHref = brandingHref(b.favicon, pageFilename)
 	d.LogoHref = brandingHref(b.logo, pageFilename)
+	d.OGImageURL = g.ogImageURL(b.logo)
 	d.Copyright = strings.TrimSpace(g.Meta.Copyright)
 	d.ShowThemeBadge = g.Meta.ShowThemeBadge
 	if g.Meta.FooterHTML == nil {
@@ -769,6 +777,22 @@ func siteHeadTitle(pageTitle, siteTitle string) string {
 // canonical.  An empty filename means the site root.  It returns "" when
 // output.site_url is not configured: a self-referencing relative canonical
 // link tells a crawler nothing, and a wrong absolute one is worse than none.
+// ogImageURL resolves the configured logo to the absolute URL og:image
+// requires. A logo configured as a full URL is used as-is; one copied into the
+// site's asset directory can only be made absolute when output.site_url is
+// set, and og:image is omitted otherwise -- crawlers ignore relative values,
+// so emitting one would only look like it works.
+func (g *SiteGenerator) ogImageURL(logo string) string {
+	logo = strings.TrimSpace(logo)
+	if logo == "" {
+		return ""
+	}
+	if strings.HasPrefix(logo, "http://") || strings.HasPrefix(logo, "https://") {
+		return logo
+	}
+	return g.canonicalURL(strings.TrimPrefix(logo, "/"))
+}
+
 func (g *SiteGenerator) canonicalURL(filename string) string {
 	base := strings.TrimRight(strings.TrimSpace(g.Meta.SiteURL), "/")
 	if base == "" {

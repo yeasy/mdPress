@@ -3,6 +3,7 @@ package output
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -162,4 +163,64 @@ func TestSite404UsesThemeAccentAndAbsoluteHome(t *testing.T) {
 	if !strings.Contains(page, `href="/"`) {
 		t.Error("404.html home link should be absolute so it works at any served depth")
 	}
+}
+
+// TestSiteSocialCardMeta pins the social-share head tags. Link previews on
+// chat apps and X show a bare text card without og:image, and og:image must be
+// an ABSOLUTE URL — so it is emitted only when the logo already is one, or when
+// output.site_url makes the copied asset addressable; a relative value would
+// only look like it works. og:site_name and twitter:card cost nothing and are
+// always present.
+func TestSiteSocialCardMeta(t *testing.T) {
+	logoPNG := []byte("\x89PNG\r\n\x1a\nnot-a-real-png-but-a-regular-file")
+
+	build := func(t *testing.T, meta SiteMeta, withLogoFile bool) string {
+		t.Helper()
+		root := t.TempDir()
+		if withLogoFile {
+			if err := os.WriteFile(filepath.Join(root, "logo.png"), logoPNG, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		gen := NewSiteGenerator(meta)
+		gen.BookRoot = root
+		gen.AddChapter(SiteChapter{Title: "One", Filename: "one.html", Content: "<p>x</p>"})
+		out := t.TempDir()
+		if err := gen.Generate(out); err != nil {
+			t.Fatalf("Generate: %v", err)
+		}
+		return readSiteFile(t, out, "one.html")
+	}
+
+	t.Run("always emits site_name and twitter card", func(t *testing.T) {
+		page := build(t, SiteMeta{Title: "My Book", Language: "en-US"}, false)
+		if !strings.Contains(page, `<meta property="og:site_name" content="My Book">`) {
+			t.Error("og:site_name missing")
+		}
+		if !strings.Contains(page, `<meta name="twitter:card" content="summary">`) {
+			t.Error("twitter:card missing")
+		}
+	})
+
+	t.Run("local logo without site_url emits no og:image", func(t *testing.T) {
+		page := build(t, SiteMeta{Title: "B", Language: "en-US", Logo: "logo.png"}, true)
+		if strings.Contains(page, "og:image") {
+			t.Errorf("og:image must be omitted when it cannot be absolute:\n%s", page)
+		}
+	})
+
+	t.Run("local logo with site_url emits an absolute og:image", func(t *testing.T) {
+		page := build(t, SiteMeta{Title: "B", Language: "en-US", Logo: "logo.png", SiteURL: "https://ex.com/book"}, true)
+		m := regexp.MustCompile(`<meta property="og:image" content="(https://ex\.com/book/assets/logo-[0-9a-f]+\.png)">`).FindStringSubmatch(page)
+		if m == nil {
+			t.Fatalf("expected an absolute og:image under the site URL, got page:\n%s", page)
+		}
+	})
+
+	t.Run("external logo URL is used as-is", func(t *testing.T) {
+		page := build(t, SiteMeta{Title: "B", Language: "en-US", Logo: "https://cdn.ex.com/l.png"}, false)
+		if !strings.Contains(page, `<meta property="og:image" content="https://cdn.ex.com/l.png">`) {
+			t.Errorf("external logo should pass through to og:image:\n%s", page)
+		}
+	})
 }
