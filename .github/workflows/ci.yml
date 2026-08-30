@@ -80,6 +80,13 @@ jobs:
     - name: Verify binary
       run: ./mdpress --help
 
+    # The manual is the project's largest real book and its own best
+    # regression fixture: it must pass the linter it documents.
+    - name: Validate the manual (strict)
+      run: |
+        ./mdpress validate --strict docs/manual/en
+        ./mdpress validate --strict docs/manual/zh
+
   docker:
     name: Docker Build Smoke Test
     runs-on: ubuntu-latest

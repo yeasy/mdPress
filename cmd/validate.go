@@ -769,15 +769,12 @@ func validateChapterContentAndSequence(cfg *config.BookConfig) (issues []string,
 			issues = append(issues, fmt.Sprintf("Chapter title numbering mismatch: %s (rule=%s)", flat.Def.File, diag.Rule))
 		}
 
-		// Check SUMMARY title vs file heading mismatch (warning, not error).
-		if flat.Def.Title != "" && len(headings) > 0 && headings[0].Text != "" {
-			summaryNorm := normalizeChapterTitle(flat.Def.Title)
-			headingNorm := normalizeChapterTitle(headings[0].Text)
-			if summaryNorm != "" && headingNorm != "" && summaryNorm != headingNorm {
-				warnings = append(warnings, fmt.Sprintf("Title mismatch in %s: SUMMARY %q vs file heading %q (SUMMARY title takes precedence)",
-					flat.Def.File, flat.Def.Title, headings[0].Text))
-			}
-		}
+		// A SUMMARY title differing from the file's first heading is not
+		// flagged: a short sidebar label over a longer page heading ("FAQ"
+		// over "Frequently Asked Questions") is the normal shape of a docs
+		// site, GitBook defines the link text as independent of the page,
+		// and the precedence is well-defined. The old warning fired 29
+		// times on this project's own manual without catching anything.
 
 		for _, diag := range diagnostics {
 			switch {
