@@ -422,8 +422,10 @@ func (t *Theme) ToCSS() string {
 	css.WriteString("  border-radius: 6px;\n")
 	css.WriteString("  overflow-x: auto;\n")
 	css.WriteString("  white-space: pre-wrap;\n")
+	// overflow-wrap alone breaks only tokens that cannot fit a line;
+	// word-break: break-all chopped identifiers mid-token even when a clean
+	// wrap at the preceding space existed.
 	css.WriteString("  overflow-wrap: anywhere;\n")
-	css.WriteString("  word-break: break-all;\n")
 	css.WriteString("}\n\n")
 
 	// Blockquote styles: an accent rule with muted text and no heavy fill.

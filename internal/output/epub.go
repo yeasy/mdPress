@@ -976,7 +976,7 @@ func (g *EpubGenerator) epubThemeCSS() string {
 	// Inline code chip; reset inside pre (avoids :not(), which some older
 	// EPUB engines do not support).
 	fmt.Fprintf(&b, "code {\n  background-color: %s;\n  padding: 0.12em 0.36em;\n  border-radius: 4px;\n  font-size: 0.88em;\n}\n\n", codeBg)
-	fmt.Fprintf(&b, "pre {\n  padding: 0.9em 1.1em;\n  font-size: 0.82em;\n  line-height: 1.55;\n  border: 1px solid %s;\n  border-radius: 6px;\n  overflow-x: auto;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  word-break: break-all;\n}\n\n", border)
+	fmt.Fprintf(&b, "pre {\n  padding: 0.9em 1.1em;\n  font-size: 0.82em;\n  line-height: 1.55;\n  border: 1px solid %s;\n  border-radius: 6px;\n  overflow-x: auto;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n}\n\n", border)
 	b.WriteString("pre code {\n  background: none;\n  padding: 0;\n  border-radius: 0;\n  font-size: 1em;\n}\n\n")
 
 	fmt.Fprintf(&b, "blockquote {\n  border-left: 3px solid %s;\n  margin: 1.2em 0;\n  padding: 0.2em 0 0.2em 1.1em;\n  color: %s;\n  opacity: 0.78;\n}\n\n", accent, text)

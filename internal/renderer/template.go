@@ -275,8 +275,11 @@ const htmlTemplate = `<!DOCTYPE html>
       line-height: 1.5;
       margin: 0.8rem 0;
       white-space: pre-wrap;
+      /* overflow-wrap alone: it breaks only tokens that cannot fit a line,
+         while word-break: break-all chopped identifiers mid-token even when a
+         clean wrap at the preceding space existed — the same lesson the
+         table-cell comment below records. */
       overflow-wrap: anywhere;
-      word-break: break-all;
       max-width: 100%;
       background: none;
     }
