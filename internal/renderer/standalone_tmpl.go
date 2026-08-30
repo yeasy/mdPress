@@ -128,15 +128,23 @@ const standaloneHTMLMiddle = `  </style>
 
 // standaloneHTMLTail completes the main JavaScript block and adds CDN-loaded scripts.
 //
-// This file is advertised as readable offline, but Mermaid and KaTeX still come
-// from a CDN. Until they are vendored, the next best thing is to make the
-// dependency honest: every URL is version-pinned and integrity-checked, and a
-// failure produces a visible notice next to the affected diagram or formula
-// instead of a blank gap and a console warning nobody reads.
+// Math is genuinely offline now: formulas are rendered to KaTeX markup at build
+// time and the stylesheet, fonts and all, is inlined above, so a reader with no
+// network sees typeset formulas rather than raw LaTeX.
+//
+// Diagrams are not, and deliberately so. mermaid.min.js is 3.5 MB minified
+// (4.8 MB once base64-encoded into a data URI), which every portable file would
+// carry — including the overwhelming majority that contain no diagram at all —
+// to spare the minority a network fetch. So Mermaid still comes from a CDN, and
+// the next best thing is to make that dependency honest: the URL is
+// version-pinned and integrity-checked, and a failure produces a visible notice
+// next to the affected diagram instead of a blank gap and a console warning
+// nobody reads.
 const standaloneHTMLTail = `  </script>
 
-  <!-- Third-party asset loading: version-pinned, integrity-checked, with a
-       visible fallback when the CDN is unreachable or blocked. -->
+  <!-- Mermaid loading: version-pinned, integrity-checked, with a visible
+       fallback when the CDN is unreachable or blocked. Math needs none of
+       this — it was already rendered when the file was built. -->
   <style>
   .mermaid[data-mdpress-asset-error] {
     display: block; white-space: pre; overflow-x: auto; text-align: left;
@@ -144,7 +152,6 @@ const standaloneHTMLTail = `  </script>
     font-size: 0.85rem; background: #f6f8fa; border: 1px solid #e1e4e8;
     border-radius: 4px; padding: 12px 14px;
   }
-  .math[data-mdpress-asset-error] { border-bottom: 1px dotted #b26a00; }
   .asset-error {
     display: block; margin: 1em 0 0.35em; padding: 8px 12px;
     border-left: 3px solid #b26a00; background: #fff8e6; color: #6b4500;
@@ -153,9 +160,9 @@ const standaloneHTMLTail = `  </script>
   @media print { .asset-error { border-left-color: #666; background: none; color: #444; } }
   </style>
   <script>
-  // perNode is true for diagrams, which are block level and far apart; it is
-  // false for inline math, where one banner per formula would shred the prose.
-  function mdpressAssetFailure(selector, message, perNode) {
+  // One notice per node: diagrams are block level and far apart, so a banner
+  // above each affected one reads naturally.
+  function mdpressAssetFailure(selector, message) {
     function notice() {
       var note = document.createElement('span');
       note.className = 'asset-error';
@@ -172,15 +179,9 @@ const standaloneHTMLTail = `  </script>
       node.setAttribute('title', message);
       flagged.push(node);
     }
-    if (!flagged.length) return;
-    if (perNode) {
-      for (var j = 0; j < flagged.length; j++) {
-        flagged[j].parentNode.insertBefore(notice(), flagged[j]);
-      }
-      return;
+    for (var j = 0; j < flagged.length; j++) {
+      flagged[j].parentNode.insertBefore(notice(), flagged[j]);
     }
-    var host = document.getElementById('main-content') || document.body;
-    host.insertBefore(notice(), host.firstChild);
   }
 
   if (document.querySelector('.mermaid')) {
@@ -191,46 +192,7 @@ const standaloneHTMLTail = `  </script>
     s.referrerPolicy = 'no-referrer';
     s.addEventListener('load', function() { mermaid.initialize({startOnLoad:true, theme:'default', securityLevel:'strict', themeVariables:{fontFamily:'"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Noto Sans CJK SC","Source Han Sans SC",sans-serif'}}); }, { once: true });
     s.addEventListener('error', function() {
-      mdpressAssetFailure('.mermaid', 'Diagram not rendered: the Mermaid library could not be loaded (offline, or the CDN is blocked). Its source is shown below.', true);
-    }, { once: true });
-    document.body.appendChild(s);
-  }
-
-  if (document.querySelector('.math')) {
-    var mathFailed = function() {
-      mdpressAssetFailure('.math', 'Some formulas on this page are not rendered: the KaTeX library could not be loaded (offline, or the CDN is blocked). They are shown as LaTeX source.', false);
-    };
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '{{KATEX_CSS_URL}}';
-    link.integrity = '{{KATEX_CSS_SRI}}';
-    link.crossOrigin = 'anonymous';
-    link.referrerPolicy = 'no-referrer';
-    link.addEventListener('error', mathFailed, { once: true });
-    document.head.appendChild(link);
-    var s = document.createElement('script');
-    s.src = '{{KATEX_JS_URL}}';
-    s.integrity = '{{KATEX_JS_SRI}}';
-    s.crossOrigin = 'anonymous';
-    s.referrerPolicy = 'no-referrer';
-    s.addEventListener('error', mathFailed, { once: true });
-    s.addEventListener('load', function() {
-      var ar = document.createElement('script');
-      ar.src = '{{KATEX_AUTO_RENDER_URL}}';
-      ar.integrity = '{{KATEX_AUTO_RENDER_SRI}}';
-      ar.crossOrigin = 'anonymous';
-      ar.referrerPolicy = 'no-referrer';
-      ar.addEventListener('error', mathFailed, { once: true });
-      ar.addEventListener('load', function() {
-        renderMathInElement(document.getElementById('main-content') || document.body, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$',  right: '$',  display: false}
-          ],
-          throwOnError: false
-        });
-      }, { once: true });
-      document.body.appendChild(ar);
+      mdpressAssetFailure('.mermaid', 'Diagram not rendered: the Mermaid library could not be loaded (offline, or the CDN is blocked). Its source is shown below.');
     }, { once: true });
     document.body.appendChild(s);
   }
