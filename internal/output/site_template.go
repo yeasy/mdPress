@@ -1117,7 +1117,10 @@ html.dark .theme-toggle button.active { background: #89b4fa; color: #1e1e2e; }
      flatten the syntax highlighting the reader is printing the page for. */
   *:not(pre):not(pre *) { background: transparent !important; box-shadow: none !important; color: black !important; }
   pre, pre * { box-shadow: none !important; }
-  a { color: #0969da; text-decoration: underline; }
+  /* Links print black like everything else (the rule above), but must keep
+     an underline to be recognizable on paper — .content a's screen rule
+     (text-decoration: none) outranks a bare element selector, so force it. */
+  a { text-decoration: underline !important; }
   /* Only external links are worth spelling out on paper; printing the href of
      every in-page and same-site link buries the text in relative paths. */
   a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #6a6a6a; }

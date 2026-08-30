@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 
@@ -813,4 +814,53 @@ func browserTestSiteWithCode(t *testing.T) string {
 		t.Fatalf("Generate: %v", err)
 	}
 	return dir
+}
+
+// TestSitePrintLinksAreUnderlined: in print, every color is forced to black —
+// including links — so the underline is the only thing marking a link on
+// paper. The print rule used a bare element selector that .content a's
+// screen-mode `text-decoration: none` outranked, leaving printed links
+// indistinguishable from body text (and the old blue color rule was dead for
+// the same reason: the global black !important always won).
+func TestSitePrintLinksAreUnderlined(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Print", Language: "en-US"})
+	gen.AddChapter(SiteChapter{
+		Title: "Links", Filename: "links.html",
+		Content: `<h1>Links</h1><p><a id="ext" href="https://example.com">external</a></p>`,
+	})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	defer srv.Close()
+
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(srv.URL+"/links.html"),
+		chromedp.WaitReady("#ext", chromedp.ByQuery),
+		chromedp.ActionFunc(func(c context.Context) error {
+			return emulation.SetEmulatedMedia().WithMedia("print").Do(c)
+		}),
+		chromedp.Evaluate(`JSON.stringify({
+			color: getComputedStyle(document.getElementById('ext')).color,
+			deco: getComputedStyle(document.getElementById('ext')).textDecorationLine
+		})`, &raw),
+		chromedp.ActionFunc(func(c context.Context) error {
+			return emulation.SetEmulatedMedia().Do(c)
+		}),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	var r struct{ Color, Deco string }
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if r.Color != "rgb(0, 0, 0)" {
+		t.Errorf("printed links should be black like the rest of the page, got %s", r.Color)
+	}
+	if r.Deco != "underline" {
+		t.Errorf("printed links must be underlined to be recognizable, got %q", r.Deco)
+	}
 }
