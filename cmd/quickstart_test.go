@@ -508,7 +508,7 @@ func TestTemplateGeneration(t *testing.T) {
 			projectName: "test-book",
 			shouldContain: []string{
 				"title: \"test-book\"",
-				"subtitle: \"A sample book created with mdpress\"",
+				"subtitle: \"Learning mdpress by example\"",
 				"author: \"Your Name\"",
 				"version: \"1.0.0\"",
 				"language: \"en-US\"",
