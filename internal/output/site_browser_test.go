@@ -772,8 +772,19 @@ func TestSiteCopyButtonKeyboardAndFallback(t *testing.T) {
 		}
 	}
 	if err := chromedp.Run(ctx,
-		chromedp.Sleep(300*time.Millisecond), // let the opacity transition finish
-		chromedp.Evaluate(`getComputedStyle(document.querySelector('.copy-btn')).opacity`, &focused),
+		// Wait out the opacity transition instead of sleeping a fixed time —
+		// a slow CI runner read 0.85 mid-transition with a flat sleep.
+		chromedp.Evaluate(`new Promise(function(resolve) {
+			var btn = document.querySelector('.copy-btn');
+			var start = Date.now();
+			(function check() {
+				var o = getComputedStyle(btn).opacity;
+				if (o === '1' || Date.now() - start > 3000) return resolve(o);
+				setTimeout(check, 50);
+			})();
+		})`, &focused, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+			return p.WithAwaitPromise(true)
+		}),
 		chromedp.Click(".copy-btn", chromedp.ByQuery),
 		chromedp.Sleep(400*time.Millisecond),
 		chromedp.Evaluate(`JSON.stringify({
