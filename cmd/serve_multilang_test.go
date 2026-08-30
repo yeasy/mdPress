@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"context"
-
-	"github.com/yeasy/mdpress/internal/config"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/internal/config"
 )
 
 // TestBuildServeOutputHonorsLangsFile pins that the preview builds the same
