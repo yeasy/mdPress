@@ -3,6 +3,7 @@ package output
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -590,5 +591,75 @@ func TestSiteProseMeasureIsCapped(t *testing.T) {
 	}
 	if r.Pre <= r.P+50 {
 		t.Errorf("code blocks should keep the full column width (pre=%.0fpx, prose=%.0fpx)", r.Pre, r.P)
+	}
+}
+
+// TestSiteSidebarScrollsToActiveOnLoad reproduces the fresh-load race: the
+// nav-activation pass runs from the bottom-of-body script, which can execute
+// before the external stylesheet has applied, so scrollIntoView computed the
+// active item's position against unstyled layout and the sidebar stayed at
+// scrollTop 0 with the highlight far below the fold. SPA navigation — running
+// against settled layout — always scrolled correctly. The stylesheet is
+// deliberately delayed here to force that ordering deterministically.
+func TestSiteSidebarScrollsToActiveOnLoad(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Deep Nav", Language: "en-US"})
+	for i := 1; i <= 80; i++ {
+		gen.AddChapter(SiteChapter{
+			Title:    fmt.Sprintf("Chapter %02d", i),
+			Filename: fmt.Sprintf("ch%02d.html", i),
+			Content:  fmt.Sprintf("<h1>Chapter %02d</h1><p>Body.</p>", i),
+		})
+	}
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	files := http.FileServer(http.Dir(dir))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".css") {
+			time.Sleep(300 * time.Millisecond)
+		}
+		files.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.EmulateViewport(1280, 800),
+		chromedp.Navigate(srv.URL+"/ch70.html"),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Evaluate(`new Promise(function(resolve) {
+			function probe() {
+				// Give the load handler a frame to run after the load event.
+				setTimeout(function() {
+					var sb = document.querySelector('.sidebar');
+					var active = document.querySelector('.nav-item.active');
+					var sbRect = sb.getBoundingClientRect();
+					var aRect = active ? active.getBoundingClientRect() : null;
+					resolve(JSON.stringify({
+						scrollTop: sb.scrollTop,
+						visible: aRect !== null && aRect.top >= sbRect.top && aRect.bottom <= sbRect.bottom
+					}));
+				}, 100);
+			}
+			if (document.readyState === 'complete') { probe(); }
+			else { window.addEventListener('load', probe); }
+		})`, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
+			return p.WithAwaitPromise(true)
+		}),
+		chromedp.EmulateViewport(0, 0),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	var r struct {
+		ScrollTop float64
+		Visible   bool
+	}
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if r.ScrollTop == 0 || !r.Visible {
+		t.Errorf("active sidebar item is not in view after initial load (scrollTop=%.0f, visible=%v)", r.ScrollTop, r.Visible)
 	}
 }

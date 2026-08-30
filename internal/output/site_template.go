@@ -2266,6 +2266,21 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
   ensureMermaid();
   ensureKaTeX();
 
+  // Bring the active sidebar item into view once layout is final. The pass
+  // above runs before the external stylesheet has necessarily applied, so
+  // scrollIntoView computed positions against unstyled layout — on a deep
+  // page the highlight ended up two screens below the fold with the sidebar
+  // still at the top, while SPA navigation (running against settled layout)
+  // scrolled correctly.
+  window.addEventListener('load', function() {
+    var active = sidebar && sidebar.querySelector('.nav-item.active');
+    if (active) {
+      lastActiveLink = null;
+      active.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      lastActiveLink = active;
+    }
+  });
+
   // Expose a live-reload hook for the serve WebSocket script.
   // Instead of a full page reload, re-fetch and swap the current page content
   // while preserving the scroll position. This avoids disrupting reading flow
