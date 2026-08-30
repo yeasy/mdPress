@@ -77,8 +77,11 @@ func TestGlobalQuietFlagAppliesToEverySubcommand(t *testing.T) {
 	}
 
 	// Cobra keeps flag values between Execute calls in-process; a real second
-	// invocation would start from the defaults.
+	// invocation would start from the defaults. The Changed marker persists
+	// the same way, and the quiet/verbose mutual-exclusion check reads it, so
+	// it has to be reset along with the value.
 	quiet = false
+	rootCmd.PersistentFlags().Lookup("quiet").Changed = false
 	rootCmd.SetArgs([]string{"version", "--verbose"})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("version --verbose returned error: %v", err)

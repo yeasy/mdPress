@@ -122,3 +122,19 @@ func TestUnknownKeySuggestsNestedHome(t *testing.T) {
 		}
 	}
 }
+
+// TestClosestString pins the shared did-you-mean helper used by both config
+// keys and CLI values.
+func TestClosestString(t *testing.T) {
+	formats := []string{"pdf", "html", "site", "epub", "typst"}
+	for in, want := range map[string]string{
+		"pfd":      "pdf",
+		"htlm":     "html",
+		"typts":    "typst",
+		"markdown": "", // nothing close enough
+	} {
+		if got := ClosestString(in, formats); got != want {
+			t.Errorf("ClosestString(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -139,7 +139,7 @@ func parseFormatFlag(raw string) ([]string, error) {
 }
 
 func init() {
-	buildCmd.Flags().StringVarP(&buildFormat, "format", "f", "", "Output formats, comma-separated (pdf,html,site,epub,typst) or 'all'")
+	buildCmd.Flags().StringVarP(&buildFormat, "format", "f", "", "Output formats, comma-separated (pdf,html,site,epub,typst); 'all' = pdf,html,site,epub — typst must be requested explicitly, since it needs the Typst CLI and produces the same artifact as pdf")
 	buildCmd.Flags().StringVar(&buildBranch, "branch", "", "Git branch name (GitHub sources only)")
 	buildCmd.Flags().StringVar(&buildSubDir, "subdir", "", "Subdirectory inside the source")
 	buildCmd.Flags().StringVarP(&buildOutput, "output", "o", "", "Output file path, directory, or base name for pdf/html/epub/typst; with --format site alone this is the site directory; shared with other formats the site goes to \"<base>_site/\" (default: _book/)")
@@ -302,6 +302,11 @@ func executeBuild(ctx context.Context, inputSource string) error {
 		}
 		for _, f := range formats {
 			if !validFormats[f] {
+				// Misspelled subcommands already get cobra's "Did you mean";
+				// a misspelled format value deserves the same courtesy.
+				if suggestion := config.ClosestString(f, concrete); suggestion != "" {
+					return fmt.Errorf("unsupported format %q — did you mean %q? (supported: %s)", f, suggestion, strings.Join(concrete, ", "))
+				}
 				return fmt.Errorf("unsupported format %q (supported: %s)", f, strings.Join(concrete, ", "))
 			}
 		}

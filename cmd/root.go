@@ -146,6 +146,9 @@ Common commands:
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "Quiet mode: only output errors, suppress warnings and info")
 	rootCmd.PersistentFlags().StringVar(&cacheDir, "cache-dir", "", "Override mdpress runtime cache directory")
 	rootCmd.PersistentFlags().BoolVar(&noCache, "no-cache", false, "Disable mdpress runtime caches for this command")
+	// Asking for both at once has no meaning; quiet used to win silently,
+	// leaving --verbose ignored with no diagnostic.
+	rootCmd.MarkFlagsMutuallyExclusive("quiet", "verbose")
 
 	// Without these, completing a flag value offered every file in the
 	// directory — including the ones that can never be right.

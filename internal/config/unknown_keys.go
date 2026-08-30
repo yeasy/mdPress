@@ -162,11 +162,23 @@ const maxSuggestionDistance = 3
 // closestKey returns the known key nearest to name, or "" when nothing is
 // close enough to suggest confidently.
 func closestKey(name string, known map[string]reflect.StructField) string {
-	best, bestDist := "", maxSuggestionDistance+1
+	candidates := make([]string, 0, len(known))
 	for candidate := range known {
+		candidates = append(candidates, candidate)
+	}
+	return ClosestString(name, candidates)
+}
+
+// ClosestString returns the candidate nearest to name by edit distance, or ""
+// when nothing is close enough to suggest confidently. It backs every
+// "did you mean" in the tool — config keys and CLI values alike — so all of
+// them share one notion of "close".
+func ClosestString(name string, candidates []string) string {
+	best, bestDist := "", maxSuggestionDistance+1
+	for _, candidate := range candidates {
 		d := editDistance(name, candidate)
-		// Prefer the shorter candidate on ties so suggestions are stable
-		// regardless of map iteration order.
+		// Prefer the lexically smaller candidate on ties so suggestions are
+		// stable regardless of input order.
 		if d < bestDist || (d == bestDist && candidate < best) {
 			best, bestDist = candidate, d
 		}
