@@ -503,3 +503,56 @@ func TestStripChromaPreStyle(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessAlertsEmitValidParagraphTags pins the paragraph structure of the
+// converted alert. The [!TYPE] pattern consumes the first paragraph's opening
+// <p> along with the marker, and for years the body's first paragraph shipped
+// as bare text with an orphaned </p> — invalid HTML on every alert, and an
+// empty <p></p> in the ePub after its sanitizer "repaired" it. Every shape a
+// blockquote alert can take must come out balanced.
+func TestProcessAlertsEmitValidParagraphTags(t *testing.T) {
+	cases := map[string]struct {
+		src  string
+		want []string
+	}{
+		"first paragraph inline with marker": {
+			src:  "> [!NOTE]\n> First para.\n>\n> Second para with **bold**.\n",
+			want: []string{"<p>First para.</p>", "<p>Second para with <strong>bold</strong>.</p>"},
+		},
+		"single paragraph": {
+			src:  "> [!NOTE]\n> Only para.\n",
+			want: []string{"<p>Only para.</p>"},
+		},
+		"marker on its own paragraph": {
+			src:  "> [!TIP]\n>\n> Body para.\n",
+			want: []string{"<p>Body para.</p>"},
+		},
+		"marker only": {
+			src:  "> [!WARNING]\n",
+			want: nil,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			html, _, err := NewParser().Parse([]byte(tc.src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(html, w) {
+					t.Errorf("missing %q in:\n%s", w, html)
+				}
+			}
+			// Balanced paragraphs: equal counts of <p and </p>, and no stray
+			// closing tag on a line of bare text.
+			opens := strings.Count(html, "<p")
+			closes := strings.Count(html, "</p>")
+			if opens != closes {
+				t.Errorf("unbalanced paragraph tags (%d open, %d close) in:\n%s", opens, closes, html)
+			}
+			if regexp.MustCompile(`(?m)^[^<\s][^<]*</p>`).MatchString(html) {
+				t.Errorf("bare text closed by an orphaned </p> in:\n%s", html)
+			}
+		})
+	}
+}

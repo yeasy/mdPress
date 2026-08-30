@@ -130,6 +130,18 @@ func processAlerts(html string) string {
 		// Strip any leading newline/whitespace after the [!TYPE] marker.
 		inner = strings.TrimPrefix(inner, "\n")
 
+		// The pattern consumed the first paragraph's opening <p> along with
+		// the marker, so it must be restored — otherwise the first body
+		// paragraph ships as bare text with an orphaned </p>. When the marker
+		// had a paragraph to itself ("> [!TIP]" followed by a blank quote
+		// line), what remains starts with that paragraph's own </p>; dropping
+		// it is the counterpart move, since its <p> is gone the same way.
+		if rest, ok := strings.CutPrefix(inner, "</p>"); ok {
+			inner = strings.TrimPrefix(rest, "\n")
+		} else if inner != "" {
+			inner = "<p>" + inner
+		}
+
 		// Build the alert div. Styling is by class only — see alertTypes.
 		alertHTML := "<div class=\"alert alert-" + strings.ToLower(alertType) + "\">\n" +
 			"<p class=\"alert-title\">" + style.icon + " " + style.label + "</p>\n" +
