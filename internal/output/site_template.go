@@ -521,7 +521,12 @@ pre .selection-highlight { background: rgba(255, 140, 0, 0.35); border-radius: 2
 html.dark pre .selection-highlight { background: rgba(255, 180, 50, 0.3); box-shadow: 0 0 0 1px rgba(255, 180, 50, 0.15); }
 
 .content table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; border-radius: 6px; overflow: hidden; border: 1px solid #e8e8e8; }
-.content th, .content td { border: 1px solid #e8e8e8; padding: 10px 16px; text-align: left; overflow-wrap: anywhere; word-break: break-word; }
+.content th, .content td { border: 1px solid #e8e8e8; padding: 10px 16px; text-align: left; overflow-wrap: normal; word-break: normal; }
+.content th code, .content td code { overflow-wrap: normal; word-break: normal; }
+/* Wide tables scroll sideways inside their wrapper instead of crushing the
+   columns and shredding identifiers character by character on a phone. */
+.table-scroll { overflow-x: auto; margin: 1em 0; }
+.table-scroll > table { margin: 0; }
 .content th { background: #f8f9fa; font-weight: 600; font-size: 0.88em; text-transform: none; letter-spacing: 0; color: #555; }
 .content tr:nth-child(even) { background: #fcfcfc; }
 .content th:first-child, .content td:first-child { border-left: none; }
@@ -2204,6 +2209,7 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
       // view-transition callback) so wrapping <pre> and building the TOC
       // never cause a visible layout shift.
       if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
+      if (window.__wrapTables) window.__wrapTables(mainContent);
       if (window.__addHeaderAnchors) window.__addHeaderAnchors(mainContent);
       buildPageTOC();
     }
@@ -2262,6 +2268,7 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
   setupHeadingObserver();
   buildPageTOC();
   if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
+  if (window.__wrapTables) window.__wrapTables(mainContent);
   updateActiveNavigation();
   ensureMermaid();
   ensureKaTeX();
@@ -2302,6 +2309,7 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
           breadcrumbNav.innerHTML = payload.breadcrumbHTML;
         }
         if (window.__addCopyButtons) window.__addCopyButtons(mainContent);
+        if (window.__wrapTables) window.__wrapTables(mainContent);
         if (window.__addHeaderAnchors) window.__addHeaderAnchors(mainContent);
         buildPageTOC();
         setupHeadingObserver();
@@ -3032,6 +3040,24 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
       }
     });
     addCopyButtons();
+    // Wide tables get a horizontal scroll container so a phone-width
+    // viewport scrolls them instead of breaking cell text mid-word.
+    function wrapTables(root) {
+      if (!root) return;
+      root.querySelectorAll('.content table, table').forEach(function(table) {
+        if (!table.closest('.content')) return;
+        if (table.parentElement && table.parentElement.classList.contains('table-scroll')) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'table-scroll';
+        table.parentNode.insertBefore(wrap, table);
+        wrap.appendChild(table);
+      });
+    }
+    // The SPA mount points run before this block, so their guarded calls
+    // are no-ops on the initial load — wrap what the server rendered here,
+    // the same way addCopyButtons() above handles the first page.
+    wrapTables(document);
+    window.__wrapTables = wrapTables;
     window.__addCopyButtons = addCopyButtons;
   })();
 

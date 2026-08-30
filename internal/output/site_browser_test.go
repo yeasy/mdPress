@@ -663,3 +663,65 @@ func TestSiteSidebarScrollsToActiveOnLoad(t *testing.T) {
 		t.Errorf("active sidebar item is not in view after initial load (scrollTop=%.0f, visible=%v)", r.ScrollTop, r.Visible)
 	}
 }
+
+// TestSiteWideTablesScrollOnMobile: cells carried word-break:break-word, so on
+// a phone a table wider than the viewport crushed its columns and broke
+// identifiers character by character instead of scrolling. Tables are now
+// wrapped in an overflow container; the long token must stay on one line and
+// the page itself must not overflow sideways.
+func TestSiteWideTablesScrollOnMobile(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Tables", Language: "en-US"})
+	gen.AddChapter(SiteChapter{
+		Title: "Wide", Filename: "wide.html",
+		Content: `<h1>Wide</h1><table><tr><th>Setting</th><th>Description</th></tr>` +
+			`<tr><td id="tok">EnableExperimentalCrossReferenceResolutionStrategy</td>` +
+			`<td>Turns on the very long experimental resolver flag documented here.</td></tr></table>`,
+	})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	defer srv.Close()
+
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.EmulateViewport(375, 812, chromedp.EmulateScale(1)),
+		chromedp.Navigate(srv.URL+"/wide.html"),
+		chromedp.WaitReady("#tok", chromedp.ByQuery),
+		chromedp.Evaluate(`(function() {
+			var td = document.getElementById('tok');
+			var wrap = td.closest('.table-scroll');
+			// Count the line boxes the identifier occupies: an unbroken token
+			// is exactly one; the old word-break:break-word shredded it into
+			// several. (The cell's own height is useless here — the row is as
+			// tall as its tallest sibling cell.)
+			var range = document.createRange();
+			range.selectNodeContents(td);
+			var lines = range.getClientRects().length;
+			return JSON.stringify({
+				wrapped: wrap !== null,
+				scrolls: wrap !== null && wrap.scrollWidth > wrap.clientWidth + 1,
+				shredded: lines > 1,
+				pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+			});
+		})()`, &raw),
+		chromedp.EmulateViewport(0, 0),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	var r struct{ Wrapped, Scrolls, Shredded, PageOverflow bool }
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if !r.Wrapped || !r.Scrolls {
+		t.Errorf("wide table should scroll inside a wrapper (wrapped=%v, scrolls=%v)", r.Wrapped, r.Scrolls)
+	}
+	if r.Shredded {
+		t.Error("long identifier in a table cell is still broken character by character")
+	}
+	if r.PageOverflow {
+		t.Error("wide table overflows the page instead of its own container")
+	}
+}
