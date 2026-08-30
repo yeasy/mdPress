@@ -1248,3 +1248,50 @@ output:
 		t.Error("generate_bookmarks should be false")
 	}
 }
+
+// TestChaptersAcceptBareFilePaths pins the bare-string chapter form:
+//
+//	chapters:
+//	  - intro.md
+//
+// is the most natural first guess for anyone arriving from mkdocs, and it
+// used to fail with a leaked Go type name ("cannot unmarshal !!str into
+// config.ChapterDef") once per entry, plus a hint blaming YAML syntax that
+// was in fact valid. A bare string now means {file: <string>}, mixing freely
+// with the mapping form, including inside sections.
+func TestChaptersAcceptBareFilePaths(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"intro.md", "two.md", "sub.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("# H\n\nx\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	yml := `book:
+  title: Bare
+chapters:
+  - intro.md
+  - title: Second
+    file: two.md
+    sections:
+      - sub.md
+`
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(filepath.Join(dir, "book.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Chapters) != 2 {
+		t.Fatalf("chapters = %d, want 2", len(cfg.Chapters))
+	}
+	if cfg.Chapters[0].File != "intro.md" || cfg.Chapters[0].Title != "" {
+		t.Errorf("bare entry = %+v, want {File: intro.md}", cfg.Chapters[0])
+	}
+	if cfg.Chapters[1].Title != "Second" || cfg.Chapters[1].File != "two.md" {
+		t.Errorf("mapping entry = %+v", cfg.Chapters[1])
+	}
+	if len(cfg.Chapters[1].Sections) != 1 || cfg.Chapters[1].Sections[0].File != "sub.md" {
+		t.Errorf("bare section entry = %+v", cfg.Chapters[1].Sections)
+	}
+}

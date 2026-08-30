@@ -147,6 +147,38 @@ type ChapterDef struct {
 	Sections []ChapterDef `yaml:"sections"`
 }
 
+// UnmarshalYAML accepts a bare file path where a chapter mapping is expected:
+//
+//	chapters:
+//	  - intro.md
+//
+// is read as {file: intro.md}. This is the most natural first guess for
+// anyone arriving from mkdocs (whose nav: takes exactly this shape), and the
+// title is already optional in the mapping form — the decode error it used
+// to produce leaked a Go type name ("cannot unmarshal !!str into
+// config.ChapterDef") once per entry and blamed the YAML syntax, which was
+// fine. The mapping form remains the canonical spelling everywhere mdpress
+// writes config itself.
+func (c *ChapterDef) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		var file string
+		if err := value.Decode(&file); err != nil {
+			return err
+		}
+		*c = ChapterDef{File: file}
+		return nil
+	}
+	// A local alias sheds the custom unmarshaller so mapping nodes decode
+	// through the ordinary struct path without recursing into this method.
+	type chapterDefAlias ChapterDef
+	var alias chapterDefAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*c = ChapterDef(alias)
+	return nil
+}
+
 // StyleConfig stores style-related settings.
 type StyleConfig struct {
 	Theme      string            `yaml:"theme"`
