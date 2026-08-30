@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // extractTitleFromFile is a test helper that extracts the first H1 heading from a markdown file.
@@ -805,6 +807,9 @@ func TestGitRemoteOwnerPreferredOverReadmeURL(t *testing.T) {
 	}
 	for _, args := range cmds {
 		cmd := exec.CommandContext(context.Background(), args[0], args[1:]...) //nolint:gosec // test helper with trusted args
+		// Clear GIT_DIR and friends so "-C <dir>" targets the temp repo even
+		// when the test runs from a git hook that exported them.
+		cmd.Env = utils.SanitizedGitEnv()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("command %v failed: %v\n%s", args, err, out)
 		}

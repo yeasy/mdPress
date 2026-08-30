@@ -322,17 +322,27 @@ func fileNameToTitle(path string) string {
 	return name
 }
 
+// gitCommand builds a git command scoped to dir, with the repository-selecting
+// environment variables cleared so "-C <dir>" is authoritative. A caller such
+// as a git pre-commit hook exports GIT_DIR, which silently overrides "-C" and
+// would make these helpers report the hook's repository instead of the book's.
+func gitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
+	// Prefix with "./" to prevent a directory named "-foo" from being
+	// interpreted as a git flag.
+	full := append([]string{"-C", safeDirArg(dir)}, args...)
+	cmd := exec.CommandContext(ctx, "git", full...) //nolint:gosec // args are fixed literals plus a sanitized dir
+	cmd.Env = utils.SanitizedGitEnv()
+	return cmd
+}
+
 // gitLatestTag returns the latest semver-like git tag (e.g. "v1.7.0" → "1.7.0"),
 // or an empty string when git is unavailable or no tags exist.
 func gitLatestTag(ctx context.Context, dir string) string {
 	// Enforce a short timeout to prevent blocking on SSH passphrase prompts etc.
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
-	// Prefix with "./" to prevent a directory named "-foo" from being
-	// interpreted as a git flag.
-	dir = safeDirArg(dir)
 	// Use describe to find the most recent tag reachable from HEAD.
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "describe", "--tags", "--abbrev=0").Output()
+	out, err := gitCommand(ctx, dir, "describe", "--tags", "--abbrev=0").Output()
 	if err != nil {
 		return ""
 	}
@@ -346,8 +356,7 @@ func gitLatestTag(ctx context.Context, dir string) string {
 func gitConfigAuthor(ctx context.Context, dir string) string {
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
-	dir = safeDirArg(dir)
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "config", "user.name").Output()
+	out, err := gitCommand(ctx, dir, "config", "user.name").Output()
 	if err != nil {
 		return ""
 	}
@@ -360,8 +369,7 @@ func gitConfigAuthor(ctx context.Context, dir string) string {
 func gitRemoteOwner(ctx context.Context, dir string) string {
 	ctx, cancel := context.WithTimeout(ctx, gitCmdTimeout)
 	defer cancel()
-	dir = safeDirArg(dir)
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "remote", "get-url", "origin").Output()
+	out, err := gitCommand(ctx, dir, "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""
 	}

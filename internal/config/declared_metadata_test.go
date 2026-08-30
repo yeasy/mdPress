@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // writeGitBookProject lays out the standard GitBook shape: book.json,
@@ -47,6 +49,8 @@ func TestBookJSONVersionSurvivesGitTag(t *testing.T) {
 	} {
 		cmd := exec.CommandContext(t.Context(), "git", args...)
 		cmd.Dir = dir
+		// Clear GIT_DIR and friends so cmd.Dir selects the repository.
+		cmd.Env = utils.SanitizedGitEnv()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Skipf("git %v failed: %v (%s)", args, err, out)
 		}

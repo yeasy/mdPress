@@ -113,7 +113,9 @@ func (s *GitHubSource) Prepare() (string, error) {
 	// Inject auth via git config env vars so the token stays out of argv and
 	// out of the persisted .git/config. GIT_TERMINAL_PROMPT=0 disables any
 	// interactive credential prompt.
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	// Start from a sanitized environment: an inherited GIT_DIR/GIT_WORK_TREE
+	// (exported by git hooks) would otherwise make clone target that repo.
+	cmd.Env = append(utils.SanitizedGitEnv(), "GIT_TERMINAL_PROMPT=0")
 	cmd.Env = append(cmd.Env, githubAuthEnv(token)...)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	const maxGitOutput = 10 * 1024 * 1024 // 10 MB
