@@ -132,3 +132,16 @@ func TestRepeatInterruptWatcherStopsCleanly(t *testing.T) {
 	stopRepeatWatch()
 	stopRepeatWatch()
 }
+
+// TestExitCodeMapsInterruptToConvention: a first Ctrl+C canceling a build made
+// the process exit 1 — indistinguishable from a genuine failure in scripts and
+// CI. An interrupted run must report 128+SIGINT like any signal death.
+func TestExitCodeMapsInterruptToConvention(t *testing.T) {
+	base := errors.New("failed to render PDF: context canceled")
+	if got := ExitCode(interruptedError{base}); got != interruptExitCode {
+		t.Errorf("interrupted run: exit %d, want %d", got, interruptExitCode)
+	}
+	if got := ExitCode(base); got != 1 {
+		t.Errorf("ordinary failure: exit %d, want 1", got)
+	}
+}

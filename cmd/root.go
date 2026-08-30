@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -244,6 +245,13 @@ func Execute() error {
 	defer stopRepeatWatch()
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		// A command that failed because Ctrl+C canceled its context did not
+		// fail — it was interrupted. Report it that way and let main exit
+		// with the conventional 128+SIGINT status instead of a generic 1.
+		if ctx.Err() != nil {
+			fmt.Fprintln(os.Stderr, "Interrupted.")
+			return interruptedError{err}
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		// Usage mistakes are the one class where the next step is always the
 		// same, and a bare one-liner left the user guessing.
@@ -253,6 +261,23 @@ func Execute() error {
 		return err
 	}
 	return nil
+}
+
+// interruptedError marks a command error caused by SIGINT/SIGTERM canceling
+// the run, so ExitCode can map it to the conventional interrupt status.
+type interruptedError struct{ err error }
+
+func (e interruptedError) Error() string { return e.err.Error() }
+func (e interruptedError) Unwrap() error { return e.err }
+
+// ExitCode maps an error returned by Execute to the process exit status:
+// 130 (128+SIGINT) for an interrupted run, 1 for everything else.
+func ExitCode(err error) int {
+	var ie interruptedError
+	if errors.As(err, &ie) {
+		return interruptExitCode
+	}
+	return 1
 }
 
 // usageErrorPhrases are the messages cobra produces for a malformed command
