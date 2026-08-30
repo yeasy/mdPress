@@ -23,6 +23,8 @@ type Diagnostic struct {
 var (
 	orderedListMarkerPattern = regexp.MustCompile(`^(\s*)(\d+)([.)])\s+`)
 	fenceLinePattern         = regexp.MustCompile(`^( {0,3})(` + "```" + `+|~~~+)([ \t]*)(.*)$`)
+	gitBookTagPattern        = regexp.MustCompile(`\{%-?\s*(end)?(hint|tabs|tab|content-ref|page-ref|embed|file|code|swagger|api-method|include)\b`)
+	inlineCodeSpanPattern    = regexp.MustCompile("`[^`]*`")
 )
 
 var mermaidDiagramPrefixes = []string{
@@ -103,6 +105,7 @@ func collectDiagnostics(document ast.Node, source []byte) []Diagnostic {
 	diagnostics = append(diagnostics, collectUnclosedFenceDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectPlantUMLDiagnostics(lines)...)
 	diagnostics = append(diagnostics, collectLongHeadingDiagnostics(document, source, index)...)
+	diagnostics = append(diagnostics, collectGitBookTagDiagnostics(lines)...)
 	slices.SortStableFunc(diagnostics, func(a, b Diagnostic) int {
 		if c := cmp.Compare(a.Line, b.Line); c != 0 {
 			return c
@@ -209,6 +212,55 @@ func collectPlantUMLDiagnostics(lines []string) []Diagnostic {
 // error, no warning, and the source still looks plausible. Mermaid fences are
 // handled separately (with a more specific message), so they are skipped here
 // to avoid reporting the same line twice.
+
+// collectGitBookTagDiagnostics flags GitBook liquid tags ({% hint %},
+// {% tabs %}, {% content-ref %}, ...) that survive into a build. mdpress does
+// not render them — the raw tag ships to the reader as literal text — and the
+// author gets no signal that "mdpress migrate" would have converted the file.
+// Tags inside code fences or inline code spans are documentation about the
+// syntax, not stray markup, and stay silent.
+func collectGitBookTagDiagnostics(lines []string) []Diagnostic {
+	var diagnostics []Diagnostic
+	var (
+		inFence   bool
+		fenceChar byte
+		fenceLen  int
+	)
+	for i, rawLine := range lines {
+		line := strings.TrimRight(rawLine, "\r")
+		if inFence {
+			if isFenceClose(line, fenceChar, fenceLen) {
+				inFence = false
+			}
+			continue
+		}
+		if info, ok := parseFenceOpen(line); ok {
+			inFence = true
+			fenceChar = info.marker[0]
+			fenceLen = len(info.marker)
+			continue
+		}
+		stripped := inlineCodeSpanPattern.ReplaceAllString(line, "")
+		m := gitBookTagPattern.FindStringSubmatchIndex(stripped)
+		if m == nil {
+			continue
+		}
+		if m[2] != -1 {
+			// Closing tags ({% endhint %}) always pair with an opening tag
+			// that was already flagged; one warning per block is enough.
+			continue
+		}
+		tag := stripped[m[4]:m[5]]
+		diagnostics = append(diagnostics, Diagnostic{
+			Rule:    "gitbook-tag",
+			Line:    i + 1,
+			Column:  strings.Index(line, "{%") + 1,
+			Message: fmt.Sprintf("GitBook {%% %s %%} tag is not rendered and ships as literal text; run \"mdpress migrate\" to convert it", tag),
+		})
+	}
+	return diagnostics
+}
+
 func collectUnclosedFenceDiagnostics(lines []string) []Diagnostic {
 	var (
 		openLine   int

@@ -1,6 +1,7 @@
 package markdown
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -460,5 +461,38 @@ func TestCollectPlantUMLDiagnosticsIgnoresContent(t *testing.T) {
 		"```text\nplantuml is not rendered\n```\n", "\n"))
 	if len(got) != 0 {
 		t.Errorf("unexpected diagnostics: %+v", got)
+	}
+}
+
+// TestGitBookTagDiagnostics: raw GitBook liquid tags ship as literal text with
+// no signal that migrate would convert them; fenced or inline-code examples of
+// the syntax must stay silent.
+func TestGitBookTagDiagnostics(t *testing.T) {
+	src := "# T\n\n" +
+		"{% hint style=\"info\" %}\nBe careful.\n{% endhint %}\n\n" +
+		"```\n{% tabs %}\n```\n\n" +
+		"Use `{% embed %}` for embeds.\n\n" +
+		"{% content-ref url=\"a.md\" %}\n"
+	p := NewParser()
+	_, _, diags, err := p.ParseWithDiagnostics([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, d := range diags {
+		if d.Rule == "gitbook-tag" {
+			got = append(got, fmt.Sprintf("%d:%s", d.Line, d.Message))
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("want 2 gitbook-tag diagnostics (hint, content-ref — endhint pairs with hint), got %d: %v", len(got), got)
+	}
+	if !strings.Contains(got[0], "{% hint %}") || !strings.Contains(got[0], "mdpress migrate") {
+		t.Errorf("first diagnostic should name the tag and the fix, got %q", got[0])
+	}
+	for _, g := range got {
+		if strings.Contains(g, "tabs") || strings.Contains(g, "embed") {
+			t.Errorf("fenced/inline-code examples must not be flagged: %q", g)
+		}
 	}
 }
