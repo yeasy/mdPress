@@ -1223,10 +1223,10 @@ func TestWrapXHTMLKeepsExistingHeading(t *testing.T) {
 	}
 }
 
-// TestEpubMathChapterManifestProperties verifies that chapters containing math
-// declare properties="scripted remote-resources" in the OPF manifest (required
-// by EPUB 3 for embedded scripts and remote CDN resources), while non-math
-// chapters carry no properties and no scripts.
+// TestEpubMathChapterManifestProperties verifies that a chapter containing
+// math declares properties="scripted" — and, now that KaTeX is packaged inside
+// the book, no longer claims "remote-resources" — while non-math chapters
+// carry no properties and no scripts.
 func TestEpubMathChapterManifestProperties(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "math.epub")
@@ -1248,8 +1248,8 @@ func TestEpubMathChapterManifestProperties(t *testing.T) {
 	}
 
 	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
-	if !strings.Contains(opf, `<item id="ch0" href="math.xhtml" media-type="application/xhtml+xml" properties="scripted remote-resources"/>`) {
-		t.Errorf("math chapter manifest item missing scripted/remote-resources properties: %s", opf)
+	if !strings.Contains(opf, `<item id="ch0" href="math.xhtml" media-type="application/xhtml+xml" properties="scripted"/>`) {
+		t.Errorf("math chapter manifest item should declare exactly properties=\"scripted\": %s", opf)
 	}
 	if !strings.Contains(opf, `<item id="ch1" href="plain.xhtml" media-type="application/xhtml+xml"/>`) {
 		t.Errorf("non-math chapter manifest item should have no properties: %s", opf)
@@ -1690,7 +1690,7 @@ func TestEpubPublishingMetadata(t *testing.T) {
 		Date: "2026-01-15", Rights: "CC BY 4.0",
 		Subjects: []string{"Computers", "Documentation"},
 	})
-	opf := gen.generateOPF([]EpubChapter{{Title: "One", ID: "one", Filename: "one.xhtml"}}, nil, nil)
+	opf := gen.generateOPF([]EpubChapter{{Title: "One", ID: "one", Filename: "one.xhtml"}}, nil, nil, nil)
 
 	for _, want := range []string{
 		"<dc:publisher>Example Press</dc:publisher>",
@@ -2053,7 +2053,7 @@ func TestEpubRemoteResourceManifestProperty(t *testing.T) {
 			HTML: `<p><img src="https://unreachable.invalid/x.png" alt="b"></p>`},
 		{Title: "L", ID: "l", Filename: "l.xhtml", HTML: `<p>purely local</p>`},
 	}
-	opf := gen.generateOPF(chapters, nil, nil)
+	opf := gen.generateOPF(chapters, nil, nil, nil)
 	if !strings.Contains(opf, `href="r.xhtml" media-type="application/xhtml+xml" properties="remote-resources"`) {
 		t.Errorf("chapter with a remote image is missing remote-resources:\n%s", opf)
 	}

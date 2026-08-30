@@ -6,6 +6,14 @@ mdPress extends standard Markdown with powerful features for technical documenta
 
 Write mathematical equations using KaTeX syntax. Both inline and display modes are supported.
 
+How the formulas reach the reader depends on the format. The PDF is typeset at
+build time, so it needs nothing. The site and portable HTML builds load KaTeX
+from a CDN when the page is opened. The ePub packages KaTeX inside the book —
+around 600 KB, added only to books that contain a formula — so formulas render
+with no network at all, in any reading system that runs scripts (Apple Books,
+Thorium, and Calibre's viewer among them). Readers that do not run scripts show
+the LaTeX source instead.
+
 ### Inline Math
 
 Use single dollar signs to write inline mathematical expressions:
