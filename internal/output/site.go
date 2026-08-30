@@ -181,6 +181,13 @@ func (g *SiteGenerator) Generate(outputDir string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// The reader should hear about an untranslated UI from the build, not
+	// from a Korean book shipping "Type to search…" in its search box.
+	if !uiLocalized(g.Meta.Language) {
+		slog.Warn("site UI is not translated for this language; interface labels fall back to English",
+			slog.String("language", g.Meta.Language))
+	}
+
 	// Flatten nested chapters for previous/next navigation.
 	flatPages := g.flattenChapters(g.Chapters)
 

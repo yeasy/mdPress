@@ -87,6 +87,82 @@ var uiStrings = map[string]map[string]string{
 		"assets_mermaid_failed": "図は描画されていません：Mermaid ライブラリを読み込めませんでした（オフラインまたは CDN がブロックされています）。以下はソースです。",
 		"assets_katex_failed":   "このページの一部の数式は描画されていません：KaTeX ライブラリを読み込めませんでした（オフラインまたは CDN がブロックされています）。数式は LaTeX ソースのまま表示されます。",
 	},
+	"ko": {
+		"previous":              "이전",
+		"next":                  "다음",
+		"search_placeholder":    "검색어 입력…",
+		"search_button":         "검색",
+		"no_results":            "검색 결과 없음:",
+		"search_unavailable":    "검색을 사용할 수 없음",
+		"search_results_one":    "결과 1개",
+		"search_results":        "결과 %d개",
+		"recent_pages":          "최근 페이지",
+		"recent_empty":          "최근 방문한 페이지가 없습니다",
+		"search_navigate":       "이동",
+		"search_open":           "열기",
+		"search_close":          "닫기",
+		"search_match_title":    "제목",
+		"search_match_path":     "경로",
+		"search_match_text":     "본문",
+		"search_matched":        "일치: %s",
+		"on_this_page":          "이 페이지 목차",
+		"edit_page":             "이 페이지 편집",
+		"not_found_title":       "페이지를 찾을 수 없습니다",
+		"not_found_home":        "홈으로 돌아가기",
+		"copy":                  "복사",
+		"copied":                "복사됨!",
+		"hide_sidebar":          "사이드바 숨기기",
+		"light_mode":            "라이트 모드",
+		"dark_mode":             "다크 모드",
+		"system_default":        "시스템 기본값",
+		"search_kbd":            "Ctrl/⌘ K",
+		"page_of":               "%d / %d 페이지",
+		"built_with":            "%s(으)로 제작",
+		"skip_to_content":       "본문으로 건너뛰기",
+		"nav_toggle":            "탐색 메뉴 전환",
+		"breadcrumb":            "탐색 경로",
+		"page_navigation":       "페이지 탐색",
+		"assets_mermaid_failed": "다이어그램이 렌더링되지 않았습니다. Mermaid 라이브러리를 불러올 수 없습니다(오프라인이거나 CDN이 차단됨). 아래는 소스입니다.",
+		"assets_katex_failed":   "이 페이지의 일부 수식이 렌더링되지 않았습니다. KaTeX 라이브러리를 불러올 수 없습니다(오프라인이거나 CDN이 차단됨). 수식은 LaTeX 소스로 표시됩니다.",
+	},
+	"fr": {
+		"previous":              "Précédent",
+		"next":                  "Suivant",
+		"search_placeholder":    "Rechercher…",
+		"search_button":         "Rechercher",
+		"no_results":            "Aucun résultat pour",
+		"search_unavailable":    "Recherche indisponible",
+		"search_results_one":    "1 résultat",
+		"search_results":        "%d résultats",
+		"recent_pages":          "Pages récentes",
+		"recent_empty":          "Aucune page récente pour l'instant",
+		"search_navigate":       "naviguer",
+		"search_open":           "ouvrir",
+		"search_close":          "fermer",
+		"search_match_title":    "titre",
+		"search_match_path":     "chemin",
+		"search_match_text":     "texte",
+		"search_matched":        "Correspondance : %s",
+		"on_this_page":          "SUR CETTE PAGE",
+		"edit_page":             "Modifier cette page",
+		"not_found_title":       "Page introuvable",
+		"not_found_home":        "Retour à l'accueil",
+		"copy":                  "Copier",
+		"copied":                "Copié !",
+		"hide_sidebar":          "Masquer la barre latérale",
+		"light_mode":            "Mode clair",
+		"dark_mode":             "Mode sombre",
+		"system_default":        "Réglage système",
+		"search_kbd":            "Ctrl/⌘ K",
+		"page_of":               "Page %d sur %d",
+		"built_with":            "Créé avec %s",
+		"skip_to_content":       "Aller au contenu",
+		"nav_toggle":            "Basculer le menu de navigation",
+		"breadcrumb":            "Fil d'Ariane",
+		"page_navigation":       "Navigation entre pages",
+		"assets_mermaid_failed": "Diagramme non rendu : la bibliothèque Mermaid n'a pas pu être chargée (hors ligne, ou CDN bloqué). Sa source est affichée ci-dessous.",
+		"assets_katex_failed":   "Certaines formules de cette page ne sont pas rendues : la bibliothèque KaTeX n'a pas pu être chargée (hors ligne, ou CDN bloqué). Elles sont affichées en source LaTeX.",
+	},
 	// Default (English) is the fallback.
 	"en": {
 		"previous":              "Previous",
@@ -131,6 +207,25 @@ var uiStrings = map[string]map[string]string{
 // htmlTagPattern strips HTML tags for plain-text extraction.
 // Uses the shared pattern from pkg/utils to avoid duplication.
 var htmlTagPattern = utils.HTMLTagPattern
+
+// uiLocalized reports whether the site UI has a translation table covering
+// lang (exact or prefix match). English and an empty language count as
+// covered.
+func uiLocalized(lang string) bool {
+	lang = strings.ToLower(lang)
+	if lang == "" {
+		return true
+	}
+	if _, ok := uiStrings[lang]; ok {
+		return true
+	}
+	for prefix := range uiStrings {
+		if strings.HasPrefix(lang, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // uiString returns the localized UI string for the given key and language.
 func uiString(lang, key string) string {
