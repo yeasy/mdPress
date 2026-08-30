@@ -188,6 +188,37 @@ as a build step and reference the output:
 `mdpress build` warns once per PlantUML block, and `mdpress doctor` reports
 their presence, so a book that still contains them is easy to find.
 
+## Callouts (GFM Alerts)
+
+mdPress renders GitHub-flavored alert blockquotes as styled callout boxes in
+every output format — site, portable HTML, PDF, and ePub:
+
+```markdown
+> [!NOTE]
+> Useful context the reader should not miss.
+
+> [!TIP]
+> A better way to do the same thing.
+
+> [!IMPORTANT]
+> Required for things to work at all.
+
+> [!WARNING]
+> This can go wrong in a way that costs time.
+
+> [!CAUTION]
+> This can go wrong in a way that costs data.
+```
+
+Each type gets its own icon, label, and accent color. The marker may share the
+first paragraph (`> [!NOTE]` followed directly by `> text`) or stand on its own
+line with the body in the following quote paragraphs. A blockquote without a
+marker stays an ordinary blockquote.
+
+`mdpress migrate` converts GitBook `{% hint %}` blocks to these callouts
+automatically (`info` → NOTE, `success` → TIP, `warning` → WARNING,
+`danger` → CAUTION).
+
 ## Footnotes
 
 Add footnotes to provide additional context without interrupting the main text:

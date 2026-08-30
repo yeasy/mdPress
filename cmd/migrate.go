@@ -30,7 +30,7 @@ var migrateCmd = &cobra.Command{
 What migrate does:
   1. Reads book.json and converts it to book.yaml.
   2. Rewrites GitBook template tags in Markdown files:
-       {% hint style="info" %}...{% endhint %}  →  blockquote
+       {% hint style="info" %}...{% endhint %}  →  GFM alert (> [!NOTE])
        {% tabs %}...{% endtabs %}               →  kept with a comment
        {% code title="..." %}...{% endcode %}   →  fenced code block
   3. Keeps SUMMARY.md intact (mdpress already supports this format).
@@ -329,6 +329,15 @@ func nonEmpty(s, fallback string) string {
 
 // ---- GitBook syntax rewriting ----
 
+// gitBookHintAlertTypes maps GitBook hint styles onto the GFM alert types
+// mdpress renders natively (docs/manual guide/markdown-extensions).
+var gitBookHintAlertTypes = map[string]string{
+	"info":    "NOTE",
+	"success": "TIP",
+	"warning": "WARNING",
+	"danger":  "CAUTION",
+}
+
 // hintRE matches {% hint style="TYPE" %}...{% endhint %} (possibly multi-line).
 var hintRE = regexp.MustCompile(`(?s)\{%\s*hint\s+style="([^"]+)"\s*%\}(.*?)\{%\s*endhint\s*%\}`)
 
@@ -353,18 +362,25 @@ var (
 func rewriteGitBookSyntax(content string) (string, bool) {
 	original := content
 
-	// {% hint style="TYPE" %}BODY{% endhint %} → blockquote
+	// {% hint style="TYPE" %}BODY{% endhint %} → GFM alert. mdpress renders
+	// alerts as styled callouts in every format, so migrating to a plain
+	// "> **INFO:**" blockquote threw the styling away when an equivalent
+	// existed. GitBook's four styles map onto GitHub's alert types.
 	content = hintRE.ReplaceAllStringFunc(content, func(match string) string {
 		groups := hintRE.FindStringSubmatch(match)
 		if len(groups) < 3 {
 			return match
 		}
-		style := groups[1]
+		alertType, ok := gitBookHintAlertTypes[strings.ToLower(groups[1])]
+		if !ok {
+			// An unrecognized style still becomes a visible callout rather
+			// than raw template tags; NOTE is the neutral choice.
+			alertType = "NOTE"
+		}
 		body := strings.TrimSpace(groups[2])
-		// Prefix each line of the body with "> " to form a blockquote.
 		lines := strings.Split(body, "\n")
 		quoted := make([]string, 0, len(lines)+1)
-		quoted = append(quoted, fmt.Sprintf("> **%s:** ", strings.ToUpper(style)))
+		quoted = append(quoted, "> [!"+alertType+"]")
 		for _, line := range lines {
 			quoted = append(quoted, "> "+line)
 		}

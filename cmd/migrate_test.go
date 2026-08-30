@@ -22,8 +22,8 @@ This is an informational note.
 	if !changed {
 		t.Fatal("expected content to be changed")
 	}
-	if !strings.Contains(got, "> **INFO:**") {
-		t.Errorf("expected blockquote with INFO label, got:\n%s", got)
+	if !strings.Contains(got, "> [!NOTE]") {
+		t.Errorf("expected a GFM NOTE alert, got:\n%s", got)
 	}
 	if strings.Contains(got, "{%") {
 		t.Errorf("expected all template tags to be removed, got:\n%s", got)
@@ -31,15 +31,23 @@ This is an informational note.
 }
 
 func TestRewriteGitBookSyntax_HintMultipleStyles(t *testing.T) {
-	for _, style := range []string{"warning", "danger", "success"} {
+	// GitBook's four hint styles map onto the GFM alert types mdpress renders
+	// natively; an unknown style still becomes a visible NOTE callout rather
+	// than raw template tags in the page.
+	for style, alert := range map[string]string{
+		"warning": "WARNING",
+		"danger":  "CAUTION",
+		"success": "TIP",
+		"info":    "NOTE",
+		"exotic":  "NOTE",
+	} {
 		input := "{% hint style=\"" + style + "\" %}body{% endhint %}"
 		got, changed := rewriteGitBookSyntax(input)
 		if !changed {
 			t.Errorf("style %q: expected change", style)
 		}
-		upperStyle := strings.ToUpper(style)
-		if !strings.Contains(got, "> **"+upperStyle+":**") {
-			t.Errorf("style %q: expected label in output, got: %s", style, got)
+		if !strings.Contains(got, "> [!"+alert+"]") {
+			t.Errorf("style %q: expected a [!%s] alert, got: %s", style, alert, got)
 		}
 	}
 }
@@ -346,8 +354,8 @@ After`
 		t.Error("expected content to be changed")
 	}
 	// The regex should match the outermost block
-	if !strings.Contains(got, "> **INFO:**") {
-		t.Errorf("expected blockquote conversion, got:\n%s", got)
+	if !strings.Contains(got, "> [!NOTE]") {
+		t.Errorf("expected alert conversion, got:\n%s", got)
 	}
 	// Should still have Before and After text
 	if !strings.Contains(got, "Before") || !strings.Contains(got, "After") {
@@ -396,13 +404,13 @@ Third section.`
 		t.Error("expected content to be changed")
 	}
 	// Should have both converted hints
-	infoCount := strings.Count(got, "> **INFO:**")
-	warningCount := strings.Count(got, "> **WARNING:**")
+	infoCount := strings.Count(got, "> [!NOTE]")
+	warningCount := strings.Count(got, "> [!WARNING]")
 	if infoCount != 1 {
-		t.Errorf("expected 1 info blockquote, got %d", infoCount)
+		t.Errorf("expected 1 NOTE alert, got %d", infoCount)
 	}
 	if warningCount != 1 {
-		t.Errorf("expected 1 warning blockquote, got %d", warningCount)
+		t.Errorf("expected 1 WARNING alert, got %d", warningCount)
 	}
 	// Should preserve section text
 	if !strings.Contains(got, "First section") || !strings.Contains(got, "Third section") {
@@ -757,8 +765,8 @@ func TestRewriteGitBookSyntax_VeryLongContent(t *testing.T) {
 		t.Error("expected content to be changed")
 	}
 	// Should still be converted to blockquote
-	if !strings.Contains(got, "> **INFO:**") {
-		t.Errorf("expected blockquote, got:\n%s", got[:100])
+	if !strings.Contains(got, "> [!NOTE]") {
+		t.Errorf("expected alert, got:\n%s", got[:100])
 	}
 	// Content should be mostly preserved (with quote prefixes)
 	lineCount := strings.Count(got, "\n")

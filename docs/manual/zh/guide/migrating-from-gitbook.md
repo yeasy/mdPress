@@ -132,11 +132,12 @@ style:
 
 ### 模板标签为 Markdown
 
-像 `{% hint %}` 块这样的 GitBook 模板语法转换为标准 Markdown 引用块。
+像 `{% hint %}` 块这样的 GitBook 模板语法会转换成 mdPress 原生渲染的 Markdown。
 
 #### 提示块转换
 
-GitBook `{% hint %} ... {% endhint %}`：
+GitBook `{% hint %}` 块会转换成 [GFM 提示框](markdown-extensions.md#提示框gfm-alerts),
+mdPress 在所有输出格式中用图标、标签和强调色渲染它们:
 
 ```markdown
 {% hint style="warning" %}
@@ -144,59 +145,16 @@ This is a warning message.
 {% endhint %}
 ```
 
-转换为 mdPress 引用块：
+转换为:
 
 ```markdown
-> **Warning:** This is a warning message.
+> [!WARNING]
+> This is a warning message.
 ```
 
-#### 信息块转换
-
-GitBook 信息块：
-
-```markdown
-{% hint style="info" %}
-This is important information.
-{% endhint %}
-```
-
-转换为：
-
-```markdown
-> **Info:** This is important information.
-```
-
-#### 成功块转换
-
-GitBook 成功块：
-
-```markdown
-{% hint style="success" %}
-Operation completed successfully.
-{% endhint %}
-```
-
-转换为：
-
-```markdown
-> **Success:** Operation completed successfully.
-```
-
-#### 危险块转换
-
-GitBook 危险块：
-
-```markdown
-{% hint style="danger" %}
-Dangerous operation ahead.
-{% endhint %}
-```
-
-转换为：
-
-```markdown
-> **Danger:** Dangerous operation ahead.
-```
+GitBook 的四种样式映射到 GitHub 提示类型 —— `info` → `NOTE`、`success` → `TIP`、
+`warning` → `WARNING`、`danger` → `CAUTION`;无法识别的样式回退为 `NOTE`,
+因此不会有提示块以裸模板标签的形式留在页面里。
 
 ### 代码块转换
 

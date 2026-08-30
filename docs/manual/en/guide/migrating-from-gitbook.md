@@ -137,11 +137,13 @@ instead of `book.title` leaves the book named "Untitled Book". See the
 
 ### Template Tags to Markdown
 
-GitBook template syntax like `{% hint %}` blocks are converted to standard Markdown blockquotes.
+GitBook template syntax like `{% hint %}` blocks is converted to Markdown
+mdPress renders natively.
 
 #### Hint Block Conversion
 
-GitBook `{% hint %} ... {% endhint %}`:
+GitBook `{% hint %}` blocks become [GFM alert callouts](markdown-extensions.md#callouts-gfm-alerts),
+which mdPress styles with an icon, label, and accent color in every format:
 
 ```markdown
 {% hint style="warning" %}
@@ -149,59 +151,17 @@ This is a warning message.
 {% endhint %}
 ```
 
-Converts to mdPress blockquote:
-
-```markdown
-> **Warning:** This is a warning message.
-```
-
-#### Info Block Conversion
-
-GitBook info block:
-
-```markdown
-{% hint style="info" %}
-This is important information.
-{% endhint %}
-```
-
 Converts to:
 
 ```markdown
-> **Info:** This is important information.
+> [!WARNING]
+> This is a warning message.
 ```
 
-#### Success Block Conversion
-
-GitBook success block:
-
-```markdown
-{% hint style="success" %}
-Operation completed successfully.
-{% endhint %}
-```
-
-Converts to:
-
-```markdown
-> **Success:** Operation completed successfully.
-```
-
-#### Danger Block Conversion
-
-GitBook danger block:
-
-```markdown
-{% hint style="danger" %}
-Dangerous operation ahead.
-{% endhint %}
-```
-
-Converts to:
-
-```markdown
-> **Danger:** Dangerous operation ahead.
-```
+The four GitBook styles map onto the GitHub alert types — `info` → `NOTE`,
+`success` → `TIP`, `warning` → `WARNING`, `danger` → `CAUTION` — and an
+unrecognized style falls back to `NOTE`, so no hint is ever left as raw
+template tags in the page.
 
 ### Code Block Conversion
 

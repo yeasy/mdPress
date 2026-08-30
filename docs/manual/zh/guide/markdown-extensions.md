@@ -187,6 +187,35 @@ sequenceDiagram
 `mdpress build` 会为每个 PlantUML 代码块发出一次警告，`mdpress doctor` 也会报告
 它们的存在，所以书里还残留哪些块很容易找到。
 
+## 提示框(GFM Alerts)
+
+mdPress 会把 GitHub 风格的提示引用块渲染成带样式的提示框,在所有输出格式中生效
+—— 站点、便携 HTML、PDF 和 ePub:
+
+```markdown
+> [!NOTE]
+> 读者不应错过的补充信息。
+
+> [!TIP]
+> 做同一件事的更好方式。
+
+> [!IMPORTANT]
+> 不做就无法工作的必要条件。
+
+> [!WARNING]
+> 出错会浪费时间的操作。
+
+> [!CAUTION]
+> 出错会丢数据的操作。
+```
+
+每种类型有各自的图标、标签和强调色。标记可以与第一段同段(`> [!NOTE]` 直接跟
+`> 正文`),也可以独占一行、正文放在后续引用段落里。没有标记的引用块仍是普通
+引用块。
+
+`mdpress migrate` 会自动把 GitBook 的 `{% hint %}` 块转换成这些提示框
+(`info` → NOTE,`success` → TIP,`warning` → WARNING,`danger` → CAUTION)。
+
 ## 脚注
 
 添加脚注以提供额外上下文，而不中断主要文本：
