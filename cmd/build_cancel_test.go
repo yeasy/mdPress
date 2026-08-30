@@ -209,8 +209,11 @@ func TestSIGINTStopsBuildAndRemovesOutput(t *testing.T) {
 	if !errors.As(waitErr, &exitErr) {
 		t.Fatalf("interrupted build exited with %v, want a non-zero status\n%s", waitErr, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "build canceled") {
-		t.Errorf("interrupted build did not report the cancellation:\n%s", stderr.String())
+	if got := exitErr.ExitCode(); got != interruptExitCode {
+		t.Errorf("interrupted build exited %d, want %d (128+SIGINT)", got, interruptExitCode)
+	}
+	if !strings.Contains(stderr.String(), "Interrupted.") {
+		t.Errorf("interrupted build did not report the interruption:\n%s", stderr.String())
 	}
 
 	entries, err := os.ReadDir(dir)
