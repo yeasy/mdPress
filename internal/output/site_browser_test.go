@@ -725,3 +725,92 @@ func TestSiteWideTablesScrollOnMobile(t *testing.T) {
 		t.Error("wide table overflows the page instead of its own container")
 	}
 }
+
+// TestSiteCopyButtonKeyboardAndFallback covers two silent failures: the copy
+// button was hover-revealed only, so a keyboard user tabbing onto it focused
+// an invisible control; and when navigator.clipboard.writeText rejected (as it
+// does without clipboard permission — headless Chrome included), the catch
+// swallowed the error and the click did nothing. Focus must reveal the button
+// and a click must reach the "Copied" state via the legacy fallback.
+func TestSiteCopyButtonKeyboardAndFallback(t *testing.T) {
+	ctx := newBrowser(t)
+	srv := httptest.NewServer(http.FileServer(http.Dir(browserTestSiteWithCode(t))))
+	defer srv.Close()
+
+	// Real key presses and clicks (CDP input events) rather than script
+	// calls: :focus-visible needs genuine keyboard input, and the legacy
+	// execCommand fallback needs user activation.
+	var hidden, focused, raw string
+	if err := chromedp.Run(ctx,
+		chromedp.EmulateViewport(1280, 800),
+		chromedp.Navigate(srv.URL+"/code.html"),
+		chromedp.WaitReady(".copy-btn", chromedp.ByQuery),
+		chromedp.Evaluate(`getComputedStyle(document.querySelector('.copy-btn')).opacity`, &hidden),
+		// Force the modern clipboard API to refuse, as it does under a
+		// permissions policy or an unfocused document, so the click below
+		// exercises the execCommand fallback rather than the happy path.
+		chromedp.Evaluate(`void Object.defineProperty(navigator.clipboard, 'writeText', {
+			value: function() { return Promise.reject(new Error('denied')); }
+		})`, nil),
+	); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+	for i := 0; i < 40; i++ {
+		var onButton bool
+		if err := chromedp.Run(ctx,
+			chromedp.KeyEvent("\t"),
+			chromedp.Evaluate(`document.activeElement !== null && document.activeElement.classList.contains('copy-btn')`, &onButton),
+		); err != nil {
+			t.Fatalf("tabbing failed: %v", err)
+		}
+		if onButton {
+			break
+		}
+		if i == 39 {
+			t.Fatal("never reached the copy button by keyboard")
+		}
+	}
+	if err := chromedp.Run(ctx,
+		chromedp.Sleep(300*time.Millisecond), // let the opacity transition finish
+		chromedp.Evaluate(`getComputedStyle(document.querySelector('.copy-btn')).opacity`, &focused),
+		chromedp.Click(".copy-btn", chromedp.ByQuery),
+		chromedp.Sleep(400*time.Millisecond),
+		chromedp.Evaluate(`JSON.stringify({
+			copied: document.querySelector('.copy-btn').classList.contains('copied'),
+			label: document.querySelector('.copy-btn').textContent
+		})`, &raw),
+		chromedp.EmulateViewport(0, 0),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	var r struct {
+		Label  string
+		Copied bool
+	}
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if hidden != "0" {
+		t.Errorf("copy button should be hidden until hover/focus, opacity=%s", hidden)
+	}
+	if focused != "1" {
+		t.Errorf("keyboard focus should reveal the copy button, opacity=%s", focused)
+	}
+	if !r.Copied {
+		t.Errorf("click did not reach the copied state (label=%q) — clipboard rejection must fall back", r.Label)
+	}
+}
+
+func browserTestSiteWithCode(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Code", Language: "en-US"})
+	gen.AddChapter(SiteChapter{
+		Title: "Code", Filename: "code.html",
+		Content: `<h1>Code</h1><pre><code>echo hello world</code></pre>`,
+	})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	return dir
+}

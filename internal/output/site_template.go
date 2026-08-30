@@ -512,6 +512,9 @@ html.dark .code-wrapper[data-lang]::before { color: #9399b2; }
   line-height: 1; z-index: 1;
 }
 .code-wrapper:hover .copy-btn { opacity: 1; }
+/* A keyboard user tabbing to the button must see it too — hover-only
+   visibility left the focused control invisible. */
+.copy-btn:focus-visible { opacity: 1; outline: 2px solid var(--color-link, #4285f4); outline-offset: 1px; }
 .copy-btn.copied { background: #2ea44f; color: #fff; border-color: #2ea44f; }
 html.dark .code-wrapper .copy-btn { background: rgba(30,30,46,.8); border-color: #45475a; color: #a6adc8; }
 html.dark .copy-btn.copied { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; }
@@ -3017,13 +3020,12 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
       var pre = btn.parentNode.querySelector('pre');
       if (!pre) return;
       var text = pre.textContent || pre.innerText;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function() {
-          btn.textContent = __ui.copied;
-          btn.classList.add('copied');
-          setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
-        }).catch(function() {});
-      } else {
+      function markCopied() {
+        btn.textContent = __ui.copied;
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
+      }
+      function legacyCopy() {
         try {
           var ta = document.createElement('textarea');
           ta.value = text;
@@ -3031,12 +3033,18 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
           ta.style.opacity = '0';
           document.body.appendChild(ta);
           ta.select();
-          document.execCommand('copy');
+          var ok = document.execCommand('copy');
           document.body.removeChild(ta);
-          btn.textContent = __ui.copied;
-          btn.classList.add('copied');
-          setTimeout(function() { btn.textContent = __ui.copy; btn.classList.remove('copied'); }, 2000);
+          if (ok) markCopied();
         } catch(err) {}
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        // The API exists but can still refuse — permissions policy, an
+        // unfocused document — so a rejection retries the legacy path
+        // instead of leaving the click silently dead.
+        navigator.clipboard.writeText(text).then(markCopied).catch(legacyCopy);
+      } else {
+        legacyCopy();
       }
     });
     addCopyButtons();
