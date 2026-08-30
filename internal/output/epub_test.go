@@ -2061,3 +2061,46 @@ func TestEpubRemoteResourceManifestProperty(t *testing.T) {
 		t.Errorf("local-only chapter must not declare remote-resources:\n%s", opf)
 	}
 }
+
+// TestEpubNavKeepsSummaryPartHeadings pins the navigation document's grouping.
+// SUMMARY.md "## Part" headings reach every chapter as its Section label, and
+// the site sidebar has always rendered them — but nav.xhtml flattened a
+// grouped book into one undifferentiated list (dtb:depth 1, thirty siblings).
+// A part renders as a li whose heading is a non-linking span over a nested ol,
+// which EPUB 3 nav permits; chapters before the first label stay ungrouped.
+func TestEpubNavKeepsSummaryPartHeadings(t *testing.T) {
+	gen := NewEpubGenerator(EpubMeta{Title: "Grouped", Language: "en-US"})
+	add := func(id, title, section string, depth int) {
+		gen.AddChapter(EpubChapter{
+			Title: title, ID: id, Filename: id + ".xhtml",
+			HTML: "<p>x</p>", Section: section, Depth: depth,
+		})
+	}
+	add("intro", "Introduction", "", 0) // before any part: ungrouped
+	add("install", "Installation", "Getting Started", 0)
+	add("quick", "Quick Start", "", 0)    // same part as install
+	add("deep", "Details", "", 1)         // nested under quick
+	add("themes", "Theming", "Guides", 0) // next part
+
+	nav := gen.generateNavDocument(gen.chapters)
+
+	for _, part := range []string{"<li><span>Getting Started</span>", "<li><span>Guides</span>"} {
+		if !strings.Contains(nav, part) {
+			t.Errorf("nav.xhtml missing part heading %q:\n%s", part, nav)
+		}
+	}
+	// The pre-part chapter is a plain link, not swallowed into a group.
+	introIdx := strings.Index(nav, `href="intro.xhtml"`)
+	firstPart := strings.Index(nav, "<li><span>Getting Started</span>")
+	if introIdx == -1 || firstPart == -1 || introIdx > firstPart {
+		t.Errorf("ungrouped chapter should precede the first part heading:\n%s", nav)
+	}
+	// Grouping keeps membership: quick (and its nested child) inside the
+	// Getting Started group, themes inside Guides.
+	gs := nav[firstPart:strings.Index(nav, "<li><span>Guides</span>")]
+	for _, want := range []string{`href="install.xhtml"`, `href="quick.xhtml"`, `href="deep.xhtml"`} {
+		if !strings.Contains(gs, want) {
+			t.Errorf("Getting Started group missing %s:\n%s", want, gs)
+		}
+	}
+}

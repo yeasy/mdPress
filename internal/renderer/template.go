@@ -105,6 +105,18 @@ const htmlTemplate = `<!DOCTYPE html>
       line-height: 1.5;
     }
 
+    /* SUMMARY part headings, rendered as unlinked items between chapter
+       groups — the same grouping the site sidebar shows. */
+    .toc li.toc-section {
+      margin: 1.1rem 0 0.35rem;
+      font-size: 0.72em;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--color-muted, #5b6b7c);
+      page-break-after: avoid;
+    }
+
     .toc a {
       color: var(--color-heading, #14263b);
       text-decoration: none;

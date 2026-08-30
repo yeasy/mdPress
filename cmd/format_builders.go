@@ -609,6 +609,7 @@ func (b *epubBuilder) Build(ctx context.Context, bc *buildContext, baseName stri
 			Filename:  ch.ID + ".xhtml",
 			HTML:      ch.Content,
 			SourceDir: sourceDir,
+			Section:   ch.Section,
 		})
 	}
 	if err := epubGen.Generate(outputPath); err != nil {

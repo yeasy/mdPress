@@ -28,6 +28,10 @@ type ChapterHTML struct {
 	Content  string       // Chapter HTML content
 	Depth    int          // Chapter depth in book structure (0-based)
 	Headings []NavHeading // Heading tree within the chapter, used for navigation
+	// Section is the group label this chapter starts (SUMMARY.md "## Heading"
+	// lines, or book.yaml `section:`). The site sidebar has always rendered
+	// it; ePub and PDF dropped it, flattening a grouped book into one list.
+	Section string
 }
 
 // NavHeading represents a navigation heading tree within a chapter.

@@ -589,3 +589,34 @@ func TestRenderHTMLReservesPageNumberSlots(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderHTMLEmitsSectionHeadings pins the printed contents' part labels.
+// SUMMARY.md "## Part" headings reach the chapter's own TOC entry as Section;
+// they render as unlinked items ahead of the chapter that opens the part —
+// the grouping the site sidebar has always shown, previously dropped here.
+func TestRenderHTMLEmitsSectionHeadings(t *testing.T) {
+	g := NewGenerator()
+	entries := g.Generate([]HeadingInfo{
+		{Level: 1, Text: "Introduction", ID: "intro"},
+		{Level: 1, Text: "Installation", ID: "install", Section: "Getting Started"},
+		{Level: 2, Text: "Homebrew", ID: "brew"},
+		{Level: 1, Text: "Theming", ID: "theming", Section: "Guides"},
+	})
+	html := g.RenderHTML(entries)
+
+	for _, want := range []string{
+		`<li class="toc-section">Getting Started</li>`,
+		`<li class="toc-section">Guides</li>`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("missing %q in:\n%s", want, html)
+		}
+	}
+	// The label precedes its chapter, and a nested heading never emits one.
+	if strings.Index(html, "Getting Started</li>") > strings.Index(html, `href="#install"`) {
+		t.Errorf("section label should precede the chapter that opens it:\n%s", html)
+	}
+	if strings.Count(html, "toc-section") != 2 {
+		t.Errorf("expected exactly 2 section labels, got %d:\n%s", strings.Count(html, "toc-section"), html)
+	}
+}

@@ -65,6 +65,9 @@ type EpubChapter struct {
 	Filename  string
 	HTML      string // XHTML body content.
 	SourceDir string // Source directory used to resolve relative asset paths.
+	// Section is the group label this chapter starts. Groups render in the
+	// navigation document as non-linking span headings over a nested list.
+	Section string
 	// Depth is the chapter's nesting level (0 = top level). Reading systems
 	// render the navigation document as a tree, so a book using `sections:`
 	// needs this to keep its hierarchy instead of showing one flat list.
@@ -584,8 +587,63 @@ func writeNavPoints(b *strings.Builder, chapters []EpubChapter, depth int, playO
 
 // writeNavItems emits the EPUB 3 navigation document's list items, nesting a
 // child <ol> for chapters that have sub-sections.
-func writeNavItems(b *strings.Builder, chapters []EpubChapter, indent string) {
-	writeNavItemsAtDepth(b, normalizeNavDepths(chapters), 0, indent)
+// writeGroupedNavItems renders the top level of the navigation document with
+// SUMMARY part headings intact. A chapter carrying a Section label starts a
+// group; the group runs until the next labeled top-level chapter. The site
+// sidebar has always shown these headings, while nav.xhtml flattened a
+// grouped book into one undifferentiated list. EPUB 3 nav allows a li whose
+// heading is a non-linking span over a nested ol, which is exactly a part.
+// Chapters before the first label render ungrouped, as GitBook does.
+func writeGroupedNavItems(b *strings.Builder, chapters []EpubChapter, indent string) {
+	chapters = normalizeNavDepths(chapters)
+
+	// Split into top-level segments: [start, end) covering one top-level
+	// chapter and its nested children.
+	type segment struct{ start, end int }
+	var segments []segment
+	for i := 0; i < len(chapters); i++ {
+		if chapters[i].Depth != 0 {
+			continue
+		}
+		end := i + 1
+		for end < len(chapters) && chapters[end].Depth > 0 {
+			end++
+		}
+		segments = append(segments, segment{i, end})
+	}
+
+	flush := func(section string, from, to int) {
+		if from >= to {
+			return
+		}
+		if section == "" {
+			writeNavItemsAtDepth(b, chapters[from:to], 0, indent)
+			return
+		}
+		fmt.Fprintf(b, "%s<li><span>%s</span>\n%s  <ol>\n", indent, utils.EscapeXML(section), indent)
+		writeNavItemsAtDepth(b, chapters[from:to], 0, indent+"    ")
+		b.WriteString(indent + "  </ol>\n" + indent + "</li>\n")
+	}
+
+	currentSection := ""
+	groupStart := 0
+	started := false
+	for _, seg := range segments {
+		if !started {
+			groupStart = seg.start
+			currentSection = chapters[seg.start].Section
+			started = true
+			continue
+		}
+		if chapters[seg.start].Section != "" {
+			flush(currentSection, groupStart, seg.start)
+			groupStart = seg.start
+			currentSection = chapters[seg.start].Section
+		}
+	}
+	if started {
+		flush(currentSection, groupStart, len(chapters))
+	}
 }
 
 func writeNavItemsAtDepth(b *strings.Builder, chapters []EpubChapter, depth int, indent string) {
@@ -632,7 +690,7 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 	if g.meta.IncludeCover {
 		b.WriteString(`      <li><a href="cover.xhtml">Cover</a></li>` + "\n")
 	}
-	writeNavItems(&b, chapters, "      ")
+	writeGroupedNavItems(&b, chapters, "      ")
 	b.WriteString(`    </ol>
   </nav>
 </body>

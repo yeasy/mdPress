@@ -520,6 +520,7 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 			if hi == 0 && h.Level == 1 && strings.TrimSpace(chDef.Title) != "" {
 				entry.Text = chDef.Title
 				entry.ID = chapterID
+				entry.Section = chDef.Section
 			}
 			allHeadings = append(allHeadings, entry)
 		}
@@ -552,6 +553,7 @@ func (p *chapterPipeline) ProcessWithOptions(ctx context.Context, options chapte
 			Content:  htmlContent,
 			Depth:    flatChapter.Depth,
 			Headings: toRendererNavHeadings(headingTree),
+			Section:  chDef.Section,
 		})
 		chapterFiles = append(chapterFiles, linkrewrite.NormalizePath(chDef.File))
 		chapterMarkdown = append(chapterMarkdown, parsed.expandedContent)

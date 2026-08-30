@@ -15,6 +15,11 @@ type HeadingInfo struct {
 	Level int    // Heading level from 1 to 6.
 	Text  string // Heading text.
 	ID    string // Unique heading identifier, typically used as an anchor.
+	// Section is the SUMMARY.md part heading this chapter starts, carried on
+	// the chapter's own top-level entry. The printed contents renders it as
+	// an unlinked group label; it used to be dropped, flattening a grouped
+	// book into one undifferentiated list.
+	Section string
 }
 
 // TOCEntry represents one node in the TOC tree.
@@ -22,6 +27,7 @@ type TOCEntry struct {
 	Level    int        // Heading level from 1 to 6.
 	Title    string     // Heading text.
 	ID       string     // Unique identifier used for anchor links.
+	Section  string     // Part heading this entry opens; see HeadingInfo.Section.
 	PageNum  int        // Optional page number for print-oriented output.
 	Children []TOCEntry // Child entries.
 }
@@ -85,6 +91,7 @@ func (g *Generator) Generate(headings []HeadingInfo) []TOCEntry {
 			Level:    heading.Level,
 			Title:    heading.Text,
 			ID:       heading.ID,
+			Section:  heading.Section,
 			Children: []TOCEntry{},
 		}
 
@@ -146,6 +153,11 @@ func (g *Generator) renderEntries(buf *strings.Builder, entries []TOCEntry, dept
 
 	for _, entry := range entries {
 		itemIndent := strings.Repeat("  ", depth+2)
+		// A part heading renders as an unlinked list item ahead of the chapter
+		// that opens the part — no anchor, no page number, valid inside <ul>.
+		if depth == 0 && entry.Section != "" {
+			fmt.Fprintf(buf, "%s<li class=\"toc-section\">%s</li>\n", itemIndent, utils.EscapeHTML(entry.Section))
+		}
 		buf.WriteString(itemIndent + `<li>`)
 		// The title, the dot leader and the page-number slot are three flex
 		// items so the number is flushed right and the leader stretches
