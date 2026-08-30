@@ -88,32 +88,6 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		return "", errors.New("render parts cannot be nil")
 	}
 
-	// Assemble CSS bundle (theme CSS + syntax highlighting + web layout
-	// re-assertions + custom CSS). The web reset comes after the theme CSS so
-	// PDF-oriented ToCSS rules (mm page margins, pt font sizing, pre-wrap
-	// code, framed tables) cannot leak into the app shell, while custom CSS
-	// stays last so users keep the final say.
-	var cssBuilder strings.Builder
-	if r.theme != nil {
-		cssBuilder.WriteString(r.theme.ToCSS())
-		cssBuilder.WriteString("\n")
-		cssBuilder.WriteString(markdown.HighlightCSSLight(r.theme.CodeTheme))
-		cssBuilder.WriteString("\n")
-		cssBuilder.WriteString(markdown.HighlightCSSDark(r.theme.CodeTheme))
-		cssBuilder.WriteString("\n")
-	}
-	cssBuilder.WriteString(standaloneWebReset)
-	cssBuilder.WriteString("\n")
-	// book.cover.background applies to every other format; honor it here too.
-	// It has to override the dark-mode palette as well, hence both selectors.
-	if bg := coverBackgroundColor(r.config); bg != "" {
-		fmt.Fprintf(&cssBuilder, ":root, :root[data-theme=\"dark\"] {\n  --color-cover-bg: %s;\n}\n", bg)
-	}
-	if parts.CustomCSS != "" {
-		cssBuilder.WriteString(utils.SanitizeCSS(parts.CustomCSS))
-		cssBuilder.WriteString("\n")
-	}
-
 	// Every chapter lands in one document here, but heading ids are only
 	// unique per chapter. Make them unique document-wide first, and remap the
 	// navigation to match, so sidebar and TOC links reach the heading the
@@ -141,6 +115,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 
 	// Convert chapter data and pre-compute prev/next navigation info.
 	chapters := make([]standaloneChapter, 0, len(navChapters))
+	hasMath := false
 	for i, ch := range navChapters {
 		chID := ch.ID
 		if chID == "" {
@@ -166,15 +141,66 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 			}
 		}
 
+		// Render math now, in Go, rather than shipping a CDN <script> that a
+		// reader offline cannot load. Only a chapter that actually contains
+		// math is touched, and only a book that contains math pays for the
+		// stylesheet and its embedded fonts below.
+		content := ch.Content
+		if strings.Contains(content, `class="math math-`) {
+			rendered, mathErrs := renderMathSpans(content)
+			for _, mathErr := range mathErrs {
+				slog.Warn("Formula could not be rendered; KaTeX will show it as an error",
+					slog.String("chapter", ch.Title), slog.String("error", mathErr.Error()))
+			}
+			content = rendered
+			hasMath = true
+		}
+
 		chapters = append(chapters, standaloneChapter{
 			Title:     ch.Title,
 			ID:        chID,
-			Content:   template.HTML(ch.Content),
+			Content:   template.HTML(content),
 			PrevTitle: prevTitle,
 			PrevID:    prevID,
 			NextTitle: nextTitle,
 			NextID:    nextID,
 		})
+	}
+
+	// Assemble CSS bundle (theme CSS + syntax highlighting + web layout
+	// re-assertions + KaTeX + custom CSS). The web reset comes after the theme
+	// CSS so PDF-oriented ToCSS rules (mm page margins, pt font sizing,
+	// pre-wrap code, framed tables) cannot leak into the app shell, while
+	// custom CSS stays last so users keep the final say.
+	var cssBuilder strings.Builder
+	if r.theme != nil {
+		cssBuilder.WriteString(r.theme.ToCSS())
+		cssBuilder.WriteString("\n")
+		cssBuilder.WriteString(markdown.HighlightCSSLight(r.theme.CodeTheme))
+		cssBuilder.WriteString("\n")
+		cssBuilder.WriteString(markdown.HighlightCSSDark(r.theme.CodeTheme))
+		cssBuilder.WriteString("\n")
+	}
+	cssBuilder.WriteString(standaloneWebReset)
+	cssBuilder.WriteString("\n")
+	// book.cover.background applies to every other format; honor it here too.
+	// It has to override the dark-mode palette as well, hence both selectors.
+	if bg := coverBackgroundColor(r.config); bg != "" {
+		fmt.Fprintf(&cssBuilder, ":root, :root[data-theme=\"dark\"] {\n  --color-cover-bg: %s;\n}\n", bg)
+	}
+	// The KaTeX stylesheet carries ~390 KB of base64 fonts, so it is only
+	// worth its weight when the book has a formula to typeset.
+	if hasMath {
+		mathCSS, err := katexInlineStylesheet()
+		if err != nil {
+			return "", fmt.Errorf("failed to inline KaTeX stylesheet: %w", err)
+		}
+		cssBuilder.WriteString(mathCSS)
+		cssBuilder.WriteString("\n")
+	}
+	if parts.CustomCSS != "" {
+		cssBuilder.WriteString(utils.SanitizeCSS(parts.CustomCSS))
+		cssBuilder.WriteString("\n")
 	}
 
 	// A non-empty CoverHTML signals that output.cover is enabled; the
