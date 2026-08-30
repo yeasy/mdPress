@@ -130,8 +130,9 @@ func checkEpubIsSelfContained(t *testing.T, epubPath string) map[string][]byte {
 // TestEpubWithMathIsSelfContained is the regression test for rank 7: math used
 // to be rendered by scripts, a stylesheet and fonts fetched from jsDelivr, so
 // every formula in an EPUB depended on the reader being online — which EPUB
-// 3.3 does not allow and an e-reader routinely is not. KaTeX now ships inside
-// the book.
+// 3.3 does not allow and an e-reader routinely is not. The formulas are
+// rendered during the build now, and only the stylesheet and fonts they are
+// drawn with travel with the book.
 func TestEpubWithMathIsSelfContained(t *testing.T) {
 	dir := t.TempDir()
 	out := path.Join(dir, "math.epub")
@@ -140,7 +141,8 @@ func TestEpubWithMathIsSelfContained(t *testing.T) {
 	gen.AddChapter(EpubChapter{
 		Title:    "Math",
 		Filename: "math.xhtml",
-		HTML:     `<p>Inline <span class="math math-inline">$E = mc^2$</span> and a block.</p>`,
+		HTML: `<p>Inline <span class="math math-inline">$E = mc^2$</span> and a block.</p>` +
+			`<p><span class="math math-display">$$\frac{a}{b}$$</span></p>`,
 	})
 	if err := gen.Generate(out); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -148,15 +150,20 @@ func TestEpubWithMathIsSelfContained(t *testing.T) {
 
 	entries := checkEpubIsSelfContained(t, out)
 
-	// The runtime a reader actually needs must all be present.
+	// What a reader actually needs to draw a pre-rendered formula.
 	for _, want := range []string{
 		"OEBPS/katex/katex.min.css",
-		"OEBPS/katex/katex.min.js",
-		"OEBPS/katex/auto-render.min.js",
 		"OEBPS/katex/LICENSE", // KaTeX is MIT; the license travels with the code
 	} {
 		if _, ok := entries[want]; !ok {
 			t.Errorf("%s is missing from the epub", want)
+		}
+	}
+	// The scripts are 275 KB of code no reading system is required to run, and
+	// nothing in the book calls them any more.
+	for name := range entries {
+		if strings.HasSuffix(name, ".js") {
+			t.Errorf("%s is packaged, but the book runs no JavaScript", name)
 		}
 	}
 	var fonts int
@@ -176,10 +183,18 @@ func TestEpubWithMathIsSelfContained(t *testing.T) {
 	if strings.Contains(chapter, "cdn.jsdelivr.net") {
 		t.Errorf("math chapter still points at the CDN:\n%s", chapter)
 	}
+	// Not one script tag, inline or external: a reading system that runs no
+	// JavaScript — which is most of them — must still see the formulas.
+	if strings.Contains(chapter, "<script") {
+		t.Errorf("math chapter contains a script:\n%s", chapter)
+	}
+	if !strings.Contains(chapter, `class="katex"`) {
+		t.Errorf("math chapter carries no rendered KaTeX markup:\n%s", chapter)
+	}
 }
 
-// TestEpubWithoutMathPackagesNoKaTeX: the runtime is ~600 KB, and a book with
-// no formulas has no reason to carry it.
+// TestEpubWithoutMathPackagesNoKaTeX: the stylesheet and fonts are ~300 KB,
+// and a book with no formulas has no reason to carry them.
 func TestEpubWithoutMathPackagesNoKaTeX(t *testing.T) {
 	dir := t.TempDir()
 	out := path.Join(dir, "plain.epub")
@@ -198,27 +213,30 @@ func TestEpubWithoutMathPackagesNoKaTeX(t *testing.T) {
 	}
 }
 
-// TestEpubMathChapterWithRemoteImageKeepsBothProperties: the two manifest
-// properties are independent. Math implies scripted; only a resource that
-// genuinely lives off the network implies remote-resources — and a math
-// chapter can still have one when an image download failed and the build
+// TestEpubMathChapterRemoteResourceProperty: math no longer says anything
+// about a chapter's manifest properties — nothing is scripted once the
+// formulas are pre-rendered. "remote-resources" is decided on its own, and a
+// math chapter still needs it when an image download failed and the build
 // degraded to the original URL.
-func TestEpubMathChapterWithRemoteImageKeepsBothProperties(t *testing.T) {
+func TestEpubMathChapterRemoteResourceProperty(t *testing.T) {
 	gen := NewEpubGenerator(EpubMeta{Title: "Mixed", Language: "en-US"})
-	chapters := []EpubChapter{
+	chapters := renderChapterMath([]EpubChapter{
 		{Title: "Both", ID: "both", Filename: "both.xhtml",
 			HTML: `<p><span class="math math-inline">$x$</span></p><p><img src="https://example.com/a.png" alt="a"/></p>`},
 		{Title: "MathOnly", ID: "mathonly", Filename: "mathonly.xhtml",
 			HTML: `<p><span class="math math-inline">$y$</span></p>`},
-	}
+	})
 	opf := gen.generateOPF(chapters, nil, nil, nil)
 
 	for _, want := range []string{
-		`href="both.xhtml" media-type="application/xhtml+xml" properties="scripted remote-resources"`,
-		`href="mathonly.xhtml" media-type="application/xhtml+xml" properties="scripted"`,
+		`href="both.xhtml" media-type="application/xhtml+xml" properties="remote-resources"`,
+		`href="mathonly.xhtml" media-type="application/xhtml+xml"/>`,
 	} {
 		if !strings.Contains(opf, want) {
 			t.Errorf("manifest is missing %s:\n%s", want, opf)
 		}
+	}
+	if strings.Contains(opf, "scripted") {
+		t.Errorf("nothing in the book is scripted any more:\n%s", opf)
 	}
 }

@@ -153,9 +153,14 @@ func (g *EpubGenerator) Generate(outputPath string) error {
 	}
 	chapters = g.resolveNameCollisions(chapters, coverAsset, chapterAssets)
 
-	// Math is rendered by a copy of KaTeX packaged inside the book, so the
-	// publication is self-contained the way EPUB 3.3 expects. Only books that
-	// actually contain a formula pay the ~600 KB.
+	// Formulas are turned into finished markup before anything else looks at a
+	// chapter, so the manifest, the stylesheet link, the asset list and the
+	// XHTML validator all see what the reader will actually get.
+	chapters = renderChapterMath(chapters)
+
+	// The stylesheet and fonts that KaTeX's visual output is drawn with are
+	// packaged inside the book, so the publication is self-contained the way
+	// EPUB 3.3 expects. Only books that actually contain a formula pay for it.
 	katexAssets, err := epubKaTeXAssets(chapters)
 	if err != nil {
 		return fmt.Errorf("package KaTeX runtime: %w", err)
@@ -459,18 +464,15 @@ func (g *EpubGenerator) generateOPF(chapters []EpubChapter, coverAsset *epubAsse
 
 	for i, ch := range chapters {
 		// EPUB 3 requires a manifest item to advertise what its document does.
-		// The two properties here are independent, and a chapter can need
-		// both: math pulls in the packaged KaTeX <script> tags ("scripted"),
-		// while a chapter that references anything off the network needs
-		// "remote-resources" or epubcheck reports OPF-014 on a book mdpress
-		// just called successful. Math no longer implies the latter — KaTeX
-		// ships inside the publication — but an image that could not be
-		// downloaded still degrades to the original <img src="https://…">,
-		// math chapter or not.
+		// Math used to imply "scripted" because KaTeX ran in the reader; it is
+		// rendered at build time now, so no document in the book is scripted
+		// and claiming otherwise only invites a reading system to warn about
+		// scripting the book never uses. "remote-resources" is independent and
+		// still needed whenever a chapter points off the network — an image
+		// that could not be downloaded degrades to the original
+		// <img src="https://…"> — or epubcheck reports OPF-014 on a book
+		// mdpress just called successful.
 		var properties []string
-		if epubChapterHasMath(ch.HTML) {
-			properties = append(properties, "scripted")
-		}
 		if epubChapterHasRemoteResource(ch.HTML) {
 			properties = append(properties, "remote-resources")
 		}
@@ -724,18 +726,19 @@ func (g *EpubGenerator) generateNavDocument(chapters []EpubChapter) string {
 // so the stylesheet and the fonts directory must stay siblings here.
 const epubKaTeXDir = "katex/"
 
-// epubKaTeXAssets returns the KaTeX runtime to package, or nil when no chapter
+// epubKaTeXAssets returns the KaTeX files to package, or nil when no chapter
 // contains math.
 //
-// Math used to be rendered by scripts and fonts fetched from a CDN. That made
-// every formula in the book depend on the reader being online — an assumption
-// an EPUB has no business making, and one EPUB 3.3 rejects outright: a
-// publication is supposed to carry its resources. Bundling costs about 600 KB
-// in books that have formulas and nothing at all in books that do not.
+// Only the presentation half ships: the stylesheet, the WOFF2 fonts it names,
+// and the MIT license that travels with them. katex.Assets also offers the two
+// scripts, for callers that render in a browser; an EPUB renders its formulas
+// during the build, so shipping them would be 275 KB of code no reading system
+// is required to run. Filtering here rather than in internal/katex keeps that
+// package usable by both kinds of caller.
 func epubKaTeXAssets(chapters []EpubChapter) ([]*epubAsset, error) {
 	var hasMath bool
 	for _, ch := range chapters {
-		if epubChapterHasMath(ch.HTML) {
+		if epubChapterHasRenderedMath(ch.HTML) {
 			hasMath = true
 			break
 		}
@@ -750,6 +753,9 @@ func epubKaTeXAssets(chapters []EpubChapter) ([]*epubAsset, error) {
 	}
 	assets := make([]*epubAsset, 0, len(files))
 	for i, f := range files {
+		if strings.HasSuffix(f.Path, ".js") {
+			continue
+		}
 		assets = append(assets, &epubAsset{
 			// A distinct prefix from the image collector's "asset-img-%03d",
 			// so a manifest id can never be claimed twice.
@@ -763,9 +769,8 @@ func epubKaTeXAssets(chapters []EpubChapter) ([]*epubAsset, error) {
 }
 
 // wrapXHTML wraps HTML body content into a complete XHTML document.
-// When the body contains math elements (class="math …"), KaTeX is injected so
-// that EPUB readers with JavaScript support (e.g. Apple Books) can render the
-// formulas. Readers without JS support will display the raw LaTeX source.
+// A body carrying KaTeX markup gets the packaged KaTeX stylesheet linked; the
+// formulas themselves are already rendered, so nothing here is scripted.
 func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	var b strings.Builder
 	if epubChapterHasMermaid(body) {
@@ -777,7 +782,7 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 		})
 	}
 	body = normalizeHTMLForXHTML(body)
-	hasMath := epubChapterHasMath(body)
+	hasMath := epubChapterHasRenderedMath(body)
 
 	// The chapter pipeline strips the leading <h1> because the PDF/HTML/site
 	// templates re-render the chapter title themselves. EPUB has no such
@@ -805,30 +810,13 @@ func (g *EpubGenerator) wrapXHTML(title, body string) string {
 	b.WriteString("  </style>\n")
 	// style.css is always packaged (theme-derived or minimal fallback).
 	b.WriteString("  <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/>\n")
-	// KaTeX is packaged into the book (see epubKaTeXAssets), so the stylesheet
-	// and its fonts resolve with no network at all.
+	// The formulas are pre-rendered spans whose layout is entirely CSS; without
+	// this stylesheet and the fonts it names they collapse into stacked glyphs.
 	if hasMath {
 		fmt.Fprintf(&b, "  <link rel=\"stylesheet\" type=\"text/css\" href=\"%skatex.min.css\"/>\n", epubKaTeXDir)
 	}
 	b.WriteString("</head>\n<body>\n")
 	b.WriteString(body)
-	// Inject KaTeX JS at the end of body for readers that support JavaScript.
-	// Readers that do not run scripts still show the LaTeX source, which is
-	// what they did before — the difference is that the ones that do no longer
-	// need a network connection to render.
-	if hasMath {
-		b.WriteString("\n")
-		fmt.Fprintf(&b, "<script src=\"%skatex.min.js\"></script>\n", epubKaTeXDir)
-		fmt.Fprintf(&b, "<script src=\"%sauto-render.min.js\"></script>\n", epubKaTeXDir)
-		b.WriteString("<script>\n")
-		b.WriteString("if(typeof renderMathInElement==='function'){\n")
-		b.WriteString("  renderMathInElement(document.querySelector('body>section')||document.body,{\n")
-		b.WriteString("    delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],\n")
-		b.WriteString("    throwOnError:false\n")
-		b.WriteString("  });\n")
-		b.WriteString("}\n")
-		b.WriteString("</script>")
-	}
 	b.WriteString("\n</body>\n</html>\n")
 	return b.String()
 }
@@ -923,8 +911,6 @@ func (g *EpubGenerator) generateCoverPage(coverAsset *epubAsset) string {
 	return b.String()
 }
 
-// epubChapterHasMath reports whether chapter HTML contains math markup
-// (Goldmark math extension output), which is rendered via KaTeX scripts.
 // epubRemoteResourcePattern matches an http(s) URL in a src/href/poster
 // attribute — what is left in a chapter when a remote asset could not be
 // packaged locally.
@@ -936,8 +922,36 @@ func epubChapterHasRemoteResource(html string) bool {
 	return epubRemoteResourcePattern.MatchString(html)
 }
 
-func epubChapterHasMath(html string) bool {
-	return strings.Contains(html, `class="math `)
+// epubChapterHasRenderedMath reports whether chapter HTML carries KaTeX output.
+//
+// The unrendered markers the Markdown pipeline emits (class="math math-inline")
+// are already gone by the time anything in the packaging path runs, so looking
+// for those would find nothing and the stylesheet would never be linked. KaTeX
+// roots every formula in a span whose class list starts with "katex" — "katex"
+// for inline, "katex-display" for display — and none of the inner classes it
+// generates ("mord", "mfrac", "mathnormal") begin that way, so the prefix
+// matches once per formula and never on ordinary prose.
+func epubChapterHasRenderedMath(html string) bool {
+	return strings.Contains(html, `class="katex`)
+}
+
+// renderChapterMath replaces every LaTeX formula with finished KaTeX markup.
+//
+// A malformed formula is not a build failure — KaTeX renders its own error
+// text in place, exactly as the browser-side renderer always did — but it is
+// warned about, because the silent alternative is an author shipping a book
+// with a typo printed where the equation should be and never hearing about it.
+func renderChapterMath(chapters []EpubChapter) []EpubChapter {
+	for i, ch := range chapters {
+		rendered, errs := katex.RenderMathSpans(ch.HTML)
+		for _, err := range errs {
+			slog.Warn("Could not render a formula in the ePub",
+				slog.String("chapter", ch.Filename),
+				slog.String("formula", err.Error()))
+		}
+		chapters[i].HTML = rendered
+	}
+	return chapters
 }
 
 // epubChapterHasMermaid reports whether chapter HTML contains a Mermaid

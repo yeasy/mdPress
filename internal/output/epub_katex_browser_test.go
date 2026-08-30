@@ -10,19 +10,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 
 	"github.com/yeasy/mdpress/internal/pdf"
 )
 
 // newOfflineBrowser returns a headless Chrome that cannot reach anything but
-// the loopback interface.
+// the loopback interface, and that will not execute a single line of page
+// JavaScript.
 //
-// This is the whole point of the test below: with the CDN reachable, a page
-// that still linked jsDelivr would render math and look identical to one
-// rendering from the packaged copy. Blackholing DNS removes that ambiguity —
-// if formulas render here, they rendered from files inside the book.
+// Both restrictions matter. With the CDN reachable, a page that still linked
+// jsDelivr would render math and look identical to one rendering from the
+// packaged copy; blackholing DNS removes that ambiguity. And with scripting
+// available, a page could still be rendering its formulas in the reader —
+// which is what most e-readers cannot do. Turning scripting off makes the test
+// a statement about the book rather than about Chrome.
+//
+// scriptEnabled=false only stops the page's own scripts; CDP evaluation runs
+// in a separate world and keeps working, which is how the probes below read
+// the DOM.
 func newOfflineBrowser(t *testing.T) context.Context {
 	t.Helper()
 	if testing.Short() {
@@ -34,6 +40,7 @@ func newOfflineBrowser(t *testing.T) context.Context {
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(context.Background(),
 		append(chromedp.DefaultExecAllocatorOptions[:],
 			chromedp.Flag("host-resolver-rules", "MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"),
+			chromedp.Flag("blink-settings", "scriptEnabled=false"),
 		)...)
 	t.Cleanup(cancelAlloc)
 	browserCtx, cancelBrowser := chromedp.NewContext(allocCtx)
@@ -48,12 +55,19 @@ func newOfflineBrowser(t *testing.T) context.Context {
 	return timeoutCtx
 }
 
-// TestEpubPackagedKaTeXRendersOffline is the proof behind the packaging: the
-// files are not merely present in the archive, they actually render the book's
-// formulas with no network available. A reading system resolves a chapter's
-// relative references against the container, which is what the file server
-// below reproduces.
-func TestEpubPackagedKaTeXRendersOffline(t *testing.T) {
+// scriptCanary is served next to the unpacked book. If its script ran, the
+// paragraph says "yes" and the global is defined — meaning scripting was still
+// on and the formula assertions below would prove nothing.
+const scriptCanary = `<!DOCTYPE html><html><body><p id="canary">no</p>` +
+	`<script>window.__scriptsRan = true; document.getElementById('canary').textContent = 'yes';</script>` +
+	`</body></html>`
+
+// TestEpubMathRendersWithoutJavaScript is the proof behind pre-rendering: the
+// formulas are finished markup in the book, so they appear with no network and
+// no scripting at all — the conditions an e-reader actually offers. A reading
+// system resolves a chapter's relative references against the container, which
+// is what the file server below reproduces.
+func TestEpubMathRendersWithoutJavaScript(t *testing.T) {
 	ctx := newOfflineBrowser(t)
 
 	dir := t.TempDir()
@@ -63,7 +77,8 @@ func TestEpubPackagedKaTeXRendersOffline(t *testing.T) {
 		Title:    "Math",
 		Filename: "math.xhtml",
 		HTML: `<p>Inline <span class="math math-inline">$E = mc^2$</span> energy.</p>` +
-			`<p><span class="math math-display">$$\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}$$</span></p>`,
+			`<p><span class="math math-display">$$\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}$$</span></p>` +
+			`<p><span class="math math-display">$$\begin{pmatrix} a &amp; b \\ c &amp; d \end{pmatrix}$$</span></p>`,
 	})
 	if err := gen.Generate(epubPath); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -81,44 +96,68 @@ func TestEpubPackagedKaTeXRendersOffline(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	srv := httptest.NewServer(http.FileServer(http.Dir(filepath.Join(root, "OEBPS"))))
+	served := filepath.Join(root, "OEBPS")
+	// The canary lives beside the book, not in it: the generator strips
+	// <script> from chapters, so there is no way to smuggle one into the page
+	// under test.
+	if err := os.WriteFile(filepath.Join(served, "canary.html"), []byte(scriptCanary), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(served)))
 	defer srv.Close()
+
+	var canary string
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate(srv.URL+"/canary.html"),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Evaluate(`String(typeof window.__scriptsRan) + "/" + document.getElementById('canary').textContent`, &canary),
+	); err != nil {
+		t.Fatalf("canary probe failed: %v", err)
+	}
+	if canary != "undefined/no" {
+		t.Fatalf("page JavaScript still executes (canary = %q); the rest of this test would prove nothing", canary)
+	}
 
 	var raw string
 	if err := chromedp.Run(ctx,
 		chromedp.Navigate(srv.URL+"/math.xhtml"),
 		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Evaluate(`new Promise(function(resolve) {
-			var start = Date.now();
-			(function check() {
-				var rendered = document.querySelectorAll('.katex').length;
-				if (rendered > 0 || Date.now() - start > 8000) {
-					resolve(JSON.stringify({
-						rendered: rendered,
-						// KaTeX emits a MathML twin next to the visual output;
-						// its presence means the library really ran.
-						mathml: document.querySelectorAll('.katex-mathml math').length,
-						// A formula that failed to render leaves the raw source.
-						leftoverSource: document.body.textContent.indexOf('\\\\frac') >= 0
-					}));
-					return;
-				}
-				setTimeout(check, 100);
-			})();
-		})`, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
-		}),
+		chromedp.Evaluate(`(function() {
+			var formulas = document.querySelectorAll('.katex');
+			var laidOut = 0;
+			for (var i = 0; i < formulas.length; i++) {
+				var box = formulas[i].getBoundingClientRect();
+				// A formula whose stylesheet never arrived still has a box, so
+				// require a plausible one: KaTeX sizes glyphs in ems.
+				if (box.width > 8 && box.height > 8) { laidOut++; }
+			}
+			return JSON.stringify({
+				rendered: formulas.length,
+				laidOut: laidOut,
+				// The MathML twin is what a screen reader speaks.
+				mathml: document.querySelectorAll('.katex-mathml math').length,
+				// The twin must not be shown next to the visual rendering: the
+				// packaged stylesheet clips it to a 1px box.
+				mathmlClipped: getComputedStyle(document.querySelector('.katex-mathml')).clip !== 'auto',
+				// A formula that never rendered would leave the raw source.
+				leftoverSource: document.body.textContent.indexOf('\\\\frac') >= 0,
+				scripts: document.querySelectorAll('script').length
+			});
+		})()`, &raw),
 	); err != nil {
 		t.Fatalf("probe failed: %v", err)
 	}
 
-	if !strings.Contains(raw, `"rendered":2`) {
-		t.Errorf("expected both formulas rendered by the packaged KaTeX, got %s", raw)
-	}
-	if strings.Contains(raw, `"leftoverSource":true`) {
-		t.Errorf("a formula was left as raw LaTeX source: %s", raw)
-	}
-	if strings.Contains(raw, `"mathml":0`) {
-		t.Errorf("KaTeX produced no MathML, so it did not really run: %s", raw)
+	for _, want := range []string{
+		`"rendered":3`,
+		`"laidOut":3`,
+		`"mathml":3`,
+		`"mathmlClipped":true`,
+		`"leftoverSource":false`,
+		`"scripts":0`,
+	} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("expected %s in the rendered page, got %s", want, raw)
+		}
 	}
 }

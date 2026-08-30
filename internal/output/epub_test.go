@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/yeasy/mdpress/internal/katex"
 	"github.com/yeasy/mdpress/internal/theme"
 )
 
@@ -246,22 +247,27 @@ func TestWrapXHTMLBasic(t *testing.T) {
 	}
 }
 
-// TestWrapXHTMLWithMath verifies that wrapXHTML includes KaTeX CDN links when math is detected.
+// TestWrapXHTMLWithMath verifies that a body carrying already-rendered KaTeX
+// markup links the packaged stylesheet and stays script-free.
 func TestWrapXHTMLWithMath(t *testing.T) {
 	gen := NewEpubGenerator(EpubMeta{Title: "Test", Language: "en"})
 
-	htmlWithMath := `<p>This is math: <span class="math display">E = mc^2</span></p>`
-	result := gen.wrapXHTML("Math Chapter", htmlWithMath)
+	rendered, errs := katex.RenderMathSpans(`<p>This is math: <span class="math math-inline">$E = mc^2$</span></p>`)
+	if len(errs) > 0 {
+		t.Fatalf("RenderMathSpans: %v", errs)
+	}
+	result := gen.wrapXHTML("Math Chapter", rendered)
 
-	// Check for KaTeX CSS and JS links
-	if !strings.Contains(result, "katex") {
-		t.Error("KaTeX CSS link not found when math content is present")
+	if !strings.Contains(result, `href="katex/katex.min.css"`) {
+		t.Error("packaged KaTeX stylesheet not linked when the body carries math")
 	}
-	if !strings.Contains(result, "renderMathInElement") {
-		t.Error("KaTeX renderMathInElement script not found")
+	// The formulas are finished markup; a reading system needs no code to show
+	// them, and most reading systems would not run any.
+	if strings.Contains(result, "<script") {
+		t.Errorf("math chapter must be script-free:\n%s", result)
 	}
-	if !strings.Contains(result, `delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]`) {
-		t.Error("KaTeX configuration not found in script")
+	if !strings.Contains(result, `class="katex"`) {
+		t.Errorf("rendered KaTeX markup did not survive wrapping:\n%s", result)
 	}
 
 	// Verify structure is still correct
@@ -1223,10 +1229,11 @@ func TestWrapXHTMLKeepsExistingHeading(t *testing.T) {
 	}
 }
 
-// TestEpubMathChapterManifestProperties verifies that a chapter containing
-// math declares properties="scripted" — and, now that KaTeX is packaged inside
-// the book, no longer claims "remote-resources" — while non-math chapters
-// carry no properties and no scripts.
+// TestEpubMathChapterManifestProperties verifies that a math chapter declares
+// no manifest properties at all. It used to declare "scripted", because KaTeX
+// ran in the reader; the formulas are rendered during the build now, so no
+// document in the book is scripted and none of them reaches off the network
+// either. Non-math chapters were, and remain, bare.
 func TestEpubMathChapterManifestProperties(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "math.epub")
@@ -1235,7 +1242,7 @@ func TestEpubMathChapterManifestProperties(t *testing.T) {
 	gen.AddChapter(EpubChapter{
 		Title:    "Math",
 		Filename: "math.xhtml",
-		HTML:     `<p><span class="math display">E = mc^2</span></p>`,
+		HTML:     `<p><span class="math math-inline">$E = mc^2$</span></p>`,
 	})
 	gen.AddChapter(EpubChapter{
 		Title:    "Plain",
@@ -1248,8 +1255,8 @@ func TestEpubMathChapterManifestProperties(t *testing.T) {
 	}
 
 	opf := readEpubFile(t, outputPath, "OEBPS/content.opf")
-	if !strings.Contains(opf, `<item id="ch0" href="math.xhtml" media-type="application/xhtml+xml" properties="scripted"/>`) {
-		t.Errorf("math chapter manifest item should declare exactly properties=\"scripted\": %s", opf)
+	if !strings.Contains(opf, `<item id="ch0" href="math.xhtml" media-type="application/xhtml+xml"/>`) {
+		t.Errorf("math chapter manifest item should declare no properties: %s", opf)
 	}
 	if !strings.Contains(opf, `<item id="ch1" href="plain.xhtml" media-type="application/xhtml+xml"/>`) {
 		t.Errorf("non-math chapter manifest item should have no properties: %s", opf)
@@ -1260,9 +1267,13 @@ func TestEpubMathChapterManifestProperties(t *testing.T) {
 	if strings.Contains(plain, "<script") {
 		t.Errorf("non-math chapter should contain no scripts: %s", plain)
 	}
+	// Neither must the math chapter: that is the whole point of pre-rendering.
 	math := readEpubFile(t, outputPath, "OEBPS/math.xhtml")
-	if !strings.Contains(math, "<script") {
-		t.Error("math chapter should embed KaTeX scripts")
+	if strings.Contains(math, "<script") {
+		t.Errorf("math chapter should contain no scripts: %s", math)
+	}
+	if !strings.Contains(math, `class="katex"`) {
+		t.Errorf("math chapter should carry rendered KaTeX markup: %s", math)
 	}
 }
 
@@ -1543,6 +1554,53 @@ func TestEpubDropsScriptFromChapters(t *testing.T) {
 	}
 	if err := validateXHTML("chapter", got); err != nil {
 		t.Errorf("chapter should stay well-formed: %v", err)
+	}
+}
+
+// TestEpubLaTeXTypoWarnsWithoutFailing covers what an author gets for a typo.
+// KaTeX prints its own error text where the equation should be, which is easy
+// to miss in a 300-page book and impossible to miss in a review — so the build
+// warns, naming the chapter and the formula. It does not fail: one bad formula
+// is not a reason to withhold the whole book, and that has always been the
+// behavior of the browser-side renderer.
+func TestEpubLaTeXTypoWarnsWithoutFailing(t *testing.T) {
+	var logged strings.Builder
+	restore := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	defer slog.SetDefault(restore)
+
+	outputPath := filepath.Join(t.TempDir(), "typo.epub")
+	gen := NewEpubGenerator(EpubMeta{Title: "Typo", Language: "en"})
+	gen.AddChapter(EpubChapter{
+		Title: "Broken", ID: "broken", Filename: "broken.xhtml",
+		HTML: `<p><span class="math math-inline">$\fracc{1}{2}$</span></p>` +
+			`<p><span class="math math-inline">$x + y$</span></p>`,
+	})
+	if err := gen.Generate(outputPath); err != nil {
+		t.Fatalf("a LaTeX typo must not fail the build: %v", err)
+	}
+
+	warnings := logged.String()
+	if !strings.Contains(warnings, "broken.xhtml") {
+		t.Errorf("the warning must name the chapter, got:\n%s", warnings)
+	}
+	if !strings.Contains(warnings, `\fracc`) {
+		t.Errorf("the warning must quote the offending formula, got:\n%s", warnings)
+	}
+	if strings.Contains(warnings, "x + y") {
+		t.Errorf("the healthy formula must not be warned about, got:\n%s", warnings)
+	}
+
+	// The good formula still renders, and the bad one leaves KaTeX's own error
+	// markup rather than a hole in the page.
+	chapter := readEpubFile(t, outputPath, "OEBPS/broken.xhtml")
+	if !strings.Contains(chapter, `class="katex"`) {
+		t.Errorf("the valid formula should still be rendered:\n%s", chapter)
+	}
+	// KaTeX's lenient pass prints the offending source in its error red
+	// (#cc0000) instead of dropping the formula and leaving a hole.
+	if !strings.Contains(chapter, "#cc0000") {
+		t.Errorf("the invalid formula should leave KaTeX error markup:\n%s", chapter)
 	}
 }
 
