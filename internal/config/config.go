@@ -254,10 +254,14 @@ func DefaultConfig() *BookConfig {
 		Book: BookMeta{
 			Title:  DefaultBookTitle,
 			Author: "",
+			// No fabricated version: a book that never declares one used to
+			// ship "Version 1.0.0" on its cover, ePub title page and HTML
+			// metadata. Discovery may still derive a real one from a git tag,
+			// and `mdpress init` scaffolds an explicit "1.0.0".
+			Version: "",
 			// Matches what `mdpress init` scaffolds. Zero-config discovery
 			// overrides this by sniffing the content, so a Chinese book still
 			// gets zh-CN without configuring anything.
-			Version:  "1.0.0",
 			Language: "en-US",
 		},
 		Style: StyleConfig{

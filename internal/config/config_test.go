@@ -1316,3 +1316,23 @@ func TestCodeThemeTypoIsCaught(t *testing.T) {
 		}
 	}
 }
+
+// TestUndeclaredVersionIsNotFabricated: DefaultConfig used to pre-fill
+// "1.0.0", so a book that never declared a version shipped "Version 1.0.0" on
+// its cover, ePub title page and HTML metadata.
+func TestUndeclaredVersionIsNotFabricated(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte("# A\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "book.yaml"), []byte("book:\n  title: T\nchapters:\n  - file: a.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(filepath.Join(dir, "book.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Book.Version != "" {
+		t.Errorf("undeclared version must stay empty, got %q", cfg.Book.Version)
+	}
+}
