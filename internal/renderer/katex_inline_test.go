@@ -79,57 +79,6 @@ func TestInlineKaTeXFontsRejectsAnUnresolvableReference(t *testing.T) {
 	}
 }
 
-// TestRenderMathSpansProducesFinishedKaTeXMarkup checks the build-time render
-// itself: no delimiters survive, and KaTeX's MathML twin is present, which is
-// only produced when the library really ran.
-func TestRenderMathSpansProducesFinishedKaTeXMarkup(t *testing.T) {
-	out, errs := renderMathSpans(mathSpanFixture)
-	if len(errs) != 0 {
-		t.Fatalf("unexpected render errors: %v", errs)
-	}
-	if strings.Contains(out, `class="math math-`) {
-		t.Error("a math span survived the build-time render")
-	}
-	if got := strings.Count(out, `class="katex`); got == 0 {
-		t.Fatal("no KaTeX markup was produced")
-	}
-	if got := strings.Count(out, "katex-mathml"); got != 2 {
-		t.Errorf("got %d MathML twins, want one per formula", got)
-	}
-	if !strings.Contains(out, `class="katex-display"`) {
-		t.Error("the display formula was not rendered in display mode")
-	}
-	if strings.Contains(out, `\frac`) && !strings.Contains(out, "annotation") {
-		t.Error("raw LaTeX survived outside the MathML annotation")
-	}
-}
-
-// TestRenderMathSpansReportsRejectedFormulas keeps a broken formula from
-// failing silently: the build has to say which one KaTeX could not parse.
-func TestRenderMathSpansReportsRejectedFormulas(t *testing.T) {
-	out, errs := renderMathSpans(`<span class="math math-inline">$\frac{1}{$</span>`)
-	if len(errs) == 0 {
-		t.Fatal("expected KaTeX to reject the malformed formula")
-	}
-	// The reader still gets KaTeX's own error rendering rather than nothing.
-	if !strings.Contains(out, "katex") {
-		t.Errorf("a rejected formula should still produce KaTeX error markup, got: %s", out)
-	}
-}
-
-// TestRenderMathSpansIgnoresFragmentsWithoutMath guards the fast path that
-// keeps the JavaScript interpreter out of every ordinary build.
-func TestRenderMathSpansIgnoresFragmentsWithoutMath(t *testing.T) {
-	in := `<p>No math here, just a $ sign.</p>`
-	out, errs := renderMathSpans(in)
-	if out != in || errs != nil {
-		t.Errorf("fragment without math was modified: %q", out)
-	}
-}
-
-// TestStandaloneEmbedsRenderedMathAndFonts is the end-to-end shape of the
-// portable file: rendered formulas, an inlined stylesheet, and no KaTeX URL
-// anywhere for a browser to try to reach.
 func TestStandaloneEmbedsRenderedMathAndFonts(t *testing.T) {
 	html := renderStandalone(t, mathSpanFixture)
 

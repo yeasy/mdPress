@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/katex"
 	"github.com/yeasy/mdpress/internal/markdown"
 	"github.com/yeasy/mdpress/internal/theme"
 	"github.com/yeasy/mdpress/pkg/utils"
@@ -147,7 +148,7 @@ func (r *StandaloneHTMLRenderer) Render(parts *RenderParts) (string, error) {
 		// stylesheet and its embedded fonts below.
 		content := ch.Content
 		if strings.Contains(content, `class="math math-`) {
-			rendered, mathErrs := renderMathSpans(content)
+			rendered, mathErrs := katex.RenderMathSpans(content)
 			for _, mathErr := range mathErrs {
 				slog.Warn("Formula could not be rendered; KaTeX will show it as an error",
 					slog.String("chapter", ch.Title), slog.String("error", mathErr.Error()))

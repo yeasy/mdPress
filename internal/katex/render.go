@@ -89,6 +89,11 @@ func (r *Renderer) renderWith(tex string, displayMode, throwOnError bool) (strin
 		"displayMode":  displayMode,
 		"output":       "htmlAndMathml",
 		"throwOnError": throwOnError,
+		// KaTeX's default strict mode reports questionable-but-renderable
+		// input through console.warn. It guards the call, so nothing breaks
+		// in an interpreter that has no console — but relying on that guard
+		// is a needless dependency on KaTeX's internals.
+		"strict": false,
 	} {
 		if err := opts.Set(key, value); err != nil {
 			return "", err
