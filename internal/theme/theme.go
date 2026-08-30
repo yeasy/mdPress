@@ -58,6 +58,21 @@ func (t *Theme) ResolvedFontSize() string {
 	return fmt.Sprintf("%dpt", t.FontSize)
 }
 
+// ScreenFontSizeCSS returns the body size the SITE should use. Theme sizes
+// are print points — the right unit for the PDF, where 11pt is a book — but
+// browsers map 11pt to 14.7px, two sizes below the 16px screen norm, so the
+// same number that reads correctly on paper reads cramped on screen. The
+// point value is rescaled anchored at 11pt→16px, preserving the themes'
+// relative intent (minimal < technical < elegant). An explicit
+// style.font_size override is returned verbatim: the author chose a unit on
+// purpose.
+func (t *Theme) ScreenFontSizeCSS() string {
+	if t.FontSizeCSS != "" {
+		return t.FontSizeCSS
+	}
+	return fmt.Sprintf("%.4gpx", float64(t.FontSize)*16.0/11.0)
+}
+
 // ApplyTypography overlays non-empty user typography onto the theme. Without
 // it, style.font_family / font_size / line_height are parsed and validated but
 // never reach any renderer.

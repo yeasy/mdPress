@@ -546,3 +546,49 @@ func TestSiteEscapeAndMobileSidebarStateTrap(t *testing.T) {
 		t.Errorf("drawer is open but still translated off-screen (x=%v, sidebar-collapsed=%v)", mob.X, mob.Collapsed)
 	}
 }
+
+// TestSiteProseMeasureIsCapped pins the reading measure on wide screens. The
+// content column grows to 1200px at 1920px viewports, and prose used to grow
+// with it — ~158 characters per line, double the readable range — while the
+// print-point theme size rendered body text at 14.7px. Prose now holds ~76ch;
+// tables, code blocks and figures keep the full column, which is what
+// actually benefits from the width.
+func TestSiteProseMeasureIsCapped(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "Measure", Language: "en-US"})
+	long := strings.Repeat("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod. ", 8)
+	gen.AddChapter(SiteChapter{
+		Title: "One", Filename: "one.html",
+		Content: `<h1>One</h1><p id="probe">` + long + `</p><pre><code>` + strings.Repeat("wide ", 60) + `</code></pre>`,
+	})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	defer srv.Close()
+
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.EmulateViewport(1920, 1000),
+		chromedp.Navigate(srv.URL+"/one.html"),
+		chromedp.WaitReady("#probe", chromedp.ByQuery),
+		chromedp.Evaluate(`JSON.stringify({
+			p: document.getElementById('probe').getBoundingClientRect().width,
+			pre: document.querySelector('.content pre').getBoundingClientRect().width
+		})`, &raw),
+		chromedp.EmulateViewport(0, 0),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	var r struct{ P, Pre float64 }
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		t.Fatalf("decode %q: %v", raw, err)
+	}
+	if r.P > 850 {
+		t.Errorf("prose measure is uncapped on a wide viewport: %.0fpx", r.P)
+	}
+	if r.Pre <= r.P+50 {
+		t.Errorf("code blocks should keep the full column width (pre=%.0fpx, prose=%.0fpx)", r.Pre, r.P)
+	}
+}

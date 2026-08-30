@@ -267,6 +267,15 @@ body.sidebar-resizing .main { transition: none; }
   max-width: min(860px, 100%); margin: 0 auto; padding: 40px 50px 80px;
   overflow-wrap: anywhere; min-width: 0;
 }
+/* Prose keeps a readable measure (~76ch) even where the column widens on
+   large screens below; only tables, code blocks and figures use the full
+   width, which is what actually benefits from it. Unbounded, a 1920px
+   viewport stretched paragraphs to ~158 characters per line. */
+.content > p, .content > ul, .content > ol, .content > blockquote,
+.content > dl, .content > h1, .content > h2, .content > h3,
+.content > h4, .content > h5, .content > h6, .content > .alert {
+  max-width: 76ch;
+}
 @media (min-width: 1400px) {
   .content { max-width: 960px; }
 }

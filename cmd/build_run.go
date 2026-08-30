@@ -1459,7 +1459,12 @@ func generateSiteOutput(cfg *config.BookConfig, thm *theme.Theme, customCSS, out
 	})
 	// Lets the generator find the project's optional static/ directory.
 	siteGen.BookRoot = cfg.BaseDir()
+	// The screen type profile comes after the theme block (whose print-point
+	// body size it corrects) and before the user's custom CSS (which always
+	// has the last word).
+	screenType := "body { font-size: " + thm.ScreenFontSizeCSS() + "; }"
 	siteGen.SetCSS(thm.ToCSS() + "\n" +
+		screenType + "\n" +
 		markdown.HighlightCSSLight(thm.CodeTheme) + "\n" +
 		markdown.HighlightCSSDark(thm.CodeTheme) + "\n" +
 		customCSS)

@@ -1728,3 +1728,26 @@ func isValidColorName(color string) bool {
 	}
 	return cssColors[strings.ToLower(color)]
 }
+
+// TestScreenFontSizeCSS pins the site's screen type scale. Theme sizes are
+// print points — right for the PDF, but browsers map 11pt to 14.7px, two
+// sizes under the 16px screen norm. The point value is rescaled anchored at
+// 11pt→16px, preserving the themes' relative intent; an explicit
+// style.font_size override passes through verbatim.
+func TestScreenFontSizeCSS(t *testing.T) {
+	for th, want := range map[*Theme]string{
+		builtinTechnical(): "16px",
+		builtinElegant():   "17.45px",
+		builtinMinimal():   "14.55px",
+	} {
+		if got := th.ScreenFontSizeCSS(); got != want {
+			t.Errorf("%s: ScreenFontSizeCSS() = %q, want %q", th.Name, got, want)
+		}
+	}
+
+	th := builtinTechnical()
+	th.ApplyTypography(TypographyOverride{FontSize: "13pt"})
+	if got := th.ScreenFontSizeCSS(); got != "13pt" {
+		t.Errorf("explicit override should pass through verbatim, got %q", got)
+	}
+}
