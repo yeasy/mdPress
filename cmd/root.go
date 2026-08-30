@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yeasy/mdpress/internal/pdf"
+	"github.com/yeasy/mdpress/pkg/utils"
 )
 
 // defaultVersion is the compiled-in version. When mdpress is built via
@@ -294,7 +295,18 @@ func initLogger() *slog.Logger {
 	// Diagnostics belong on stderr. On stdout they were swallowed by
 	// `mdpress build > build.log` along with every warning, and they polluted
 	// any attempt to pipe the build's real output.
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
+	//
+	// Two audiences, two formats. --verbose serves someone debugging mdpress
+	// itself: timestamps, key=value pairs, machine-greppable. Everyone else
+	// gets the same voice as the rest of the terminal UI — a styled one-line
+	// "⚠ file: what happened" that coordinates with the step progress instead
+	// of splicing into the middle of a pending "[2/5] … ..." line.
+	var handler slog.Handler
+	if verbose {
+		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
+	} else {
+		handler = utils.NewHumanLogHandler(os.Stderr, logLevel)
+	}
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 	return logger

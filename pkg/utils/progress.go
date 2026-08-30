@@ -5,6 +5,7 @@ package utils
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,28 @@ type ProgressTracker struct {
 	current int       // Current step index.
 	start   time.Time // Build start time.
 	silent  bool      // Suppress step output (quiet mode).
+	pending string    // Description of the step whose line is still open.
+}
+
+// pendingLine coordinates the one place two writers share a terminal line: a
+// step prints "[2/5] Parsing ..." with no newline and finishes it later, and
+// a log record emitted in between used to land in the middle of it. The log
+// handler declares the interruption; the tracker then reprints the whole step
+// line instead of appending a stray "✓" to the end of a warning.
+var pendingLine struct {
+	open        atomic.Bool
+	interrupted atomic.Bool
+}
+
+// InterruptPendingLine reports whether a progress line is currently open, and
+// records the interruption so its owner reprints the line. The caller is
+// expected to start its own output on a fresh line when this returns true.
+func InterruptPendingLine() bool {
+	if !pendingLine.open.Load() {
+		return false
+	}
+	pendingLine.interrupted.Store(true)
+	return true
 }
 
 // NewProgressTracker creates a new progress tracker.
@@ -52,6 +75,9 @@ func (p *ProgressTracker) Start(description string) {
 		return
 	}
 	prefix := fmt.Sprintf("[%d/%d]", p.current, p.total)
+	p.pending = description
+	pendingLine.open.Store(true)
+	pendingLine.interrupted.Store(false)
 
 	if colorEnabled.Load() {
 		fmt.Printf("  %s%s %s%s ...%s", colorCyan, prefix, colorReset, description, "")
@@ -60,10 +86,34 @@ func (p *ProgressTracker) Start(description string) {
 	}
 }
 
+// closePending ends the open step line and reports whether a log record broke
+// it; when one did, the caller reprints the whole "[n/m] description ..."
+// prefix so the completion mark lands on a coherent line.
+func (p *ProgressTracker) closePending() (reprint string, interrupted bool) {
+	pendingLine.open.Store(false)
+	if !pendingLine.interrupted.Swap(false) {
+		return "", false
+	}
+	return fmt.Sprintf("[%d/%d]", p.current, p.total) + " " + p.pending, true
+}
+
+// reprintPrefix restores the step line after an interruption.
+func (p *ProgressTracker) reprintPrefix(line string) {
+	if colorEnabled.Load() {
+		i := len(fmt.Sprintf("[%d/%d]", p.current, p.total))
+		fmt.Printf("  %s%s %s%s ...", colorCyan, line[:i], colorReset, line[i+1:])
+		return
+	}
+	fmt.Printf("  %s ...", line)
+}
+
 // Done marks the current step as completed.
 func (p *ProgressTracker) Done() {
 	if p.quiet() {
 		return
+	}
+	if line, interrupted := p.closePending(); interrupted {
+		p.reprintPrefix(line)
 	}
 	if colorEnabled.Load() {
 		fmt.Printf(" %s✓%s\n", colorGreen, colorReset)
@@ -77,6 +127,9 @@ func (p *ProgressTracker) Fail() {
 	if p.quiet() {
 		return
 	}
+	if line, interrupted := p.closePending(); interrupted {
+		p.reprintPrefix(line)
+	}
 	if colorEnabled.Load() {
 		fmt.Printf(" %s✗%s\n", colorRed, colorReset)
 	} else {
@@ -89,6 +142,9 @@ func (p *ProgressTracker) Skip(reason string) {
 	if p.quiet() {
 		return
 	}
+	if line, interrupted := p.closePending(); interrupted {
+		p.reprintPrefix(line)
+	}
 	if colorEnabled.Load() {
 		fmt.Printf(" %s⊘ %s%s\n", colorYellow, reason, colorReset)
 	} else {
@@ -100,6 +156,9 @@ func (p *ProgressTracker) Skip(reason string) {
 func (p *ProgressTracker) DoneWithDetail(detail string) {
 	if p.quiet() {
 		return
+	}
+	if line, interrupted := p.closePending(); interrupted {
+		p.reprintPrefix(line)
 	}
 	if colorEnabled.Load() {
 		fmt.Printf(" %s✓%s %s%s%s\n", colorGreen, colorReset, colorDim, detail, colorReset)
