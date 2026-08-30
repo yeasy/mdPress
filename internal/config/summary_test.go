@@ -392,3 +392,42 @@ And some more content...
 		t.Errorf("expected 0 chapters (no links), got %d", len(chapters))
 	}
 }
+
+// TestSummaryTitleIsNotASectionLabel: the conventional "# Summary" (or 目录)
+// self-title used to be captured like "## Part I", stamping "Summary" over the
+// first chapter group in the sidebar, ePub nav and PDF contents.
+func TestSummaryTitleIsNotASectionLabel(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	write("a.md", "# A\n")
+	write("b.md", "# B\n")
+
+	cases := []struct {
+		name, summary string
+		wantSections  []string
+	}{
+		{"gitbook self-title", "# Summary\n\n* [A](a.md)\n\n## Part I\n\n* [B](b.md)\n", []string{"", "Part I"}},
+		{"chinese self-title", "# 目录\n\n* [A](a.md)\n* [B](b.md)\n", []string{"", ""}},
+		{"mdbook part h1 kept", "# Summary\n\n* [A](a.md)\n\n# Part One\n\n* [B](b.md)\n", []string{"", "Part One"}},
+	}
+	for _, tc := range cases {
+		chapters, err := ParseSummary(write("SUMMARY.md", tc.summary))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if len(chapters) != len(tc.wantSections) {
+			t.Fatalf("%s: want %d chapters, got %d", tc.name, len(tc.wantSections), len(chapters))
+		}
+		for i, want := range tc.wantSections {
+			if chapters[i].Section != want {
+				t.Errorf("%s: chapter %d section = %q, want %q", tc.name, i, chapters[i].Section, want)
+			}
+		}
+	}
+}

@@ -26,6 +26,19 @@ import (
 // do NOT match, preventing navigation paragraphs from being parsed as chapters.
 var listItemLinkPattern = regexp.MustCompile(`^[*+\-]\s+\[([^\]]+)\]\(([^)]+)\)\s*$`)
 
+// isSummaryTitle reports whether a level-1 SUMMARY.md heading is the file's
+// conventional self-title rather than a part label. Other h1 labels are kept:
+// mdBook books use "# Part One" headings for numbered parts.
+func isSummaryTitle(label string) bool {
+	switch strings.ToLower(label) {
+	case "summary", "table of contents", "contents", "toc":
+		return true
+	case "目录", "目次", "차례", "목차":
+		return true
+	}
+	return false
+}
+
 // ParseSummary parses chapter definitions from SUMMARY.md.
 // Nesting is expressed with indentation: two spaces or one tab per level.
 func ParseSummary(path string) ([]ChapterDef, error) {
@@ -74,7 +87,12 @@ func ParseSummary(path string) ([]ChapterDef, error) {
 		// into one flat, unscannable sidebar. The label is held here and
 		// attached to the next chapter parsed.
 		if strings.HasPrefix(trimmed, "#") {
-			if label := strings.TrimSpace(strings.TrimLeft(trimmed, "#")); label != "" {
+			label := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
+			// "# Summary" (or a localized equivalent) is the document's own
+			// title — the GitBook and mdBook convention — not a part label;
+			// treating it as one stamped "Summary" over the first group of
+			// chapters in the sidebar, the ePub nav and the PDF contents.
+			if label != "" && (!strings.HasPrefix(trimmed, "# ") || !isSummaryTitle(label)) {
 				pendingSection = label
 			}
 			continue
