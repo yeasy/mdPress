@@ -97,6 +97,21 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 		outputRoot = multilingualOutputRoot(outputOverride)
 	}
 
+	if err := buildMultilingualTree(ctx, rootDir, langs, formats, outputRoot, logger); err != nil {
+		return err
+	}
+
+	fmt.Printf("  ✓ Generated index → %s\n", filepath.Join(outputRoot, "index.html"))
+	return nil
+}
+
+// buildMultilingualTree builds every language variant under outputRoot and
+// finishes the tree with the landing page and per-page language switchers.
+// It is shared by `build` and `serve`: the preview used to treat a LANGS.md
+// root as one ordinary auto-discovered book, mixing both languages into a
+// single flat sidebar — the preview and the shipped site were different
+// programs.
+func buildMultilingualTree(ctx context.Context, rootDir string, langs []i18n.LangDef, formats []string, outputRoot string, logger *slog.Logger) error {
 	summaries := make([]languageBuildSummary, 0, len(langs))
 	for _, lang := range langs {
 		langDir := filepath.Join(rootDir, lang.Dir)
@@ -149,8 +164,6 @@ func executeMultilingualBuild(ctx context.Context, rootDir string, langs []i18n.
 	if err := injectMultilingualSwitchers(outputRoot, summaries); err != nil {
 		return fmt.Errorf("failed to inject multilingual switchers: %w", err)
 	}
-
-	fmt.Printf("  ✓ Generated index → %s\n", filepath.Join(outputRoot, "index.html"))
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yeasy/mdpress/internal/config"
+	"github.com/yeasy/mdpress/internal/i18n"
 	"github.com/yeasy/mdpress/internal/renderer"
 	"github.com/yeasy/mdpress/internal/server"
 	"github.com/yeasy/mdpress/internal/source"
@@ -246,7 +247,7 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		if err != nil {
 			return fmt.Errorf("create temp output dir: %w", err)
 		}
-		if buildErr := buildSiteForServe(ctx, newCfg, staging.Site, logger); buildErr != nil {
+		if buildErr := buildServeOutput(ctx, newCfg, staging.Site, logger); buildErr != nil {
 			// Clean up the failed temp build, keep the previous good output.
 			staging.Discard(logger)
 			return buildErr
@@ -257,14 +258,14 @@ func executeServe(ctx context.Context, inputSource string, opts serveOptions) er
 		if err := swapSiteDir(staging, outputDir, logger); err != nil {
 			// Rename can fail across devices; fall back to building in place.
 			logger.Debug("Atomic site swap failed, rebuilding in place", slog.Any("error", err))
-			return buildSiteForServe(ctx, newCfg, outputDir, logger)
+			return buildServeOutput(ctx, newCfg, outputDir, logger)
 		}
 		return nil
 	}
 
 	// Initial build.
 	logger.Info("Running initial site build", slog.String("title", cfg.Book.Title))
-	if err := buildSiteForServe(ctx, cfg, outputDir, logger); err != nil {
+	if err := buildServeOutput(ctx, cfg, outputDir, logger); err != nil {
 		return fmt.Errorf("failed to build site: %w", err)
 	}
 
@@ -293,7 +294,25 @@ func cleanupServeLeftovers(outputDir string, logger *slog.Logger) {
 	}
 }
 
-// buildSiteForServe builds the preview HTML site.
+// buildServeOutput builds what serve should preview into outputDir: the same
+// multi-language tree `build` produces when LANGS.md is present, and the
+// ordinary single site otherwise. The preview used to ignore LANGS.md
+// entirely, auto-discovering the root as one book — 60 mixed-language sidebar
+// links, no sections, no switcher — while the identical directory built
+// correctly, so what the author previewed was not what they would ship.
+func buildServeOutput(ctx context.Context, cfg *config.BookConfig, outputDir string, logger *slog.Logger) error {
+	if cfg.LangsFile != "" {
+		langs, err := i18n.ParseLangsFile(cfg.LangsFile)
+		if err != nil {
+			logger.Warn("failed to parse LANGS.md, previewing as a single-language project", slog.Any("error", err))
+		} else if len(langs) > 0 {
+			return buildMultilingualTree(ctx, cfg.BaseDir(), langs, []string{"site"}, outputDir, logger)
+		}
+	}
+	return buildSiteForServe(ctx, cfg, outputDir, logger)
+}
+
+// buildSiteForServe builds the single-language preview HTML site.
 func buildSiteForServe(ctx context.Context, cfg *config.BookConfig, outputDir string, logger *slog.Logger) error {
 	if ctx == nil {
 		ctx = context.Background()
