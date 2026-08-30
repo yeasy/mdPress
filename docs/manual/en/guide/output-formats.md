@@ -7,9 +7,9 @@
 | Format | What You Get | Notes |
 | --- | --- | --- |
 | `pdf` | `book.pdf` | Default PDF output via Chromium. Honors page size, margins, TOC, cover, headers, and footers. |
-| `html` | `book.html` | Single HTML file with images, styles and scripts inlined. Math and Mermaid load from a CDN at view time. |
+| `html` | `book.html` | Single HTML file with images, styles and scripts inlined. Math is typeset into the file at build time; only Mermaid diagrams still load from a CDN at view time. |
 | `site` | `_book/` | Multi-page static site with `index.html`, chapter pages, search, and sidebar navigation. |
-| `epub` | `book.epub` | EPUB 3 package for e-readers. Self-contained: books with math carry their own copy of KaTeX, so formulas render offline. |
+| `epub` | `book.epub` | EPUB 3 package for e-readers. Self-contained: formulas are typeset at build time, so they need neither a network connection nor a reading system that runs scripts. |
 | `typst` | `book-typst.pdf` | Alternate PDF backend that requires Typst in `PATH`. |
 
 ## Building Multiple Formats

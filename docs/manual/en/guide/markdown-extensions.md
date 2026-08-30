@@ -7,12 +7,12 @@ mdPress extends standard Markdown with powerful features for technical documenta
 Write mathematical equations using KaTeX syntax. Both inline and display modes are supported.
 
 How the formulas reach the reader depends on the format. The PDF is typeset at
-build time, so it needs nothing. The site and portable HTML builds load KaTeX
-from a CDN when the page is opened. The ePub packages KaTeX inside the book —
-around 600 KB, added only to books that contain a formula — so formulas render
-with no network at all, in any reading system that runs scripts (Apple Books,
-Thorium, and Calibre's viewer among them). Readers that do not run scripts show
-the LaTeX source instead.
+build time. So are the ePub and the portable HTML file: mdPress runs KaTeX
+during the build and ships finished formulas, so both work with no network
+connection and no scripting — which matters for e-readers, most of which run no
+JavaScript at all. A book that contains no formula carries none of this. Only
+the multi-page site still loads KaTeX from a CDN when a page is opened, which is
+the right trade for something already being read in a browser.
 
 ### Inline Math
 

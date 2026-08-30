@@ -138,9 +138,27 @@ func TestEpubMathRendersWithoutJavaScript(t *testing.T) {
 				mathml: document.querySelectorAll('.katex-mathml math').length,
 				// The twin must not be shown next to the visual rendering: the
 				// packaged stylesheet clips it to a 1px box.
-				mathmlClipped: getComputedStyle(document.querySelector('.katex-mathml')).clip !== 'auto',
-				// A formula that never rendered would leave the raw source.
-				leftoverSource: document.body.textContent.indexOf('\\\\frac') >= 0,
+				mathmlClipped: (function() {
+					// Null-safe: when nothing rendered there is no twin to
+					// measure, and a probe that throws hides every other
+					// value it was about to report.
+					var twin = document.querySelector('.katex-mathml');
+					return twin !== null && getComputedStyle(twin).clip !== 'auto';
+				})(),
+				// A formula that never rendered would leave the raw source on
+				// the page. Two traps make the naive check useless: the Go
+				// raw string must hand JavaScript '\\frac' (one backslash
+				// after JS unescaping) rather than two, and KaTeX's MathML
+				// twin carries an <annotation> holding the original LaTeX, so
+				// textContent contains the source even when everything
+				// rendered perfectly. Strip the twins, then look.
+				leftoverSource: (function() {
+					var body = document.body.cloneNode(true);
+					body.querySelectorAll('.katex-mathml').forEach(function(n) { n.remove(); });
+					return body.textContent.indexOf('\\frac') >= 0;
+				})(),
+				// The pre-render markers must all be gone.
+				leftoverMarkers: document.querySelectorAll('span.math').length,
 				scripts: document.querySelectorAll('script').length
 			});
 		})()`, &raw),
@@ -154,6 +172,7 @@ func TestEpubMathRendersWithoutJavaScript(t *testing.T) {
 		`"mathml":3`,
 		`"mathmlClipped":true`,
 		`"leftoverSource":false`,
+		`"leftoverMarkers":0`,
 		`"scripts":0`,
 	} {
 		if !strings.Contains(raw, want) {
