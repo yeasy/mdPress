@@ -10,6 +10,7 @@ package config
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -58,9 +59,18 @@ func walkUnknownKeys(node map[string]any, t reflect.Type, prefix string, seen ma
 	for key, value := range node {
 		field, ok := known[key]
 		if !ok {
+			// An exact match one level down beats sibling edit-distance:
+			// GitBook's book.json keeps title/author/language at the top
+			// level, so those are the expected mistakes here — and the
+			// nearest-sibling guess turned top-level `title` into the
+			// actively misleading `did you mean "style"?`.
+			suggestion := nestedKeyHome(key, known)
+			if suggestion == "" {
+				suggestion = closestKey(key, known)
+			}
 			*out = append(*out, UnknownKey{
 				Path:       prefix + key,
-				Suggestion: closestKey(key, known),
+				Suggestion: suggestion,
 			})
 			continue
 		}
@@ -119,6 +129,30 @@ func yamlFields(t reflect.Type) map[string]reflect.StructField {
 		fields[name] = f
 	}
 	return fields
+}
+
+// nestedKeyHome reports where an unknown key would be valid one level deeper,
+// as "parent.key", or "" when no nested struct declares it. Parents are
+// scanned in sorted order so the suggestion is deterministic.
+func nestedKeyHome(name string, known map[string]reflect.StructField) string {
+	parents := make([]string, 0, len(known))
+	for parent := range known {
+		parents = append(parents, parent)
+	}
+	sort.Strings(parents)
+	for _, parent := range parents {
+		ft := known[parent].Type
+		for ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+		if ft.Kind() != reflect.Struct {
+			continue
+		}
+		if _, ok := yamlFields(ft)[name]; ok {
+			return parent + "." + name
+		}
+	}
+	return ""
 }
 
 // maxSuggestionDistance caps how far a typo may be from a known key before the

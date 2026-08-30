@@ -96,3 +96,29 @@ func TestUnknownKeyHint(t *testing.T) {
 		t.Errorf("hint should not suggest when there is no candidate, got %q", h)
 	}
 }
+
+// TestUnknownKeySuggestsNestedHome pins the hint for keys that are valid one
+// level deeper. GitBook's book.json keeps title/author/language/description at
+// the top level, so those are the expected mistakes — and the nearest-sibling
+// guess used to turn top-level `title` into the actively misleading
+// `did you mean "style"?`. An exact nested match now wins; genuine sibling
+// typos keep the edit-distance suggestion.
+func TestUnknownKeySuggestsNestedHome(t *testing.T) {
+	doc := []byte("title: T\nauthor: A\nlanguage: en\ndescription: D\nstyel:\n  theme: minimal\nbook:\n  title: Real\n")
+	got := map[string]string{}
+	for _, u := range FindUnknownKeys(doc) {
+		got[u.Path] = u.Suggestion
+	}
+	want := map[string]string{
+		"title":       "book.title",
+		"author":      "book.author",
+		"language":    "book.language",
+		"description": "book.description",
+		"styel":       "style",
+	}
+	for path, suggestion := range want {
+		if got[path] != suggestion {
+			t.Errorf("%s: suggestion = %q, want %q", path, got[path], suggestion)
+		}
+	}
+}
