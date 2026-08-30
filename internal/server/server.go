@@ -328,12 +328,24 @@ func (s *Server) StartWithListener(ctx context.Context, ln net.Listener) error {
 
 	err := server.Serve(ln)
 	if err != nil && errors.Is(err, http.ErrServerClosed) && ctx.Err() != nil {
+		// The reader pressed Ctrl+C; the banner promised that would stop the
+		// server, so say it happened rather than dying mid-sentence.
+		fmt.Printf("\n  ✓ Server stopped\n")
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+// firstLine trims an error to its opening line for the one-line terminal
+// notice; the full text still reaches the browser overlay and the -v log.
+func firstLine(msg string) string {
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		return msg[:i]
+	}
+	return msg
 }
 
 // snapshotClients returns a snapshot of the current client set, allowing
@@ -537,7 +549,7 @@ func (s *Server) injectLiveReload(next http.Handler) http.Handler {
       '#mdpress-serve-status .meta{opacity:.85;font-size:12px}' +
       '#mdpress-serve-status .actions{margin-left:auto;display:flex;gap:8px}' +
       '#mdpress-serve-status button{border:0;background:rgba(255,255,255,.18);color:inherit;padding:4px 10px;border-radius:999px;cursor:pointer;font:inherit}' +
-      '#mdpress-serve-status pre{display:none;width:100%;margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
+      '#mdpress-serve-status pre{display:none;width:100%;margin:10px 0 0;padding:10px 12px;border:0;border-radius:10px;background:rgba(0,0,0,.18);color:#fff;white-space:pre-wrap;overflow:auto;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
       '#mdpress-serve-status.show-details pre{display:block}' +
       '#mdpress-serve-panel-toggle{position:fixed;right:18px;bottom:18px;z-index:99996;border:1px solid rgba(0,0,0,.06);border-radius:999px;background:rgba(255,255,255,.82);color:#6b7280;padding:7px 10px;cursor:pointer;font:600 10px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.10);opacity:.32;transition:opacity .15s ease, transform .15s ease, background .15s ease}' +
       '#mdpress-serve-panel-toggle:hover,#mdpress-serve-panel-toggle:focus-visible{opacity:.92;transform:translateY(-1px);background:rgba(255,255,255,.96);outline:none}' +
@@ -1016,13 +1028,24 @@ func (s *Server) debouncedRebuild(ctx context.Context, triggerFile, ext string) 
 
 		s.logger.Info("File change detected, rebuilding...", slog.String("trigger", filepath.Base(triggerFile)))
 		s.notifyBuildStart()
+		rebuildStart := time.Now()
 		if s.BuildFunc != nil {
 			if err := s.BuildFunc(); err != nil {
-				s.logger.Error("Rebuild failed", slog.Any("error", err))
+				// One human sentence at every verbosity: the writer is looking
+				// at the editor, not the terminal, and a silent failure reads
+				// as a stuck reload. slog keeps the machine detail.
+				fmt.Printf("  ✗ Rebuild failed (%s): %s\n", filepath.Base(triggerFile), firstLine(err.Error()))
+				// Debug, not Error: the failure already reached the terminal
+				// above and the browser overlay below, and the raw key=value
+				// line printed as a duplicate right under the styled one.
+				s.logger.Debug("Rebuild failed", slog.Any("error", err))
 				s.notifyBuildError(err.Error())
 				return
 			}
 		}
+		// A successful editing session used to be terminal-silent from the
+		// banner onward; one line per rebuild matches the build command's tone.
+		fmt.Printf("  ↻ %s changed — rebuilt in %s\n", filepath.Base(triggerFile), time.Since(rebuildStart).Round(time.Millisecond))
 		s.logger.Info("Build completed, notifying browser to reload")
 		s.setLastBuildErr("")
 		if capturedExt == ".css" {
