@@ -1295,3 +1295,24 @@ chapters:
 		t.Errorf("bare section entry = %+v", cfg.Chapters[1].Sections)
 	}
 }
+
+// TestCodeThemeTypoIsCaught: a misspelled code_theme used to fall back to the
+// default style silently, so the setting looked like it did nothing.
+func TestCodeThemeTypoIsCaught(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Style.CodeTheme = "monokia" // typo for monokai
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("a misspelled code_theme must fail validation")
+	}
+	if !strings.Contains(err.Error(), `did you mean "monokai"`) {
+		t.Errorf("error should suggest the nearest style, got: %v", err)
+	}
+
+	for _, ok := range []string{"github", "Monokai", "dracula", "default", ""} {
+		cfg.Style.CodeTheme = ok
+		if err := cfg.Validate(); err != nil && strings.Contains(err.Error(), "code_theme") {
+			t.Errorf("code_theme %q should be accepted, got: %v", ok, err)
+		}
+	}
+}

@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strings"
 
+	chromastyles "github.com/alecthomas/chroma/v2/styles"
+
 	"github.com/yeasy/mdpress/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
@@ -508,10 +510,26 @@ func (c *BookConfig) Validate() error {
 		}
 	}
 
-	// Validate code_theme: only allow alphanumeric, hyphens, and underscores.
+	// Validate code_theme: only allow alphanumeric, hyphens, and underscores,
+	// and require a registered chroma style — a typo used to fall back to the
+	// default style silently, which reads as "my setting does nothing".
 	if c.Style.CodeTheme != "" {
 		if !codeThemePattern.MatchString(c.Style.CodeTheme) {
 			errs = append(errs, fmt.Errorf("code_theme %q contains invalid characters (only alphanumeric, hyphens, and underscores are allowed)", c.Style.CodeTheme))
+		} else if name := strings.ToLower(strings.TrimSpace(c.Style.CodeTheme)); name != "default" {
+			// "default" is a legacy value that deliberately resolves to the
+			// built-in style.
+			if _, ok := chromastyles.Registry[name]; !ok {
+				known := make([]string, 0, len(chromastyles.Registry))
+				for n := range chromastyles.Registry {
+					known = append(known, n)
+				}
+				if hint := ClosestString(name, known); hint != "" {
+					errs = append(errs, fmt.Errorf("code_theme %q is not a recognized highlighting style — did you mean %q?", c.Style.CodeTheme, hint))
+				} else {
+					errs = append(errs, fmt.Errorf("code_theme %q is not a recognized highlighting style (run with a chroma style name such as github, monokai, or dracula)", c.Style.CodeTheme))
+				}
+			}
 		}
 	}
 
