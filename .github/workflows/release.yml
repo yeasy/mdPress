@@ -68,7 +68,7 @@ jobs:
       # goreleaser shells out to these; without them the sboms:/signs: blocks
       # in .goreleaser.yml fail the run.
       - name: Install syft (SBOM generation)
-        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
 
       - name: Install cosign (checksum signing)
         uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
