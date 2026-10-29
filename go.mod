@@ -6,7 +6,7 @@ toolchain go1.26.7
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
+	github.com/chromedp/cdproto v0.158.5
 	github.com/chromedp/chromedp v0.16.0
 	github.com/dop251/goja v0.0.0-20260826204918-8f1c0696a37b
 	github.com/fsnotify/fsnotify v1.10.1
@@ -20,7 +20,6 @@ require (
 )
 
 require (
-	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.5.2 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
