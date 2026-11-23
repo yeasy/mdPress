@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
-A follow-up audit fanned twelve expert lenses across the tree and adversarially verified every finding against a real build. These are the confirmed fixes.
+---
+
+## [0.8.3] - 2026-11-23
+
+A follow-up audit fanned twelve expert lenses across the tree and adversarially verified every finding against a real build; these are the confirmed fixes. The release also brings inline math in line with GitBook and clears every reachable vulnerability.
 
 ### Security
 
@@ -1229,7 +1233,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/yeasy/mdpress/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/yeasy/mdpress/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/yeasy/mdpress/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/yeasy/mdpress/compare/v0.7.15...v0.8.0

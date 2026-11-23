@@ -2,7 +2,7 @@
 
 [中文说明](ROADMAP_zh.md)
 
-> Updated: 2026-07-23
+> Updated: 2026-11-23
 > Maintainer: mdPress product team
 
 ---
@@ -52,6 +52,7 @@ v0.7.15 ████████████████████████
 v0.8.0 ██████████████████████████████████████████ released (2026-07-23)
 v0.8.1 ██████████████████████████████████████████ released (2026-07-23)
 v0.8.2 ██████████████████████████████████████████ released (2026-07-24)
+v0.8.3 ██████████████████████████████████████████ released (2026-11-23)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1214,6 +1215,25 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | `mdpress migrate` | Resolves GitBook `{{ book.x }}` variables instead of shipping literal text, and says so in its report |
 | Release safety | `make bump VERSION=x.y.z` replaces nine hand-edited files; the pipeline now downloads a published artifact and asserts it reports its own tag — the hole that shipped `<tag>+dirty` twice |
 | Docs match the binary | Removed keys that do not exist, corrected stale defaults, and documented every 0.8.0 feature the manual never mentioned, in both languages |
+
+---
+
+## v0.8.3 — Fourth-Audit Fixes, GitBook Math And A Clean Vulnerability Scan
+
+**Release date**: 2026-11-23
+**Theme**: a fourth audit across twelve expert lenses, every finding verified against a real build; inline math aligned with GitBook; every reachable vulnerability cleared
+
+### Changes
+
+| Change | Description |
+| --- | --- |
+| Inline math matches GitBook | A `$$...$$` that shares its line with text renders inline instead of splitting the sentence into display blocks; an escaped `\$` stays a literal dollar; KaTeX renders only the spans the Markdown stage marked, so prices in prose are never paired into formulas |
+| Offline math | ePub and portable HTML typeset formulas at build time and need no CDN or JavaScript |
+| Security | `golang.org/x/net` 0.62.0 and Go 1.26.11 (toolchain and Docker builder); `govulncheck` runs in CI and reports nothing reachable; every GitHub Action pinned to a commit SHA |
+| Performance | Site builds on books with images ~16x faster; peak memory on an image-heavy book from 5.38 GB to 38 MB |
+| Site and serve | Korean and French UI; `serve` previews the multi-language site; deleted chapters are removed from an existing output directory; social-share metadata; localized accessibility labels |
+| PDF and ePub | Contents keep SUMMARY part headings; code identifiers are no longer chopped mid-token; primary outputs are written atomically |
+| Migration and config | `migrate` converts `{% hint %}` blocks and accepts an array `author`; misplaced and misspelled config keys are reported with a suggestion |
 
 ---
 
