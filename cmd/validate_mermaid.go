@@ -76,10 +76,10 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 
 	fileURL := "file://" + tmpPath
 	var status mermaidRenderStatus
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(fileURL),
 		chromedp.WaitReady("body"),
-		chromedp.ActionFunc(func(ctx context.Context) error {
+		chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
 			ticker := time.NewTicker(mermaidRenderPollInterval)
 			defer ticker.Stop()
 
@@ -87,7 +87,9 @@ func validateRenderedMermaidHTML(htmlContent string) error {
 			for {
 				select {
 				case <-ticker.C:
-					if err := chromedp.Run(ctx, chromedp.Evaluate(`window.__mdpressMermaidStatus`, &status)); err != nil {
+					var err error
+					status, err = chromedp.Evaluate[mermaidRenderStatus](`window.__mdpressMermaidStatus`)(ctx, t)
+					if err != nil {
 						return fmt.Errorf("poll mermaid render status: %w", err)
 					}
 					if status.Done {

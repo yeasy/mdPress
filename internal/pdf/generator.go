@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -848,7 +849,7 @@ func (g *Generator) generateFromSource(ctx context.Context, src documentSource, 
 	// pass found nothing to talk to. Bound the wait rather than the browser; the
 	// goroutine ends when browserCtx is canceled on return.
 	startErr := make(chan error, 1)
-	go func() { startErr <- chromedp.Run(browserCtx) }()
+	go func() { startErr <- chromedp.Do(browserCtx) }()
 	startTimer := time.NewTimer(g.timeout)
 	defer startTimer.Stop()
 	select {
@@ -1051,130 +1052,127 @@ func (g *Generator) printOnce(browserCtx context.Context, pageURL string) ([]byt
 
 	mmToInch := func(mm float64) float64 { return mm / 25.4 }
 
-	var pdfBuf []byte
-	err := chromedp.Run(ctx,
-		chromedp.Navigate(pageURL),
-		chromedp.WaitReady("body"),
+	pdfBuf, err := chromedp.Run(ctx, chromedp.Action[[]byte](func(ctx context.Context, t *chromedp.Target) ([]byte, error) {
+		if _, err := chromedp.Steps(
+			chromedp.Navigate(pageURL),
+			chromedp.WaitReady("body"),
+		)(ctx, t); err != nil {
+			return nil, err
+		}
+
 		// Wait up to 15 s (polling every 200 ms) for Mermaid diagrams to
 		// finish rendering. Mermaid loads async from CDN and replaces
 		// .mermaid divs with SVGs.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			const mermaidWaitJS = `(function() {
-				var els = document.querySelectorAll('.mermaid');
-				if (els.length === 0) return 'none';
-				var maxWait = 15000, interval = 200, elapsed = 0;
-				return new Promise(function(resolve) {
-					function check() {
-						var done = true;
-						els.forEach(function(el) {
-							if (!el.querySelector('svg')) done = false;
-						});
-						if (done) return resolve('ok');
-						elapsed += interval;
-						if (elapsed >= maxWait) return resolve('timeout');
-						setTimeout(check, interval);
-					}
-					check();
-				});
-			})()`
-			result, exp, err := runtime.Evaluate(mermaidWaitJS).
-				WithAwaitPromise(true).
-				Do(ctx)
-			if exp != nil {
-				slog.Warn("mermaid wait exception", slog.String("text", exp.Text))
-			}
-			if err == nil && result != nil && result.Value != nil {
-				status := string(result.Value)
-				if status != `"none"` {
-					slog.Debug("mermaid rendering status", slog.String("result", status))
+		const mermaidWaitJS = `(function() {
+			var els = document.querySelectorAll('.mermaid');
+			if (els.length === 0) return 'none';
+			var maxWait = 15000, interval = 200, elapsed = 0;
+			return new Promise(function(resolve) {
+				function check() {
+					var done = true;
+					els.forEach(function(el) {
+						if (!el.querySelector('svg')) done = false;
+					});
+					if (done) return resolve('ok');
+					elapsed += interval;
+					if (elapsed >= maxWait) return resolve('timeout');
+					setTimeout(check, interval);
 				}
+				check();
+			});
+		})()`
+		res, err := cdp.Call(ctx, t, runtime.Evaluate, runtime.EvaluateParams{
+			Expression:   mermaidWaitJS,
+			AwaitPromise: new(true),
+		})
+		if res.ExceptionDetails != nil {
+			slog.Warn("mermaid wait exception", slog.String("text", res.ExceptionDetails.Text))
+		}
+		if err != nil {
+			return nil, fmt.Errorf("mermaid wait evaluation: %w", err)
+		}
+		if res.Result != nil && res.Result.Value != nil {
+			status := string(res.Result.Value)
+			if status != `"none"` {
+				slog.Debug("mermaid rendering status", slog.String("result", status))
 			}
-			if err != nil {
-				return fmt.Errorf("mermaid wait evaluation: %w", err)
-			}
-			return nil
-		}),
+		}
+
 		// Wait for all @font-face sources to finish loading.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			_, exp, err := runtime.Evaluate(`document.fonts.ready.then(() => 'ok')`).
-				WithAwaitPromise(true).
-				Do(ctx)
-			if exp != nil {
-				slog.Warn("font loading exception", slog.String("text", exp.Text))
-			}
-			if err != nil {
-				return fmt.Errorf("font-face loading wait: %w", err)
-			}
-			return nil
-		}),
-		// Log font loading diagnostics for CJK debugging.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			result, _, err := runtime.Evaluate(
-				`(function() {` +
-					`var diag = {` +
-					`  fontsLoaded: document.fonts.size,` +
-					`  cjkAvailable: document.fonts.check('16px "CJK-Embedded"'),` +
-					`  hasChinese: /[\u4e00-\u9fff]/.test(document.body.innerText.substring(0,1000)),` +
-					`  bodyFont: getComputedStyle(document.body).fontFamily.substring(0,150),` +
-					`  codeFont: document.querySelector('code') ? getComputedStyle(document.querySelector('code')).fontFamily.substring(0,150) : 'no-code-element'` +
-					`};` +
-					// Check all loaded font faces for CJK-related entries
-					`var cjkFonts = [];` +
-					`document.fonts.forEach(function(f) {` +
-					`  if (f.family.indexOf('CJK') >= 0 || f.status !== 'unloaded') {` +
-					`    cjkFonts.push(f.family + ':' + f.status);` +
-					`  }` +
-					`});` +
-					`diag.fontFaces = cjkFonts.join(', ');` +
-					`return JSON.stringify(diag);` +
-					`})()`).Do(ctx)
-			if err == nil && result != nil && result.Value != nil {
-				slog.Debug("PDF font diagnostics", slog.String("info", string(result.Value)))
-			}
-			return nil // non-fatal
-		}),
+		res, err = cdp.Call(ctx, t, runtime.Evaluate, runtime.EvaluateParams{
+			Expression:   `document.fonts.ready.then(() => 'ok')`,
+			AwaitPromise: new(true),
+		})
+		if res.ExceptionDetails != nil {
+			slog.Warn("font loading exception", slog.String("text", res.ExceptionDetails.Text))
+		}
+		if err != nil {
+			return nil, fmt.Errorf("font-face loading wait: %w", err)
+		}
+
+		// Log font loading diagnostics for CJK debugging. Non-fatal.
+		res, err = cdp.Call(ctx, t, runtime.Evaluate, runtime.EvaluateParams{
+			Expression: `(function() {` +
+				`var diag = {` +
+				`  fontsLoaded: document.fonts.size,` +
+				`  cjkAvailable: document.fonts.check('16px "CJK-Embedded"'),` +
+				`  hasChinese: /[\u4e00-\u9fff]/.test(document.body.innerText.substring(0,1000)),` +
+				`  bodyFont: getComputedStyle(document.body).fontFamily.substring(0,150),` +
+				`  codeFont: document.querySelector('code') ? getComputedStyle(document.querySelector('code')).fontFamily.substring(0,150) : 'no-code-element'` +
+				`};` +
+				// Check all loaded font faces for CJK-related entries
+				`var cjkFonts = [];` +
+				`document.fonts.forEach(function(f) {` +
+				`  if (f.family.indexOf('CJK') >= 0 || f.status !== 'unloaded') {` +
+				`    cjkFonts.push(f.family + ':' + f.status);` +
+				`  }` +
+				`});` +
+				`diag.fontFaces = cjkFonts.join(', ');` +
+				`return JSON.stringify(diag);` +
+				`})()`,
+		})
+		if err == nil && res.Result != nil && res.Result.Value != nil {
+			slog.Debug("PDF font diagnostics", slog.String("info", string(res.Result.Value)))
+		}
+
 		// Force a full compositor paint pass before generating the PDF.
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var buf []byte
-			return chromedp.CaptureScreenshot(&buf).Do(ctx)
-		}),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			var err error
-			cmd := page.PrintToPDF().
-				WithPaperWidth(mmToInch(g.pageWidth)).
-				WithPaperHeight(mmToInch(g.pageHeight)).
-				WithMarginLeft(mmToInch(g.marginLeft)).
-				WithMarginRight(mmToInch(g.marginRight)).
-				WithMarginTop(mmToInch(g.marginTop)).
-				WithMarginBottom(mmToInch(g.marginBottom)).
-				WithPrintBackground(g.printBackground).
-				WithDisplayHeaderFooter(g.displayHeaderFooter).
-				WithPreferCSSPageSize(true).
-				WithGenerateDocumentOutline(g.generateDocumentOutline).
-				WithGenerateTaggedPDF(g.generateTaggedPDF)
-			if g.displayHeaderFooter {
-				if g.headerTemplate != "" {
-					cmd = cmd.WithHeaderTemplate(g.headerTemplate)
-				} else {
-					cmd = cmd.WithHeaderTemplate("<span></span>")
-				}
-				if g.footerTemplate != "" {
-					cmd = cmd.WithFooterTemplate(g.footerTemplate)
-				} else {
-					// Suppress Chrome's default footer (URL + page number).
-					cmd = cmd.WithFooterTemplate("<span></span>")
-				}
+		if _, err := chromedp.CaptureScreenshot()(ctx, t); err != nil {
+			return nil, err
+		}
+
+		params := page.PrintToPDFParams{
+			PaperWidth:              mmToInch(g.pageWidth),
+			PaperHeight:             mmToInch(g.pageHeight),
+			MarginLeft:              new(mmToInch(g.marginLeft)),
+			MarginRight:             new(mmToInch(g.marginRight)),
+			MarginTop:               new(mmToInch(g.marginTop)),
+			MarginBottom:            new(mmToInch(g.marginBottom)),
+			PrintBackground:         new(g.printBackground),
+			DisplayHeaderFooter:     new(g.displayHeaderFooter),
+			PreferCSSPageSize:       new(true),
+			GenerateDocumentOutline: new(g.generateDocumentOutline),
+			GenerateTaggedPDF:       new(g.generateTaggedPDF),
+		}
+		if g.displayHeaderFooter {
+			params.HeaderTemplate = "<span></span>"
+			if g.headerTemplate != "" {
+				params.HeaderTemplate = g.headerTemplate
 			}
-			pdfBuf, _, err = cmd.Do(ctx)
-			if err != nil {
-				// Chrome reports margins that leave no room for content as a
-				// bare CDP code. Name the settings and the arithmetic instead,
-				// so the reader knows which value to change.
-				return g.describePrintError(err)
+			// The empty footer suppresses Chrome's default (URL + page number).
+			params.FooterTemplate = "<span></span>"
+			if g.footerTemplate != "" {
+				params.FooterTemplate = g.footerTemplate
 			}
-			return nil
-		}),
-	)
+		}
+		pdf, err := cdp.Call(ctx, t, page.PrintToPDF, params)
+		if err != nil {
+			// Chrome reports margins that leave no room for content as a
+			// bare CDP code. Name the settings and the arithmetic instead,
+			// so the reader knows which value to change.
+			return nil, g.describePrintError(err)
+		}
+		return pdf.Data, nil
+	}))
 	if err != nil {
 		if timeoutErr := g.timeoutError(ctx, "rendering the PDF in Chrome"); timeoutErr != nil {
 			return nil, timeoutErr

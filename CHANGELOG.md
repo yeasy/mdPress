@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Changed
+
+- Dependencies: chromedp 0.16.0 → 0.24.0 and cdproto to v0.160.1. The PDF printer and the Mermaid validator move to the new generic action API and typed protocol commands; the PDF of a sample book is page-for-page and text-for-text identical to the one built before the upgrade.
+
 ---
 
 ## [0.8.3] - 2026-11-23

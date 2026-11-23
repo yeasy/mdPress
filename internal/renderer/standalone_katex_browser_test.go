@@ -39,7 +39,7 @@ func newOfflineStandaloneBrowser(t *testing.T) context.Context {
 	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 90*time.Second)
 	t.Cleanup(cancelTimeout)
 	// Chrome being installed is not the same as Chrome being able to start.
-	if err := chromedp.Run(timeoutCtx); err != nil {
+	if err := chromedp.Do(timeoutCtx); err != nil {
 		t.Skipf("Chrome is installed but would not start here: %v", err)
 	}
 	return timeoutCtx
@@ -61,10 +61,10 @@ func TestStandaloneMathRendersOffline(t *testing.T) {
 	}
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate("file://"+path),
-		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Evaluate(`(function() {
+		chromedp.WaitReady(chromedp.CSS("body")),
+		evalInto(`(function() {
 			// document.fonts.ready settles once the embedded WOFF2 faces are
 			// decoded, so the boxes measured below are the real laid-out ones.
 			return document.fonts.ready.then(function() {
@@ -90,8 +90,8 @@ func TestStandaloneMathRendersOffline(t *testing.T) {
 					assetError: document.querySelectorAll('.asset-error').length
 				});
 			});
-		})()`, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		})()`, &raw, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
 	); err != nil {
 		t.Fatalf("probe failed: %v", err)

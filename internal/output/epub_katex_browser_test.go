@@ -49,7 +49,7 @@ func newOfflineBrowser(t *testing.T) context.Context {
 	t.Cleanup(cancelTimeout)
 	// Chrome being installed is not the same as Chrome being able to start;
 	// see newBrowser in site_browser_test.go for the sandboxed-CI case.
-	if err := chromedp.Run(timeoutCtx); err != nil {
+	if err := chromedp.Do(timeoutCtx); err != nil {
 		t.Skipf("Chrome is installed but would not start here: %v", err)
 	}
 	return timeoutCtx
@@ -107,10 +107,10 @@ func TestEpubMathRendersWithoutJavaScript(t *testing.T) {
 	defer srv.Close()
 
 	var canary string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(srv.URL+"/canary.html"),
-		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Evaluate(`String(typeof window.__scriptsRan) + "/" + document.getElementById('canary').textContent`, &canary),
+		chromedp.WaitReady(chromedp.CSS("body")),
+		evalInto(`String(typeof window.__scriptsRan) + "/" + document.getElementById('canary').textContent`, &canary),
 	); err != nil {
 		t.Fatalf("canary probe failed: %v", err)
 	}
@@ -119,10 +119,10 @@ func TestEpubMathRendersWithoutJavaScript(t *testing.T) {
 	}
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(srv.URL+"/math.xhtml"),
-		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Evaluate(`(function() {
+		chromedp.WaitReady(chromedp.CSS("body")),
+		evalInto(`(function() {
 			var formulas = document.querySelectorAll('.katex');
 			var laidOut = 0;
 			for (var i = 0; i < formulas.length; i++) {

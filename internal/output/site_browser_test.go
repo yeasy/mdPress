@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -112,7 +113,7 @@ func newBrowser(t *testing.T) context.Context {
 	// context of that first Run; a shorter-lived one would be canceled out
 	// from under the test. A real launch means the failures that follow are
 	// real.
-	if err := chromedp.Run(timeoutCtx); err != nil {
+	if err := chromedp.Do(timeoutCtx); err != nil {
 		t.Skipf("Chrome is installed but would not start here: %v", err)
 	}
 
@@ -128,11 +129,11 @@ func runSearch(t *testing.T, ctx context.Context, pageURL, query string) searchP
 	}
 	js := strings.Replace(searchProbeJS, "%s", string(quoted), 1)
 	var raw string
-	err = chromedp.Run(ctx,
+	err = chromedp.Do(ctx,
 		chromedp.Navigate(pageURL),
-		chromedp.WaitReady("#search-input", chromedp.ByQuery),
-		chromedp.Evaluate(js, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		chromedp.WaitReady(chromedp.CSS("#search-input")),
+		evalInto(js, &raw, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
 	)
 	if err != nil {
@@ -236,11 +237,11 @@ func TestSitePageLoadsSharedAssets(t *testing.T) {
 		"file://" + filepath.ToSlash(filepath.Join(dir, "intro.html")),
 	} {
 		var raw string
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.Navigate(pageURL),
-			chromedp.WaitReady(".sidebar", chromedp.ByQuery),
+			chromedp.WaitReady(chromedp.CSS(".sidebar")),
 			chromedp.Sleep(500*time.Millisecond),
-			chromedp.Evaluate(probeJS, &raw),
+			evalInto(probeJS, &raw),
 		); err != nil {
 			t.Fatalf("load %s: %v", pageURL, err)
 		}
@@ -307,12 +308,12 @@ func TestSiteSPACrossDepthImageResolves(t *testing.T) {
 	probe := func(t *testing.T, startURL, linkSuffix string) imageState {
 		t.Helper()
 		var raw string
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.Navigate(startURL),
-			chromedp.WaitReady(".sidebar", chromedp.ByQuery),
+			chromedp.WaitReady(chromedp.CSS(".sidebar")),
 			chromedp.Sleep(500*time.Millisecond),
-			chromedp.Evaluate(clickJS(linkSuffix), &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-				return p.WithAwaitPromise(true)
+			evalInto(clickJS(linkSuffix), &raw, func(p *runtime.EvaluateParams) {
+				p.AwaitPromise = new(true)
 			}),
 		); err != nil {
 			t.Fatalf("navigation failed: %v", err)
@@ -419,10 +420,10 @@ func TestSiteDarkModeHeadingContrast(t *testing.T) {
       return JSON.stringify(out);
     })()`
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(srv.URL+"/levels.html"),
-		chromedp.WaitReady(".content h6", chromedp.ByQuery),
-		chromedp.Evaluate(probeJS, &raw),
+		chromedp.WaitReady(chromedp.CSS(".content h6")),
+		evalInto(probeJS, &raw),
 	); err != nil {
 		t.Fatalf("load levels.html: %v", err)
 	}
@@ -491,11 +492,11 @@ func TestSiteEscapeAndMobileSidebarStateTrap(t *testing.T) {
       });
     })()`
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(srv.URL+"/intro.html"),
-		chromedp.WaitReady("#search-input", chromedp.ByQuery),
-		chromedp.Evaluate(escProbe, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		chromedp.WaitReady(chromedp.CSS("#search-input")),
+		evalInto(escProbe, &raw, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
 	); err != nil {
 		t.Fatalf("escape probe failed: %v", err)
@@ -522,12 +523,12 @@ func TestSiteEscapeAndMobileSidebarStateTrap(t *testing.T) {
       return JSON.stringify({ open: sb.classList.contains('open'), x: x,
         collapsed: document.body.classList.contains('sidebar-collapsed') });
     })()`
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(375, 812),
 		chromedp.Navigate(srv.URL+"/intro.html"),
-		chromedp.WaitReady(".sidebar-toggle", chromedp.ByQuery),
-		chromedp.Evaluate(mobileProbe, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		chromedp.WaitReady(chromedp.CSS(".sidebar-toggle")),
+		evalInto(mobileProbe, &raw, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
 		chromedp.EmulateViewport(0, 0),
 	); err != nil {
@@ -571,11 +572,11 @@ func TestSiteProseMeasureIsCapped(t *testing.T) {
 	defer srv.Close()
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(1920, 1000),
 		chromedp.Navigate(srv.URL+"/one.html"),
-		chromedp.WaitReady("#probe", chromedp.ByQuery),
-		chromedp.Evaluate(`JSON.stringify({
+		chromedp.WaitReady(chromedp.CSS("#probe")),
+		evalInto(`JSON.stringify({
 			p: document.getElementById('probe').getBoundingClientRect().width,
 			pre: document.querySelector('.content pre').getBoundingClientRect().width
 		})`, &raw),
@@ -626,11 +627,11 @@ func TestSiteSidebarScrollsToActiveOnLoad(t *testing.T) {
 	defer srv.Close()
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(1280, 800),
 		chromedp.Navigate(srv.URL+"/ch70.html"),
-		chromedp.WaitReady("body", chromedp.ByQuery),
-		chromedp.Evaluate(`new Promise(function(resolve) {
+		chromedp.WaitReady(chromedp.CSS("body")),
+		evalInto(`new Promise(function(resolve) {
 			function probe() {
 				// Give the load handler a frame to run after the load event.
 				setTimeout(function() {
@@ -646,8 +647,8 @@ func TestSiteSidebarScrollsToActiveOnLoad(t *testing.T) {
 			}
 			if (document.readyState === 'complete') { probe(); }
 			else { window.addEventListener('load', probe); }
-		})`, &raw, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		})`, &raw, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
 		chromedp.EmulateViewport(0, 0),
 	); err != nil {
@@ -687,11 +688,11 @@ func TestSiteWideTablesScrollOnMobile(t *testing.T) {
 	defer srv.Close()
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(375, 812, chromedp.EmulateScale(1)),
 		chromedp.Navigate(srv.URL+"/wide.html"),
-		chromedp.WaitReady("#tok", chromedp.ByQuery),
-		chromedp.Evaluate(`(function() {
+		chromedp.WaitReady(chromedp.CSS("#tok")),
+		evalInto(`(function() {
 			var td = document.getElementById('tok');
 			var wrap = td.closest('.table-scroll');
 			// Count the line boxes the identifier occupies: an unbroken token
@@ -742,25 +743,25 @@ func TestSiteCopyButtonKeyboardAndFallback(t *testing.T) {
 	// calls: :focus-visible needs genuine keyboard input, and the legacy
 	// execCommand fallback needs user activation.
 	var hidden, focused, raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.EmulateViewport(1280, 800),
 		chromedp.Navigate(srv.URL+"/code.html"),
-		chromedp.WaitReady(".copy-btn", chromedp.ByQuery),
-		chromedp.Evaluate(`getComputedStyle(document.querySelector('.copy-btn')).opacity`, &hidden),
+		chromedp.WaitReady(chromedp.CSS(".copy-btn")),
+		evalInto(`getComputedStyle(document.querySelector('.copy-btn')).opacity`, &hidden),
 		// Force the modern clipboard API to refuse, as it does under a
 		// permissions policy or an unfocused document, so the click below
 		// exercises the execCommand fallback rather than the happy path.
-		chromedp.Evaluate(`void Object.defineProperty(navigator.clipboard, 'writeText', {
+		chromedp.Evaluate[chromedp.Void](`void Object.defineProperty(navigator.clipboard, 'writeText', {
 			value: function() { return Promise.reject(new Error('denied')); }
-		})`, nil),
+		})`),
 	); err != nil {
 		t.Fatalf("setup failed: %v", err)
 	}
 	for i := 0; i < 40; i++ {
 		var onButton bool
-		if err := chromedp.Run(ctx,
+		if err := chromedp.Do(ctx,
 			chromedp.KeyEvent("\t"),
-			chromedp.Evaluate(`document.activeElement !== null && document.activeElement.classList.contains('copy-btn')`, &onButton),
+			evalInto(`document.activeElement !== null && document.activeElement.classList.contains('copy-btn')`, &onButton),
 		); err != nil {
 			t.Fatalf("tabbing failed: %v", err)
 		}
@@ -771,10 +772,10 @@ func TestSiteCopyButtonKeyboardAndFallback(t *testing.T) {
 			t.Fatal("never reached the copy button by keyboard")
 		}
 	}
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		// Wait out the opacity transition instead of sleeping a fixed time —
 		// a slow CI runner read 0.85 mid-transition with a flat sleep.
-		chromedp.Evaluate(`new Promise(function(resolve) {
+		evalInto(`new Promise(function(resolve) {
 			var btn = document.querySelector('.copy-btn');
 			var start = Date.now();
 			(function check() {
@@ -782,12 +783,12 @@ func TestSiteCopyButtonKeyboardAndFallback(t *testing.T) {
 				if (o === '1' || Date.now() - start > 3000) return resolve(o);
 				setTimeout(check, 50);
 			})();
-		})`, &focused, func(p *runtime.EvaluateParams) *runtime.EvaluateParams {
-			return p.WithAwaitPromise(true)
+		})`, &focused, func(p *runtime.EvaluateParams) {
+			p.AwaitPromise = new(true)
 		}),
-		chromedp.Click(".copy-btn", chromedp.ByQuery),
+		chromedp.Click(chromedp.CSS(".copy-btn")),
 		chromedp.Sleep(400*time.Millisecond),
-		chromedp.Evaluate(`JSON.stringify({
+		evalInto(`JSON.stringify({
 			copied: document.querySelector('.copy-btn').classList.contains('copied'),
 			label: document.querySelector('.copy-btn').textContent
 		})`, &raw),
@@ -848,18 +849,20 @@ func TestSitePrintLinksAreUnderlined(t *testing.T) {
 	defer srv.Close()
 
 	var raw string
-	if err := chromedp.Run(ctx,
+	if err := chromedp.Do(ctx,
 		chromedp.Navigate(srv.URL+"/links.html"),
-		chromedp.WaitReady("#ext", chromedp.ByQuery),
-		chromedp.ActionFunc(func(c context.Context) error {
-			return emulation.SetEmulatedMedia().WithMedia("print").Do(c)
+		chromedp.WaitReady(chromedp.CSS("#ext")),
+		chromedp.Func(func(c context.Context, t *chromedp.Target) error {
+			_, err := cdp.Call(c, t, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{Media: "print"})
+			return err
 		}),
-		chromedp.Evaluate(`JSON.stringify({
+		evalInto(`JSON.stringify({
 			color: getComputedStyle(document.getElementById('ext')).color,
 			deco: getComputedStyle(document.getElementById('ext')).textDecorationLine
 		})`, &raw),
-		chromedp.ActionFunc(func(c context.Context) error {
-			return emulation.SetEmulatedMedia().Do(c)
+		chromedp.Func(func(c context.Context, t *chromedp.Target) error {
+			_, err := cdp.Call(c, t, emulation.SetEmulatedMedia, emulation.SetEmulatedMediaParams{})
+			return err
 		}),
 	); err != nil {
 		t.Fatalf("probe failed: %v", err)
