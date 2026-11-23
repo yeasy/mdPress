@@ -6,9 +6,16 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+---
+
+## [0.8.4] - 2026-11-23
+
+A dependency release: the Chrome driver moves to chromedp 0.24, and three routine updates land with it.
+
 ### Changed
 
 - Dependencies: chromedp 0.16.0 → 0.24.0 and cdproto to v0.160.1. The PDF printer and the Mermaid validator move to the new generic action API and typed protocol commands; the PDF of a sample book is page-for-page and text-for-text identical to the one built before the upgrade.
+- Dependencies: goldmark 1.8.5 → 1.8.7, `golang.org/x/net` 0.62.0 → 0.63.0, pflag 1.0.10 → 1.1.0.
 
 ---
 
@@ -1237,7 +1244,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/yeasy/mdpress/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/yeasy/mdpress/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/yeasy/mdpress/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/yeasy/mdpress/compare/v0.8.0...v0.8.1
