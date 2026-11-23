@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file. The format 
 
 ---
 
+## [0.8.5] - 2026-11-23
+
+### Fixed
+
+- Use the same ideographic reading width for prose and headings on Chinese, Japanese, and Korean sites. Tables, code blocks, and figures can still use the full column.
+
+### Changed
+
+- Update the Chrome DevTools Protocol dependency to cdproto v0.160.6.
+
+---
+
 ## [0.8.4] - 2026-11-23
 
 A dependency release: the Chrome driver moves to chromedp 0.24, and three routine updates land with it.
@@ -1244,7 +1256,8 @@ Large hardening release from a full project audit: correctness bugs across the M
 
 ---
 
-[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/yeasy/mdpress/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/yeasy/mdpress/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/yeasy/mdpress/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/yeasy/mdpress/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/yeasy/mdpress/compare/v0.8.1...v0.8.2

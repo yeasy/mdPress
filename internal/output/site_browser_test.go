@@ -596,6 +596,51 @@ func TestSiteProseMeasureIsCapped(t *testing.T) {
 	}
 }
 
+func TestSiteChineseProseUsesAWiderMeasure(t *testing.T) {
+	ctx := newBrowser(t)
+	dir := t.TempDir()
+	gen := NewSiteGenerator(SiteMeta{Title: "阅读测试", Language: "zh-CN"})
+	gen.AddChapter(SiteChapter{
+		Title: "正文", Filename: "one.html",
+		Content: `<h1>正文</h1><p>` + strings.Repeat("这是一段用来检查阅读宽度的正文。", 16) +
+			`</p><pre><code>` + strings.Repeat("wide ", 60) + `</code></pre>`,
+	})
+	if err := gen.Generate(dir); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	srv := httptest.NewServer(http.FileServer(http.Dir(dir)))
+	defer srv.Close()
+
+	const probe = `({
+		prose: document.querySelector('.content > p').getBoundingClientRect().width,
+		heading: document.querySelector('.content > h1').getBoundingClientRect().width,
+		code: document.querySelector('.content pre').getBoundingClientRect().width,
+		page: document.documentElement.scrollWidth
+	})`
+	var desktop, mobile struct{ Prose, Heading, Code, Page float64 }
+	if err := chromedp.Do(ctx,
+		chromedp.EmulateViewport(1920, 1000),
+		chromedp.Navigate(srv.URL+"/one.html"),
+		chromedp.WaitReady(chromedp.CSS(".content > p")),
+		evalInto(probe, &desktop),
+		chromedp.EmulateViewport(375, 812),
+		chromedp.Navigate(srv.URL+"/one.html?mobile"),
+		chromedp.WaitReady(chromedp.CSS(".content > p")),
+		evalInto(probe, &mobile),
+	); err != nil {
+		t.Fatalf("probe failed: %v", err)
+	}
+	if desktop.Prose < 900 || desktop.Prose > 1000 || desktop.Heading != desktop.Prose {
+		t.Errorf("Chinese prose and headings should share a wider capped measure: %+v", desktop)
+	}
+	if desktop.Code <= desktop.Prose {
+		t.Errorf("code should keep the full column width: %+v", desktop)
+	}
+	if mobile.Page > 375 || mobile.Prose < 330 || mobile.Prose != mobile.Heading {
+		t.Errorf("Chinese chapter should fit the mobile viewport: %+v", mobile)
+	}
+}
+
 // TestSiteSidebarScrollsToActiveOnLoad reproduces the fresh-load race: the
 // nav-activation pass runs from the bottom-of-body script, which can execute
 // before the external stylesheet has applied, so scrollIntoView computed the

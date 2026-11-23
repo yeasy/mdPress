@@ -54,6 +54,7 @@ v0.8.1 ████████████████████████�
 v0.8.2 ██████████████████████████████████████████ released (2026-07-24)
 v0.8.3 ██████████████████████████████████████████ released (2026-11-23)
 v0.8.4 ██████████████████████████████████████████ released (2026-11-23)
+v0.8.5 ██████████████████████████████████████████ released (2026-11-23)
 v1.0.0 ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ planned (target: 2027-Q1)
 ```
 
@@ -1249,6 +1250,12 @@ v0.7.10 is a security and stability release. It hardens HTML/CSS escaping in the
 | --- | --- |
 | chromedp 0.24 | The PDF printer and the Mermaid validator use chromedp's generic action API and typed protocol commands; a sample book prints page-for-page and text-for-text the same as before |
 | Dependencies | goldmark 1.8.7, `golang.org/x/net` 0.63.0, pflag 1.1.0 |
+
+---
+
+## v0.8.5 — CJK site typography
+
+Chinese, Japanese, and Korean site pages now use a shared ideographic width for prose and headings on wide screens. The release also updates cdproto to v0.160.6.
 
 ---
 
