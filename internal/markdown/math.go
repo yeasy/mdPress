@@ -159,17 +159,36 @@ func (m *mathPreprocessor) substituteMath(src string) string {
 
 	// Handle inline math ($...$), skipping inline code spans so that '$'
 	// characters inside `...` are left untouched.
-	return mathProcessOutsideCodeSpans(src, func(segment string) string {
-		return inlineMathPattern.ReplaceAllStringFunc(segment, func(match string) string {
-			sub := inlineMathPattern.FindStringSubmatch(match)
-			if len(sub) < 2 {
-				return match
-			}
-			idx := len(m.inlines)
-			m.inlines = append(m.inlines, sub[1])
-			return fmt.Sprintf(mathInlineFmt, idx)
-		})
-	})
+	return mathProcessOutsideCodeSpans(src, m.substituteInlineMath)
+}
+
+// substituteInlineMath replaces $...$ in one code-free segment. A dollar sign
+// escaped as \$ is a literal dollar (as in a price, "\$8/\$40"), so it neither
+// opens nor closes a formula; it is left for goldmark to unescape.
+func (m *mathPreprocessor) substituteInlineMath(segment string) string {
+	var b strings.Builder
+	pos := 0
+	for pos < len(segment) {
+		loc := inlineMathPattern.FindStringSubmatchIndex(segment[pos:])
+		if loc == nil {
+			break
+		}
+		start, end := pos+loc[0], pos+loc[1]
+		content := segment[pos+loc[2] : pos+loc[3]]
+		if (start > 0 && segment[start-1] == '\\') || strings.HasSuffix(content, `\`) {
+			// Escaped delimiter: keep the opening '$' as text and rescan after it,
+			// so a real formula later on the line is still found.
+			b.WriteString(segment[pos : start+1])
+			pos = start + 1
+			continue
+		}
+		b.WriteString(segment[pos:start])
+		fmt.Fprintf(&b, mathInlineFmt, len(m.inlines))
+		m.inlines = append(m.inlines, content)
+		pos = end
+	}
+	b.WriteString(segment[pos:])
+	return b.String()
 }
 
 // blockMathStandsAlone reports whether the $$...$$ at src[start:end] is a

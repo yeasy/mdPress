@@ -313,3 +313,44 @@ func TestDoubleDollarInlineRendersWithoutDelimiters(t *testing.T) {
 		t.Errorf("unexpected inline span: %s", out)
 	}
 }
+
+// TestEscapedDollarIsNotMath pins that \$ is a literal dollar: a price such as
+// "\$8/\$40" must not be paired into a formula, while real math on the same
+// line still is.
+func TestEscapedDollarIsNotMath(t *testing.T) {
+	cases := []struct {
+		name   string
+		input  string
+		inline int
+	}{
+		{"price pair", `价格 \$8/\$40。`, 0},
+		{"price in table", `| a | \$8/\$40 |`, 0},
+		{"price then math", `价格 \$8，变量 $x$。`, 1},
+		{"math then price", `$x$ 售价 \$5/\$9`, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMathPreprocessor()
+			out := m.postprocess(m.preprocess(tc.input))
+			if got := strings.Count(out, `class="math math-inline"`); got != tc.inline {
+				t.Errorf("inline spans = %d, want %d\n%s", got, tc.inline, out)
+			}
+			if !strings.Contains(out, `\$`) {
+				t.Errorf("escaped dollar lost before goldmark: %s", out)
+			}
+		})
+	}
+}
+
+// TestEscapedDollarRendersAsDollar checks the full parser turns "\$8/\$40"
+// into "$8/$40" text with no math and no stray backslash.
+func TestEscapedDollarRendersAsDollar(t *testing.T) {
+	p := NewParser()
+	html, _, err := p.Parse([]byte(`价格 \$8/\$40。`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, "$8/$40") || strings.Contains(html, "math") || strings.Contains(html, `\`) {
+		t.Errorf("unexpected rendering: %s", html)
+	}
+}
