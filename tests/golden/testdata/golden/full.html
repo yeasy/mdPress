@@ -974,9 +974,10 @@ body {
       var ar = document.createElement('script');
       ar.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.44/dist/contrib/auto-render.min.js';
       ar.onload = function() {
-        var els = document.querySelectorAll('.chapter-content');
-        if (els.length === 0) els = [document.body];
-        els.forEach(function(el) {
+        
+        
+        
+        document.querySelectorAll('.math').forEach(function(el) {
           renderMathInElement(el, {
             delimiters: [
               {left: '$$', right: '$$', display: true},

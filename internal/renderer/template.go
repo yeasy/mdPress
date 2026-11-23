@@ -594,9 +594,10 @@ const htmlTemplate = `<!DOCTYPE html>
       var ar = document.createElement('script');
       ar.src = '{{KATEX_AUTO_RENDER_URL}}';
       ar.onload = function() {
-        var els = document.querySelectorAll('.chapter-content');
-        if (els.length === 0) els = [document.body];
-        els.forEach(function(el) {
+        // Render only the spans the Markdown stage marked as math. Scanning
+        // whole chapters paired any two literal dollars in prose (a price
+        // such as "$8/$40") into a formula.
+        document.querySelectorAll('.math').forEach(function(el) {
           renderMathInElement(el, {
             delimiters: [
               {left: '$$', right: '$$', display: true},

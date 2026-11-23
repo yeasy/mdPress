@@ -2040,13 +2040,17 @@ var siteScriptJS = `  /* ===== Theme Management ===== */
     function runKaTeX() {
       if (typeof renderMathInElement !== 'function') return;
       try {
+        // Render only the spans the Markdown stage marked as math, so literal
+        // dollars in prose (a price such as "$8/$40") are never paired up.
         var katexRoot = document.querySelector('.content') || document.body;
-        renderMathInElement(katexRoot, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$',  right: '$',  display: false}
-          ],
-          throwOnError: false
+        katexRoot.querySelectorAll('.math').forEach(function(el) {
+          renderMathInElement(el, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$',  right: '$',  display: false}
+            ],
+            throwOnError: false
+          });
         });
       } catch (e) {
         console.warn('[mdpress] KaTeX render failed', e);
