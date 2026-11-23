@@ -2,7 +2,7 @@
 # Pin the builder to the native build platform so cross-arch builds (e.g.
 # linux/arm64) compile with Go's own cross-compiler instead of emulating the
 # whole toolchain under QEMU. CGO is off, so cross-compilation is free.
-FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.11-alpine AS builder
 
 RUN apk add --no-cache ca-certificates
 
