@@ -265,3 +265,51 @@ func TestMathNotRenderedInsideIndentedCode(t *testing.T) {
 		t.Errorf("math outside code stopped rendering (list continuation regressed):\n%s", body)
 	}
 }
+
+// TestDoubleDollarInRunningTextIsInline pins the GitBook convention: a $$...$$
+// that shares its line with other text is inline math, while one that occupies
+// its own line (single-line or fenced by $$ lines) stays display math.
+func TestDoubleDollarInRunningTextIsInline(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   string
+		inline  int
+		display int
+	}{
+		{"mid-sentence", "漂移率为 $$10^{-7}$$，原子钟为 $$\\alpha$$。", 2, 0},
+		{"line start with trailing text", "$$x$$ is positive.", 1, 0},
+		{"table cell", "| a | $$x_1$$ |", 1, 0},
+		{"list item", "- $$x$$", 1, 0},
+		{"two on one line", "$$a$$ $$b$$", 2, 0},
+		{"own line", "Before\n$$E = mc^2$$\nAfter", 0, 1},
+		{"delimiter lines", "Text:\n\n$$\na + b\n= c\n$$\n\nMore", 0, 1},
+		{"indented in blockquote", "> $$\n> x\n> $$", 0, 1},
+		{"own line trailing spaces", "$$x$$  \nnext", 0, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMathPreprocessor()
+			out := m.postprocess(m.preprocess(tc.input))
+			if got := strings.Count(out, `class="math math-inline"`); got != tc.inline {
+				t.Errorf("inline spans = %d, want %d\n%s", got, tc.inline, out)
+			}
+			if got := strings.Count(out, `class="math math-display"`); got != tc.display {
+				t.Errorf("display spans = %d, want %d\n%s", got, tc.display, out)
+			}
+			if strings.Contains(out, "MDPMATH") {
+				t.Errorf("placeholder leaked: %s", out)
+			}
+		})
+	}
+}
+
+// TestDoubleDollarInlineRendersWithoutDelimiters checks the inline span written
+// for a mid-sentence $$...$$ carries single-dollar delimiters, which is what the
+// KaTeX stage strips for inline math.
+func TestDoubleDollarInlineRendersWithoutDelimiters(t *testing.T) {
+	m := newMathPreprocessor()
+	out := m.postprocess(m.preprocess("值为 $$ x_1 $$ 时"))
+	if !strings.Contains(out, `<span class="math math-inline">$x_1$</span>`) {
+		t.Errorf("unexpected inline span: %s", out)
+	}
+}

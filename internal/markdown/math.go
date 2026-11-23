@@ -133,15 +133,29 @@ func ProcessOutsideCodeSpans(text string, fn func(string) string) string {
 func (m *mathPreprocessor) substituteMath(src string) string {
 	// Handle block math ($$...$$) first to avoid the inline pattern matching
 	// against the inner $ of a $$ delimiter.
-	src = blockMathPattern.ReplaceAllStringFunc(src, func(match string) string {
-		sub := blockMathPattern.FindStringSubmatch(match)
-		if len(sub) < 2 {
-			return match
+	//
+	// A $$...$$ that shares its line with other text is inline math, not display
+	// math. This follows GitBook, where "rate is $$10^{-7}$$ per day" renders the
+	// formula in the running text; books written for GitBook use $$ for all inline
+	// math because GitBook does not recognize single-dollar delimiters. Rendering
+	// such a span as display math split one sentence into several paragraphs.
+	var b strings.Builder
+	last := 0
+	for _, loc := range blockMathPattern.FindAllStringSubmatchIndex(src, -1) {
+		start, end := loc[0], loc[1]
+		content := src[loc[2]:loc[3]]
+		b.WriteString(src[last:start])
+		if blockMathStandsAlone(src, start, end) {
+			fmt.Fprintf(&b, mathBlockFmt, len(m.blocks))
+			m.blocks = append(m.blocks, content)
+		} else {
+			fmt.Fprintf(&b, mathInlineFmt, len(m.inlines))
+			m.inlines = append(m.inlines, strings.TrimSpace(content))
 		}
-		idx := len(m.blocks)
-		m.blocks = append(m.blocks, sub[1])
-		return fmt.Sprintf(mathBlockFmt, idx)
-	})
+		last = end
+	}
+	b.WriteString(src[last:])
+	src = b.String()
 
 	// Handle inline math ($...$), skipping inline code spans so that '$'
 	// characters inside `...` are left untouched.
@@ -156,6 +170,21 @@ func (m *mathPreprocessor) substituteMath(src string) string {
 			return fmt.Sprintf(mathInlineFmt, idx)
 		})
 	})
+}
+
+// blockMathStandsAlone reports whether the $$...$$ at src[start:end] is a
+// display formula: nothing but indentation or blockquote markers precedes its
+// opening $$ on that line, and nothing but whitespace follows its closing $$.
+func blockMathStandsAlone(src string, start, end int) bool {
+	lineStart := strings.LastIndexByte(src[:start], '\n') + 1
+	if strings.Trim(src[lineStart:start], " \t>") != "" {
+		return false
+	}
+	lineEnd := strings.IndexByte(src[end:], '\n')
+	if lineEnd < 0 {
+		lineEnd = len(src) - end
+	}
+	return strings.TrimSpace(src[end:end+lineEnd]) == ""
 }
 
 // restorePlainText replaces math placeholder tokens with their original
