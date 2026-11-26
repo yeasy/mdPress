@@ -124,9 +124,9 @@ homebrew_casks:
     # install so macOS Gatekeeper does not block the unsigned binary.
     hooks:
       post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/mdpress"]
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/mdpress"]
           end
 
 release:
