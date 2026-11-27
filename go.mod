@@ -6,11 +6,11 @@ toolchain go1.26.11
 
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
-	github.com/chromedp/cdproto v0.160.6
+	github.com/chromedp/cdproto v0.160.8
 	github.com/chromedp/chromedp v0.24.0
 	github.com/dop251/goja v0.0.0-20260826204918-8f1c0696a37b
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
 	github.com/yuin/goldmark v1.8.7
